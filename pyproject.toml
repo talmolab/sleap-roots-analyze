@@ -1,6 +1,6 @@
 [project]
 name = "sleap-roots-analyze"
-version = "0.0.1a0"
+version = "0.0.1"
 description = "Analyze, visualize, and interpret root traits output from sleap-roots."
 readme = "README.md"
 authors = [
@@ -28,3 +28,14 @@ dev = [
     "toml>=0.10.2",
     "twine>=6.1.0",
 ]
+
+[tool.black]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "D",  # pydocstyle
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
