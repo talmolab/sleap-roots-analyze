@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "src/sleap_roots_analyze/**"
+      - "tests/**"
+      - ".github/workflows/ci.yml"
+      - "pyproject.toml"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dev dependencies
+        run: uv sync --extra dev
+
+      - name: Run Black
+        run: uv run black --check src/sleap_roots_analyze tests
+
+      - name: Run Ruff
+        run: uv run ruff check src/sleap_roots_analyze
+
+  tests:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu", "windows", "mac"]
+        include:
+          - os: ubuntu
+            runs-on: ubuntu-latest
+          - os: windows
+            runs-on: windows-latest
+          - os: mac
+            runs-on: macos-14
+        python: [3.11]
+
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - name: Set up Python (non-self-hosted GPU)
+        if: matrix.os != 'self-hosted-gpu'
+        run: uv python install ${{ matrix.python }}
+
+      - name: Install dev dependencies
+        run: uv sync --extra dev
+
+      - name: Print environment info
+        run: |
+          echo "=== UV Environment ==="
+          uv run python --version
+          uv run python -c "import sys; print('Python executable:', sys.executable)"
+          echo "=== UV Environment NumPy Check ==="
+          uv run python -c "import numpy; print('NumPy version:', numpy.__version__); print('NumPy location:', numpy.__file__)" || echo "NumPy import failed in uv environment"
+          echo "=== PIP EXECUTABLE COMPARISON ==="
+          uv run python -c "import subprocess; print('pip from uv run python:', subprocess.check_output(['pip', '--version']).decode().strip())" || echo "pip not found from python"
+          uv run pip --version || echo "uv run pip failed"
+          echo "=== UV pip list ==="
+          echo "--- uv run pip list ---"
+          uv run pip list
+          echo "=== UV ENVIRONMENT CHECK ==="
+          uv run python -c "import os; print('VIRTUAL_ENV:', os.environ.get('VIRTUAL_ENV', 'Not set'))"
+
+      - name: Run pytest
+        run: |
+          echo "=== Running pytest ==="
+          uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=-1 tests/
+
+    #   - name: Upload coverage
+    #     uses: codecov/codecov-action@v5
+    #     with:
+    #       fail_ci_if_error: true
+    #       verbose: false
+    #       token: ${{ secrets.CODECOV_TOKEN }}
