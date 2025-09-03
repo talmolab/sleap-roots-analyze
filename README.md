@@ -87,11 +87,12 @@ Utilities for loading and cleaning root trait data:
 git clone https://github.com/yourusername/sleap-roots-analyze.git
 cd sleap-roots-analyze
 
-# Install with uv
-uv sync
+# Install with uv (including dev dependencies for testing, linting, etc.)
+uv sync --group dev
 
-# Install in editable mode
-uv pip install -e .
+# Note: The project uses dependency-groups, not extras
+# Main dependencies only: uv sync
+# With dev tools: uv sync --group dev
 ```
 
 ### Running Tests

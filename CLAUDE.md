@@ -12,13 +12,28 @@ This document provides guidelines for AI assistants (particularly Claude) when w
 
 ## Development Environment
 
+### Dependency Management
+
+The project uses `uv` with dependency groups (not extras):
+- Main dependencies: Defined in `[project.dependencies]`
+- Dev dependencies: Defined in `[dependency-groups.dev]`
+
+To install:
+```bash
+# Install only main dependencies
+uv sync
+
+# Install main + dev dependencies (recommended for development)
+uv sync --group dev
+```
+
 ### Tools and Commands
 
 The project uses `uv` for dependency management. Key commands:
 
 ```bash
-# Environment setup
-uv sync
+# Environment setup (installs main + dev dependencies)
+uv sync --group dev
 
 # Run tests
 uv run pytest
@@ -189,7 +204,7 @@ def process_data(df, optional_col=None):
 
 ### Common Issues
 
-1. **Import errors**: Run `uv sync` to install dependencies
+1. **Import errors**: Run `uv sync --group dev` to install all dependencies
 2. **Coverage not working**: Use full module paths with `--cov`
 3. **Test data missing**: Ensure CSV files exist in `tests/data/`
 4. **Black formatting**: Run `uv run black` to auto-format

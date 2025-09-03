@@ -129,7 +129,7 @@ See `.github/workflows/ci.yml` for CI configuration.
 
 ### Common Issues
 
-1. **Import errors**: Ensure `uv sync` has been run
+1. **Import errors**: Ensure `uv sync --group dev` has been run
 2. **Missing test data**: Check that CSV files exist in `tests/data/`
 3. **Coverage not working**: Use `--cov` flag with full module paths
 
