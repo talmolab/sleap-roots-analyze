@@ -154,7 +154,7 @@ def link_images_to_samples(
     image_types: Optional[List[str]] = None,
     barcode_col: str = "Barcode",
 ) -> Dict[str, Dict[str, Optional[Path]]]:
-    """Link sample barcodes to their corresponding image files.
+    """Link Rhizovision images to their corresponding sample barcodes.
 
     Args:
         df: Trait dataframe with barcode/ID column
@@ -191,24 +191,6 @@ def link_images_to_samples(
                 image_links[barcode][img_type] = None
 
     return image_links
-
-
-def create_run_directory(base_dir: Path | str = "turface_analysis/runs") -> Path:
-    """Create timestamped run directory for outputs.
-
-    Args:
-        base_dir: Base directory for runs
-
-    Returns:
-        Path to created run directory
-    """
-    base_dir = Path(base_dir)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = base_dir / f"run_{timestamp}"
-
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    return run_dir
 
 
 def save_cleaned_data(
@@ -253,28 +235,6 @@ def save_cleaned_data(
     return cleaned_path, log_path
 
 
-def _convert_to_json_serializable(obj):
-    """Convert numpy types to JSON serializable types recursively."""
-    if isinstance(obj, dict):
-        return {k: _convert_to_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_convert_to_json_serializable(item) for item in obj]
-    elif isinstance(obj, tuple):
-        return tuple(_convert_to_json_serializable(item) for item in obj)
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
-        return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
-        return float(obj)
-    elif isinstance(obj, (np.bool_, bool)):
-        return bool(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif hasattr(obj, "tolist"):
-        return obj.tolist()
-    else:
-        return obj
-
-
 def remove_nan_samples(
     df: pd.DataFrame,
     trait_cols: List[str],
@@ -282,11 +242,13 @@ def remove_nan_samples(
     barcode_col: str = "Barcode",
     genotype_col: str = "geno",
     replicate_col: Optional[str] = "rep",
+    save_removed_path: Optional[Path | str] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
-    """Remove samples with NaN values in trait columns.
+    """Remove samples with NaN values in trait columns and optionally save removed rows.
 
     This is the centralized function for NaN removal that should be called
-    before any outlier detection or other analysis.
+    before any outlier detection or other analysis. It handles both removal
+    and saving of removed samples in a single operation.
 
     Args:
         df: Original dataframe
@@ -295,12 +257,14 @@ def remove_nan_samples(
         barcode_col: Name of the barcode/plant ID column (default: "Barcode")
         genotype_col: Name of the genotype column (default: "geno")
         replicate_col: Name of the replicate column if present (default: "rep")
+        save_removed_path: Optional path to save removed samples CSV. If provided,
+                          removed samples will be saved with NaN information.
 
     Returns:
         Tuple of:
         - DataFrame with NaN samples removed
         - DataFrame of removed samples with NaN info
-        - Dictionary with removal statistics
+        - Dictionary with removal statistics (includes 'saved_path' if saved)
     """
     removal_stats = {
         "original_samples": len(df),
@@ -380,58 +344,20 @@ def remove_nan_samples(
     removal_stats["samples_retained"] = len(df_cleaned)
     removal_stats["removal_details"] = removed_details
 
-    return df_cleaned, df_removed, removal_stats
-
-
-def save_nan_removed_rows(
-    df_original: pd.DataFrame,
-    df_cleaned: pd.DataFrame,
-    run_dir: Path | str,
-    trait_cols: List[str],
-) -> Path:
-    """Save rows that were removed due to NaN values.
-
-    Args:
-        df_original: Original dataframe before NaN removal
-        df_cleaned: Dataframe after NaN removal
-        run_dir: Run directory path
-        trait_cols: List of trait columns that were checked for NaNs
-
-    Returns:
-        Path to saved NaN-removed rows CSV
-    """
-    run_dir = Path(run_dir)
-
-    # Find rows that were removed (those in original but not in cleaned)
-    original_indices = set(df_original.index)
-    cleaned_indices = set(df_cleaned.index)
-    removed_indices = original_indices - cleaned_indices
-
-    if removed_indices:
-        # Get the removed rows
-        removed_rows = df_original.loc[list(removed_indices)].copy()
-
-        # Add information about which traits had NaNs
-        nan_info = []
-        for idx in removed_indices:
-            nan_traits = [
-                col for col in trait_cols if pd.isna(df_original.loc[idx, col])
-            ]
-            nan_info.append("; ".join(nan_traits) if nan_traits else "Unknown")
-
-        removed_rows["nan_traits"] = nan_info
-        removed_rows["removal_reason"] = "Contains NaN values in trait columns"
-
-        # Save to CSV
-        nan_removed_path = run_dir / "nan_removed_rows.csv"
-        removed_rows.to_csv(nan_removed_path, index=False)
-
-        return nan_removed_path
-    else:
+    # Save removed samples if path provided
+    if save_removed_path and not df_removed.empty:
+        save_path = Path(save_removed_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        df_removed.to_csv(save_path, index=False)
+        removal_stats["saved_path"] = str(save_path)
+    elif save_removed_path:
         # Create empty file if no rows were removed
-        nan_removed_path = run_dir / "nan_removed_rows.csv"
-        pd.DataFrame(columns=["removal_reason"]).to_csv(nan_removed_path, index=False)
-        return nan_removed_path
+        save_path = Path(save_removed_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(columns=df_removed.columns).to_csv(save_path, index=False)
+        removal_stats["saved_path"] = str(save_path)
+
+    return df_cleaned, df_removed, removal_stats
 
 
 def get_numeric_traits_only(
@@ -576,3 +502,178 @@ def remove_low_heritability_traits(
     }
 
     return df_cleaned, traits_to_remove, summary
+
+
+def apply_data_cleanup_filters(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    max_zeros_per_trait: float = 0.5,
+    max_nans_per_trait: float = 0.3,
+    max_nans_per_sample: float = 0.2,
+    min_samples_per_trait: int = 10,
+) -> Tuple[pd.DataFrame, Dict]:
+    """Apply configurable data cleanup filters to minimize sample loss.
+
+    Args:
+        df: Original dataframe
+        trait_cols: List of trait column names
+        max_zeros_per_trait: Maximum fraction of zeros allowed per trait (0-1)
+        max_nans_per_trait: Maximum fraction of NaNs allowed per trait (0-1)
+        max_nans_per_sample: Maximum fraction of NaNs allowed per sample (0-1)
+        min_samples_per_trait: Minimum number of valid samples required per trait
+
+    Returns:
+        Tuple of (cleaned_dataframe, cleanup_log)
+    """
+    cleanup_log = {
+        "original_samples": len(df),
+        "original_traits": len(trait_cols),
+        "removed_traits": [],
+        "removed_samples": [],
+        "cleanup_steps": [],
+        "removed_samples_detail": [],  # Detailed info about removed samples
+    }
+
+    df_clean = df.copy()
+    valid_traits = trait_cols.copy()
+
+    # Step 1: Remove traits with too many zeros
+    traits_to_remove = []
+    for trait in valid_traits:
+        if trait in df_clean.columns:
+            zero_fraction = (df_clean[trait] == 0).sum() / len(df_clean)
+            if zero_fraction > max_zeros_per_trait:
+                traits_to_remove.append(trait)
+                cleanup_log["removed_traits"].append(
+                    {
+                        "trait": trait,
+                        "reason": "too_many_zeros",
+                        "zero_fraction": float(zero_fraction),
+                    }
+                )
+
+    valid_traits = [t for t in valid_traits if t not in traits_to_remove]
+    if traits_to_remove:
+        df_clean = df_clean.drop(columns=traits_to_remove)
+    cleanup_log["cleanup_steps"].append(
+        {
+            "step": "remove_high_zero_traits",
+            "traits_removed": len(traits_to_remove),
+            "remaining_traits": len(valid_traits),
+        }
+    )
+
+    # Step 2: Remove traits with too many NaNs
+    traits_to_remove = []
+    for trait in valid_traits:
+        if trait in df_clean.columns:
+            nan_fraction = df_clean[trait].isna().sum() / len(df_clean)
+            if nan_fraction > max_nans_per_trait:
+                traits_to_remove.append(trait)
+                cleanup_log["removed_traits"].append(
+                    {
+                        "trait": trait,
+                        "reason": "too_many_nans",
+                        "nan_fraction": float(nan_fraction),
+                    }
+                )
+
+    valid_traits = [t for t in valid_traits if t not in traits_to_remove]
+    if traits_to_remove:
+        df_clean = df_clean.drop(columns=traits_to_remove)
+    cleanup_log["cleanup_steps"].append(
+        {
+            "step": "remove_high_nan_traits",
+            "traits_removed": len(traits_to_remove),
+            "remaining_traits": len(valid_traits),
+        }
+    )
+
+    # Step 3: Remove samples with too many NaNs in remaining traits
+    if valid_traits:
+        samples_to_remove = []
+        for idx in df_clean.index:
+            nan_count = df_clean.loc[idx, valid_traits].isna().sum()
+            nan_fraction = nan_count / len(valid_traits)
+            if nan_fraction > max_nans_per_sample:
+                samples_to_remove.append(idx)
+                sample_info = {
+                    "sample_index": int(idx),
+                    "barcode": (
+                        df_clean.loc[idx, "Barcode"]
+                        if "Barcode" in df_clean.columns
+                        else "Unknown"
+                    ),
+                    "genotype": (
+                        df_clean.loc[idx, "geno"]
+                        if "geno" in df_clean.columns
+                        else "Unknown"
+                    ),
+                    "rep": (
+                        df_clean.loc[idx, "rep"]
+                        if "rep" in df_clean.columns
+                        else "Unknown"
+                    ),
+                    "reason": "too_many_nans",
+                    "nan_fraction": float(nan_fraction),
+                    "nan_count": int(nan_count),
+                    "nan_traits": [
+                        trait
+                        for trait in valid_traits
+                        if pd.isna(df_clean.loc[idx, trait])
+                    ],
+                }
+                cleanup_log["removed_samples"].append(sample_info)
+                cleanup_log["removed_samples_detail"].append(sample_info)
+
+        df_clean = df_clean.drop(index=samples_to_remove)
+        cleanup_log["cleanup_steps"].append(
+            {
+                "step": "remove_high_nan_samples",
+                "samples_removed": len(samples_to_remove),
+                "remaining_samples": len(df_clean),
+            }
+        )
+
+    # Step 4: Remove traits with insufficient samples after cleanup
+    traits_to_remove = []
+    for trait in valid_traits:
+        if trait in df_clean.columns:
+            valid_samples = df_clean[trait].notna().sum()
+            if valid_samples < min_samples_per_trait:
+                traits_to_remove.append(trait)
+                cleanup_log["removed_traits"].append(
+                    {
+                        "trait": trait,
+                        "reason": "insufficient_samples",
+                        "valid_samples": int(valid_samples),
+                        "required_samples": min_samples_per_trait,
+                    }
+                )
+
+    valid_traits = [t for t in valid_traits if t not in traits_to_remove]
+    if traits_to_remove:
+        df_clean = df_clean.drop(columns=traits_to_remove)
+    cleanup_log["cleanup_steps"].append(
+        {
+            "step": "remove_low_sample_traits",
+            "traits_removed": len(traits_to_remove),
+            "remaining_traits": len(valid_traits),
+        }
+    )
+
+    # Final summary
+    cleanup_log["final_samples"] = len(df_clean)
+    cleanup_log["final_traits"] = len(valid_traits)
+    cleanup_log["samples_retained_fraction"] = (
+        len(df_clean) / cleanup_log["original_samples"]
+        if cleanup_log["original_samples"] > 0
+        else 0
+    )
+    cleanup_log["traits_retained_fraction"] = (
+        len(valid_traits) / cleanup_log["original_traits"]
+        if cleanup_log["original_traits"] > 0
+        else 0
+    )
+
+    return df_clean, cleanup_log

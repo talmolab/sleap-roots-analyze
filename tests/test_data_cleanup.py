@@ -12,12 +12,13 @@ from src.sleap_roots_analyze.data_cleanup import (
     load_trait_data,
     get_trait_columns,
     link_images_to_samples,
-    create_run_directory,
     save_cleaned_data,
     remove_nan_samples,
-    save_nan_removed_rows,
     get_numeric_traits_only,
     remove_low_heritability_traits,
+)
+from src.sleap_roots_analyze.data_utils import (
+    create_run_directory,
     _convert_to_json_serializable,
 )
 
