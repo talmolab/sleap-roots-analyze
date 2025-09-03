@@ -7,7 +7,10 @@ authors = [
     { name = "eberrigan", email = "eberrigan@salk.edu" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "numpy>=2.3.2",
+    "pandas>=2.3.2",
+]
 
 [project.scripts]
 sleap-roots-analyze = "sleap_roots_analyze:main"
