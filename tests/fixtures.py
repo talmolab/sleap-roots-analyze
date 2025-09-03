@@ -700,6 +700,70 @@ def rng():
 
 
 @pytest.fixture
+def zero_inflated_data():
+    """Create data with various levels of zero inflation."""
+    np.random.seed(42)
+    return pd.DataFrame(
+        {
+            "geno": ["G1"] * 10,
+            "rep": list(range(1, 11)),
+            "trait_all_zeros": [0] * 10,
+            "trait_half_zeros": [0, 0, 0, 0, 0, 1, 2, 3, 4, 5],
+            "trait_no_zeros": np.random.randint(1, 10, 10),
+            "trait_normal": np.random.randn(10)
+            + 5,  # Normal distribution, unlikely to have zeros
+        }
+    )
+
+
+@pytest.fixture
+def nan_data():
+    """Create data with various levels of NaN values."""
+    return pd.DataFrame(
+        {
+            "geno": ["G1"] * 10,
+            "rep": list(range(1, 11)),
+            "trait_all_nan": [np.nan] * 10,
+            "trait_half_nan": [np.nan] * 5 + [1, 2, 3, 4, 5],
+            "trait_some_nan": [np.nan, np.nan] + list(range(8)),
+            "trait_no_nan": list(range(10)),
+        }
+    )
+
+
+@pytest.fixture
+def sparse_data():
+    """Create data with various sample counts."""
+    return pd.DataFrame(
+        {
+            "geno": ["G1"] * 10,
+            "rep": list(range(1, 11)),
+            "trait_sparse": [np.nan] * 7 + [1, 2, 3],  # Only 3 valid samples
+            "trait_dense": list(range(10)),  # All 10 samples valid
+            "trait_half": [np.nan] * 5 + [1, 2, 3, 4, 5],  # 5 valid samples
+        }
+    )
+
+
+@pytest.fixture
+def mixed_problem_data():
+    """Create data with multiple quality issues."""
+    np.random.seed(42)
+    return pd.DataFrame(
+        {
+            "Barcode": [f"BC{i:03d}" for i in range(20)],
+            "geno": ["G1"] * 10 + ["G2"] * 10,
+            "rep": list(range(1, 11)) * 2,
+            "trait_zero_inflated": [0] * 15 + list(range(5)),  # 75% zeros
+            "trait_many_nans": [np.nan] * 8 + list(range(12)),  # 40% NaNs
+            "trait_sparse": [np.nan] * 17 + [1, 2, 3],  # Only 3 valid samples
+            "trait_good": np.random.randn(20) + 10,  # Good trait
+            "trait_ok": [np.nan] * 3 + list(range(17)),  # 15% NaNs, should pass
+        }
+    )
+
+
+@pytest.fixture
 def empty_dataframe():
     """Create an empty DataFrame for edge case testing."""
     return pd.DataFrame()
