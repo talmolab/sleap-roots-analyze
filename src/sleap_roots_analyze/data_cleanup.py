@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
+from .data_utils import _convert_to_json_serializable, create_run_directory
+
 
 def load_trait_data(
     csv_path: Path | str,
