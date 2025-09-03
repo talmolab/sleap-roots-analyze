@@ -450,53 +450,60 @@ class TestRemoveNanSamples:
         assert len(df_removed) == 0
         assert stats["samples_with_any_nan"] == 0
 
-
-class TestSaveNanRemovedRows:
-    """Tests for save_nan_removed_rows function."""
-
-    def test_save_removed_rows(self, tmp_path):
-        """Test saving removed rows to CSV."""
-        df_original = pd.DataFrame(
+    def test_save_removed_samples(self, tmp_path):
+        """Test saving removed samples to CSV."""
+        df = pd.DataFrame(
             {
                 "Barcode": ["BC001", "BC002", "BC003"],
+                "geno": ["G1", "G2", "G3"],
+                "rep": [1, 2, 3],
                 "trait1": [1.0, np.nan, 3.0],
-                "trait2": [4.0, 5.0, 6.0],
+                "trait2": [4.0, 5.0, np.nan],
             }
-        )
-
-        df_cleaned = pd.DataFrame(
-            {
-                "Barcode": ["BC001", "BC003"],
-                "trait1": [1.0, 3.0],
-                "trait2": [4.0, 6.0],
-            },
-            index=[0, 2],
         )
 
         trait_cols = ["trait1", "trait2"]
-        path = save_nan_removed_rows(df_original, df_cleaned, tmp_path, trait_cols)
+        save_path = tmp_path / "nan_removed.csv"
 
-        assert path.exists()
-        removed_df = pd.read_csv(path)
-        assert len(removed_df) == 1
-        assert "nan_traits" in removed_df.columns
-        assert "removal_reason" in removed_df.columns
+        df_cleaned, df_removed, stats = remove_nan_samples(
+            df, trait_cols, max_nan_fraction=0.3, save_removed_path=save_path
+        )
 
-    def test_no_removed_rows(self, tmp_path):
-        """Test when no rows are removed."""
+        # Check that file was saved
+        assert save_path.exists()
+        assert stats["saved_path"] == str(save_path)
+
+        # Read saved file and verify content
+        saved_df = pd.read_csv(save_path)
+        assert len(saved_df) == 2  # Two samples removed
+        assert "nan_traits" in saved_df.columns
+        assert "removal_reason" in saved_df.columns
+
+    def test_save_empty_file_when_no_removals(self, tmp_path):
+        """Test saving empty file when no samples are removed."""
         df = pd.DataFrame(
             {
                 "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
                 "trait1": [1.0, 2.0],
+                "trait2": [3.0, 4.0],
             }
         )
 
-        trait_cols = ["trait1"]
-        path = save_nan_removed_rows(df, df, tmp_path, trait_cols)
+        trait_cols = ["trait1", "trait2"]
+        save_path = tmp_path / "nan_removed.csv"
 
-        assert path.exists()
-        removed_df = pd.read_csv(path)
-        assert len(removed_df) == 0
+        df_cleaned, df_removed, stats = remove_nan_samples(
+            df, trait_cols, save_removed_path=save_path
+        )
+
+        # Check that empty file was saved
+        assert save_path.exists()
+        assert stats["saved_path"] == str(save_path)
+
+        # Read saved file and verify it's empty
+        saved_df = pd.read_csv(save_path)
+        assert len(saved_df) == 0
 
 
 class TestGetNumericTraitsOnly:
