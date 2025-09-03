@@ -61,7 +61,7 @@ jobs:
         with:
           enable-cache: false
 
-      - name: Set up Python (non-self-hosted GPU)
+      - name: Set up Python
         if: matrix.os != 'self-hosted-gpu'
         run: uv python install ${{ matrix.python }}
 
