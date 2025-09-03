@@ -504,6 +504,120 @@ def remove_low_heritability_traits(
     return df_cleaned, traits_to_remove, summary
 
 
+def remove_zero_inflated_traits(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    max_zero_fraction: float = 0.5,
+) -> Tuple[pd.DataFrame, List[str], Dict]:
+    """Remove traits with excessive zero values.
+
+    Args:
+        df: DataFrame with trait data
+        trait_cols: List of trait column names to check
+        max_zero_fraction: Maximum allowed fraction of zeros (0-1)
+
+    Returns:
+        Tuple of (filtered_dataframe, remaining_trait_cols, removal_details)
+    """
+    removed_traits = []
+    removal_details = {}
+    df_filtered = df.copy()
+
+    for trait in trait_cols:
+        if trait in df.columns:
+            zero_fraction = (df[trait] == 0).sum() / len(df)
+            if zero_fraction > max_zero_fraction:
+                removed_traits.append(trait)
+                removal_details[trait] = {
+                    "reason": "too_many_zeros",
+                    "zero_fraction": float(zero_fraction),
+                    "threshold": max_zero_fraction,
+                }
+
+    if removed_traits:
+        df_filtered = df_filtered.drop(columns=removed_traits)
+
+    remaining_traits = [t for t in trait_cols if t not in removed_traits]
+
+    return df_filtered, remaining_traits, removal_details
+
+
+def remove_traits_with_many_nans(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    max_nan_fraction: float = 0.3,
+) -> Tuple[pd.DataFrame, List[str], Dict]:
+    """Remove traits with excessive NaN values.
+
+    Args:
+        df: DataFrame with trait data
+        trait_cols: List of trait column names to check
+        max_nan_fraction: Maximum allowed fraction of NaNs (0-1)
+
+    Returns:
+        Tuple of (filtered_dataframe, remaining_trait_cols, removal_details)
+    """
+    removed_traits = []
+    removal_details = {}
+    df_filtered = df.copy()
+
+    for trait in trait_cols:
+        if trait in df.columns:
+            nan_fraction = df[trait].isna().sum() / len(df)
+            if nan_fraction > max_nan_fraction:
+                removed_traits.append(trait)
+                removal_details[trait] = {
+                    "reason": "too_many_nans",
+                    "nan_fraction": float(nan_fraction),
+                    "threshold": max_nan_fraction,
+                }
+
+    if removed_traits:
+        df_filtered = df_filtered.drop(columns=removed_traits)
+
+    remaining_traits = [t for t in trait_cols if t not in removed_traits]
+
+    return df_filtered, remaining_traits, removal_details
+
+
+def remove_low_sample_traits(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    min_samples: int = 10,
+) -> Tuple[pd.DataFrame, List[str], Dict]:
+    """Remove traits with insufficient valid samples.
+
+    Args:
+        df: DataFrame with trait data
+        trait_cols: List of trait column names to check
+        min_samples: Minimum number of valid (non-NaN) samples required
+
+    Returns:
+        Tuple of (filtered_dataframe, remaining_trait_cols, removal_details)
+    """
+    removed_traits = []
+    removal_details = {}
+    df_filtered = df.copy()
+
+    for trait in trait_cols:
+        if trait in df.columns:
+            valid_samples = df[trait].notna().sum()
+            if valid_samples < min_samples:
+                removed_traits.append(trait)
+                removal_details[trait] = {
+                    "reason": "insufficient_samples",
+                    "valid_samples": int(valid_samples),
+                    "required_samples": min_samples,
+                }
+
+    if removed_traits:
+        df_filtered = df_filtered.drop(columns=removed_traits)
+
+    remaining_traits = [t for t in trait_cols if t not in removed_traits]
+
+    return df_filtered, remaining_traits, removal_details
+
+
 def apply_data_cleanup_filters(
     df: pd.DataFrame,
     trait_cols: List[str],
@@ -513,6 +627,12 @@ def apply_data_cleanup_filters(
     min_samples_per_trait: int = 10,
 ) -> Tuple[pd.DataFrame, Dict]:
     """Apply configurable data cleanup filters to minimize sample loss.
+
+    This function orchestrates multiple cleanup steps using modular functions:
+    1. Remove zero-inflated traits
+    2. Remove traits with many NaNs
+    3. Remove samples with many NaNs
+    4. Remove traits with insufficient samples
 
     Args:
         df: Original dataframe
@@ -538,126 +658,76 @@ def apply_data_cleanup_filters(
     valid_traits = trait_cols.copy()
 
     # Step 1: Remove traits with too many zeros
-    traits_to_remove = []
-    for trait in valid_traits:
-        if trait in df_clean.columns:
-            zero_fraction = (df_clean[trait] == 0).sum() / len(df_clean)
-            if zero_fraction > max_zeros_per_trait:
-                traits_to_remove.append(trait)
-                cleanup_log["removed_traits"].append(
-                    {
-                        "trait": trait,
-                        "reason": "too_many_zeros",
-                        "zero_fraction": float(zero_fraction),
-                    }
-                )
+    df_clean, valid_traits, zero_removal_details = remove_zero_inflated_traits(
+        df_clean, valid_traits, max_zero_fraction=max_zeros_per_trait
+    )
 
-    valid_traits = [t for t in valid_traits if t not in traits_to_remove]
-    if traits_to_remove:
-        df_clean = df_clean.drop(columns=traits_to_remove)
+    # Log removed traits
+    for trait, details in zero_removal_details.items():
+        cleanup_log["removed_traits"].append({"trait": trait, **details})
+
     cleanup_log["cleanup_steps"].append(
         {
             "step": "remove_high_zero_traits",
-            "traits_removed": len(traits_to_remove),
+            "traits_removed": len(zero_removal_details),
             "remaining_traits": len(valid_traits),
         }
     )
 
     # Step 2: Remove traits with too many NaNs
-    traits_to_remove = []
-    for trait in valid_traits:
-        if trait in df_clean.columns:
-            nan_fraction = df_clean[trait].isna().sum() / len(df_clean)
-            if nan_fraction > max_nans_per_trait:
-                traits_to_remove.append(trait)
-                cleanup_log["removed_traits"].append(
-                    {
-                        "trait": trait,
-                        "reason": "too_many_nans",
-                        "nan_fraction": float(nan_fraction),
-                    }
-                )
+    df_clean, valid_traits, nan_removal_details = remove_traits_with_many_nans(
+        df_clean, valid_traits, max_nan_fraction=max_nans_per_trait
+    )
 
-    valid_traits = [t for t in valid_traits if t not in traits_to_remove]
-    if traits_to_remove:
-        df_clean = df_clean.drop(columns=traits_to_remove)
+    # Log removed traits
+    for trait, details in nan_removal_details.items():
+        cleanup_log["removed_traits"].append({"trait": trait, **details})
+
     cleanup_log["cleanup_steps"].append(
         {
             "step": "remove_high_nan_traits",
-            "traits_removed": len(traits_to_remove),
+            "traits_removed": len(nan_removal_details),
             "remaining_traits": len(valid_traits),
         }
     )
 
-    # Step 3: Remove samples with too many NaNs in remaining traits
+    # Step 3: Remove samples with too many NaNs (reuse existing function)
     if valid_traits:
-        samples_to_remove = []
-        for idx in df_clean.index:
-            nan_count = df_clean.loc[idx, valid_traits].isna().sum()
-            nan_fraction = nan_count / len(valid_traits)
-            if nan_fraction > max_nans_per_sample:
-                samples_to_remove.append(idx)
-                sample_info = {
-                    "sample_index": int(idx),
-                    "barcode": (
-                        df_clean.loc[idx, "Barcode"]
-                        if "Barcode" in df_clean.columns
-                        else "Unknown"
-                    ),
-                    "genotype": (
-                        df_clean.loc[idx, "geno"]
-                        if "geno" in df_clean.columns
-                        else "Unknown"
-                    ),
-                    "rep": (
-                        df_clean.loc[idx, "rep"]
-                        if "rep" in df_clean.columns
-                        else "Unknown"
-                    ),
-                    "reason": "too_many_nans",
-                    "nan_fraction": float(nan_fraction),
-                    "nan_count": int(nan_count),
-                    "nan_traits": [
-                        trait
-                        for trait in valid_traits
-                        if pd.isna(df_clean.loc[idx, trait])
-                    ],
-                }
-                cleanup_log["removed_samples"].append(sample_info)
-                cleanup_log["removed_samples_detail"].append(sample_info)
+        # Use existing remove_nan_samples function
+        df_clean, df_removed, removal_stats = remove_nan_samples(
+            df_clean,
+            valid_traits,
+            max_nan_fraction=max_nans_per_sample,
+            save_removed_path=None,  # Don't save to file here
+        )
 
-        df_clean = df_clean.drop(index=samples_to_remove)
+        # Update cleanup log with sample removal details
+        cleanup_log["removed_samples_detail"] = removal_stats.get(
+            "removed_samples_detail", []
+        )
+        cleanup_log["removed_samples"] = cleanup_log["removed_samples_detail"]
+
         cleanup_log["cleanup_steps"].append(
             {
                 "step": "remove_high_nan_samples",
-                "samples_removed": len(samples_to_remove),
-                "remaining_samples": len(df_clean),
+                "samples_removed": removal_stats["samples_removed"],
+                "remaining_samples": removal_stats["samples_retained"],
             }
         )
 
     # Step 4: Remove traits with insufficient samples after cleanup
-    traits_to_remove = []
-    for trait in valid_traits:
-        if trait in df_clean.columns:
-            valid_samples = df_clean[trait].notna().sum()
-            if valid_samples < min_samples_per_trait:
-                traits_to_remove.append(trait)
-                cleanup_log["removed_traits"].append(
-                    {
-                        "trait": trait,
-                        "reason": "insufficient_samples",
-                        "valid_samples": int(valid_samples),
-                        "required_samples": min_samples_per_trait,
-                    }
-                )
+    df_clean, valid_traits, low_sample_removal_details = remove_low_sample_traits(
+        df_clean, valid_traits, min_samples=min_samples_per_trait
+    )
 
-    valid_traits = [t for t in valid_traits if t not in traits_to_remove]
-    if traits_to_remove:
-        df_clean = df_clean.drop(columns=traits_to_remove)
+    # Log removed traits
+    for trait, details in low_sample_removal_details.items():
+        cleanup_log["removed_traits"].append({"trait": trait, **details})
+
     cleanup_log["cleanup_steps"].append(
         {
             "step": "remove_low_sample_traits",
-            "traits_removed": len(traits_to_remove),
+            "traits_removed": len(low_sample_removal_details),
             "remaining_traits": len(valid_traits),
         }
     )
