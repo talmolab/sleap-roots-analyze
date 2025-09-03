@@ -1,1 +1,1 @@
-"User exposed API"
+"""User exposed API."""

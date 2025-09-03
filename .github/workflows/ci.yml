@@ -26,7 +26,7 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dev dependencies
-        run: uv sync --extra dev
+        run: uv sync --group dev
 
       - name: Run Black
         run: uv run black --check src/sleap_roots_analyze tests
@@ -61,12 +61,12 @@ jobs:
         with:
           enable-cache: false
 
-      - name: Set up Python (non-self-hosted GPU)
+      - name: Set up Python
         if: matrix.os != 'self-hosted-gpu'
         run: uv python install ${{ matrix.python }}
 
       - name: Install dev dependencies
-        run: uv sync --extra dev
+        run: uv sync --group dev
 
       - name: Print environment info
         run: |
@@ -75,14 +75,11 @@ jobs:
           uv run python -c "import sys; print('Python executable:', sys.executable)"
           echo "=== UV Environment NumPy Check ==="
           uv run python -c "import numpy; print('NumPy version:', numpy.__version__); print('NumPy location:', numpy.__file__)" || echo "NumPy import failed in uv environment"
-          echo "=== PIP EXECUTABLE COMPARISON ==="
-          uv run python -c "import subprocess; print('pip from uv run python:', subprocess.check_output(['pip', '--version']).decode().strip())" || echo "pip not found from python"
-          uv run pip --version || echo "uv run pip failed"
           echo "=== UV pip list ==="
-          echo "--- uv run pip list ---"
-          uv run pip list
+          uv pip list
           echo "=== UV ENVIRONMENT CHECK ==="
           uv run python -c "import os; print('VIRTUAL_ENV:', os.environ.get('VIRTUAL_ENV', 'Not set'))"
+          uv run python -c "import sys; print('sys.prefix:', sys.prefix)"
 
       - name: Run pytest
         run: |
