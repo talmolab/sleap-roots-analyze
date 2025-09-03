@@ -75,9 +75,6 @@ jobs:
           uv run python -c "import sys; print('Python executable:', sys.executable)"
           echo "=== UV Environment NumPy Check ==="
           uv run python -c "import numpy; print('NumPy version:', numpy.__version__); print('NumPy location:', numpy.__file__)" || echo "NumPy import failed in uv environment"
-          echo "=== PIP VERSION CHECK ==="
-          echo "Using python -m pip (ensures correct pip for the Python interpreter):"
-          uv run python -m pip --version || echo "python -m pip failed"
           echo "=== UV pip list ==="
           uv pip list
           echo "=== UV ENVIRONMENT CHECK ==="
