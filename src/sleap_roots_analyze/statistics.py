@@ -55,7 +55,10 @@ def calculate_trait_statistics(df: pd.DataFrame, trait_cols: List[str]) -> Dict:
 
 
 def perform_anova_by_genotype(
-    df: pd.DataFrame, trait_cols: List[str], genotype_col: str = "geno"
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    genotype_col: str = "geno",
+    alpha: float = 0.05,
 ) -> Dict:
     """Perform one-way ANOVA for each trait by genotype.
 
@@ -76,12 +79,13 @@ def perform_anova_by_genotype(
         df: DataFrame with trait and genotype data
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
+        alpha: Significance level for hypothesis testing (default: 0.05)
 
     Returns:
         Dictionary with ANOVA results for each trait including:
         - f_statistic: F-test statistic
         - p_value: Probability of observing F-statistic under null hypothesis
-        - significant: Whether p < 0.05
+        - significant: Whether p < alpha
         - group_stats: Descriptive statistics for each genotype
     """
     anova_results = {}
@@ -140,7 +144,7 @@ def perform_anova_by_genotype(
                 "f_statistic": float(f_stat),
                 "p_value": float(p_value),
                 "eta_squared": float(eta_squared),
-                "significant": bool(p_value < 0.05),  # Ensure it's a Python bool
+                "significant": bool(p_value < alpha),  # Ensure it's a Python bool
                 "n_groups": len(groups),
                 "total_n": sum(len(group) for group in groups),
                 "group_stats": group_stats,
@@ -224,7 +228,7 @@ def calculate_heritability_estimates(
         method_used = "mixed_model"
 
     # Add metadata about method selection
-    heritability_results["_metadata"] = {
+    heritability_results["__calculation_metadata__"] = {
         "method_used_for_all_traits": method_used,
         "method_consistency": True,
     }

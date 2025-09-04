@@ -24,14 +24,14 @@ def create_run_directory(base_dir: Path) -> Path:
     return run_dir
 
 
-def _convert_to_json_serializable(obj):
+def convert_to_json_serializable(obj):
     """Convert numpy types to JSON serializable types recursively."""
     if isinstance(obj, dict):
-        return {k: _convert_to_json_serializable(v) for k, v in obj.items()}
+        return {k: convert_to_json_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, list):
-        return [_convert_to_json_serializable(item) for item in obj]
+        return [convert_to_json_serializable(item) for item in obj]
     elif isinstance(obj, tuple):
-        return tuple(_convert_to_json_serializable(item) for item in obj)
+        return tuple(convert_to_json_serializable(item) for item in obj)
     elif isinstance(obj, (np.integer, np.int64, np.int32)):
         return int(obj)
     elif isinstance(obj, (np.floating, np.float64, np.float32)):

@@ -318,7 +318,7 @@ class TestIdentifyHighHeritabilityTraits:
             "trait1": {"heritability": 0.8},
             "trait2": {"error": "Failed"},
             "trait3": 0.5,  # Invalid format
-            "_metadata": {"some": "data"},  # Should be ignored
+            "__calculation_metadata__": {"some": "data"},  # Should be ignored
         }
 
         high_h2 = identify_high_heritability_traits(heritability_results)
@@ -411,22 +411,11 @@ class TestAnalyzeHeritabilityThresholds:
         assert all(v == 0 for v in analysis["traits_removed"])
 
 
-"""Numerical accuracy tests for statistics module using fixtures with known answers."""
-
-import pytest
-import numpy as np
-import pandas as pd
-from src.sleap_roots_analyze.statistics import (
-    calculate_trait_statistics,
-    perform_anova_by_genotype,
-    calculate_heritability_estimates,
-    identify_high_heritability_traits,
-    analyze_heritability_thresholds,
-)
-
-
 class TestHeritabilityNumericalAccuracy:
-    """Test heritability calculations with known correct answers."""
+    """Test heritability calculations with known correct answers.
+
+    Numerical accuracy tests for statistics module using fixtures with known answers.
+    """
 
     def test_heritability_known_values(self, heritability_data_known_h2):
         """Test heritability calculation matches expected values.

@@ -11,7 +11,7 @@ from unittest.mock import patch, MagicMock
 from src.sleap_roots_analyze.data_cleanup import (
     load_trait_data,
     get_trait_columns,
-    link_images_to_samples,
+    link_rhizovision_images_to_samples,
     save_cleaned_data,
     remove_nan_samples,
     get_numeric_traits_only,
@@ -19,7 +19,7 @@ from src.sleap_roots_analyze.data_cleanup import (
 )
 from src.sleap_roots_analyze.data_utils import (
     create_run_directory,
-    _convert_to_json_serializable,
+    convert_to_json_serializable,
 )
 
 
@@ -199,8 +199,8 @@ class TestGetTraitColumns:
         assert "trait1" in trait_cols
 
 
-class TestLinkImagesToSamples:
-    """Tests for link_images_to_samples function."""
+class TestLinkRhizovisionImagesToSamples:
+    """Tests for link_rhizovision_images_to_samples function."""
 
     def test_link_existing_images(self, tmp_path):
         """Test linking existing images to samples."""
@@ -219,7 +219,7 @@ class TestLinkImagesToSamples:
             }
         )
 
-        links = link_images_to_samples(df, image_dir)
+        links = link_rhizovision_images_to_samples(df, image_dir)
 
         assert links["BC001"]["features.png"] is not None
         assert links["BC001"]["seg.png"] is not None
@@ -240,7 +240,9 @@ class TestLinkImagesToSamples:
             }
         )
 
-        links = link_images_to_samples(df, image_dir, image_types=["custom.png"])
+        links = link_rhizovision_images_to_samples(
+            df, image_dir, image_types=["custom.png"]
+        )
 
         assert links["BC001"]["custom.png"] is not None
 
@@ -254,7 +256,7 @@ class TestLinkImagesToSamples:
         )
 
         with pytest.raises(ValueError, match="Barcode column"):
-            link_images_to_samples(df, tmp_path)
+            link_rhizovision_images_to_samples(df, tmp_path)
 
 
 class TestCreateRunDirectory:
@@ -334,7 +336,7 @@ class TestSaveCleanedData:
 
 
 class TestConvertToJsonSerializable:
-    """Tests for _convert_to_json_serializable function."""
+    """Tests for convert_to_json_serializable function."""
 
     def test_numpy_conversion(self):
         """Test conversion of numpy types."""
@@ -347,7 +349,7 @@ class TestConvertToJsonSerializable:
             "array": np.array([1, 2, 3]),
         }
 
-        converted = _convert_to_json_serializable(data)
+        converted = convert_to_json_serializable(data)
 
         assert converted["int32"] == 42
         assert converted["int64"] == 100
@@ -366,7 +368,7 @@ class TestConvertToJsonSerializable:
             "tuple": (np.int64(3), np.bool_(False)),
         }
 
-        converted = _convert_to_json_serializable(data)
+        converted = convert_to_json_serializable(data)
 
         assert converted["list"] == [1, 2.0]
         assert converted["dict"]["nested"] == [1, 2]
@@ -382,7 +384,7 @@ class TestConvertToJsonSerializable:
 
         data = {"mock": MockObject(), "regular": "test"}
 
-        converted = _convert_to_json_serializable(data)
+        converted = convert_to_json_serializable(data)
         assert converted["mock"] == [1, 2, 3]
         assert converted["regular"] == "test"
 
@@ -674,31 +676,47 @@ class TestWithFixtures:
             assert len(df_cleaned) <= len(traits_summary_df)
 
     def test_with_mock_heritability_data(self, heritability_data_known_h2):
-        """Test with heritability test data."""
+        """Test with heritability test data.
+
+        Expected heritability values from fixture:
+        - trait_high_h2: 0.8 (should be kept)
+        - trait_moderate_h2: 0.5 (should be kept)
+        - trait_low_h2: 0.09 (should be removed when threshold=0.3)
+        """
         df, expected_h2 = heritability_data_known_h2
-        true_h2 = [
-            expected_h2["trait_high_h2"],
-            expected_h2["trait_moderate_h2"],
-            expected_h2["trait_low_h2"],
-        ]
 
-        # Create heritability results dict
+        # Create heritability results dict using expected values directly
         heritability_results = {}
-        for i, col in enumerate([c for c in df.columns if c.startswith("trait_")]):
-            heritability_results[col] = {
-                "heritability": true_h2[i] if i < len(true_h2) else 0.1
-            }
+        for trait_name, h2_value in expected_h2.items():
+            heritability_results[trait_name] = {"heritability": h2_value}
 
-        df_cleaned, removed, summary = remove_low_heritability_traits(
+        # Set threshold to 0.3
+        threshold = 0.3
+        df_cleaned, removed_traits, summary = remove_low_heritability_traits(
             df,
             heritability_results,
-            heritability_threshold=0.3,
-            barcode_col="sample_id" if "sample_id" in df.columns else "Barcode",
-            genotype_col="genotype" if "genotype" in df.columns else "geno",
+            heritability_threshold=threshold,
+            barcode_col="Barcode",  # Check actual column name in df
+            genotype_col="geno",  # Check actual column name in df
         )
 
-        # Traits with H² < 0.3 should be removed
-        assert summary["threshold"] == 0.3
+        # Check that the threshold was properly set
+        assert summary["threshold"] == threshold
+
+        # Verify which traits were removed
+        # trait_low_h2 (H²=0.09) should be removed as it's below threshold (0.3)
+        assert "trait_low_h2" in removed_traits
+        assert len(removed_traits) == 1
+
+        # Verify which traits were kept
+        # trait_high_h2 (H²=0.8) and trait_moderate_h2 (H²=0.5) should be kept
+        assert "trait_high_h2" in df_cleaned.columns
+        assert "trait_moderate_h2" in df_cleaned.columns
+        assert "trait_low_h2" not in df_cleaned.columns
+
+        # Verify summary statistics
+        assert summary["removed_traits"] == 1
+        assert summary["retained_traits"] == 2
 
 
 class TestModularCleanupFunctions:

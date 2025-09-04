@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-from .data_utils import _convert_to_json_serializable, create_run_directory
+from .data_utils import convert_to_json_serializable, create_run_directory
 
 
 def load_trait_data(
@@ -148,7 +148,7 @@ def get_trait_columns(
     return numeric_cols
 
 
-def link_images_to_samples(
+def link_rhizovision_images_to_samples(
     df: pd.DataFrame,
     image_dir: Path | str,
     image_types: Optional[List[str]] = None,
@@ -156,14 +156,17 @@ def link_images_to_samples(
 ) -> Dict[str, Dict[str, Optional[Path]]]:
     """Link Rhizovision images to their corresponding sample barcodes.
 
+    This function is specific to Rhizovision image naming conventions,
+    expecting filenames in the format: {barcode}_{suffix}
+
     Args:
         df: Trait dataframe with barcode/ID column
-        image_dir: Directory containing processed images
-        image_types: List of image suffixes to look for (default: ['features.png', 'seg.png'])
+        image_dir: Directory containing Rhizovision processed images
+        image_types: List of Rhizovision image suffixes to look for (default: ['features.png', 'seg.png'])
         barcode_col: Name of the barcode/plant ID column (default: "Barcode")
 
     Returns:
-        Dictionary mapping barcode to image paths
+        Dictionary mapping barcode to Rhizovision image paths
     """
     if image_types is None:
         image_types = ["features.png", "seg.png"]
@@ -220,12 +223,12 @@ def save_cleaned_data(
     log_data = {
         "timestamp": datetime.now().isoformat(),
         "original_samples": len(df),
-        "outlier_detection": _convert_to_json_serializable(outliers),
+        "outlier_detection": convert_to_json_serializable(outliers),
         "cleaned_data_path": cleaned_path.as_posix(),
     }
 
     if log_info:
-        log_data.update(_convert_to_json_serializable(log_info))
+        log_data.update(convert_to_json_serializable(log_info))
 
     # Save log
     log_path = run_dir / "cleanup_log.json"

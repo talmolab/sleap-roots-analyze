@@ -176,18 +176,18 @@ Remove traits with insufficient variance.
 
 ---
 
-#### `link_images_to_samples`
+#### `link_rhizovision_images_to_samples`
 
 ```python
-link_images_to_samples(
+link_rhizovision_images_to_samples(
     df: pd.DataFrame,
     image_dir: Union[str, Path],
     barcode_col: str = "Barcode",
     image_types: List[str] = ["features.png", "seg.png"]
-) -> pd.DataFrame
+) -> Dict[str, Dict[str, Optional[Path]]]
 ```
 
-Add image file paths to DataFrame based on barcodes.
+Link Rhizovision images to their corresponding sample barcodes.
 
 **Parameters:**
 - `df`: Input DataFrame
@@ -400,10 +400,10 @@ output_dir = create_run_directory(Path("results"))
 
 ---
 
-#### `_convert_to_json_serializable`
+#### `convert_to_json_serializable`
 
 ```python
-_convert_to_json_serializable(obj) -> Any
+convert_to_json_serializable(obj) -> Any
 ```
 
 Convert numpy types to JSON-serializable Python types.
