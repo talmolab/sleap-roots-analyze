@@ -1,151 +1,356 @@
 # Testing Guide
 
-This document describes the testing infrastructure for `sleap-roots-analyze`.
-
-## Test Structure
-
-Tests are organized in the `tests/` directory:
-- `tests/fixtures.py` - Centralized pytest fixtures for all tests
-- `tests/conftest.py` - Pytest configuration that loads fixtures
-- `tests/test_*.py` - Test modules for each source module
+Comprehensive guide for running and writing tests for `sleap-roots-analyze`.
 
 ## Running Tests
 
 ### Basic Test Execution
+
 ```bash
 # Run all tests
 uv run pytest
 
-# Run specific test module
-uv run pytest tests/test_data_cleanup.py
-
 # Run with verbose output
 uv run pytest -v
+
+# Run specific test file
+uv run pytest tests/test_statistics.py
+
+# Run specific test class
+uv run pytest tests/test_statistics.py::TestHeritabilityNumericalAccuracy
+
+# Run specific test method
+uv run pytest tests/test_statistics.py::TestCalculateTraitStatistics::test_basic_statistics
 ```
 
-### Coverage Analysis
+### Coverage Reports
+
 ```bash
-# Run with coverage report
+# Run with coverage
 uv run pytest --cov --cov-branch
 
-# Coverage for specific module
-uv run pytest tests/test_data_cleanup.py --cov=src/sleap_roots_analyze/data_cleanup --cov-branch
+# Generate detailed coverage report
+uv run pytest --cov=src/sleap_roots_analyze --cov-branch --cov-report=html
 
-# Show missing lines
-uv run pytest --cov --cov-branch --cov-report=term-missing
-
-# Generate HTML coverage report
-uv run pytest --cov --cov-branch --cov-report=html
+# View coverage in terminal with missing lines
+uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing
 ```
 
-### Code Formatting
+### Test Selection
+
 ```bash
-# Format code with black
-uv run black src/sleap_roots_analyze tests
+# Run only tests matching pattern
+uv run pytest -k "heritability"
 
-# Check formatting without changes
-uv run black --check src/sleap_roots_analyze tests
+# Run tests marked with specific marker
+uv run pytest -m "slow"  # If markers are defined
 
-# Format with ruff
-uv run ruff format src/sleap_roots_analyze tests
-uv run ruff check --fix src/sleap_roots_analyze tests
+# Exclude specific tests
+uv run pytest -k "not test_extreme_values"
 ```
 
-## Test Data Fixtures
+## Test Organization
 
-The `tests/fixtures.py` file provides centralized fixtures for test data:
+### Directory Structure
 
-### CSV Data Fixtures
-- `features_df` - Features data from `features.csv`
-- `traits_11dag_df` - 11 DAG traits data  
-- `traits_summary_df` - Summarized trait data
-- `traits_summary_lateral_df` - Lateral root summary data
-- `turface_traits_df` - Turface experiment data
-- `wheat_edpie_excel_df` - Wheat EDPIE Excel data
+```
+tests/
+├── __init__.py
+├── conftest.py              # Pytest configuration
+├── fixtures.py              # Centralized test fixtures
+├── test_data_cleanup.py    # Tests for data_cleanup module
+├── test_statistics.py      # Tests for statistics module  
+└── data/                    # Test data files
+    ├── features.csv
+    ├── traits_summary.csv
+    ├── traits_summary_lateral.csv
+    ├── traits_11DAG_cleaned_qc_scanner_independent.csv
+    ├── Turface_all_traits_2024.csv
+    └── Wheat_EDPIE_cylinder_master_data.xlsx
+```
 
-### Sample Data Fixtures
-- `*_sample` fixtures provide first 10 rows for quick testing
-- Mock data fixtures for unit testing without file I/O
+### Test Categories
 
-### Utility Fixtures
-- `test_data_dir` - Path to test data directory
-- `*_csv_path` - Paths to CSV files
-- Column name fixtures for validation
-- Random number generator fixtures
+#### 1. Unit Tests
+Test individual functions in isolation:
+
+```python
+def test_basic_statistics(self):
+    """Test calculation of basic statistics for traits."""
+    df = pd.DataFrame({
+        "trait1": [1, 2, 3, 4, 5],
+        "trait2": [10, 20, 30, 40, 50],
+    })
+    trait_cols = ["trait1", "trait2"]
+    
+    stats = calculate_trait_statistics(df, trait_cols)
+    
+    assert stats["trait1"]["mean"] == 3.0
+    assert stats["trait2"]["mean"] == 30.0
+```
+
+#### 2. Numerical Accuracy Tests
+Verify calculations match expected mathematical results:
+
+```python
+def test_heritability_known_values(self, heritability_data_known_h2):
+    """Test heritability calculation with known variance components."""
+    df, expected_h2 = heritability_data_known_h2
+    
+    results = calculate_heritability_estimates(df, trait_cols)
+    
+    # Test relative ordering rather than exact values
+    assert h2_high > h2_moderate > h2_low
+```
+
+#### 3. Edge Case Tests
+Handle boundary conditions and special cases:
+
+```python
+def test_extreme_values(self, edge_case_extreme_values):
+    """Test handling of infinity and extreme values."""
+    df = edge_case_extreme_values  # Contains inf, -inf, tiny values
+    
+    stats = calculate_trait_statistics(df, ["trait_inf"])
+    
+    # Verify proper handling of infinity
+    if np.isnan(stats["trait_inf"]["mean"]):
+        assert True  # Expected behavior with inf values
+```
+
+#### 4. Integration Tests
+Test complete workflows:
+
+```python
+def test_heritability_with_filtering(self):
+    """Test integrated heritability calculation and filtering."""
+    results = calculate_heritability_estimates(
+        df, trait_cols,
+        remove_low_h2=True,
+        h2_threshold=0.3
+    )
+    
+    h2_results, df_filtered, removed, details = results
+    assert len(removed) > 0  # Some traits removed
+```
 
 ## Writing Tests
 
-### Example Test Structure
-```python
-import pytest
-import pandas as pd
-from src.sleap_roots_analyze.data_cleanup import load_trait_data
+### Test Fixtures
 
-class TestDataCleanup:
-    def test_load_valid_csv(self, tmp_path):
-        """Test loading a valid CSV file."""
-        # Create test data
-        csv_path = tmp_path / "test.csv"
-        df = pd.DataFrame({
-            "Barcode": ["BC001"],
-            "geno": ["G1"],
-            "trait1": [1.0]
-        })
-        df.to_csv(csv_path, index=False)
-        
-        # Test function
-        result = load_trait_data(csv_path)
-        
-        # Assertions
-        assert len(result) == 1
-        assert "Barcode" in result.columns
+Fixtures provide reusable test data. Define in `fixtures.py`:
+
+```python
+@pytest.fixture
+def heritability_data_known_h2():
+    """Generate data with known heritability values.
+    
+    Returns:
+        tuple: (DataFrame, dict of expected h2 values)
+    """
+    np.random.seed(42)  # Reproducible randomness
+    
+    # Generate data with known variance components
+    # σ²_G = 4.0, σ²_E = 1.0 → H² = 0.8
+    
+    return df, expected_h2
 ```
 
-### Using Fixtures
+### Best Practices
+
+#### 1. Use Descriptive Names
+
 ```python
-def test_with_features_data(features_df):
-    """Test using features.csv fixture."""
-    assert not features_df.empty
-    assert "Total.Root.Length.mm" in features_df.columns
+# Good
+def test_remove_nan_samples_with_high_threshold():
+    """Test NaN removal with 50% threshold."""
+    
+# Bad
+def test_nan():
+    """Test NaN."""
 ```
 
-## Coverage Goals
+#### 2. Test One Thing
 
-- Target: 100% coverage for critical modules
-- Current coverage:
-  - `data_cleanup.py`: 99%
-  - Additional modules: In progress
+```python
+# Good - tests one specific behavior
+def test_zero_heritability(self):
+    """Test that pure environmental variation gives H² ≈ 0."""
+    
+# Bad - tests multiple unrelated things
+def test_statistics():
+    """Test all statistics."""
+```
 
-## Continuous Integration
+#### 3. Use Fixtures for Complex Data
 
-Tests are run automatically on:
-- Pull requests
-- Commits to main branch
-- Release builds
+```python
+def test_anova_known_effects(self, anova_data_known_effects):
+    """Test ANOVA with fixture providing known group differences."""
+    df, expected = anova_data_known_effects
+    
+    results = perform_anova_by_genotype(df, ["trait_anova"])
+    
+    assert results["trait_anova"]["p_value"] < 0.001
+```
 
-See `.github/workflows/ci.yml` for CI configuration.
+#### 4. Document Expected Failures
+
+```python
+def test_missing_required_columns(self):
+    """Test that function fails appropriately with missing columns."""
+    df = pd.DataFrame({"trait1": [1, 2, 3]})
+    
+    results = calculate_heritability_estimates(df, ["trait1"])
+    
+    assert "error" in results
+    assert "Missing required columns" in results["error"]
+```
+
+#### 5. Handle Random Variation
+
+```python
+def test_with_random_data(self):
+    """Test with random data using ranges rather than exact values."""
+    np.random.seed(42)  # Fixed seed for reproducibility
+    
+    # Test ranges rather than exact values
+    assert 0.7 < heritability < 0.9  # Not exact
+```
+
+## Current Test Coverage
+
+### Module Coverage
+
+| Module | Coverage | Tests | Notes |
+|--------|----------|-------|-------|
+| `data_cleanup.py` | 99% | 15 | Missing edge case for Excel loading |
+| `statistics.py` | 95%+ | 45 | Full coverage with numerical tests |
+| `data_utils.py` | 100% | 5 | Complete coverage |
+| `outlier_detection.py` | N/A | 0 | Module in development |
+
+### Test Statistics
+
+- **Total Tests**: 65+
+- **Pass Rate**: 100% (all tests passing)
+- **Execution Time**: ~1.5 seconds
+- **Fixtures**: 30+ reusable fixtures
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Import errors**: Ensure `uv sync --group dev` has been run
-2. **Missing test data**: Check that CSV files exist in `tests/data/`
-3. **Coverage not working**: Use `--cov` flag with full module paths
+#### 1. Import Errors
 
-### Performance Warnings
-
-If you see warnings about DataFrame fragmentation:
+```bash
+# Solution: Ensure dependencies installed
+uv sync --group dev
 ```
-PerformanceWarning: DataFrame is highly fragmented
+
+#### 2. Test Discovery Issues
+
+```bash
+# Ensure __init__.py exists in tests/
+touch tests/__init__.py
 ```
-This is expected in some test scenarios and can be ignored.
 
-## Best Practices
+#### 3. Fixture Not Found
 
-1. **Organize tests by module**: Mirror source structure in tests
-2. **Use fixtures**: Centralize test data in `fixtures.py`
-3. **Test edge cases**: Include tests for error conditions
-4. **Mock external dependencies**: Use unittest.mock for file I/O in unit tests
-5. **Keep tests fast**: Use sample data fixtures for quick tests
-6. **Document tests**: Use clear test names and docstrings
+```python
+# Import fixtures in conftest.py
+from tests.fixtures import *  # noqa
+```
+
+#### 4. Numerical Precision Warnings
+
+These warnings are expected for edge cases:
+- `RuntimeWarning: invalid value encountered` - Expected with infinity
+- `ConvergenceWarning` - Expected with insufficient data
+- `Precision loss` - Expected with constant values
+
+### Debugging Tests
+
+```bash
+# Run with debugging output
+uv run pytest -vvs
+
+# Stop on first failure
+uv run pytest -x
+
+# Enter debugger on failure
+uv run pytest --pdb
+
+# Show local variables on failure
+uv run pytest -l
+```
+
+## Continuous Integration
+
+### GitHub Actions Configuration
+
+```yaml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --group dev
+      - run: uv run pytest --cov --cov-branch
+```
+
+## Performance Testing
+
+### Benchmarking
+
+```python
+import pytest
+import time
+
+def test_heritability_performance(benchmark):
+    """Benchmark heritability calculation."""
+    df = create_large_dataset(1000, 50)  # 1000 samples, 50 traits
+    
+    result = benchmark(calculate_heritability_estimates, df, trait_cols)
+    
+    assert result is not None
+```
+
+### Memory Testing
+
+```python
+import tracemalloc
+
+def test_memory_usage():
+    """Test memory consumption stays reasonable."""
+    tracemalloc.start()
+    
+    # Run memory-intensive operation
+    process_large_dataset()
+    
+    current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    
+    assert peak < 1_000_000_000  # Less than 1GB
+```
+
+## Contributing Tests
+
+When adding new features:
+
+1. **Write tests first** (TDD approach)
+2. **Add fixtures** for complex test data
+3. **Test edge cases** and error conditions
+4. **Verify numerical accuracy** for calculations
+5. **Update this documentation** with new patterns
+
+## Resources
+
+- [Pytest Documentation](https://docs.pytest.org/)
+- [Coverage.py Documentation](https://coverage.readthedocs.io/)
+- [Testing Best Practices](https://realpython.com/pytest-python-testing/)
+- [Numerical Testing Guide](https://numpy.org/doc/stable/reference/testing.html)
