@@ -208,4 +208,4 @@ __marimo__/
 
 # Claude
 .serena/
-.claude/
+.claude/settings.local.json

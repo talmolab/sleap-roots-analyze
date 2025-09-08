@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integrated heritability filtering in `calculate_heritability_estimates()`
 - Optional saving of removed samples in `remove_nan_samples()`
 - Detailed removal statistics and metadata tracking
+- Modular data cleanup functions: `remove_zero_inflated_traits()`, `remove_traits_with_many_nans()`, `remove_low_sample_traits()`
+- Claude commands for PR review (`.claude/commands/review-pr.md`) and changelog updates (`.claude/commands/update-changelog.md`)
 
 ### Changed
 - Made `statsmodels` a required dependency (removed `mixed_model_available` checks)
@@ -22,12 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved utility functions to `data_utils.py` module
 - Improved test fixtures organization with categories (heritability, ANOVA, edge cases)
 - Updated documentation to reflect actual implementation
+- Renamed `link_images_to_samples()` to `link_rhizovision_images_to_samples()` for clarity
+- Made `_convert_to_json_serializable()` public API by removing underscore prefix
+- Added configurable `alpha` parameter to `perform_anova_by_genotype()` (default: 0.05)
+- Changed metadata key from `_metadata` to `__calculation_metadata__` to avoid trait name conflicts
+- Refactored `apply_data_cleanup_filters()` to use new modular functions
 
 ### Fixed
 - Line ending consistency issues across different platforms
 - Test accuracy for heritability calculations with mixed models
 - Handling of infinity values in statistical calculations
 - Edge case handling for insufficient data conditions
+- Duplicate imports in `test_statistics.py` (PR #2 review)
+- Misplaced docstring between test classes (PR #2 review)
+- Brittle test dependency in heritability tests (PR #2 review)
 
 ### Development
 - Added `black` code formatter configuration
