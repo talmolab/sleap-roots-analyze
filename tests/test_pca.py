@@ -1271,3 +1271,294 @@ class TestStandardizationVerification:
             atol=1e-10,
             err_msg="Standardization should preserve rank correlations",
         )
+
+
+class TestPerFeatureVariance:
+    """Test per-feature variance explained calculations."""
+
+    def test_per_feature_variance_standardized(self):
+        """Test per-feature variance with standardized data."""
+        np.random.seed(42)
+        n_samples = 100
+
+        # Create data with known variance structure
+        df = pd.DataFrame(
+            {
+                "high_var": np.random.randn(n_samples) * 5,
+                "med_var": np.random.randn(n_samples) * 2,
+                "low_var": np.random.randn(n_samples) * 0.5,
+            }
+        )
+
+        result = perform_pca_analysis(
+            df, standardize=True, include_feature_metrics=True
+        )
+
+        # Check feature metrics DataFrame was created
+        assert "feature_metrics_df" in result
+        metrics_df = result["feature_metrics_df"]
+
+        # Check DataFrame structure
+        assert len(metrics_df) == 3  # Three features
+        assert "feature" in metrics_df.columns
+        assert "variance_total" in metrics_df.columns
+        assert "fraction_explained" in metrics_df.columns
+        assert "loading_pc1" in metrics_df.columns
+
+        # Check all fractions are non-negative
+        fractions = metrics_df["fraction_explained"].values
+        assert np.all(fractions >= 0), "Fractions should be non-negative"
+
+        # For standardized data with all components, sum should equal number of features
+        total_explained = fractions.sum()
+        n_features = len(metrics_df)
+        # When all components are used, total should be close to number of features
+        assert (
+            total_explained <= n_features + 0.01
+        ), f"Total explained {total_explained} > {n_features}"
+
+        # For standardized data, all features should have variance close to 1
+        variances = metrics_df["variance_total"].values
+        np.testing.assert_allclose(variances, 1.0, rtol=0.1)
+
+    def test_per_feature_variance_unstandardized(self):
+        """Test per-feature variance with unstandardized data."""
+        np.random.seed(42)
+        n_samples = 100
+
+        # Create data with very different variances
+        df = pd.DataFrame(
+            {
+                "high_var": np.random.randn(n_samples) * 10,
+                "med_var": np.random.randn(n_samples) * 1,
+                "low_var": np.random.randn(n_samples) * 0.1,
+            }
+        )
+
+        result = perform_pca_analysis(
+            df, standardize=False, include_feature_metrics=True
+        )
+
+        metrics_df = result["feature_metrics_df"]
+
+        # Check fractions are non-negative
+        fractions = metrics_df["fraction_explained"].values
+        assert np.all(fractions >= 0), "Fractions should be non-negative"
+
+        # For unstandardized data, the sum depends on variance structure
+        # But individual fractions should still be reasonable
+        total_explained = fractions.sum()
+        assert total_explained > 0, "Total explained should be positive"
+
+        # High variance feature should explain most variance
+        high_var_idx = metrics_df[metrics_df["feature"] == "high_var"].index[0]
+        assert metrics_df.loc[high_var_idx, "fraction_explained"] > 0.8
+
+        # Check feature variances reflect original data
+        var_dict = metrics_df.set_index("feature")["variance_total"].to_dict()
+        assert var_dict["high_var"] > var_dict["med_var"] > var_dict["low_var"]
+
+    def test_per_feature_sum_equals_total(self):
+        """Test that sum of per-feature explained equals total explained."""
+        np.random.seed(42)
+        n_samples = 100
+        n_features = 5
+
+        # Create random data
+        df = pd.DataFrame(
+            np.random.randn(n_samples, n_features),
+            columns=[f"feat_{i}" for i in range(n_features)],
+        )
+
+        # Test with all components retained (sum should equal n_components)
+        for standardize in [True, False]:
+            result = perform_pca_analysis(
+                df,
+                standardize=standardize,
+                n_components=None,  # Use all components
+                include_feature_metrics=True,
+            )
+
+            metrics_df = result["feature_metrics_df"]
+
+            # When all components are used, sum of per-feature explained
+            # should equal number of components retained
+            n_components_used = result["n_components_selected"]
+            sum_per_feature = metrics_df["fraction_explained"].sum()
+
+            # For standardized, sum should be close to n_components
+            # For unstandardized, it depends on the variance structure
+            if standardize:
+                np.testing.assert_allclose(
+                    sum_per_feature,
+                    n_components_used,
+                    rtol=0.01,
+                    err_msg=f"Sum of per-feature != n_components (standardize={standardize})",
+                )
+
+    def test_build_feature_metrics_df(self):
+        """Test the build_feature_metrics_df helper function."""
+        np.random.seed(42)
+        n_samples = 50
+
+        df = pd.DataFrame(
+            {
+                "a": np.random.randn(n_samples),
+                "b": np.random.randn(n_samples) * 2,
+                "c": np.random.randn(n_samples) * 0.5,
+            }
+        )
+
+        # Run PCA
+        result = perform_pca_analysis(df, standardize=True)
+
+        # Build metrics DataFrame
+        from sleap_roots_analyze.pca import build_feature_metrics_df
+
+        metrics_df = build_feature_metrics_df(result)
+
+        # Check structure
+        assert len(metrics_df) == 3
+        assert set(metrics_df["feature"]) == {"a", "b", "c"}
+
+        # Test sorting options
+        metrics_sorted = build_feature_metrics_df(result, sort_by="variance_total")
+        assert metrics_sorted["variance_total"].is_monotonic_decreasing
+
+        # Test without loadings
+        metrics_no_load = build_feature_metrics_df(result, include_loadings=False)
+        assert "loading_pc1" not in metrics_no_load.columns
+
+        # Test custom loading prefix
+        metrics_custom = build_feature_metrics_df(result, loading_prefix="PC")
+        assert "PC1" in metrics_custom.columns
+
+    def test_backward_compatibility(self):
+        """Test that old code still works without X_fitted."""
+        np.random.seed(42)
+        n_samples = 50
+
+        df = pd.DataFrame(np.random.randn(n_samples, 3))
+
+        # Run PCA
+        pca = SklearnPCA(n_components=2)
+        X_transformed = pca.fit_transform(df.values)
+
+        # Call calculate_pca_metrics without X_fitted (old way)
+        from sleap_roots_analyze.pca import calculate_pca_metrics
+
+        metrics = calculate_pca_metrics(pca, X_transformed)
+
+        # Should still work with deprecation warning
+        assert "explained_variance_per_feature" in metrics
+        assert "loadings" in metrics
+        assert "explained_variance_ratio" in metrics
+
+    def test_zero_variance_features(self):
+        """Test handling of zero-variance features."""
+        np.random.seed(42)
+        n_samples = 50
+
+        df = pd.DataFrame(
+            {
+                "constant": np.ones(n_samples),  # Zero variance
+                "normal": np.random.randn(n_samples),
+                "high_var": np.random.randn(n_samples) * 5,
+            }
+        )
+
+        # With standardization, constant feature should be removed
+        result = perform_pca_analysis(
+            df, standardize=True, include_feature_metrics=True
+        )
+
+        metrics_df = result["feature_metrics_df"]
+
+        # Constant feature should not be in results
+        assert "constant" not in metrics_df["feature"].values
+        assert len(metrics_df) == 2
+
+        # Without standardization but with constant feature
+        result_no_std = perform_pca_analysis(
+            df[["normal", "high_var"]],  # Exclude constant manually
+            standardize=False,
+            include_feature_metrics=True,
+        )
+
+        metrics_no_std = result_no_std["feature_metrics_df"]
+        assert len(metrics_no_std) == 2
+
+    def test_single_component_edge_case(self):
+        """Test per-feature variance with single component."""
+        np.random.seed(42)
+        n_samples = 50
+
+        df = pd.DataFrame(
+            {
+                "a": np.random.randn(n_samples),
+                "b": np.random.randn(n_samples),
+                "c": np.random.randn(n_samples),
+            }
+        )
+
+        result = perform_pca_analysis(
+            df,
+            n_components=1,  # Only one component
+            include_feature_metrics=True,
+            standardize=True,
+        )
+
+        metrics_df = result["feature_metrics_df"]
+
+        # Fractions should be non-negative
+        fractions = metrics_df["fraction_explained"].values
+        assert np.all(fractions >= 0)
+
+        # Each fraction should be <= 1 (can't explain more than 100% of a feature's variance)
+        assert np.all(fractions <= 1.01)  # Small tolerance for numerical errors
+
+        # Check that variance_explained values are reasonable
+        assert np.all(metrics_df["variance_explained"].values >= 0)
+
+    def test_ddof_parameter_effect(self):
+        """Test effect of ddof parameter on per-feature variance."""
+        np.random.seed(42)
+        n_samples = 10  # Small sample to see ddof effect
+
+        df = pd.DataFrame(np.random.randn(n_samples, 3))
+
+        # Test with ddof=0
+        result_ddof0 = perform_pca_analysis(
+            df, standardize=False, include_feature_metrics=True, ddof_feature_var=0
+        )
+
+        # Test with ddof=1 (default)
+        result_ddof1 = perform_pca_analysis(
+            df, standardize=False, include_feature_metrics=True, ddof_feature_var=1
+        )
+
+        # Feature variances should be different
+        var0 = result_ddof0["feature_metrics_df"]["variance_total"].values
+        var1 = result_ddof1["feature_metrics_df"]["variance_total"].values
+
+        # ddof=1 should give larger variances
+        assert np.all(var1 > var0)
+
+        # The fractions will be different because the total variance is different
+        frac0 = result_ddof0["feature_metrics_df"]["fraction_explained"].sum()
+        frac1 = result_ddof1["feature_metrics_df"]["fraction_explained"].sum()
+
+        # Both should be positive
+        assert frac0 > 0
+        assert frac1 > 0
+
+        # With ddof=0, total can exceed n_features due to mismatch with PCA's ddof=1
+        # Expected: frac0 = n/(n-1) * frac1
+        # Since PCA uses ddof=1 but denominator uses ddof=0
+        expected_factor = n_samples / (n_samples - 1)  # 10/9 ≈ 1.111
+
+        # When using ddof=1 (matching PCA), sum should be close to n_features
+        assert abs(frac1 - 3.0) < 0.01  # 3 features, all components retained
+
+        # When using ddof=0, sum should be scaled up by n/(n-1)
+        assert abs(frac0 - 3.0 * expected_factor) < 0.01

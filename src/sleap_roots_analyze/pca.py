@@ -83,15 +83,33 @@ def fit_pca(
 def calculate_pca_metrics(
     pca: PCA,
     X_transformed: np.ndarray,
+    X_fitted: Optional[np.ndarray] = None,
+    ddof_for_feature_var: int = 1,
 ) -> Dict:
-    """Calculate comprehensive PCA metrics.
+    """Calculate comprehensive PCA metrics for standardized or unstandardized data.
 
     Args:
         pca: Fitted PCA object
         X_transformed: Transformed data (n_samples, n_components)
+        X_fitted: The data PCA was fit on (if None, assumes standardized with var=1)
+        ddof_for_feature_var: ddof for per-feature variance (default=1 matches PCA)
+            - Use 1 for consistency with PCA eigenvalues (recommended)
+            - Use 0 if data was standardized with StandardScaler(ddof=0) and you want var=1
 
     Returns:
-        Dictionary containing all PCA metrics
+        Dictionary containing PCA metrics including:
+        - pca: Fitted PCA model
+        - n_components_selected: Number of components
+        - transformed_data: Data in PC space
+        - loadings: Component loadings (eigenvectors)
+        - eigenvalues: Explained variance per component
+        - explained_variance_ratio: Fraction per component (from sklearn)
+        - cumulative_variance_ratio: Cumulative variance explained
+        - total_variance_explained: Total fraction explained
+        - explained_variance_per_feature: Variance explained per original feature
+        - explained_variance_ratio_per_feature: Fraction explained per feature [0,1]
+        - feature_variances: Per-feature variances of fitted data
+        - feature_variance_ddof: The ddof used
     """
     # Get loadings (eigenvectors) - shape: (n_features, n_components)
     loadings = pca.components_.T
@@ -99,13 +117,46 @@ def calculate_pca_metrics(
     # Get eigenvalues (explained variance)
     eigenvalues = pca.explained_variance_
 
-    # Calculate explained variance per feature
+    # Calculate explained variance per feature: diag(V Λ V^T)
     explained_variance_per_feature = np.sum(
         (loadings**2) * eigenvalues[np.newaxis, :], axis=1
     )
 
-    # For standardized data, total variance per feature is 1.0
-    explained_variance_ratio_per_feature = explained_variance_per_feature
+    # Calculate per-feature ratios
+    if X_fitted is not None:
+        # Compute actual per-feature variances
+        feature_variances = np.var(X_fitted, axis=0, ddof=ddof_for_feature_var)
+
+        # Safe division for ratios
+        with np.errstate(divide="ignore", invalid="ignore"):
+            explained_variance_ratio_per_feature = np.where(
+                feature_variances > 0,
+                explained_variance_per_feature / feature_variances,
+                0.0,
+            )
+    else:
+        # Backward compatibility: assume standardized data
+        import warnings
+
+        warnings.warn(
+            "X_fitted not provided. Assuming standardized data with variance=1. "
+            "Pass X_fitted for correct per-feature ratios.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        feature_variances = np.ones_like(explained_variance_per_feature)
+        explained_variance_ratio_per_feature = explained_variance_per_feature
+
+    # Global variance explained (consistent with chosen ddof)
+    if X_fitted is not None:
+        total_feature_variance = np.sum(feature_variances)
+        total_variance_explained_consistent = (
+            np.sum(eigenvalues) / total_feature_variance
+            if total_feature_variance > 0
+            else 0.0
+        )
+    else:
+        total_variance_explained_consistent = np.sum(pca.explained_variance_ratio_)
 
     return {
         "pca": pca,
@@ -116,9 +167,91 @@ def calculate_pca_metrics(
         "explained_variance_ratio": pca.explained_variance_ratio_,
         "cumulative_variance_ratio": np.cumsum(pca.explained_variance_ratio_),
         "total_variance_explained": np.sum(pca.explained_variance_ratio_),
+        "total_variance_explained_consistent": total_variance_explained_consistent,
         "explained_variance_per_feature": explained_variance_per_feature,
         "explained_variance_ratio_per_feature": explained_variance_ratio_per_feature,
+        "feature_variances": (
+            feature_variances
+            if X_fitted is not None
+            else np.ones_like(explained_variance_per_feature)
+        ),
+        "feature_variance_ddof": ddof_for_feature_var,
     }
+
+
+def build_feature_metrics_df(
+    pca_result: Dict,
+    ddof_feature_var: Optional[int] = None,
+    include_loadings: bool = True,
+    loading_prefix: str = "loading_pc",
+    sort_by: str = "fraction_explained",
+) -> pd.DataFrame:
+    """Build a tidy DataFrame of per-feature PCA metrics.
+
+    Creates a DataFrame with one row per feature showing variance explained,
+    fraction of variance explained, and optionally the loadings for each PC.
+
+    Args:
+        pca_result: Dictionary from perform_pca_analysis
+        ddof_feature_var: Override ddof for variance calculation (None uses stored value)
+        include_loadings: Add columns for absolute loadings per PC
+        loading_prefix: Prefix for loading column names (e.g., "loading_pc")
+        sort_by: Column to sort by (default: 'fraction_explained')
+
+    Returns:
+        DataFrame with columns:
+        - feature: Feature name
+        - variance_total: Total variance of feature
+        - variance_explained: Variance explained by retained PCs
+        - fraction_explained: Ratio of explained to total variance [0,1]
+        - loading_pc{k}: Absolute loading for PC k (if include_loadings=True)
+    """
+    feature_names = pca_result["feature_names"]
+    loadings = pca_result["loadings"]
+    eigenvalues = pca_result.get("eigenvalues", pca_result["pca"].explained_variance_)
+
+    # Use stored values if available, otherwise recalculate
+    if ddof_feature_var is None:
+        ddof_feature_var = pca_result.get("feature_variance_ddof", 1)
+
+    # Check if we can reuse stored calculations
+    if "feature_variances" in pca_result and ddof_feature_var == pca_result.get(
+        "feature_variance_ddof"
+    ):
+        variance_total = pca_result["feature_variances"]
+        variance_explained = pca_result["explained_variance_per_feature"]
+        fraction_explained = pca_result["explained_variance_ratio_per_feature"]
+    else:
+        # Recalculate with different ddof if needed
+        X_fitted = pca_result["data_processed"]
+        variance_total = np.var(X_fitted, axis=0, ddof=ddof_feature_var)
+        variance_explained = np.sum((loadings**2) * eigenvalues[np.newaxis, :], axis=1)
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fraction_explained = np.where(
+                variance_total > 0, variance_explained / variance_total, 0.0
+            )
+
+    # Build base data dictionary
+    data = {
+        "feature": feature_names,
+        "variance_total": variance_total,
+        "variance_explained": variance_explained,
+        "fraction_explained": fraction_explained,
+    }
+
+    # Add absolute loadings per PC
+    if include_loadings:
+        n_components = loadings.shape[1]
+        for k in range(n_components):
+            data[f"{loading_prefix}{k+1}"] = np.abs(loadings[:, k])
+
+    # Create DataFrame and sort
+    df = pd.DataFrame(data)
+    if sort_by and sort_by in df.columns:
+        df = df.sort_values(sort_by, ascending=False).reset_index(drop=True)
+
+    return df
 
 
 def perform_pca_with_variance_threshold(
@@ -246,11 +379,9 @@ def calculate_mahalanobis_distances(
         mean = np.mean(X_transformed, axis=0)
         if n_features == 1:
             # Special case for 1D
-            # Use ddof=0 for population variance (consistent with sklearn)
-            covariance = np.array([[np.var(X_transformed[:, 0], ddof=0)]])
+            covariance = np.array([[np.var(X_transformed[:, 0], ddof=1)]])
         else:
-            # Use ddof=0 for population covariance (consistent with sklearn)
-            covariance = np.cov(X_transformed, rowvar=False, ddof=0)
+            covariance = np.cov(X_transformed, rowvar=False, ddof=1)
             # Ensure it's 2D even for single feature
             if covariance.ndim == 0:
                 covariance = np.array([[covariance]])
@@ -282,6 +413,8 @@ def perform_pca_analysis(
     explained_variance_threshold: float = 0.95,
     n_components: Optional[int] = None,
     random_state: int = 42,
+    include_feature_metrics: bool = True,
+    ddof_feature_var: Optional[int] = None,
 ) -> Dict:
     """Perform complete PCA analysis pipeline with optional standardization.
 
@@ -293,6 +426,8 @@ def perform_pca_analysis(
         explained_variance_threshold: Cumulative variance threshold for component selection
         n_components: If specified, overrides automatic selection
         random_state: Random state for reproducibility
+        include_feature_metrics: Whether to include per-feature metrics DataFrame (default: True)
+        ddof_feature_var: Degrees of freedom for feature variance calculation (default: None, uses 1)
 
     Returns:
         Dictionary containing:
@@ -300,6 +435,7 @@ def perform_pca_analysis(
             - scaler: StandardScaler if standardize=True, else None
             - data_processed: Processed data (standardized or cleaned)
             - feature_names: List of feature names used
+            - feature_metrics_df: DataFrame with per-feature metrics (if include_feature_metrics=True)
     """
     # Convert numpy array to DataFrame if needed
     if not isinstance(data, pd.DataFrame):
@@ -364,8 +500,14 @@ def perform_pca_analysis(
     # Fit PCA
     pca, X_transformed = fit_pca(X_processed, n_components_selected, random_state)
 
-    # Calculate metrics
-    result = calculate_pca_metrics(pca, X_transformed)
+    # Calculate metrics with fitted data
+    # Use ddof=1 for consistency with PCA's eigenvalue calculations
+    result = calculate_pca_metrics(
+        pca,
+        X_transformed,
+        X_fitted=X_processed,
+        ddof_for_feature_var=ddof_feature_var if ddof_feature_var is not None else 1,
+    )
 
     # Add additional information
     result.update(
@@ -375,5 +517,14 @@ def perform_pca_analysis(
             "feature_names": feature_names,
         }
     )
+
+    # Build feature metrics DataFrame if requested
+    if include_feature_metrics:
+        result["feature_metrics_df"] = build_feature_metrics_df(
+            result,
+            ddof_feature_var=ddof_feature_var,
+            include_loadings=True,
+            sort_by="fraction_explained",
+        )
 
     return result
