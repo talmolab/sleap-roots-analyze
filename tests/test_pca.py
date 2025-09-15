@@ -937,7 +937,7 @@ class TestEdgeCasesForFullCoverage:
             perform_pca_analysis(df)
 
     def test_perform_pca_array_no_features(self):
-        """Test perform_pca_analysis with array input that has no features (line 346)."""
+        """Test perform_pca_analysis with array input that has no features."""
         from sleap_roots_analyze.pca import perform_pca_analysis
         import numpy as np
         import pytest
@@ -945,7 +945,8 @@ class TestEdgeCasesForFullCoverage:
         # Create array with shape (n_samples, 0) - no features
         X_no_features = np.empty((10, 0))
         
-        with pytest.raises(ValueError, match="No columns with non-zero variance found"):
+        # This gets converted to empty DataFrame
+        with pytest.raises(ValueError, match="Empty DataFrame provided"):
             perform_pca_analysis(X_no_features)
 
     def test_mahalanobis_force_scalar_covariance(self):
@@ -964,3 +965,27 @@ class TestEdgeCasesForFullCoverage:
         assert cov.shape == (1, 1)
         assert distances is not None
         assert len(distances) == 2
+
+    def test_perform_pca_no_standardization_with_cleaning(self):
+        """Test perform_pca_analysis without standardization but with cleaning."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import pandas as pd
+        import numpy as np
+        
+        # Create DataFrame with mixed columns and zero variance column
+        np.random.seed(42)
+        df = pd.DataFrame({
+            'good1': np.random.randn(20),
+            'good2': np.random.randn(20) * 2,
+            'zero_var': [5.0] * 20,  # Zero variance
+            'text': ['A'] * 20  # Non-numeric
+        })
+        
+        # Test without standardization - should still filter zero variance
+        result = perform_pca_analysis(df, standardize=False)
+        
+        # Should only keep the 2 good features
+        assert len(result['feature_names']) == 2
+        assert 'good1' in result['feature_names']
+        assert 'good2' in result['feature_names']
+        assert result['scaler'] is None  # No standardization

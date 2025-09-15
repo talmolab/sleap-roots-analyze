@@ -197,7 +197,8 @@ def standardize_data(
     df_clean = df.select_dtypes(include=[np.number])
 
     # Drop columns with zero variance
-    variances = df_clean.var()
+    # Use ddof=0 for population variance (consistent with sklearn)
+    variances = df_clean.var(ddof=0)
     non_zero_var_cols = variances[variances > 0].index
     df_clean = df_clean[non_zero_var_cols]
 
@@ -245,9 +246,11 @@ def calculate_mahalanobis_distances(
         mean = np.mean(X_transformed, axis=0)
         if n_features == 1:
             # Special case for 1D
-            covariance = np.array([[np.var(X_transformed[:, 0])]])
+            # Use ddof=0 for population variance (consistent with sklearn)
+            covariance = np.array([[np.var(X_transformed[:, 0], ddof=0)]])
         else:
-            covariance = np.cov(X_transformed, rowvar=False)
+            # Use ddof=0 for population covariance (consistent with sklearn)
+            covariance = np.cov(X_transformed, rowvar=False, ddof=0)
             # Ensure it's 2D even for single feature
             if covariance.ndim == 0:
                 covariance = np.array([[covariance]])
@@ -298,62 +301,60 @@ def perform_pca_analysis(
             - data_processed: Processed data (standardized or cleaned)
             - feature_names: List of feature names used
     """
-    # Handle DataFrame input
-    if isinstance(data, pd.DataFrame):
-        if data.empty:
-            raise ValueError("Empty DataFrame provided")
-
-        # Remove non-numeric columns
-        df_numeric = data.select_dtypes(include=[np.number])
-
-        if df_numeric.empty:
-            raise ValueError("No numeric columns found")
-
-        # Drop rows with any NaN values for PCA
-        df_numeric = df_numeric.dropna()
-
-        if df_numeric.empty:
-            raise ValueError("No valid samples after removing NaN values")
-
-        # Drop columns with zero variance (single sample has zero variance)
-        if len(df_numeric) > 1:
+    # Convert numpy array to DataFrame if needed
+    if not isinstance(data, pd.DataFrame):
+        # Assume it's a numpy array or array-like
+        data = np.asarray(data)
+        if data.ndim != 2:
+            raise ValueError(f"Input array must be 2D, got shape {data.shape}")
+        
+        # Create feature names for the array
+        feature_names = [f"Feature_{i}" for i in range(data.shape[1])]
+        data = pd.DataFrame(data, columns=feature_names)
+    
+    # Now everything is a DataFrame - single logic path
+    if data.empty:
+        raise ValueError("Empty DataFrame provided")
+    
+    # Drop rows with any NaN values for PCA
+    df_clean = data.dropna()
+    
+    if df_clean.empty:
+        raise ValueError("No valid samples after removing NaN values")
+    
+    # Check if we have numeric columns
+    df_numeric_check = df_clean.select_dtypes(include=[np.number])
+    if df_numeric_check.empty:
+        raise ValueError("No numeric columns found")
+    
+    # Check if we have at least 2 samples for meaningful PCA
+    if len(df_clean) <= 1:
+        # Special case for single sample
+        feature_names = df_numeric_check.columns.tolist()
+        X = df_numeric_check.values
+        X_processed = X
+        scaler = None
+    else:
+        if standardize:
+            # Use standardize_data which handles everything
+            X_processed, scaler, df_clean = standardize_data(df_clean)
+            feature_names = df_clean.columns.tolist()
+        else:
+            # Manual cleaning without standardization
+            df_numeric = df_clean.select_dtypes(include=[np.number])
+            
+            # Drop columns with zero variance
             # ddof = 0 for population variance
             variances = df_numeric.var(ddof=0)
             non_zero_var_cols = variances[variances > 0].index
-            df_clean = df_numeric[non_zero_var_cols]
-
-            if df_clean.empty:
+            df_numeric = df_numeric[non_zero_var_cols]
+            
+            if df_numeric.empty:
                 raise ValueError("No numeric columns with non-zero variance found")
-        else:
-            # Single sample - can't compute variance meaningfully
-            df_clean = df_numeric
-
-        feature_names = df_clean.columns.tolist()
-        X = df_clean.values
-    else:
-        # Assume it's already a numpy array
-        X = np.asarray(data)
-        if X.ndim != 2:
-            raise ValueError(f"Input array must be 2D, got shape {X.shape}")
-
-        # Check for zero variance columns
-        # ddof = 0 for population variance
-        variances = np.var(X, axis=0, ddof=0)
-        non_zero_var_mask = variances > 0
-        X = X[:, non_zero_var_mask]
-
-        if X.shape[1] == 0:
-            raise ValueError("No columns with non-zero variance found")
-
-        feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
-
-    # Standardize if requested
-    scaler = None
-    if standardize:
-        scaler = StandardScaler()
-        X_processed = scaler.fit_transform(X)
-    else:
-        X_processed = X
+            
+            feature_names = df_numeric.columns.tolist()
+            X_processed = df_numeric.values
+            scaler = None
 
     # Select number of components
     n_components_selected = select_n_components(
