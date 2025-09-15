@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.stats import spearmanr
 from sklearn.decomposition import PCA as SklearnPCA
 from sklearn.preprocessing import StandardScaler
 
@@ -658,8 +659,7 @@ class TestEdgeCasesForFullCoverage:
 
     def test_select_n_components_no_threshold(self):
         """Test select_n_components with explained_variance_threshold=None."""
-        from sleap_roots_analyze.pca import select_n_components
-        import numpy as np
+
         
         # Create sample data
         np.random.seed(42)
@@ -683,7 +683,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_mahalanobis_distances_1d_array(self, pca_1d_result_data):
         """Test calculate_mahalanobis_distances with 1D transformed data."""
-        from sleap_roots_analyze.pca import fit_pca, calculate_mahalanobis_distances
         
         # Fit PCA requesting only 1 component
         pca, X_transformed = fit_pca(
@@ -703,8 +702,7 @@ class TestEdgeCasesForFullCoverage:
 
     def test_mahalanobis_distances_scalar_covariance(self):
         """Test calculate_mahalanobis_distances with scalar covariance."""
-        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
-        import numpy as np
+
         
         # Create 1D data that might result in scalar covariance
         X_1d = np.random.randn(50, 1)
@@ -717,8 +715,7 @@ class TestEdgeCasesForFullCoverage:
 
     def test_mahalanobis_distances_zero_std(self):
         """Test calculate_mahalanobis_distances with zero standard deviation."""
-        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
-        import numpy as np
+
         
         # Create data with zero variance (all same value)
         X_constant = np.ones((30, 1)) * 5.0  # All values are 5.0
@@ -732,8 +729,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_all_nan_data(self, pca_all_nan_data):
         """Test perform_pca_analysis with all NaN DataFrame."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import pytest
         
         # Should raise ValueError when all data is NaN
         with pytest.raises(ValueError, match="No valid samples after removing NaN"):
@@ -741,8 +736,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_empty_after_nan_removal(self, pca_empty_after_nan_removal):
         """Test perform_pca_analysis when data becomes empty after NaN removal."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import pytest
         
         # Every row has at least one NaN, so dropna() will remove all rows
         with pytest.raises(ValueError, match="No valid samples after removing NaN"):
@@ -750,8 +743,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_zero_variance_all_columns(self, pca_zero_variance_all_columns):
         """Test perform_pca_analysis with all zero-variance columns."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import pytest
         
         # All columns have zero variance
         with pytest.raises(ValueError, match="No numeric columns with non-zero variance found"):
@@ -759,8 +750,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_single_sample(self, pca_single_sample_data):
         """Test perform_pca_analysis with single sample data."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import pytest
         
         # Single sample - PCA should handle gracefully but with limitations
         result = perform_pca_analysis(pca_single_sample_data)
@@ -769,7 +758,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_mixed_data_types(self, pca_mixed_numeric_nonnumeric):
         """Test perform_pca_analysis with mixed numeric and non-numeric columns."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
         
         # Should handle mixed data types gracefully
         result = perform_pca_analysis(
@@ -785,7 +773,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_zero_std_features(self, pca_zero_std_features):
         """Test perform_pca_analysis with some zero-variance features."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
         
         # Should filter out zero-variance features
         result = perform_pca_analysis(
@@ -803,7 +790,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_singular_covariance(self, pca_singular_covariance_data):
         """Test perform_pca_analysis with singular covariance matrix."""
-        from sleap_roots_analyze.pca import perform_pca_analysis, calculate_mahalanobis_distances
         
         # Should handle linearly dependent features
         result = perform_pca_analysis(
@@ -822,8 +808,7 @@ class TestEdgeCasesForFullCoverage:
 
     def test_fit_pca_with_more_components_than_features(self):
         """Test fit_pca when requesting more components than features."""
-        from sleap_roots_analyze.pca import fit_pca
-        import numpy as np
+
         
         # 3 features but request 5 components - fit_pca should handle this
         X = np.random.randn(50, 3)
@@ -836,13 +821,10 @@ class TestEdgeCasesForFullCoverage:
 
     def test_calculate_pca_metrics_edge_cases(self):
         """Test calculate_pca_metrics with edge cases."""
-        from sleap_roots_analyze.pca import calculate_pca_metrics
-        from sklearn.decomposition import PCA
-        import numpy as np
         
         # Test with 1 component PCA
         X = np.random.randn(100, 5)
-        pca = PCA(n_components=1)
+        pca = SklearnPCA(n_components=1)
         X_transformed = pca.fit_transform(X)
         
         metrics = calculate_pca_metrics(pca, X_transformed)
@@ -853,8 +835,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_with_variance_threshold_edge_cases(self):
         """Test perform_pca_with_variance_threshold with edge cases."""
-        from sleap_roots_analyze.pca import perform_pca_with_variance_threshold
-        import numpy as np
         
         # Test with very high threshold (should use all components)
         X = np.random.randn(50, 3)
@@ -873,8 +853,7 @@ class TestEdgeCasesForFullCoverage:
 
     def test_mahalanobis_1d_ndim_reshape(self):
         """Test calculate_mahalanobis_distances with actual 1D array (line 231)."""
-        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
-        import numpy as np
+
         
         # Create actual 1D array (not 2D with shape (n, 1))
         X_1d = np.random.randn(50)  # Shape is (50,) not (50, 1)
@@ -888,8 +867,7 @@ class TestEdgeCasesForFullCoverage:
 
     def test_mahalanobis_scalar_covariance_ndim_0(self):
         """Test calculate_mahalanobis_distances with 0-dim covariance (line 253)."""
-        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
-        import numpy as np
+
         
         # Create data that might produce scalar covariance
         # Single feature with very small variance
@@ -903,9 +881,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_no_numeric_columns(self):
         """Test perform_pca_analysis with no numeric columns (line 312)."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import pandas as pd
-        import pytest
         
         # DataFrame with only non-numeric columns
         df_non_numeric = pd.DataFrame({
@@ -919,10 +894,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_all_columns_zero_variance_after_filter(self):
         """Test when all columns have zero variance (line 346)."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import pandas as pd
-        import numpy as np
-        import pytest
         
         # Create DataFrame where all columns will have zero variance
         n_samples = 20
@@ -938,9 +909,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_array_no_features(self):
         """Test perform_pca_analysis with array input that has no features."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import numpy as np
-        import pytest
         
         # Create array with shape (n_samples, 0) - no features
         X_no_features = np.empty((10, 0))
@@ -951,8 +919,7 @@ class TestEdgeCasesForFullCoverage:
 
     def test_mahalanobis_force_scalar_covariance(self):
         """Force scalar covariance matrix case (line 253)."""
-        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
-        import numpy as np
+
         
         # Create data with 2 samples, 1 feature
         # np.cov with rowvar=False on shape (2, 1) returns scalar
@@ -968,9 +935,6 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_no_standardization_with_cleaning(self):
         """Test perform_pca_analysis without standardization but with cleaning."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import pandas as pd
-        import numpy as np
         
         # Create DataFrame with mixed columns and zero variance column
         np.random.seed(42)
@@ -995,9 +959,6 @@ class TestStandardizationVerification:
     
     def test_standardization_with_real_trait_data(self, traits_summary_df):
         """Test standardization with real trait data."""
-        from sleap_roots_analyze.pca import perform_pca_analysis
-        import numpy as np
-        import pytest
         
         # Use real trait data - select numeric columns only
         numeric_cols = traits_summary_df.select_dtypes(include=[np.number]).columns
@@ -1029,9 +990,6 @@ class TestStandardizationVerification:
     
     def test_standardization_with_diverse_distributions(self):
         """Test standardization with various data distributions."""
-        import numpy as np
-        import pandas as pd
-        from sleap_roots_analyze.pca import standardize_data
         
         np.random.seed(42)
         n_samples = 1000
@@ -1061,9 +1019,6 @@ class TestStandardizationVerification:
     
     def test_standardization_with_extreme_scales(self):
         """Test standardization with features at very different scales."""
-        import numpy as np
-        import pandas as pd
-        from sleap_roots_analyze.pca import perform_pca_analysis
         
         np.random.seed(42)
         n_samples = 500
@@ -1095,9 +1050,6 @@ class TestStandardizationVerification:
     
     def test_standardization_with_outliers(self):
         """Test that standardization handles outliers correctly."""
-        import numpy as np
-        import pandas as pd
-        from sleap_roots_analyze.pca import standardize_data
         
         np.random.seed(42)
         n_samples = 200
@@ -1130,10 +1082,6 @@ class TestStandardizationVerification:
     
     def test_ddof_consistency(self):
         """Test that ddof=0 (population variance) is used consistently."""
-        import numpy as np
-        import pandas as pd
-        from sleap_roots_analyze.pca import standardize_data
-        from sklearn.preprocessing import StandardScaler
         
         np.random.seed(42)
         n_samples = 100
@@ -1165,9 +1113,6 @@ class TestStandardizationVerification:
     
     def test_near_zero_variance_features(self):
         """Test handling of features with very small variance."""
-        import numpy as np
-        import pandas as pd
-        from sleap_roots_analyze.pca import standardize_data
         
         np.random.seed(42)
         n_samples = 100
@@ -1195,9 +1140,6 @@ class TestStandardizationVerification:
     
     def test_standardization_inverse_transform(self):
         """Test that standardization can be reversed correctly."""
-        import numpy as np
-        import pandas as pd
-        from sleap_roots_analyze.pca import perform_pca_analysis
         
         np.random.seed(42)
         n_samples = 200
@@ -1229,8 +1171,6 @@ class TestStandardizationVerification:
     
     def test_standardization_with_array_input(self):
         """Test standardization when input is numpy array."""
-        import numpy as np
-        from sleap_roots_analyze.pca import perform_pca_analysis
         
         np.random.seed(42)
         n_samples = 150
@@ -1259,10 +1199,6 @@ class TestStandardizationVerification:
     
     def test_standardization_preserves_relationships(self):
         """Test that standardization preserves relative relationships between samples."""
-        import numpy as np
-        import pandas as pd
-        from sleap_roots_analyze.pca import standardize_data
-        from scipy.stats import spearmanr
         
         np.random.seed(42)
         n_samples = 100
