@@ -179,6 +179,38 @@ def calculate_pca_reconstruction_error(
     return reconstruction_errors
 
 
+def standardize_data(
+    df: pd.DataFrame,
+) -> Tuple[np.ndarray, StandardScaler, pd.DataFrame]:
+    """Standardize numeric data for PCA analysis.
+
+    Args:
+        df: DataFrame with numeric features
+
+    Returns:
+        Tuple of:
+            - X_scaled: Standardized data array
+            - scaler: Fitted StandardScaler
+            - df_clean: DataFrame with non-numeric columns removed
+    """
+    # Remove non-numeric columns
+    df_clean = df.select_dtypes(include=[np.number])
+
+    # Drop columns with zero variance
+    variances = df_clean.var()
+    non_zero_var_cols = variances[variances > 0].index
+    df_clean = df_clean[non_zero_var_cols]
+
+    if df_clean.empty:
+        raise ValueError("No numeric columns with non-zero variance found")
+
+    # Standardize
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(df_clean)
+
+    return X_scaled, scaler, df_clean
+
+
 def calculate_mahalanobis_distances(
     X_transformed: np.ndarray, robust: bool = False
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -344,35 +376,3 @@ def perform_pca_analysis(
     )
 
     return result
-
-
-def standardize_data(
-    df: pd.DataFrame,
-) -> Tuple[np.ndarray, StandardScaler, pd.DataFrame]:
-    """Standardize numeric data for PCA analysis.
-
-    Args:
-        df: DataFrame with numeric features
-
-    Returns:
-        Tuple of:
-            - X_scaled: Standardized data array
-            - scaler: Fitted StandardScaler
-            - df_clean: DataFrame with non-numeric columns removed
-    """
-    # Remove non-numeric columns
-    df_clean = df.select_dtypes(include=[np.number])
-
-    # Drop columns with zero variance
-    variances = df_clean.var()
-    non_zero_var_cols = variances[variances > 0].index
-    df_clean = df_clean[non_zero_var_cols]
-
-    if df_clean.empty:
-        raise ValueError("No numeric columns with non-zero variance found")
-
-    # Standardize
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_clean)
-
-    return X_scaled, scaler, df_clean
