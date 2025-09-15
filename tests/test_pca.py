@@ -989,3 +989,301 @@ class TestEdgeCasesForFullCoverage:
         assert 'good1' in result['feature_names']
         assert 'good2' in result['feature_names']
         assert result['scaler'] is None  # No standardization
+
+class TestStandardizationVerification:
+    """Comprehensive tests to verify StandardScaler is working correctly."""
+    
+    def test_standardization_with_real_trait_data(self, traits_summary_df):
+        """Test standardization with real trait data."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import numpy as np
+        import pytest
+        
+        # Use real trait data - select numeric columns only
+        numeric_cols = traits_summary_df.select_dtypes(include=[np.number]).columns
+        # Select subset of columns with fewer NaNs for testing
+        cols_with_data = []
+        for col in numeric_cols[:50]:  # Check first 50 numeric columns
+            if traits_summary_df[col].notna().sum() > 100:  # At least 100 non-NaN values
+                cols_with_data.append(col)
+        
+        if len(cols_with_data) < 5:  # Need at least 5 features for meaningful PCA
+            pytest.skip("Not enough columns with sufficient data for PCA testing")
+        
+        test_data = traits_summary_df[cols_with_data[:10]]  # Use up to 10 features
+        result = perform_pca_analysis(test_data, standardize=True)
+        
+        if result['scaler'] is not None:
+            # Verify standardized data has mean ≈ 0 and std ≈ 1
+            processed = result['data_processed']
+            
+            # Check mean is close to 0
+            means = np.mean(processed, axis=0)
+            np.testing.assert_allclose(means, 0, atol=1e-10, 
+                                      err_msg="Standardized data should have mean ≈ 0")
+            
+            # Check std is close to 1
+            stds = np.std(processed, axis=0, ddof=0)  # Use population std
+            np.testing.assert_allclose(stds, 1, atol=1e-10,
+                                      err_msg="Standardized data should have std ≈ 1")
+    
+    def test_standardization_with_diverse_distributions(self):
+        """Test standardization with various data distributions."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import standardize_data
+        
+        np.random.seed(42)
+        n_samples = 1000
+        
+        # Create diverse distributions
+        df = pd.DataFrame({
+            'normal': np.random.randn(n_samples),
+            'lognormal': np.random.lognormal(0, 1, n_samples),
+            'exponential': np.random.exponential(2, n_samples),
+            'uniform': np.random.uniform(-10, 10, n_samples),
+            'bimodal': np.concatenate([
+                np.random.normal(-3, 0.5, n_samples//2),
+                np.random.normal(3, 0.5, n_samples//2)
+            ])
+        })
+        
+        X_scaled, scaler, df_clean = standardize_data(df)
+        
+        # All distributions should be standardized
+        means = np.mean(X_scaled, axis=0)
+        stds = np.std(X_scaled, axis=0, ddof=0)
+        
+        np.testing.assert_allclose(means, 0, atol=1e-10,
+                                  err_msg="All distributions should have mean ≈ 0")
+        np.testing.assert_allclose(stds, 1, atol=1e-10,
+                                  err_msg="All distributions should have std ≈ 1")
+    
+    def test_standardization_with_extreme_scales(self):
+        """Test standardization with features at very different scales."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        
+        np.random.seed(42)
+        n_samples = 500
+        
+        # Create features with vastly different scales
+        df = pd.DataFrame({
+            'tiny': np.random.randn(n_samples) * 1e-6,  # Very small scale
+            'small': np.random.randn(n_samples) * 0.01,
+            'medium': np.random.randn(n_samples),
+            'large': np.random.randn(n_samples) * 1000,
+            'huge': np.random.randn(n_samples) * 1e6,  # Very large scale
+        })
+        
+        result = perform_pca_analysis(df, standardize=True)
+        
+        # After standardization, all should be on same scale
+        processed = result['data_processed']
+        means = np.mean(processed, axis=0)
+        stds = np.std(processed, axis=0, ddof=0)
+        
+        # Check all features are properly standardized
+        np.testing.assert_allclose(means, 0, atol=1e-9,
+                                  err_msg="Features at different scales should have mean ≈ 0")
+        np.testing.assert_allclose(stds, 1, atol=1e-9,
+                                  err_msg="Features at different scales should have std ≈ 1")
+        
+        # Verify feature names are preserved
+        assert result['feature_names'] == ['tiny', 'small', 'medium', 'large', 'huge']
+    
+    def test_standardization_with_outliers(self):
+        """Test that standardization handles outliers correctly."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import standardize_data
+        
+        np.random.seed(42)
+        n_samples = 200
+        
+        # Create data with outliers
+        normal_data = np.random.randn(n_samples)
+        
+        # Add outliers
+        outlier_indices = [10, 50, 100, 150]
+        for idx in outlier_indices:
+            normal_data[idx] = normal_data[idx] * 100  # Make outliers
+        
+        df = pd.DataFrame({
+            'with_outliers': normal_data,
+            'normal': np.random.randn(n_samples)
+        })
+        
+        X_scaled, scaler, df_clean = standardize_data(df)
+        
+        # Even with outliers, standardization should work
+        # Mean should still be close to 0
+        means = np.mean(X_scaled, axis=0)
+        np.testing.assert_allclose(means, 0, atol=1e-10,
+                                  err_msg="Mean should be 0 even with outliers")
+        
+        # Std should be 1 (outliers will affect this but StandardScaler handles it)
+        stds = np.std(X_scaled, axis=0, ddof=0)
+        np.testing.assert_allclose(stds, 1, atol=1e-10,
+                                  err_msg="Std should be 1 even with outliers")
+    
+    def test_ddof_consistency(self):
+        """Test that ddof=0 (population variance) is used consistently."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import standardize_data
+        from sklearn.preprocessing import StandardScaler
+        
+        np.random.seed(42)
+        n_samples = 100
+        
+        df = pd.DataFrame({
+            'feat1': np.random.randn(n_samples) * 2 + 5,
+            'feat2': np.random.randn(n_samples) * 0.5 - 3,
+            'feat3': np.random.randn(n_samples) * 10
+        })
+        
+        # Our standardization
+        X_scaled, scaler, df_clean = standardize_data(df)
+        
+        # Manual calculation with ddof=0
+        X_manual = df.values
+        means_manual = np.mean(X_manual, axis=0)
+        stds_manual = np.std(X_manual, axis=0, ddof=0)  # Population std
+        X_manual_scaled = (X_manual - means_manual) / stds_manual
+        
+        # Verify our implementation matches manual calculation
+        np.testing.assert_allclose(X_scaled, X_manual_scaled, atol=1e-10,
+                                  err_msg="Standardization should use ddof=0")
+        
+        # Verify sklearn StandardScaler also uses ddof=0
+        sklearn_scaler = StandardScaler()
+        X_sklearn = sklearn_scaler.fit_transform(df.values)
+        np.testing.assert_allclose(X_scaled, X_sklearn, atol=1e-10,
+                                  err_msg="Should match sklearn's StandardScaler")
+    
+    def test_near_zero_variance_features(self):
+        """Test handling of features with very small variance."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import standardize_data
+        
+        np.random.seed(42)
+        n_samples = 100
+        
+        # Create features with different variance levels
+        df = pd.DataFrame({
+            'normal_var': np.random.randn(n_samples),
+            'tiny_var': np.random.randn(n_samples) * 1e-8,  # Very small variance
+            'zero_var': np.ones(n_samples) * 5.0,  # Zero variance
+            'small_var': np.random.randn(n_samples) * 0.001
+        })
+        
+        X_scaled, scaler, df_clean = standardize_data(df)
+        
+        # Zero variance column should be removed
+        assert 'zero_var' not in df_clean.columns
+        assert df_clean.shape[1] == 3  # Only 3 columns remaining
+        
+        # Remaining columns should be standardized
+        means = np.mean(X_scaled, axis=0)
+        stds = np.std(X_scaled, axis=0, ddof=0)
+        
+        np.testing.assert_allclose(means, 0, atol=1e-10)
+        np.testing.assert_allclose(stds, 1, atol=1e-10)
+    
+    def test_standardization_inverse_transform(self):
+        """Test that standardization can be reversed correctly."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        
+        np.random.seed(42)
+        n_samples = 200
+        
+        # Create data with known properties
+        df = pd.DataFrame({
+            'feat1': np.random.randn(n_samples) * 5 + 10,  # mean=10, std=5
+            'feat2': np.random.randn(n_samples) * 2 - 5,   # mean=-5, std=2
+            'feat3': np.random.randn(n_samples) * 0.5 + 100  # mean=100, std=0.5
+        })
+        
+        # Store original data
+        original_values = df.values.copy()
+        
+        result = perform_pca_analysis(df, standardize=True, n_components=2)
+        
+        # Get standardized data
+        X_standardized = result['data_processed']
+        scaler = result['scaler']
+        
+        # Verify standardization
+        np.testing.assert_allclose(np.mean(X_standardized, axis=0), 0, atol=1e-10)
+        np.testing.assert_allclose(np.std(X_standardized, axis=0, ddof=0), 1, atol=1e-10)
+        
+        # Inverse transform should recover original data
+        X_recovered = scaler.inverse_transform(X_standardized)
+        np.testing.assert_allclose(X_recovered, original_values, atol=1e-10,
+                                  err_msg="Inverse transform should recover original data")
+    
+    def test_standardization_with_array_input(self):
+        """Test standardization when input is numpy array."""
+        import numpy as np
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        
+        np.random.seed(42)
+        n_samples = 150
+        n_features = 5
+        
+        # Create array with different scales
+        X = np.random.randn(n_samples, n_features)
+        X[:, 0] *= 100  # Scale first feature
+        X[:, 1] *= 0.01  # Scale second feature
+        X[:, 2] += 50  # Shift third feature
+        
+        result = perform_pca_analysis(X, standardize=True)
+        
+        # Verify standardization worked
+        processed = result['data_processed']
+        means = np.mean(processed, axis=0)
+        stds = np.std(processed, axis=0, ddof=0)
+        
+        np.testing.assert_allclose(means, 0, atol=1e-10,
+                                  err_msg="Array input should be standardized correctly")
+        np.testing.assert_allclose(stds, 1, atol=1e-10,
+                                  err_msg="Array input should have std ≈ 1")
+        
+        # Feature names should be generated
+        assert result['feature_names'] == [f'Feature_{i}' for i in range(n_features)]
+    
+    def test_standardization_preserves_relationships(self):
+        """Test that standardization preserves relative relationships between samples."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import standardize_data
+        from scipy.stats import spearmanr
+        
+        np.random.seed(42)
+        n_samples = 100
+        
+        # Create correlated features
+        base = np.random.randn(n_samples)
+        df = pd.DataFrame({
+            'feat1': base * 2 + 5,
+            'feat2': base * 0.5 - 3 + np.random.randn(n_samples) * 0.1,
+            'feat3': -base * 3 + 10 + np.random.randn(n_samples) * 0.2
+        })
+        
+        # Calculate rank correlations before standardization
+        corr_before = spearmanr(df.values)[0]
+        
+        # Standardize
+        X_scaled, scaler, df_clean = standardize_data(df)
+        
+        # Calculate rank correlations after standardization
+        corr_after = spearmanr(X_scaled)[0]
+        
+        # Rank correlations should be preserved
+        np.testing.assert_allclose(corr_before, corr_after, atol=1e-10,
+                                  err_msg="Standardization should preserve rank correlations")
