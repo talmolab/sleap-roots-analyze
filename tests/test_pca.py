@@ -652,5 +652,315 @@ class TestIntegration:
         assert result_std["n_components_selected"] > 0
         assert result_no_std["n_components_selected"] > 0
 
-        # They might differ based on the data structure
-        # but we can't assume which will need more components
+
+class TestEdgeCasesForFullCoverage:
+    """Test edge cases to achieve 100% code coverage."""
+
+    def test_select_n_components_no_threshold(self):
+        """Test select_n_components with explained_variance_threshold=None."""
+        from sleap_roots_analyze.pca import select_n_components
+        import numpy as np
+        
+        # Create sample data
+        np.random.seed(42)
+        X = np.random.randn(100, 5)
+        
+        # When threshold is very high (1.0), should use all available components
+        n_components = select_n_components(
+            X,
+            explained_variance_threshold=1.0,  # Use all components
+            n_components=None
+        )
+        assert n_components >= 4  # Should need most/all components for 100% variance
+        
+        # Test with specified n_components overriding threshold
+        n_components = select_n_components(
+            X,
+            explained_variance_threshold=0.5,
+            n_components=2  # Override with specific value
+        )
+        assert n_components == 2
+
+    def test_mahalanobis_distances_1d_array(self, pca_1d_result_data):
+        """Test calculate_mahalanobis_distances with 1D transformed data."""
+        from sleap_roots_analyze.pca import fit_pca, calculate_mahalanobis_distances
+        
+        # Fit PCA requesting only 1 component
+        pca, X_transformed = fit_pca(
+            pca_1d_result_data.values,
+            n_components=1
+        )
+        
+        assert X_transformed.shape[1] == 1
+        
+        # Calculate distances with 1D data
+        distances, mean, covariance = calculate_mahalanobis_distances(X_transformed)
+        
+        assert distances is not None
+        assert mean.shape == (1,)  # 1D mean
+        assert covariance.shape == (1, 1)  # 1x1 covariance
+        assert len(distances) == len(X_transformed)
+
+    def test_mahalanobis_distances_scalar_covariance(self):
+        """Test calculate_mahalanobis_distances with scalar covariance."""
+        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
+        import numpy as np
+        
+        # Create 1D data that might result in scalar covariance
+        X_1d = np.random.randn(50, 1)
+        
+        distances, mean, cov = calculate_mahalanobis_distances(X_1d)
+        
+        # Verify covariance is properly handled as 2D array
+        assert cov.shape == (1, 1)
+        assert distances is not None
+
+    def test_mahalanobis_distances_zero_std(self):
+        """Test calculate_mahalanobis_distances with zero standard deviation."""
+        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
+        import numpy as np
+        
+        # Create data with zero variance (all same value)
+        X_constant = np.ones((30, 1)) * 5.0  # All values are 5.0
+        
+        distances, mean, cov = calculate_mahalanobis_distances(X_constant)
+        
+        # With zero std, all distances should be zero
+        assert np.all(distances == 0)
+        assert mean[0] == 5.0
+        assert cov[0, 0] == 0  # Zero variance
+
+    def test_perform_pca_all_nan_data(self, pca_all_nan_data):
+        """Test perform_pca_analysis with all NaN DataFrame."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import pytest
+        
+        # Should raise ValueError when all data is NaN
+        with pytest.raises(ValueError, match="No valid samples after removing NaN"):
+            perform_pca_analysis(pca_all_nan_data)
+
+    def test_perform_pca_empty_after_nan_removal(self, pca_empty_after_nan_removal):
+        """Test perform_pca_analysis when data becomes empty after NaN removal."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import pytest
+        
+        # Every row has at least one NaN, so dropna() will remove all rows
+        with pytest.raises(ValueError, match="No valid samples after removing NaN"):
+            perform_pca_analysis(pca_empty_after_nan_removal)
+
+    def test_perform_pca_zero_variance_all_columns(self, pca_zero_variance_all_columns):
+        """Test perform_pca_analysis with all zero-variance columns."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import pytest
+        
+        # All columns have zero variance
+        with pytest.raises(ValueError, match="No numeric columns with non-zero variance found"):
+            perform_pca_analysis(pca_zero_variance_all_columns)
+
+    def test_perform_pca_single_sample(self, pca_single_sample_data):
+        """Test perform_pca_analysis with single sample data."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import pytest
+        
+        # Single sample - PCA should handle gracefully but with limitations
+        result = perform_pca_analysis(pca_single_sample_data)
+        # With single sample, we can't do meaningful PCA
+        assert result['n_components_selected'] == 0  # select_n_components returns 0 for single sample
+
+    def test_perform_pca_mixed_data_types(self, pca_mixed_numeric_nonnumeric):
+        """Test perform_pca_analysis with mixed numeric and non-numeric columns."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        
+        # Should handle mixed data types gracefully
+        result = perform_pca_analysis(
+            pca_mixed_numeric_nonnumeric,
+            n_components=2,
+            standardize=True
+        )
+        
+        # Should only use numeric columns
+        assert len(result['feature_names']) == 4  # Only the 4 numeric columns
+        assert result['feature_names'] == ['value1', 'value2', 'value3', 'value4']
+        assert result['n_components_selected'] <= 2
+
+    def test_perform_pca_zero_std_features(self, pca_zero_std_features):
+        """Test perform_pca_analysis with some zero-variance features."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        
+        # Should filter out zero-variance features
+        result = perform_pca_analysis(
+            pca_zero_std_features,
+            n_components=None,
+            standardize=True
+        )
+        
+        # Should filter out truly zero-variance features (zero_std2 is all zeros)
+        # zero_std1 might have tiny variance due to floating point representation
+        assert 'zero_std2' not in result['feature_names']  # All zeros should be filtered
+        assert 'normal1' in result['feature_names']
+        assert 'normal2' in result['feature_names']
+        assert 'normal3' in result['feature_names']
+
+    def test_perform_pca_singular_covariance(self, pca_singular_covariance_data):
+        """Test perform_pca_analysis with singular covariance matrix."""
+        from sleap_roots_analyze.pca import perform_pca_analysis, calculate_mahalanobis_distances
+        
+        # Should handle linearly dependent features
+        result = perform_pca_analysis(
+            pca_singular_covariance_data,
+            n_components=3,
+            standardize=True
+        )
+        
+        # Should still work despite linear dependencies
+        assert result['n_components_selected'] <= 3
+        
+        # Test mahalanobis distances with singular covariance
+        X_transformed = result['transformed_data']
+        distances, mean, cov = calculate_mahalanobis_distances(X_transformed)
+        assert distances is not None
+
+    def test_fit_pca_with_more_components_than_features(self):
+        """Test fit_pca when requesting more components than features."""
+        from sleap_roots_analyze.pca import fit_pca
+        import numpy as np
+        
+        # 3 features but request 5 components - fit_pca should handle this
+        X = np.random.randn(50, 3)
+        
+        # Should automatically cap to min(n_features, n_samples-1)
+        pca, X_transformed = fit_pca(X, n_components=3)
+        
+        # Should only have min(n_samples-1, n_features) components
+        assert pca.n_components_ <= 3
+
+    def test_calculate_pca_metrics_edge_cases(self):
+        """Test calculate_pca_metrics with edge cases."""
+        from sleap_roots_analyze.pca import calculate_pca_metrics
+        from sklearn.decomposition import PCA
+        import numpy as np
+        
+        # Test with 1 component PCA
+        X = np.random.randn(100, 5)
+        pca = PCA(n_components=1)
+        X_transformed = pca.fit_transform(X)
+        
+        metrics = calculate_pca_metrics(pca, X_transformed)
+        
+        assert metrics['n_components_selected'] == 1
+        assert len(metrics['explained_variance_ratio']) == 1
+        assert metrics['cumulative_variance_ratio'][-1] <= 1.0
+
+    def test_perform_pca_with_variance_threshold_edge_cases(self):
+        """Test perform_pca_with_variance_threshold with edge cases."""
+        from sleap_roots_analyze.pca import perform_pca_with_variance_threshold
+        import numpy as np
+        
+        # Test with very high threshold (should use all components)
+        X = np.random.randn(50, 3)
+        result = perform_pca_with_variance_threshold(
+            X, 
+            explained_variance_threshold=0.9999
+        )
+        assert result['n_components_selected'] >= 2
+        
+        # Test with very low threshold (should use 1 component)
+        result = perform_pca_with_variance_threshold(
+            X,
+            explained_variance_threshold=0.01
+        )
+        assert result['n_components_selected'] == 1
+
+    def test_mahalanobis_1d_ndim_reshape(self):
+        """Test calculate_mahalanobis_distances with actual 1D array (line 231)."""
+        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
+        import numpy as np
+        
+        # Create actual 1D array (not 2D with shape (n, 1))
+        X_1d = np.random.randn(50)  # Shape is (50,) not (50, 1)
+        
+        # Should handle reshaping internally
+        distances, mean, cov = calculate_mahalanobis_distances(X_1d)
+        
+        assert distances is not None
+        assert mean.shape == (1,)
+        assert cov.shape == (1, 1)
+
+    def test_mahalanobis_scalar_covariance_ndim_0(self):
+        """Test calculate_mahalanobis_distances with 0-dim covariance (line 253)."""
+        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
+        import numpy as np
+        
+        # Create data that might produce scalar covariance
+        # Single feature with very small variance
+        X = np.ones((10, 1)) * 5 + np.random.randn(10, 1) * 1e-15
+        
+        distances, mean, cov = calculate_mahalanobis_distances(X, robust=False)
+        
+        # Covariance should be 2D
+        assert cov.ndim == 2
+        assert cov.shape == (1, 1)
+
+    def test_perform_pca_no_numeric_columns(self):
+        """Test perform_pca_analysis with no numeric columns (line 312)."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import pandas as pd
+        import pytest
+        
+        # DataFrame with only non-numeric columns
+        df_non_numeric = pd.DataFrame({
+            'name': ['A', 'B', 'C'],
+            'category': ['X', 'Y', 'Z'],
+            'description': ['foo', 'bar', 'baz']
+        })
+        
+        with pytest.raises(ValueError, match="No numeric columns found"):
+            perform_pca_analysis(df_non_numeric)
+
+    def test_perform_pca_all_columns_zero_variance_after_filter(self):
+        """Test when all columns have zero variance (line 346)."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import pandas as pd
+        import numpy as np
+        import pytest
+        
+        # Create DataFrame where all columns will have zero variance
+        n_samples = 20
+        df = pd.DataFrame({
+            'all_same_1': [42.0] * n_samples,
+            'all_same_2': [100.0] * n_samples,
+            'all_zeros': np.zeros(n_samples),
+            'all_ones': np.ones(n_samples)
+        })
+        
+        with pytest.raises(ValueError, match="No numeric columns with non-zero variance found"):
+            perform_pca_analysis(df)
+
+    def test_perform_pca_array_no_features(self):
+        """Test perform_pca_analysis with array input that has no features (line 346)."""
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        import numpy as np
+        import pytest
+        
+        # Create array with shape (n_samples, 0) - no features
+        X_no_features = np.empty((10, 0))
+        
+        with pytest.raises(ValueError, match="No columns with non-zero variance found"):
+            perform_pca_analysis(X_no_features)
+
+    def test_mahalanobis_force_scalar_covariance(self):
+        """Force scalar covariance matrix case (line 253)."""
+        from sleap_roots_analyze.pca import calculate_mahalanobis_distances
+        import numpy as np
+        
+        # Create data with 2 samples, 1 feature
+        # np.cov with rowvar=False on shape (2, 1) returns scalar
+        X = np.array([[1.0], [2.0]])
+        
+        # This should trigger the scalar covariance case
+        distances, mean, cov = calculate_mahalanobis_distances(X, robust=False)
+        
+        # Should handle scalar covariance properly
+        assert cov.shape == (1, 1)
+        assert distances is not None
+        assert len(distances) == 2

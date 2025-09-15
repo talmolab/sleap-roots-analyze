@@ -1079,3 +1079,163 @@ def pca_variance_threshold_data():
     )
 
     return datasets
+
+
+@pytest.fixture
+def pca_all_nan_data():
+    """Create DataFrame with all NaN values for edge case testing.
+    
+    Returns:
+        pd.DataFrame: Data with all NaN values
+    """
+    return pd.DataFrame({
+        'feat1': [np.nan] * 10,
+        'feat2': [np.nan] * 10,
+        'feat3': [np.nan] * 10
+    })
+
+
+@pytest.fixture
+def pca_single_sample_data():
+    """Create DataFrame with only one sample for edge case testing.
+    
+    Returns:
+        pd.DataFrame: Data with single row
+    """
+    return pd.DataFrame({
+        'feat1': [1.5],
+        'feat2': [2.3],
+        'feat3': [-0.8],
+        'feat4': [4.2]
+    })
+
+
+@pytest.fixture
+def pca_zero_variance_all_columns():
+    """Create DataFrame where all columns have zero variance.
+    
+    Returns:
+        pd.DataFrame: Data where all values in each column are identical
+    """
+    n_samples = 50
+    return pd.DataFrame({
+        'const1': [5.0] * n_samples,
+        'const2': [10.0] * n_samples,
+        'const3': [-2.5] * n_samples
+    })
+
+
+@pytest.fixture
+def pca_1d_result_data():
+    """Create data that will result in 1D PCA output.
+    
+    Returns:
+        pd.DataFrame: High dimensional data with only 1 PC of significance
+    """
+    np.random.seed(42)
+    n_samples = 100
+    
+    # Create data where all features are multiples of one underlying factor
+    base = np.random.randn(n_samples)
+    
+    df = pd.DataFrame({
+        'feat1': base * 2,
+        'feat2': base * 3,
+        'feat3': base * -1,
+        'feat4': base * 0.5,
+        'feat5': base * 4
+    })
+    
+    # Add tiny noise to avoid perfect correlation
+    df += np.random.randn(*df.shape) * 1e-10
+    
+    return df
+
+
+@pytest.fixture  
+def pca_zero_std_features():
+    """Create data with some features having zero standard deviation.
+    
+    Returns:
+        pd.DataFrame: Mixed data with some zero-std features
+    """
+    np.random.seed(42)
+    n_samples = 75
+    
+    return pd.DataFrame({
+        'normal1': np.random.randn(n_samples),
+        'zero_std1': [3.14159] * n_samples,  # Constant
+        'normal2': np.random.randn(n_samples) * 2,
+        'zero_std2': np.zeros(n_samples),  # All zeros
+        'normal3': np.random.randn(n_samples) * 0.5
+    })
+
+
+@pytest.fixture
+def pca_singular_covariance_data():
+    """Create data with singular covariance matrix for edge case testing.
+    
+    Returns:
+        pd.DataFrame: Data with linearly dependent features
+    """
+    np.random.seed(42)
+    n_samples = 100
+    
+    # Create linearly dependent features
+    x1 = np.random.randn(n_samples)
+    x2 = np.random.randn(n_samples)
+    
+    df = pd.DataFrame({
+        'feat1': x1,
+        'feat2': x2,
+        'feat3': x1 + x2,  # Linear combination
+        'feat4': 2 * x1 - x2,  # Another linear combination
+        'feat5': x1 - x2 + x1  # Yet another combination (2*x1 - x2)
+    })
+    
+    return df
+
+
+@pytest.fixture
+def pca_mixed_numeric_nonnumeric():
+    """Create DataFrame with both numeric and non-numeric columns.
+    
+    Returns:
+        pd.DataFrame: Mixed data types
+    """
+    np.random.seed(42)
+    n_samples = 50
+    
+    return pd.DataFrame({
+        'barcode': [f'BC{i:04d}' for i in range(n_samples)],
+        'value1': np.random.randn(n_samples),
+        'category': np.random.choice(['A', 'B', 'C'], n_samples),
+        'value2': np.random.randn(n_samples) * 2,
+        'value3': np.random.randn(n_samples) * 0.5,
+        'description': [f'Sample {i}' for i in range(n_samples)],
+        'value4': np.random.randn(n_samples) * 3
+    })
+
+
+@pytest.fixture
+def pca_empty_after_nan_removal():
+    """Create DataFrame that becomes empty after NaN removal.
+    
+    Returns:
+        pd.DataFrame: Data where every row has at least one NaN
+    """
+    np.random.seed(42)
+    n_samples = 20
+    
+    df = pd.DataFrame({
+        'feat1': np.random.randn(n_samples),
+        'feat2': np.random.randn(n_samples),
+        'feat3': np.random.randn(n_samples)
+    })
+    
+    # Ensure every row has at least one NaN
+    for i in range(n_samples):
+        col_idx = i % 3
+        df.iloc[i, col_idx] = np.nan
+    
+    return df
