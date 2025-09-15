@@ -298,8 +298,6 @@ def perform_pca_analysis(
             - data_processed: Processed data (standardized or cleaned)
             - feature_names: List of feature names used
     """
-    from typing import Union
-
     # Handle DataFrame input
     if isinstance(data, pd.DataFrame):
         if data.empty:
