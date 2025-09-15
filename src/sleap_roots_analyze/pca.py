@@ -317,7 +317,8 @@ def perform_pca_analysis(
 
         # Drop columns with zero variance (single sample has zero variance)
         if len(df_numeric) > 1:
-            variances = df_numeric.var()
+            # ddof = 0 for population variance
+            variances = df_numeric.var(ddof=0)
             non_zero_var_cols = variances[variances > 0].index
             df_clean = df_numeric[non_zero_var_cols]
 
@@ -336,7 +337,8 @@ def perform_pca_analysis(
             raise ValueError(f"Input array must be 2D, got shape {X.shape}")
 
         # Check for zero variance columns
-        variances = np.var(X, axis=0)
+        # ddof = 0 for population variance
+        variances = np.var(X, axis=0, ddof=0)
         non_zero_var_mask = variances > 0
         X = X[:, non_zero_var_mask]
 
