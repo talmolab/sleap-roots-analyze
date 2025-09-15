@@ -579,32 +579,67 @@ class TestIntegration:
 
     def test_full_pipeline_with_real_data(self, traits_summary_df):
         """Test complete pipeline with real trait data."""
-        # Check if the data has any valid samples after dropping NaNs
-        df_numeric = traits_summary_df.select_dtypes(include=[np.number])
-        df_clean = df_numeric.dropna()
-
-        if df_clean.empty:
-            # Skip test if no valid data
-            pytest.skip("No valid samples in real data after removing NaNs")
-
-        # Full pipeline test
+        from sleap_roots_analyze.data_cleanup import get_trait_columns
+        
+        # Use get_trait_columns to select only trait columns (more realistic)
+        trait_cols = get_trait_columns(traits_summary_df)
+        
+        # Select a subset of trait columns that have good data coverage
+        cols_with_good_coverage = []
+        for col in trait_cols[:30]:  # Check first 30 trait columns
+            # Count non-NaN values
+            non_nan_count = traits_summary_df[col].notna().sum()
+            # Select columns with at least 50% data coverage
+            if non_nan_count >= len(traits_summary_df) * 0.5:
+                cols_with_good_coverage.append(col)
+        
+        # Use at least 5 columns for meaningful PCA
+        if len(cols_with_good_coverage) < 5:
+            # If not enough columns with good coverage, use the ones with best coverage
+            coverage_scores = {
+                col: traits_summary_df[col].notna().sum() 
+                for col in trait_cols[:20]
+            }
+            cols_with_good_coverage = sorted(
+                coverage_scores.keys(), 
+                key=lambda x: coverage_scores[x], 
+                reverse=True
+            )[:10]
+        
+        # Create subset of data with selected columns
+        test_data = traits_summary_df[cols_with_good_coverage].copy()
+        
+        # Full pipeline test with realistic data subset
         result = perform_pca_analysis(
-            traits_summary_df, standardize=True, explained_variance_threshold=0.95
+            test_data, standardize=True, explained_variance_threshold=0.95
         )
-
+        
         # Verify all components work together
         assert result["n_components_selected"] > 0
-        assert result["transformed_data"].shape[0] == len(traits_summary_df)
-
-        # Test reconstruction error
+        # transformed_data will have fewer rows if NaN rows were dropped
+        assert result["transformed_data"].shape[0] <= len(test_data)
+        assert result["transformed_data"].shape[0] > 0  # At least some samples remain
+        
+        # Verify we got valid transformed data (not all NaN)
+        assert not np.isnan(result["transformed_data"]).all()
+        
+        # Test reconstruction error if standardization was applied
         if result["scaler"] is not None:
             X_scaled = result["data_processed"]
-            errors = calculate_pca_reconstruction_error(X_scaled, result)
-            assert len(errors) == len(traits_summary_df)
-
-        # Test Mahalanobis distances
-        distances, _, _ = calculate_mahalanobis_distances(result["transformed_data"])
-        assert len(distances) == len(traits_summary_df)
+            # Only calculate errors for samples that were used (non-NaN rows)
+            valid_indices = np.where(~np.isnan(X_scaled).any(axis=1))[0]
+            if len(valid_indices) > 0:
+                errors = calculate_pca_reconstruction_error(X_scaled[valid_indices], result)
+                assert len(errors) == len(valid_indices)
+                assert not np.isnan(errors).all()
+        
+        # Test Mahalanobis distances for valid samples
+        X_transformed = result["transformed_data"]
+        valid_transformed = X_transformed[~np.isnan(X_transformed).any(axis=1)]
+        if len(valid_transformed) > 0:
+            distances, _, _ = calculate_mahalanobis_distances(valid_transformed)
+            assert len(distances) == len(valid_transformed)
+            assert not np.isnan(distances).all()
 
     def test_pipeline_consistency(self, pca_3d_data):
         """Test that modular and legacy functions give same results."""
@@ -659,42 +694,34 @@ class TestEdgeCasesForFullCoverage:
 
     def test_select_n_components_no_threshold(self):
         """Test select_n_components with explained_variance_threshold=None."""
-
-        
         # Create sample data
         np.random.seed(42)
         X = np.random.randn(100, 5)
-        
+
         # When threshold is very high (1.0), should use all available components
         n_components = select_n_components(
-            X,
-            explained_variance_threshold=1.0,  # Use all components
-            n_components=None
+            X, explained_variance_threshold=1.0, n_components=None  # Use all components
         )
         assert n_components >= 4  # Should need most/all components for 100% variance
-        
+
         # Test with specified n_components overriding threshold
         n_components = select_n_components(
             X,
             explained_variance_threshold=0.5,
-            n_components=2  # Override with specific value
+            n_components=2,  # Override with specific value
         )
         assert n_components == 2
 
     def test_mahalanobis_distances_1d_array(self, pca_1d_result_data):
         """Test calculate_mahalanobis_distances with 1D transformed data."""
-        
         # Fit PCA requesting only 1 component
-        pca, X_transformed = fit_pca(
-            pca_1d_result_data.values,
-            n_components=1
-        )
-        
+        pca, X_transformed = fit_pca(pca_1d_result_data.values, n_components=1)
+
         assert X_transformed.shape[1] == 1
-        
+
         # Calculate distances with 1D data
         distances, mean, covariance = calculate_mahalanobis_distances(X_transformed)
-        
+
         assert distances is not None
         assert mean.shape == (1,)  # 1D mean
         assert covariance.shape == (1, 1)  # 1x1 covariance
@@ -702,26 +729,22 @@ class TestEdgeCasesForFullCoverage:
 
     def test_mahalanobis_distances_scalar_covariance(self):
         """Test calculate_mahalanobis_distances with scalar covariance."""
-
-        
         # Create 1D data that might result in scalar covariance
         X_1d = np.random.randn(50, 1)
-        
+
         distances, mean, cov = calculate_mahalanobis_distances(X_1d)
-        
+
         # Verify covariance is properly handled as 2D array
         assert cov.shape == (1, 1)
         assert distances is not None
 
     def test_mahalanobis_distances_zero_std(self):
         """Test calculate_mahalanobis_distances with zero standard deviation."""
-
-        
         # Create data with zero variance (all same value)
         X_constant = np.ones((30, 1)) * 5.0  # All values are 5.0
-        
+
         distances, mean, cov = calculate_mahalanobis_distances(X_constant)
-        
+
         # With zero std, all distances should be zero
         assert np.all(distances == 0)
         assert mean[0] == 5.0
@@ -729,205 +752,189 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_all_nan_data(self, pca_all_nan_data):
         """Test perform_pca_analysis with all NaN DataFrame."""
-        
         # Should raise ValueError when all data is NaN
         with pytest.raises(ValueError, match="No valid samples after removing NaN"):
             perform_pca_analysis(pca_all_nan_data)
 
     def test_perform_pca_empty_after_nan_removal(self, pca_empty_after_nan_removal):
         """Test perform_pca_analysis when data becomes empty after NaN removal."""
-        
         # Every row has at least one NaN, so dropna() will remove all rows
         with pytest.raises(ValueError, match="No valid samples after removing NaN"):
             perform_pca_analysis(pca_empty_after_nan_removal)
 
     def test_perform_pca_zero_variance_all_columns(self, pca_zero_variance_all_columns):
         """Test perform_pca_analysis with all zero-variance columns."""
-        
         # All columns have zero variance
-        with pytest.raises(ValueError, match="No numeric columns with non-zero variance found"):
+        with pytest.raises(
+            ValueError, match="No numeric columns with non-zero variance found"
+        ):
             perform_pca_analysis(pca_zero_variance_all_columns)
 
     def test_perform_pca_single_sample(self, pca_single_sample_data):
         """Test perform_pca_analysis with single sample data."""
-        
         # Single sample - PCA should handle gracefully but with limitations
         result = perform_pca_analysis(pca_single_sample_data)
         # With single sample, we can't do meaningful PCA
-        assert result['n_components_selected'] == 0  # select_n_components returns 0 for single sample
+        assert (
+            result["n_components_selected"] == 0
+        )  # select_n_components returns 0 for single sample
 
     def test_perform_pca_mixed_data_types(self, pca_mixed_numeric_nonnumeric):
         """Test perform_pca_analysis with mixed numeric and non-numeric columns."""
-        
         # Should handle mixed data types gracefully
         result = perform_pca_analysis(
-            pca_mixed_numeric_nonnumeric,
-            n_components=2,
-            standardize=True
+            pca_mixed_numeric_nonnumeric, n_components=2, standardize=True
         )
-        
+
         # Should only use numeric columns
-        assert len(result['feature_names']) == 4  # Only the 4 numeric columns
-        assert result['feature_names'] == ['value1', 'value2', 'value3', 'value4']
-        assert result['n_components_selected'] <= 2
+        assert len(result["feature_names"]) == 4  # Only the 4 numeric columns
+        assert result["feature_names"] == ["value1", "value2", "value3", "value4"]
+        assert result["n_components_selected"] <= 2
 
     def test_perform_pca_zero_std_features(self, pca_zero_std_features):
         """Test perform_pca_analysis with some zero-variance features."""
-        
         # Should filter out zero-variance features
         result = perform_pca_analysis(
-            pca_zero_std_features,
-            n_components=None,
-            standardize=True
+            pca_zero_std_features, n_components=None, standardize=True
         )
-        
+
         # Should filter out truly zero-variance features (zero_std2 is all zeros)
         # zero_std1 might have tiny variance due to floating point representation
-        assert 'zero_std2' not in result['feature_names']  # All zeros should be filtered
-        assert 'normal1' in result['feature_names']
-        assert 'normal2' in result['feature_names']
-        assert 'normal3' in result['feature_names']
+        assert (
+            "zero_std2" not in result["feature_names"]
+        )  # All zeros should be filtered
+        assert "normal1" in result["feature_names"]
+        assert "normal2" in result["feature_names"]
+        assert "normal3" in result["feature_names"]
 
     def test_perform_pca_singular_covariance(self, pca_singular_covariance_data):
         """Test perform_pca_analysis with singular covariance matrix."""
-        
         # Should handle linearly dependent features
         result = perform_pca_analysis(
-            pca_singular_covariance_data,
-            n_components=3,
-            standardize=True
+            pca_singular_covariance_data, n_components=3, standardize=True
         )
-        
+
         # Should still work despite linear dependencies
-        assert result['n_components_selected'] <= 3
-        
+        assert result["n_components_selected"] <= 3
+
         # Test mahalanobis distances with singular covariance
-        X_transformed = result['transformed_data']
+        X_transformed = result["transformed_data"]
         distances, mean, cov = calculate_mahalanobis_distances(X_transformed)
         assert distances is not None
 
     def test_fit_pca_with_more_components_than_features(self):
         """Test fit_pca when requesting more components than features."""
-
-        
         # 3 features but request 5 components - fit_pca should handle this
         X = np.random.randn(50, 3)
-        
+
         # Should automatically cap to min(n_features, n_samples-1)
         pca, X_transformed = fit_pca(X, n_components=3)
-        
+
         # Should only have min(n_samples-1, n_features) components
         assert pca.n_components_ <= 3
 
     def test_calculate_pca_metrics_edge_cases(self):
         """Test calculate_pca_metrics with edge cases."""
-        
         # Test with 1 component PCA
         X = np.random.randn(100, 5)
         pca = SklearnPCA(n_components=1)
         X_transformed = pca.fit_transform(X)
-        
+
         metrics = calculate_pca_metrics(pca, X_transformed)
-        
-        assert metrics['n_components_selected'] == 1
-        assert len(metrics['explained_variance_ratio']) == 1
-        assert metrics['cumulative_variance_ratio'][-1] <= 1.0
+
+        assert metrics["n_components_selected"] == 1
+        assert len(metrics["explained_variance_ratio"]) == 1
+        assert metrics["cumulative_variance_ratio"][-1] <= 1.0
 
     def test_perform_pca_with_variance_threshold_edge_cases(self):
         """Test perform_pca_with_variance_threshold with edge cases."""
-        
         # Test with very high threshold (should use all components)
         X = np.random.randn(50, 3)
         result = perform_pca_with_variance_threshold(
-            X, 
-            explained_variance_threshold=0.9999
+            X, explained_variance_threshold=0.9999
         )
-        assert result['n_components_selected'] >= 2
-        
+        assert result["n_components_selected"] >= 2
+
         # Test with very low threshold (should use 1 component)
         result = perform_pca_with_variance_threshold(
-            X,
-            explained_variance_threshold=0.01
+            X, explained_variance_threshold=0.01
         )
-        assert result['n_components_selected'] == 1
+        assert result["n_components_selected"] == 1
 
     def test_mahalanobis_1d_ndim_reshape(self):
         """Test calculate_mahalanobis_distances with actual 1D array (line 231)."""
-
-        
         # Create actual 1D array (not 2D with shape (n, 1))
         X_1d = np.random.randn(50)  # Shape is (50,) not (50, 1)
-        
+
         # Should handle reshaping internally
         distances, mean, cov = calculate_mahalanobis_distances(X_1d)
-        
+
         assert distances is not None
         assert mean.shape == (1,)
         assert cov.shape == (1, 1)
 
     def test_mahalanobis_scalar_covariance_ndim_0(self):
         """Test calculate_mahalanobis_distances with 0-dim covariance (line 253)."""
-
-        
         # Create data that might produce scalar covariance
         # Single feature with very small variance
         X = np.ones((10, 1)) * 5 + np.random.randn(10, 1) * 1e-15
-        
+
         distances, mean, cov = calculate_mahalanobis_distances(X, robust=False)
-        
+
         # Covariance should be 2D
         assert cov.ndim == 2
         assert cov.shape == (1, 1)
 
     def test_perform_pca_no_numeric_columns(self):
         """Test perform_pca_analysis with no numeric columns (line 312)."""
-        
         # DataFrame with only non-numeric columns
-        df_non_numeric = pd.DataFrame({
-            'name': ['A', 'B', 'C'],
-            'category': ['X', 'Y', 'Z'],
-            'description': ['foo', 'bar', 'baz']
-        })
-        
+        df_non_numeric = pd.DataFrame(
+            {
+                "name": ["A", "B", "C"],
+                "category": ["X", "Y", "Z"],
+                "description": ["foo", "bar", "baz"],
+            }
+        )
+
         with pytest.raises(ValueError, match="No numeric columns found"):
             perform_pca_analysis(df_non_numeric)
 
     def test_perform_pca_all_columns_zero_variance_after_filter(self):
         """Test when all columns have zero variance (line 346)."""
-        
         # Create DataFrame where all columns will have zero variance
         n_samples = 20
-        df = pd.DataFrame({
-            'all_same_1': [42.0] * n_samples,
-            'all_same_2': [100.0] * n_samples,
-            'all_zeros': np.zeros(n_samples),
-            'all_ones': np.ones(n_samples)
-        })
-        
-        with pytest.raises(ValueError, match="No numeric columns with non-zero variance found"):
+        df = pd.DataFrame(
+            {
+                "all_same_1": [42.0] * n_samples,
+                "all_same_2": [100.0] * n_samples,
+                "all_zeros": np.zeros(n_samples),
+                "all_ones": np.ones(n_samples),
+            }
+        )
+
+        with pytest.raises(
+            ValueError, match="No numeric columns with non-zero variance found"
+        ):
             perform_pca_analysis(df)
 
     def test_perform_pca_array_no_features(self):
         """Test perform_pca_analysis with array input that has no features."""
-        
         # Create array with shape (n_samples, 0) - no features
         X_no_features = np.empty((10, 0))
-        
+
         # This gets converted to empty DataFrame
         with pytest.raises(ValueError, match="Empty DataFrame provided"):
             perform_pca_analysis(X_no_features)
 
     def test_mahalanobis_force_scalar_covariance(self):
         """Force scalar covariance matrix case (line 253)."""
-
-        
         # Create data with 2 samples, 1 feature
         # np.cov with rowvar=False on shape (2, 1) returns scalar
         X = np.array([[1.0], [2.0]])
-        
+
         # This should trigger the scalar covariance case
         distances, mean, cov = calculate_mahalanobis_distances(X, robust=False)
-        
+
         # Should handle scalar covariance properly
         assert cov.shape == (1, 1)
         assert distances is not None
@@ -935,291 +942,333 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_no_standardization_with_cleaning(self):
         """Test perform_pca_analysis without standardization but with cleaning."""
-        
         # Create DataFrame with mixed columns and zero variance column
         np.random.seed(42)
-        df = pd.DataFrame({
-            'good1': np.random.randn(20),
-            'good2': np.random.randn(20) * 2,
-            'zero_var': [5.0] * 20,  # Zero variance
-            'text': ['A'] * 20  # Non-numeric
-        })
-        
+        df = pd.DataFrame(
+            {
+                "good1": np.random.randn(20),
+                "good2": np.random.randn(20) * 2,
+                "zero_var": [5.0] * 20,  # Zero variance
+                "text": ["A"] * 20,  # Non-numeric
+            }
+        )
+
         # Test without standardization - should still filter zero variance
         result = perform_pca_analysis(df, standardize=False)
-        
+
         # Should only keep the 2 good features
-        assert len(result['feature_names']) == 2
-        assert 'good1' in result['feature_names']
-        assert 'good2' in result['feature_names']
-        assert result['scaler'] is None  # No standardization
+        assert len(result["feature_names"]) == 2
+        assert "good1" in result["feature_names"]
+        assert "good2" in result["feature_names"]
+        assert result["scaler"] is None  # No standardization
+
 
 class TestStandardizationVerification:
     """Comprehensive tests to verify StandardScaler is working correctly."""
-    
+
     def test_standardization_with_real_trait_data(self, traits_summary_df):
         """Test standardization with real trait data."""
-        
         # Use real trait data - select numeric columns only
         numeric_cols = traits_summary_df.select_dtypes(include=[np.number]).columns
         # Select subset of columns with fewer NaNs for testing
         cols_with_data = []
         for col in numeric_cols[:50]:  # Check first 50 numeric columns
-            if traits_summary_df[col].notna().sum() > 100:  # At least 100 non-NaN values
+            if (
+                traits_summary_df[col].notna().sum() > 100
+            ):  # At least 100 non-NaN values
                 cols_with_data.append(col)
-        
+
         if len(cols_with_data) < 5:  # Need at least 5 features for meaningful PCA
             pytest.skip("Not enough columns with sufficient data for PCA testing")
-        
+
         test_data = traits_summary_df[cols_with_data[:10]]  # Use up to 10 features
         result = perform_pca_analysis(test_data, standardize=True)
-        
-        if result['scaler'] is not None:
+
+        if result["scaler"] is not None:
             # Verify standardized data has mean ≈ 0 and std ≈ 1
-            processed = result['data_processed']
-            
+            processed = result["data_processed"]
+
             # Check mean is close to 0
             means = np.mean(processed, axis=0)
-            np.testing.assert_allclose(means, 0, atol=1e-10, 
-                                      err_msg="Standardized data should have mean ≈ 0")
-            
+            np.testing.assert_allclose(
+                means, 0, atol=1e-10, err_msg="Standardized data should have mean ≈ 0"
+            )
+
             # Check std is close to 1
             stds = np.std(processed, axis=0, ddof=0)  # Use population std
-            np.testing.assert_allclose(stds, 1, atol=1e-10,
-                                      err_msg="Standardized data should have std ≈ 1")
-    
+            np.testing.assert_allclose(
+                stds, 1, atol=1e-10, err_msg="Standardized data should have std ≈ 1"
+            )
+
     def test_standardization_with_diverse_distributions(self):
         """Test standardization with various data distributions."""
-        
         np.random.seed(42)
         n_samples = 1000
-        
+
         # Create diverse distributions
-        df = pd.DataFrame({
-            'normal': np.random.randn(n_samples),
-            'lognormal': np.random.lognormal(0, 1, n_samples),
-            'exponential': np.random.exponential(2, n_samples),
-            'uniform': np.random.uniform(-10, 10, n_samples),
-            'bimodal': np.concatenate([
-                np.random.normal(-3, 0.5, n_samples//2),
-                np.random.normal(3, 0.5, n_samples//2)
-            ])
-        })
-        
+        df = pd.DataFrame(
+            {
+                "normal": np.random.randn(n_samples),
+                "lognormal": np.random.lognormal(0, 1, n_samples),
+                "exponential": np.random.exponential(2, n_samples),
+                "uniform": np.random.uniform(-10, 10, n_samples),
+                "bimodal": np.concatenate(
+                    [
+                        np.random.normal(-3, 0.5, n_samples // 2),
+                        np.random.normal(3, 0.5, n_samples // 2),
+                    ]
+                ),
+            }
+        )
+
         X_scaled, scaler, df_clean = standardize_data(df)
-        
+
         # All distributions should be standardized
         means = np.mean(X_scaled, axis=0)
         stds = np.std(X_scaled, axis=0, ddof=0)
-        
-        np.testing.assert_allclose(means, 0, atol=1e-10,
-                                  err_msg="All distributions should have mean ≈ 0")
-        np.testing.assert_allclose(stds, 1, atol=1e-10,
-                                  err_msg="All distributions should have std ≈ 1")
-    
+
+        np.testing.assert_allclose(
+            means, 0, atol=1e-10, err_msg="All distributions should have mean ≈ 0"
+        )
+        np.testing.assert_allclose(
+            stds, 1, atol=1e-10, err_msg="All distributions should have std ≈ 1"
+        )
+
     def test_standardization_with_extreme_scales(self):
         """Test standardization with features at very different scales."""
-        
         np.random.seed(42)
         n_samples = 500
-        
+
         # Create features with vastly different scales
-        df = pd.DataFrame({
-            'tiny': np.random.randn(n_samples) * 1e-6,  # Very small scale
-            'small': np.random.randn(n_samples) * 0.01,
-            'medium': np.random.randn(n_samples),
-            'large': np.random.randn(n_samples) * 1000,
-            'huge': np.random.randn(n_samples) * 1e6,  # Very large scale
-        })
-        
+        df = pd.DataFrame(
+            {
+                "tiny": np.random.randn(n_samples) * 1e-6,  # Very small scale
+                "small": np.random.randn(n_samples) * 0.01,
+                "medium": np.random.randn(n_samples),
+                "large": np.random.randn(n_samples) * 1000,
+                "huge": np.random.randn(n_samples) * 1e6,  # Very large scale
+            }
+        )
+
         result = perform_pca_analysis(df, standardize=True)
-        
+
         # After standardization, all should be on same scale
-        processed = result['data_processed']
+        processed = result["data_processed"]
         means = np.mean(processed, axis=0)
         stds = np.std(processed, axis=0, ddof=0)
-        
+
         # Check all features are properly standardized
-        np.testing.assert_allclose(means, 0, atol=1e-9,
-                                  err_msg="Features at different scales should have mean ≈ 0")
-        np.testing.assert_allclose(stds, 1, atol=1e-9,
-                                  err_msg="Features at different scales should have std ≈ 1")
-        
+        np.testing.assert_allclose(
+            means,
+            0,
+            atol=1e-9,
+            err_msg="Features at different scales should have mean ≈ 0",
+        )
+        np.testing.assert_allclose(
+            stds,
+            1,
+            atol=1e-9,
+            err_msg="Features at different scales should have std ≈ 1",
+        )
+
         # Verify feature names are preserved
-        assert result['feature_names'] == ['tiny', 'small', 'medium', 'large', 'huge']
-    
+        assert result["feature_names"] == ["tiny", "small", "medium", "large", "huge"]
+
     def test_standardization_with_outliers(self):
         """Test that standardization handles outliers correctly."""
-        
         np.random.seed(42)
         n_samples = 200
-        
+
         # Create data with outliers
         normal_data = np.random.randn(n_samples)
-        
+
         # Add outliers
         outlier_indices = [10, 50, 100, 150]
         for idx in outlier_indices:
             normal_data[idx] = normal_data[idx] * 100  # Make outliers
-        
-        df = pd.DataFrame({
-            'with_outliers': normal_data,
-            'normal': np.random.randn(n_samples)
-        })
-        
+
+        df = pd.DataFrame(
+            {"with_outliers": normal_data, "normal": np.random.randn(n_samples)}
+        )
+
         X_scaled, scaler, df_clean = standardize_data(df)
-        
+
         # Even with outliers, standardization should work
         # Mean should still be close to 0
         means = np.mean(X_scaled, axis=0)
-        np.testing.assert_allclose(means, 0, atol=1e-10,
-                                  err_msg="Mean should be 0 even with outliers")
-        
+        np.testing.assert_allclose(
+            means, 0, atol=1e-10, err_msg="Mean should be 0 even with outliers"
+        )
+
         # Std should be 1 (outliers will affect this but StandardScaler handles it)
         stds = np.std(X_scaled, axis=0, ddof=0)
-        np.testing.assert_allclose(stds, 1, atol=1e-10,
-                                  err_msg="Std should be 1 even with outliers")
-    
+        np.testing.assert_allclose(
+            stds, 1, atol=1e-10, err_msg="Std should be 1 even with outliers"
+        )
+
     def test_ddof_consistency(self):
         """Test that ddof=0 (population variance) is used consistently."""
-        
         np.random.seed(42)
         n_samples = 100
-        
-        df = pd.DataFrame({
-            'feat1': np.random.randn(n_samples) * 2 + 5,
-            'feat2': np.random.randn(n_samples) * 0.5 - 3,
-            'feat3': np.random.randn(n_samples) * 10
-        })
-        
+
+        df = pd.DataFrame(
+            {
+                "feat1": np.random.randn(n_samples) * 2 + 5,
+                "feat2": np.random.randn(n_samples) * 0.5 - 3,
+                "feat3": np.random.randn(n_samples) * 10,
+            }
+        )
+
         # Our standardization
         X_scaled, scaler, df_clean = standardize_data(df)
-        
+
         # Manual calculation with ddof=0
         X_manual = df.values
         means_manual = np.mean(X_manual, axis=0)
         stds_manual = np.std(X_manual, axis=0, ddof=0)  # Population std
         X_manual_scaled = (X_manual - means_manual) / stds_manual
-        
+
         # Verify our implementation matches manual calculation
-        np.testing.assert_allclose(X_scaled, X_manual_scaled, atol=1e-10,
-                                  err_msg="Standardization should use ddof=0")
-        
+        np.testing.assert_allclose(
+            X_scaled,
+            X_manual_scaled,
+            atol=1e-10,
+            err_msg="Standardization should use ddof=0",
+        )
+
         # Verify sklearn StandardScaler also uses ddof=0
         sklearn_scaler = StandardScaler()
         X_sklearn = sklearn_scaler.fit_transform(df.values)
-        np.testing.assert_allclose(X_scaled, X_sklearn, atol=1e-10,
-                                  err_msg="Should match sklearn's StandardScaler")
-    
+        np.testing.assert_allclose(
+            X_scaled,
+            X_sklearn,
+            atol=1e-10,
+            err_msg="Should match sklearn's StandardScaler",
+        )
+
     def test_near_zero_variance_features(self):
         """Test handling of features with very small variance."""
-        
         np.random.seed(42)
         n_samples = 100
-        
+
         # Create features with different variance levels
-        df = pd.DataFrame({
-            'normal_var': np.random.randn(n_samples),
-            'tiny_var': np.random.randn(n_samples) * 1e-8,  # Very small variance
-            'zero_var': np.ones(n_samples) * 5.0,  # Zero variance
-            'small_var': np.random.randn(n_samples) * 0.001
-        })
-        
+        df = pd.DataFrame(
+            {
+                "normal_var": np.random.randn(n_samples),
+                "tiny_var": np.random.randn(n_samples) * 1e-8,  # Very small variance
+                "zero_var": np.ones(n_samples) * 5.0,  # Zero variance
+                "small_var": np.random.randn(n_samples) * 0.001,
+            }
+        )
+
         X_scaled, scaler, df_clean = standardize_data(df)
-        
+
         # Zero variance column should be removed
-        assert 'zero_var' not in df_clean.columns
+        assert "zero_var" not in df_clean.columns
         assert df_clean.shape[1] == 3  # Only 3 columns remaining
-        
+
         # Remaining columns should be standardized
         means = np.mean(X_scaled, axis=0)
         stds = np.std(X_scaled, axis=0, ddof=0)
-        
+
         np.testing.assert_allclose(means, 0, atol=1e-10)
         np.testing.assert_allclose(stds, 1, atol=1e-10)
-    
+
     def test_standardization_inverse_transform(self):
         """Test that standardization can be reversed correctly."""
-        
         np.random.seed(42)
         n_samples = 200
-        
+
         # Create data with known properties
-        df = pd.DataFrame({
-            'feat1': np.random.randn(n_samples) * 5 + 10,  # mean=10, std=5
-            'feat2': np.random.randn(n_samples) * 2 - 5,   # mean=-5, std=2
-            'feat3': np.random.randn(n_samples) * 0.5 + 100  # mean=100, std=0.5
-        })
-        
+        df = pd.DataFrame(
+            {
+                "feat1": np.random.randn(n_samples) * 5 + 10,  # mean=10, std=5
+                "feat2": np.random.randn(n_samples) * 2 - 5,  # mean=-5, std=2
+                "feat3": np.random.randn(n_samples) * 0.5 + 100,  # mean=100, std=0.5
+            }
+        )
+
         # Store original data
         original_values = df.values.copy()
-        
+
         result = perform_pca_analysis(df, standardize=True, n_components=2)
-        
+
         # Get standardized data
-        X_standardized = result['data_processed']
-        scaler = result['scaler']
-        
+        X_standardized = result["data_processed"]
+        scaler = result["scaler"]
+
         # Verify standardization
         np.testing.assert_allclose(np.mean(X_standardized, axis=0), 0, atol=1e-10)
-        np.testing.assert_allclose(np.std(X_standardized, axis=0, ddof=0), 1, atol=1e-10)
-        
+        np.testing.assert_allclose(
+            np.std(X_standardized, axis=0, ddof=0), 1, atol=1e-10
+        )
+
         # Inverse transform should recover original data
         X_recovered = scaler.inverse_transform(X_standardized)
-        np.testing.assert_allclose(X_recovered, original_values, atol=1e-10,
-                                  err_msg="Inverse transform should recover original data")
-    
+        np.testing.assert_allclose(
+            X_recovered,
+            original_values,
+            atol=1e-10,
+            err_msg="Inverse transform should recover original data",
+        )
+
     def test_standardization_with_array_input(self):
         """Test standardization when input is numpy array."""
-        
         np.random.seed(42)
         n_samples = 150
         n_features = 5
-        
+
         # Create array with different scales
         X = np.random.randn(n_samples, n_features)
         X[:, 0] *= 100  # Scale first feature
         X[:, 1] *= 0.01  # Scale second feature
         X[:, 2] += 50  # Shift third feature
-        
+
         result = perform_pca_analysis(X, standardize=True)
-        
+
         # Verify standardization worked
-        processed = result['data_processed']
+        processed = result["data_processed"]
         means = np.mean(processed, axis=0)
         stds = np.std(processed, axis=0, ddof=0)
-        
-        np.testing.assert_allclose(means, 0, atol=1e-10,
-                                  err_msg="Array input should be standardized correctly")
-        np.testing.assert_allclose(stds, 1, atol=1e-10,
-                                  err_msg="Array input should have std ≈ 1")
-        
+
+        np.testing.assert_allclose(
+            means, 0, atol=1e-10, err_msg="Array input should be standardized correctly"
+        )
+        np.testing.assert_allclose(
+            stds, 1, atol=1e-10, err_msg="Array input should have std ≈ 1"
+        )
+
         # Feature names should be generated
-        assert result['feature_names'] == [f'Feature_{i}' for i in range(n_features)]
-    
+        assert result["feature_names"] == [f"Feature_{i}" for i in range(n_features)]
+
     def test_standardization_preserves_relationships(self):
         """Test that standardization preserves relative relationships between samples."""
-        
         np.random.seed(42)
         n_samples = 100
-        
+
         # Create correlated features
         base = np.random.randn(n_samples)
-        df = pd.DataFrame({
-            'feat1': base * 2 + 5,
-            'feat2': base * 0.5 - 3 + np.random.randn(n_samples) * 0.1,
-            'feat3': -base * 3 + 10 + np.random.randn(n_samples) * 0.2
-        })
-        
+        df = pd.DataFrame(
+            {
+                "feat1": base * 2 + 5,
+                "feat2": base * 0.5 - 3 + np.random.randn(n_samples) * 0.1,
+                "feat3": -base * 3 + 10 + np.random.randn(n_samples) * 0.2,
+            }
+        )
+
         # Calculate rank correlations before standardization
         corr_before = spearmanr(df.values)[0]
-        
+
         # Standardize
         X_scaled, scaler, df_clean = standardize_data(df)
-        
+
         # Calculate rank correlations after standardization
         corr_after = spearmanr(X_scaled)[0]
-        
+
         # Rank correlations should be preserved
-        np.testing.assert_allclose(corr_before, corr_after, atol=1e-10,
-                                  err_msg="Standardization should preserve rank correlations")
+        np.testing.assert_allclose(
+            corr_before,
+            corr_after,
+            atol=1e-10,
+            err_msg="Standardization should preserve rank correlations",
+        )

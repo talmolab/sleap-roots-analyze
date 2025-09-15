@@ -307,26 +307,26 @@ def perform_pca_analysis(
         data = np.asarray(data)
         if data.ndim != 2:
             raise ValueError(f"Input array must be 2D, got shape {data.shape}")
-        
+
         # Create feature names for the array
         feature_names = [f"Feature_{i}" for i in range(data.shape[1])]
         data = pd.DataFrame(data, columns=feature_names)
-    
+
     # Now everything is a DataFrame - single logic path
     if data.empty:
         raise ValueError("Empty DataFrame provided")
-    
+
     # Drop rows with any NaN values for PCA
     df_clean = data.dropna()
-    
+
     if df_clean.empty:
         raise ValueError("No valid samples after removing NaN values")
-    
+
     # Check if we have numeric columns
     df_numeric_check = df_clean.select_dtypes(include=[np.number])
     if df_numeric_check.empty:
         raise ValueError("No numeric columns found")
-    
+
     # Check if we have at least 2 samples for meaningful PCA
     if len(df_clean) <= 1:
         # Special case for single sample
@@ -342,16 +342,16 @@ def perform_pca_analysis(
         else:
             # Manual cleaning without standardization
             df_numeric = df_clean.select_dtypes(include=[np.number])
-            
+
             # Drop columns with zero variance
             # ddof = 0 for population variance
             variances = df_numeric.var(ddof=0)
             non_zero_var_cols = variances[variances > 0].index
             df_numeric = df_numeric[non_zero_var_cols]
-            
+
             if df_numeric.empty:
                 raise ValueError("No numeric columns with non-zero variance found")
-            
+
             feature_names = df_numeric.columns.tolist()
             X_processed = df_numeric.values
             scaler = None
