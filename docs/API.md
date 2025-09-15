@@ -372,6 +372,100 @@ Analyze trait retention at different heritability thresholds.
 
 ---
 
+## `pca` Module
+
+Principal Component Analysis for dimensionality reduction of root trait data.
+
+### Functions
+
+#### `perform_pca_analysis`
+
+```python
+perform_pca_analysis(
+    data: Union[pd.DataFrame, np.ndarray],
+    standardize: bool = True,
+    explained_variance_threshold: float = 0.95,
+    n_components: Optional[int] = None,
+    random_state: int = 42
+) -> Dict
+```
+
+Perform complete PCA analysis pipeline with optional standardization.
+
+**Parameters:**
+- `data`: Input data as DataFrame or array
+- `standardize`: Whether to standardize data (default: True)
+- `explained_variance_threshold`: Cumulative variance threshold (default: 0.95)
+- `n_components`: Number of components (overrides automatic selection if specified)
+- `random_state`: Random state for reproducibility
+
+**Returns:**
+Dictionary containing:
+- `pca`: Fitted PCA model
+- `transformed_data`: Transformed data in PC space
+- `loadings`: Component loadings
+- `explained_variance_ratio`: Variance explained by each component
+- `n_components_selected`: Number of components selected
+- `scaler`: StandardScaler if standardize=True, else None
+- `feature_names`: List of feature names used
+
+**Example:**
+```python
+result = perform_pca_analysis(df_traits, standardize=True)
+print(f"Selected {result['n_components_selected']} components")
+print(f"Explained variance: {result['cumulative_variance_ratio'][-1]:.2%}")
+```
+
+---
+
+#### `standardize_data`
+
+```python
+standardize_data(
+    df: pd.DataFrame
+) -> Tuple[np.ndarray, StandardScaler, pd.DataFrame]
+```
+
+Standardize numeric columns and remove zero-variance features.
+
+**Parameters:**
+- `df`: Input DataFrame
+
+**Returns:**
+- Standardized data array
+- Fitted StandardScaler
+- Cleaned DataFrame (without zero-variance columns)
+
+---
+
+#### `calculate_mahalanobis_distances`
+
+```python
+calculate_mahalanobis_distances(
+    X_transformed: np.ndarray,
+    robust: bool = True
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
+```
+
+Calculate Mahalanobis distances for outlier detection.
+
+**Parameters:**
+- `X_transformed`: PCA-transformed data
+- `robust`: Use robust covariance estimation (default: True)
+
+**Returns:**
+- Mahalanobis distances for each sample
+- Mean of transformed data
+- Covariance matrix
+
+**Example:**
+```python
+distances, mean, cov = calculate_mahalanobis_distances(pca_result['transformed_data'])
+outliers = distances > np.percentile(distances, 95)
+```
+
+---
+
 ## `data_utils` Module
 
 Utility functions for data processing.

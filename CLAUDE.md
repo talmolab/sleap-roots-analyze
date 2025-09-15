@@ -62,12 +62,18 @@ sleap-roots-analyze/
 ├── src/
 │   └── sleap_roots_analyze/
 │       ├── __init__.py
-│       └── data_cleanup.py      # Data loading and cleaning utilities
+│       ├── data_cleanup.py      # Data loading and cleaning utilities
+│       ├── statistics.py        # Statistical analysis
+│       ├── pca.py               # PCA analysis module
+│       ├── data_utils.py        # Utility functions
+│       └── outlier_detection.py # Outlier detection (in development)
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py              # Pytest configuration
 │   ├── fixtures.py              # Centralized test fixtures
 │   ├── test_data_cleanup.py    # Tests for data_cleanup module
+│   ├── test_statistics.py      # Tests for statistics module
+│   ├── test_pca.py             # Tests for PCA module
 │   └── data/                   # Test data files
 │       ├── features.csv
 │       ├── traits_summary.csv
@@ -82,10 +88,12 @@ sleap-roots-analyze/
 
 ### Test Coverage Goals
 
-- Target: 100% coverage for critical modules
+- Target: 95%+ coverage for critical modules
 - Current status:
   - `data_cleanup.py`: 99% coverage ✅
-  - Other modules: To be developed
+  - `statistics.py`: 95%+ coverage ✅
+  - `pca.py`: 97% coverage ✅
+  - `data_utils.py`: 100% coverage ✅
 
 ### Writing Tests
 
@@ -190,6 +198,12 @@ def process_data(df, optional_col=None):
     else:
         # Process without it
 ```
+
+#### Git Commit Best Practices
+- **NEVER use `git add -A` or `git add .`** - Only add relevant files
+- **Review staged files** before committing with `git status`
+- **Keep commits focused** - Each commit should have a single purpose
+- **Write clear commit messages** that describe the why, not just the what
 
 ## Release Process
 

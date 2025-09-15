@@ -34,6 +34,9 @@ uv run pytest --cov=src/sleap_roots_analyze --cov-branch --cov-report=html
 
 # View coverage in terminal with missing lines
 uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing
+
+# Coverage for specific module
+uv run pytest tests/test_pca.py --cov=sleap_roots_analyze.pca --cov-branch
 ```
 
 ### Test Selection
@@ -59,7 +62,8 @@ tests/
 ├── conftest.py              # Pytest configuration
 ├── fixtures.py              # Centralized test fixtures
 ├── test_data_cleanup.py    # Tests for data_cleanup module
-├── test_statistics.py      # Tests for statistics module  
+├── test_statistics.py      # Tests for statistics module
+├── test_pca.py             # Tests for PCA module (69 tests)
 └── data/                    # Test data files
     ├── features.csv
     ├── traits_summary.csv
@@ -122,16 +126,18 @@ def test_extreme_values(self, edge_case_extreme_values):
 Test complete workflows:
 
 ```python
-def test_heritability_with_filtering(self):
-    """Test integrated heritability calculation and filtering."""
-    results = calculate_heritability_estimates(
-        df, trait_cols,
-        remove_low_h2=True,
-        h2_threshold=0.3
-    )
+def test_full_pipeline_with_real_data(self, traits_summary_df):
+    """Test complete pipeline with real trait data."""
+    from sleap_roots_analyze.data_cleanup import get_trait_columns
     
-    h2_results, df_filtered, removed, details = results
-    assert len(removed) > 0  # Some traits removed
+    # Use get_trait_columns for realistic trait selection
+    trait_cols = get_trait_columns(traits_summary_df)
+    
+    # Select columns with good data coverage
+    # ... (handles real data with NaN values)
+    
+    result = perform_pca_analysis(test_data, standardize=True)
+    assert result["n_components_selected"] > 0
 ```
 
 ## Writing Tests
@@ -154,6 +160,15 @@ def heritability_data_known_h2():
     # σ²_G = 4.0, σ²_E = 1.0 → H² = 0.8
     
     return df, expected_h2
+
+@pytest.fixture
+def pca_all_nan_data():
+    """Create DataFrame with all NaN values for edge case testing."""
+    return pd.DataFrame({
+        'feat1': [np.nan] * 10,
+        'feat2': [np.nan] * 10,
+        'feat3': [np.nan] * 10
+    })
 ```
 
 ### Best Practices
@@ -218,6 +233,27 @@ def test_with_random_data(self):
     assert 0.7 < heritability < 0.9  # Not exact
 ```
 
+#### 6. Consolidate Imports
+
+All frequently used imports should be at the top of the test file:
+
+```python
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+from scipy.stats import spearmanr
+from sklearn.decomposition import PCA as SklearnPCA
+from sklearn.preprocessing import StandardScaler
+
+from sleap_roots_analyze.pca import (
+    calculate_mahalanobis_distances,
+    calculate_pca_metrics,
+    # ... all other functions
+)
+```
+
 ## Current Test Coverage
 
 ### Module Coverage
@@ -226,15 +262,16 @@ def test_with_random_data(self):
 |--------|----------|-------|-------|
 | `data_cleanup.py` | 99% | 15 | Missing edge case for Excel loading |
 | `statistics.py` | 95%+ | 45 | Full coverage with numerical tests |
+| `pca.py` | 97% | 69 | All tests passing, no skips |
 | `data_utils.py` | 100% | 5 | Complete coverage |
 | `outlier_detection.py` | N/A | 0 | Module in development |
 
 ### Test Statistics
 
-- **Total Tests**: 65+
-- **Pass Rate**: 100% (all tests passing)
-- **Execution Time**: ~1.5 seconds
-- **Fixtures**: 30+ reusable fixtures
+- **Total Tests**: 134+ tests
+- **Pass Rate**: 100% (all tests passing, no skips)
+- **Execution Time**: ~2 seconds
+- **Fixtures**: 40+ reusable fixtures including PCA edge cases
 
 ## Troubleshooting
 
@@ -264,7 +301,7 @@ from tests.fixtures import *  # noqa
 #### 4. Numerical Precision Warnings
 
 These warnings are expected for edge cases:
-- `RuntimeWarning: invalid value encountered` - Expected with infinity
+- `RuntimeWarning: invalid value encountered` - Expected with infinity or single sample PCA
 - `ConvergenceWarning` - Expected with insufficient data
 - `Precision loss` - Expected with constant values
 
@@ -282,6 +319,9 @@ uv run pytest --pdb
 
 # Show local variables on failure
 uv run pytest -l
+
+# Run only failed tests from last run
+uv run pytest --lf
 ```
 
 ## Continuous Integration
@@ -346,7 +386,34 @@ When adding new features:
 2. **Add fixtures** for complex test data
 3. **Test edge cases** and error conditions
 4. **Verify numerical accuracy** for calculations
-5. **Update this documentation** with new patterns
+5. **Consolidate imports** at the top of test files
+6. **Ensure no tests are skipped** - fix or remove skipped tests
+7. **Update this documentation** with new patterns
+
+## Code Quality
+
+### Formatting and Linting
+
+```bash
+# Format test code
+uv run black tests
+
+# Lint test code
+uv run ruff check tests
+
+# Fix linting issues
+uv run ruff check --fix tests
+```
+
+### Test Quality Checklist
+
+- ✅ All tests pass
+- ✅ No skipped tests (fix or remove them)
+- ✅ Coverage > 95% for critical modules
+- ✅ Imports consolidated at top of file
+- ✅ Tests use realistic data (e.g., `get_trait_columns`)
+- ✅ Edge cases covered
+- ✅ Numerical accuracy verified
 
 ## Resources
 
