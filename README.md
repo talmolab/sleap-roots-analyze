@@ -1,5 +1,10 @@
 # SLEAP Roots Analyze
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![Coverage: 97%](https://img.shields.io/badge/Coverage-97%25-brightgreen)
+![Tests: 134+](https://img.shields.io/badge/Tests-134%2B-brightgreen)
+![Python: 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)
+
 Statistical analysis tools for root trait data from [SLEAP Roots](https://github.com/talmolab/sleap-roots).
 
 ## Installation
@@ -130,7 +135,7 @@ sleap-roots-analyze/
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file.
+GNU General Public License v3.0 - see [LICENSE](LICENSE) file.
 
 ## Citation
 
