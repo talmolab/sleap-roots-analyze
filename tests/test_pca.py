@@ -580,10 +580,10 @@ class TestIntegration:
     def test_full_pipeline_with_real_data(self, traits_summary_df):
         """Test complete pipeline with real trait data."""
         from sleap_roots_analyze.data_cleanup import get_trait_columns
-        
+
         # Use get_trait_columns to select only trait columns (more realistic)
         trait_cols = get_trait_columns(traits_summary_df)
-        
+
         # Select a subset of trait columns that have good data coverage
         cols_with_good_coverage = []
         for col in trait_cols[:30]:  # Check first 30 trait columns
@@ -592,47 +592,46 @@ class TestIntegration:
             # Select columns with at least 50% data coverage
             if non_nan_count >= len(traits_summary_df) * 0.5:
                 cols_with_good_coverage.append(col)
-        
+
         # Use at least 5 columns for meaningful PCA
         if len(cols_with_good_coverage) < 5:
             # If not enough columns with good coverage, use the ones with best coverage
             coverage_scores = {
-                col: traits_summary_df[col].notna().sum() 
-                for col in trait_cols[:20]
+                col: traits_summary_df[col].notna().sum() for col in trait_cols[:20]
             }
             cols_with_good_coverage = sorted(
-                coverage_scores.keys(), 
-                key=lambda x: coverage_scores[x], 
-                reverse=True
+                coverage_scores.keys(), key=lambda x: coverage_scores[x], reverse=True
             )[:10]
-        
+
         # Create subset of data with selected columns
         test_data = traits_summary_df[cols_with_good_coverage].copy()
-        
+
         # Full pipeline test with realistic data subset
         result = perform_pca_analysis(
             test_data, standardize=True, explained_variance_threshold=0.95
         )
-        
+
         # Verify all components work together
         assert result["n_components_selected"] > 0
         # transformed_data will have fewer rows if NaN rows were dropped
         assert result["transformed_data"].shape[0] <= len(test_data)
         assert result["transformed_data"].shape[0] > 0  # At least some samples remain
-        
+
         # Verify we got valid transformed data (not all NaN)
         assert not np.isnan(result["transformed_data"]).all()
-        
+
         # Test reconstruction error if standardization was applied
         if result["scaler"] is not None:
             X_scaled = result["data_processed"]
             # Only calculate errors for samples that were used (non-NaN rows)
             valid_indices = np.where(~np.isnan(X_scaled).any(axis=1))[0]
             if len(valid_indices) > 0:
-                errors = calculate_pca_reconstruction_error(X_scaled[valid_indices], result)
+                errors = calculate_pca_reconstruction_error(
+                    X_scaled[valid_indices], result
+                )
                 assert len(errors) == len(valid_indices)
                 assert not np.isnan(errors).all()
-        
+
         # Test Mahalanobis distances for valid samples
         X_transformed = result["transformed_data"]
         valid_transformed = X_transformed[~np.isnan(X_transformed).any(axis=1)]
