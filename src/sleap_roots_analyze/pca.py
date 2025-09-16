@@ -31,7 +31,10 @@ def select_n_components(
 
     # Handle edge case: single sample
     if n_samples <= 1:
-        return 0  # Can't do PCA with single sample
+        raise ValueError(
+            f"PCA requires at least 2 samples, got {n_samples}. "
+            "Cannot compute principal components with a single sample."
+        )
 
     if n_components is not None:
         # Use specified number, but ensure it's valid
@@ -487,6 +490,13 @@ def perform_pca_analysis(
             feature_names = df_numeric.columns.tolist()
             X_processed = df_numeric.values
             scaler = None
+
+    # Validate we have enough samples after preprocessing
+    if X_processed.shape[0] <= 1:
+        raise ValueError(
+            f"PCA requires at least 2 samples after preprocessing, got {X_processed.shape[0]}. "
+            "Check your input data or preprocessing steps."
+        )
 
     # Select number of components
     n_components_selected = select_n_components(

@@ -140,10 +140,10 @@ class TestSelectNComponents:
         n = select_n_components(data)
         assert n <= 9  # max is n_samples - 1
 
-        # Single sample
+        # Single sample should raise ValueError
         data = np.random.randn(1, 5)
-        n = select_n_components(data)
-        assert n == 0  # Can't do PCA with single sample
+        with pytest.raises(ValueError, match="PCA requires at least 2 samples"):
+            select_n_components(data)
 
     def test_select_low_variance_threshold(self, pca_3d_data):
         """Test with low variance threshold."""
@@ -439,11 +439,10 @@ class TestPerformPCAAnalysis:
         result = perform_pca_analysis(df)
         assert result["n_components_selected"] == 1
 
-        # Single sample - should handle gracefully
+        # Single sample - should raise ValueError
         df = pd.DataFrame({"feat1": [1.0], "feat2": [2.0]})
-        # Single sample can't do PCA meaningfully
-        result = perform_pca_analysis(df, standardize=False)
-        assert result["n_components_selected"] == 0  # No components for single sample
+        with pytest.raises(ValueError, match="PCA requires at least 2 samples"):
+            perform_pca_analysis(df, standardize=False)
 
 
 class TestCalculateReconstructionError:
@@ -771,12 +770,9 @@ class TestEdgeCasesForFullCoverage:
 
     def test_perform_pca_single_sample(self, pca_single_sample_data):
         """Test perform_pca_analysis with single sample data."""
-        # Single sample - PCA should handle gracefully but with limitations
-        result = perform_pca_analysis(pca_single_sample_data)
-        # With single sample, we can't do meaningful PCA
-        assert (
-            result["n_components_selected"] == 0
-        )  # select_n_components returns 0 for single sample
+        # Single sample - should raise ValueError
+        with pytest.raises(ValueError, match="PCA requires at least 2 samples"):
+            perform_pca_analysis(pca_single_sample_data)
 
     def test_perform_pca_mixed_data_types(self, pca_mixed_numeric_nonnumeric):
         """Test perform_pca_analysis with mixed numeric and non-numeric columns."""
