@@ -963,11 +963,13 @@ class TestStandardizationVerification:
 
     def test_standardization_with_real_trait_data(self, traits_summary_df):
         """Test standardization with real trait data."""
-        # Use real trait data - select numeric columns only
-        numeric_cols = traits_summary_df.select_dtypes(include=[np.number]).columns
+        from sleap_roots_analyze.data_cleanup import get_trait_columns
+        
+        # Use get_trait_columns to properly exclude metadata columns
+        trait_cols = get_trait_columns(traits_summary_df)
         # Select subset of columns with fewer NaNs for testing
         cols_with_data = []
-        for col in numeric_cols[:50]:  # Check first 50 numeric columns
+        for col in trait_cols[:50]:  # Check first 50 trait columns
             if (
                 traits_summary_df[col].notna().sum() > 100
             ):  # At least 100 non-NaN values
