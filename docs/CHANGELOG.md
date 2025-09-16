@@ -8,7 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Comprehensive test suite with 45+ tests achieving 95%+ coverage
+- Comprehensive test suite with 150+ tests achieving 97%+ coverage across all modules
+- Complete PCA module with mathematical validation (88 tests)
+  - Per-feature variance explained calculations with configurable ddof
+  - Mathematical validation test suite (11 properties verified)
+  - `calculate_pca_metrics()` for comprehensive PCA metrics
+  - `build_feature_metrics_df()` for per-feature analysis
+  - Edge case handling for single samples and constant features
+- Improved PCA documentation with scikit-learn references and mathematical proofs
 - Numerical accuracy tests with known correct answers
 - Edge case fixtures for boundary condition testing
 - `.gitattributes` file for consistent line endings across platforms

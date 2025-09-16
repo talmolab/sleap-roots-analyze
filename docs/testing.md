@@ -262,16 +262,16 @@ from sleap_roots_analyze.pca import (
 |--------|----------|-------|-------|
 | `data_cleanup.py` | 99% | 15 | Missing edge case for Excel loading |
 | `statistics.py` | 95%+ | 45 | Full coverage with numerical tests |
-| `pca.py` | 97% | 69 | All tests passing, no skips |
+| `pca.py` | 97%+ | 88 | All tests passing, includes mathematical validation |
 | `data_utils.py` | 100% | 5 | Complete coverage |
 | `outlier_detection.py` | N/A | 0 | Module in development |
 
 ### Test Statistics
 
-- **Total Tests**: 134+ tests
+- **Total Tests**: 153+ tests
 - **Pass Rate**: 100% (all tests passing, no skips)
-- **Execution Time**: ~2 seconds
-- **Fixtures**: 40+ reusable fixtures including PCA edge cases
+- **Execution Time**: ~2-3 seconds
+- **Fixtures**: 45+ reusable fixtures including PCA edge cases and mathematical validation data
 
 ## Troubleshooting
 

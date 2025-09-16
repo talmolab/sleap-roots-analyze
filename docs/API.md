@@ -466,6 +466,79 @@ outliers = distances > np.percentile(distances, 95)
 
 ---
 
+#### `calculate_pca_metrics`
+
+```python
+calculate_pca_metrics(
+    pca: PCA,
+    X_transformed: np.ndarray,
+    X_fitted: Optional[np.ndarray] = None,
+    ddof_for_feature_var: int = 1
+) -> Dict
+```
+
+Calculate comprehensive PCA metrics including per-feature variance explained.
+
+**Parameters:**
+- `pca`: Fitted sklearn PCA object
+- `X_transformed`: Transformed data (scores)
+- `X_fitted`: Original fitted data for variance calculations
+- `ddof_for_feature_var`: Degrees of freedom for variance (default: 1)
+
+**Returns:**
+Dictionary containing:
+- `loadings`: Component loadings matrix
+- `explained_variance`: Eigenvalues
+- `explained_variance_ratio`: Per-component variance ratios
+- `cumulative_variance_ratio`: Cumulative variance explained
+- `feature_variances`: Per-feature variance explained
+- `feature_fraction_explained`: Fraction of each feature's variance explained
+
+**Example:**
+```python
+metrics = calculate_pca_metrics(pca, transformed, X_fitted=X_processed)
+print(f"Feature variances: {metrics['feature_variances']}")
+```
+
+---
+
+#### `build_feature_metrics_df`
+
+```python
+build_feature_metrics_df(
+    pca_result: Dict,
+    ddof_feature_var: Optional[int] = None,
+    include_loadings: bool = True,
+    loading_prefix: str = "loading_pc",
+    sort_by: str = "fraction_explained"
+) -> pd.DataFrame
+```
+
+Build DataFrame with per-feature PCA metrics.
+
+**Parameters:**
+- `pca_result`: Dictionary from `perform_pca_analysis`
+- `ddof_feature_var`: Override ddof for variance calculations
+- `include_loadings`: Include loading columns
+- `loading_prefix`: Prefix for loading column names
+- `sort_by`: Column to sort by
+
+**Returns:**
+DataFrame with columns:
+- `feature`: Feature name
+- `variance_total`: Total feature variance
+- `variance_explained`: Variance explained by retained PCs
+- `fraction_explained`: Fraction of variance explained
+- Optional: `loading_pc1`, `loading_pc2`, etc.
+
+**Example:**
+```python
+feature_df = build_feature_metrics_df(pca_result, sort_by="fraction_explained")
+top_features = feature_df.head(10)["feature"].tolist()
+```
+
+---
+
 ## `data_utils` Module
 
 Utility functions for data processing.
