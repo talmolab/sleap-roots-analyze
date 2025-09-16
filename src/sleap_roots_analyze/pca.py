@@ -170,11 +170,7 @@ def calculate_pca_metrics(
         "total_variance_explained_consistent": total_variance_explained_consistent,
         "explained_variance_per_feature": explained_variance_per_feature,
         "explained_variance_ratio_per_feature": explained_variance_ratio_per_feature,
-        "feature_variances": (
-            feature_variances
-            if X_fitted is not None
-            else np.ones_like(explained_variance_per_feature)
-        ),
+        "feature_variances": feature_variances,
         "feature_variance_ddof": ddof_for_feature_var,
     }
 
