@@ -372,6 +372,173 @@ Analyze trait retention at different heritability thresholds.
 
 ---
 
+## `pca` Module
+
+Principal Component Analysis for dimensionality reduction of root trait data.
+
+### Functions
+
+#### `perform_pca_analysis`
+
+```python
+perform_pca_analysis(
+    data: Union[pd.DataFrame, np.ndarray],
+    standardize: bool = True,
+    explained_variance_threshold: float = 0.95,
+    n_components: Optional[int] = None,
+    random_state: int = 42
+) -> Dict
+```
+
+Perform complete PCA analysis pipeline with optional standardization.
+
+**Parameters:**
+- `data`: Input data as DataFrame or array
+- `standardize`: Whether to standardize data (default: True)
+- `explained_variance_threshold`: Cumulative variance threshold (default: 0.95)
+- `n_components`: Number of components (overrides automatic selection if specified)
+- `random_state`: Random state for reproducibility
+
+**Returns:**
+Dictionary containing:
+- `pca`: Fitted PCA model
+- `transformed_data`: Transformed data in PC space
+- `loadings`: Component loadings
+- `explained_variance_ratio`: Variance explained by each component
+- `n_components_selected`: Number of components selected
+- `scaler`: StandardScaler if standardize=True, else None
+- `feature_names`: List of feature names used
+
+**Example:**
+```python
+result = perform_pca_analysis(df_traits, standardize=True)
+print(f"Selected {result['n_components_selected']} components")
+print(f"Explained variance: {result['cumulative_variance_ratio'][-1]:.2%}")
+```
+
+---
+
+#### `standardize_data`
+
+```python
+standardize_data(
+    df: pd.DataFrame
+) -> Tuple[np.ndarray, StandardScaler, pd.DataFrame]
+```
+
+Standardize numeric columns and remove zero-variance features.
+
+**Parameters:**
+- `df`: Input DataFrame
+
+**Returns:**
+- Standardized data array
+- Fitted StandardScaler
+- Cleaned DataFrame (without zero-variance columns)
+
+---
+
+#### `calculate_mahalanobis_distances`
+
+```python
+calculate_mahalanobis_distances(
+    X_transformed: np.ndarray,
+    robust: bool = True
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
+```
+
+Calculate Mahalanobis distances for outlier detection.
+
+**Parameters:**
+- `X_transformed`: PCA-transformed data
+- `robust`: Use robust covariance estimation (default: True)
+
+**Returns:**
+- Mahalanobis distances for each sample
+- Mean of transformed data
+- Covariance matrix
+
+**Example:**
+```python
+distances, mean, cov = calculate_mahalanobis_distances(pca_result['transformed_data'])
+outliers = distances > np.percentile(distances, 95)
+```
+
+---
+
+#### `calculate_pca_metrics`
+
+```python
+calculate_pca_metrics(
+    pca: PCA,
+    X_transformed: np.ndarray,
+    X_fitted: Optional[np.ndarray] = None,
+    ddof_for_feature_var: int = 1
+) -> Dict
+```
+
+Calculate comprehensive PCA metrics including per-feature variance explained.
+
+**Parameters:**
+- `pca`: Fitted sklearn PCA object
+- `X_transformed`: Transformed data (scores)
+- `X_fitted`: Original fitted data for variance calculations
+- `ddof_for_feature_var`: Degrees of freedom for variance (default: 1)
+
+**Returns:**
+Dictionary containing:
+- `loadings`: Component loadings matrix
+- `explained_variance`: Eigenvalues
+- `explained_variance_ratio`: Per-component variance ratios
+- `cumulative_variance_ratio`: Cumulative variance explained
+- `feature_variances`: Per-feature variance explained
+- `feature_fraction_explained`: Fraction of each feature's variance explained
+
+**Example:**
+```python
+metrics = calculate_pca_metrics(pca, transformed, X_fitted=X_processed)
+print(f"Feature variances: {metrics['feature_variances']}")
+```
+
+---
+
+#### `build_feature_metrics_df`
+
+```python
+build_feature_metrics_df(
+    pca_result: Dict,
+    ddof_feature_var: Optional[int] = None,
+    include_loadings: bool = True,
+    loading_prefix: str = "loading_pc",
+    sort_by: str = "fraction_explained"
+) -> pd.DataFrame
+```
+
+Build DataFrame with per-feature PCA metrics.
+
+**Parameters:**
+- `pca_result`: Dictionary from `perform_pca_analysis`
+- `ddof_feature_var`: Override ddof for variance calculations
+- `include_loadings`: Include loading columns
+- `loading_prefix`: Prefix for loading column names
+- `sort_by`: Column to sort by
+
+**Returns:**
+DataFrame with columns:
+- `feature`: Feature name
+- `variance_total`: Total feature variance
+- `variance_explained`: Variance explained by retained PCs
+- `fraction_explained`: Fraction of variance explained
+- Optional: `loading_pc1`, `loading_pc2`, etc.
+
+**Example:**
+```python
+feature_df = build_feature_metrics_df(pca_result, sort_by="fraction_explained")
+top_features = feature_df.head(10)["feature"].tolist()
+```
+
+---
+
 ## `data_utils` Module
 
 Utility functions for data processing.

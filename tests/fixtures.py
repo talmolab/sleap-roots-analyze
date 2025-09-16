@@ -767,3 +767,555 @@ def mixed_problem_data():
 def empty_dataframe():
     """Create an empty DataFrame for edge case testing."""
     return pd.DataFrame()
+
+
+# ============================================================================
+# PCA TESTING FIXTURES - Data for PCA analysis
+# ============================================================================
+
+
+@pytest.fixture
+def pca_simple_data():
+    """Create simple 2D data with known PCA results.
+
+    Returns:
+        tuple: (data array, expected results dict)
+    """
+    np.random.seed(42)
+    # Create data with clear principal components
+    # Main variance along diagonal, less along anti-diagonal
+    n_samples = 100
+
+    # Generate data with known variance structure
+    # PC1 should capture ~75% variance, PC2 ~25%
+    t = np.random.randn(n_samples)
+    x = 2 * t + 0.5 * np.random.randn(n_samples)
+    y = 2 * t + 0.5 * np.random.randn(n_samples)
+
+    data = np.column_stack([x, y])
+
+    # Expected approximate results
+    expected = {
+        "n_components": 2,
+        "variance_ratio_pc1_min": 0.7,  # PC1 should explain at least 70%
+        "variance_ratio_pc1_max": 0.99,  # PC1 should explain at most 99%
+        "total_variance": 2.0,  # For standardized data
+    }
+
+    return data, expected
+
+
+@pytest.fixture
+def pca_3d_data():
+    """Create 3D data with known structure for PCA.
+
+    Returns:
+        tuple: (DataFrame, expected results dict)
+    """
+    np.random.seed(42)
+    n_samples = 150
+
+    # Create data with decreasing variance along each axis
+    # PC1 ~60%, PC2 ~30%, PC3 ~10%
+    pc1 = np.random.randn(n_samples) * 3
+    pc2 = np.random.randn(n_samples) * 2
+    pc3 = np.random.randn(n_samples) * 1
+
+    # Rotate to make it less trivial
+    data = np.column_stack([pc1 + 0.3 * pc2, pc2 + 0.2 * pc3, pc3 + 0.1 * pc1])
+
+    df = pd.DataFrame(data, columns=["feature1", "feature2", "feature3"])
+
+    expected = {
+        "n_features": 3,
+        "n_components_95": 2,  # 2 components should capture >95% variance
+        "min_eigenvalue": 0.5,  # Smallest eigenvalue should be > 0.5
+    }
+
+    return df, expected
+
+
+@pytest.fixture
+def pca_high_dim_data():
+    """Create high-dimensional data for PCA testing.
+
+    Returns:
+        tuple: (DataFrame, expected results dict)
+    """
+    np.random.seed(42)
+    n_samples = 50
+    n_features = 20
+
+    # Create data where only first 5 features have signal
+    signal_features = 5
+    data = np.zeros((n_samples, n_features))
+
+    # Add decreasing variance to first 5 features
+    for i in range(signal_features):
+        data[:, i] = np.random.randn(n_samples) * (5 - i)
+
+    # Add small noise to remaining features
+    data[:, signal_features:] = (
+        np.random.randn(n_samples, n_features - signal_features) * 0.1
+    )
+
+    df = pd.DataFrame(data, columns=[f"feat_{i}" for i in range(n_features)])
+
+    expected = {
+        "n_features": n_features,
+        "n_effective_components": signal_features,  # Should need ~5 components
+        "variance_threshold_90": signal_features,  # 5 components for 90% variance
+    }
+
+    return df, expected
+
+
+@pytest.fixture
+def pca_perfect_correlation_data():
+    """Create data with perfectly correlated features.
+
+    Returns:
+        pd.DataFrame: Data where some features are perfectly correlated
+    """
+    np.random.seed(42)
+    n_samples = 100
+
+    base = np.random.randn(n_samples)
+
+    df = pd.DataFrame(
+        {
+            "feat1": base,
+            "feat2": base * 2,  # Perfect correlation with feat1
+            "feat3": base * -1,  # Perfect negative correlation
+            "feat4": np.random.randn(n_samples),  # Independent
+            "feat5": base + np.random.randn(n_samples) * 0.1,  # High correlation
+        }
+    )
+
+    return df
+
+
+@pytest.fixture
+def pca_single_feature_data():
+    """Create single feature data for edge case testing.
+
+    Returns:
+        pd.DataFrame: DataFrame with single feature
+    """
+    np.random.seed(42)
+    return pd.DataFrame({"single_feature": np.random.randn(50)})
+
+
+@pytest.fixture
+def pca_constant_feature_data():
+    """Create data with constant (zero variance) features.
+
+    Returns:
+        pd.DataFrame: Data with some constant features
+    """
+    np.random.seed(42)
+    n_samples = 100
+
+    df = pd.DataFrame(
+        {
+            "constant1": np.ones(n_samples),  # All ones
+            "constant2": np.zeros(n_samples),  # All zeros
+            "variable1": np.random.randn(n_samples),
+            "variable2": np.random.randn(n_samples) * 2,
+            "constant3": np.full(n_samples, 42),  # All same value
+        }
+    )
+
+    return df
+
+
+@pytest.fixture
+def pca_standardized_data():
+    """Create already standardized data (mean=0, std=1).
+
+    Returns:
+        tuple: (DataFrame, scaler used)
+    """
+    np.random.seed(42)
+    from sklearn.preprocessing import StandardScaler
+
+    n_samples = 100
+    n_features = 5
+
+    # Create raw data
+    raw_data = np.random.randn(n_samples, n_features) * np.array(
+        [1, 2, 3, 4, 5]
+    ) + np.array([10, 20, 30, 40, 50])
+
+    # Standardize
+    scaler = StandardScaler()
+    standardized = scaler.fit_transform(raw_data)
+
+    df = pd.DataFrame(
+        standardized, columns=[f"std_feat_{i}" for i in range(n_features)]
+    )
+
+    return df, scaler
+
+
+@pytest.fixture
+def pca_real_traits_data(traits_summary_df):
+    """Use real trait data for PCA testing.
+
+    Returns:
+        tuple: (DataFrame of numeric traits, list of trait names)
+    """
+    # Select numeric columns, excluding metadata
+    exclude_cols = ["Barcode", "geno", "rep", "species", "plant", "scan"]
+    numeric_cols = traits_summary_df.select_dtypes(include=[np.number]).columns
+    trait_cols = [col for col in numeric_cols if col not in exclude_cols]
+
+    # Take subset with no NaNs for testing
+    df_subset = traits_summary_df[trait_cols].dropna()
+
+    # Ensure we have some data
+    if df_subset.empty:
+        # Create synthetic data if real data is all NaN
+        np.random.seed(42)
+        n_samples = 100
+        n_features = min(10, len(trait_cols)) if trait_cols else 10
+        synthetic_data = np.random.randn(n_samples, n_features)
+        df_subset = pd.DataFrame(
+            synthetic_data,
+            columns=(
+                trait_cols[:n_features]
+                if trait_cols
+                else [f"trait_{i}" for i in range(n_features)]
+            ),
+        )
+        trait_cols = df_subset.columns.tolist()
+
+    return df_subset, trait_cols
+
+
+@pytest.fixture
+def pca_nan_data():
+    """Create data with NaN values for testing.
+
+    Returns:
+        pd.DataFrame: Data with some NaN values
+    """
+    np.random.seed(42)
+    n_samples = 100
+
+    data = np.random.randn(n_samples, 4)
+    df = pd.DataFrame(data, columns=["feat1", "feat2", "feat3", "feat4"])
+
+    # Add some NaNs
+    df.iloc[10:15, 0] = np.nan  # NaN in first feature
+    df.iloc[20:22, 1] = np.nan  # NaN in second feature
+    df.iloc[30, :] = np.nan  # Entire row is NaN
+
+    return df
+
+
+@pytest.fixture
+def pca_outlier_data():
+    """Create data with outliers for robust PCA testing.
+
+    Returns:
+        tuple: (DataFrame, list of outlier indices)
+    """
+    np.random.seed(42)
+    n_samples = 100
+
+    # Normal data
+    data = np.random.randn(n_samples, 3)
+
+    # Add outliers
+    outlier_indices = [10, 25, 50, 75]
+    for idx in outlier_indices:
+        data[idx, :] = np.random.randn(3) * 10  # Make outliers 10x larger
+
+    df = pd.DataFrame(data, columns=["x", "y", "z"])
+
+    return df, outlier_indices
+
+
+@pytest.fixture
+def pca_variance_threshold_data():
+    """Create data for testing variance threshold selection.
+
+    Returns:
+        dict: Multiple datasets with different variance structures
+    """
+    np.random.seed(42)
+    n_samples = 100
+
+    datasets = {}
+
+    # Dataset where 1 component captures >95% variance
+    t = np.random.randn(n_samples)
+    datasets["one_component"] = pd.DataFrame(
+        {
+            "x": t + np.random.randn(n_samples) * 0.1,
+            "y": t + np.random.randn(n_samples) * 0.1,
+            "z": t + np.random.randn(n_samples) * 0.1,
+        }
+    )
+
+    # Dataset where 2 components needed for 95% variance
+    datasets["two_components"] = pd.DataFrame(
+        {
+            "a": np.random.randn(n_samples) * 3,
+            "b": np.random.randn(n_samples) * 2,
+            "c": np.random.randn(n_samples) * 0.5,
+            "d": np.random.randn(n_samples) * 0.3,
+        }
+    )
+
+    # Dataset where all components needed
+    datasets["all_components"] = pd.DataFrame(
+        {
+            "p": np.random.randn(n_samples),
+            "q": np.random.randn(n_samples),
+            "r": np.random.randn(n_samples),
+        }
+    )
+
+    return datasets
+
+
+@pytest.fixture
+def pca_all_nan_data():
+    """Create DataFrame with all NaN values for edge case testing.
+
+    Returns:
+        pd.DataFrame: Data with all NaN values
+    """
+    return pd.DataFrame(
+        {"feat1": [np.nan] * 10, "feat2": [np.nan] * 10, "feat3": [np.nan] * 10}
+    )
+
+
+@pytest.fixture
+def pca_single_sample_data():
+    """Create DataFrame with only one sample for edge case testing.
+
+    Returns:
+        pd.DataFrame: Data with single row
+    """
+    return pd.DataFrame(
+        {"feat1": [1.5], "feat2": [2.3], "feat3": [-0.8], "feat4": [4.2]}
+    )
+
+
+@pytest.fixture
+def pca_zero_variance_all_columns():
+    """Create DataFrame where all columns have zero variance.
+
+    Returns:
+        pd.DataFrame: Data where all values in each column are identical
+    """
+    n_samples = 50
+    return pd.DataFrame(
+        {
+            "const1": [5.0] * n_samples,
+            "const2": [10.0] * n_samples,
+            "const3": [-2.5] * n_samples,
+        }
+    )
+
+
+@pytest.fixture
+def pca_1d_result_data():
+    """Create data that will result in 1D PCA output.
+
+    Returns:
+        pd.DataFrame: High dimensional data with only 1 PC of significance
+    """
+    np.random.seed(42)
+    n_samples = 100
+
+    # Create data where all features are multiples of one underlying factor
+    base = np.random.randn(n_samples)
+
+    df = pd.DataFrame(
+        {
+            "feat1": base * 2,
+            "feat2": base * 3,
+            "feat3": base * -1,
+            "feat4": base * 0.5,
+            "feat5": base * 4,
+        }
+    )
+
+    # Add tiny noise to avoid perfect correlation
+    df += np.random.randn(*df.shape) * 1e-10
+
+    return df
+
+
+@pytest.fixture
+def pca_zero_std_features():
+    """Create data with some features having zero standard deviation.
+
+    Returns:
+        pd.DataFrame: Mixed data with some zero-std features
+    """
+    np.random.seed(42)
+    n_samples = 75
+
+    return pd.DataFrame(
+        {
+            "normal1": np.random.randn(n_samples),
+            "zero_std1": [3.14159] * n_samples,  # Constant
+            "normal2": np.random.randn(n_samples) * 2,
+            "zero_std2": np.zeros(n_samples),  # All zeros
+            "normal3": np.random.randn(n_samples) * 0.5,
+        }
+    )
+
+
+@pytest.fixture
+def pca_singular_covariance_data():
+    """Create data with singular covariance matrix for edge case testing.
+
+    Returns:
+        pd.DataFrame: Data with linearly dependent features
+    """
+    np.random.seed(42)
+    n_samples = 100
+
+    # Create linearly dependent features
+    x1 = np.random.randn(n_samples)
+    x2 = np.random.randn(n_samples)
+
+    df = pd.DataFrame(
+        {
+            "feat1": x1,
+            "feat2": x2,
+            "feat3": x1 + x2,  # Linear combination
+            "feat4": 2 * x1 - x2,  # Another linear combination
+            "feat5": x1 - x2 + x1,  # Yet another combination (2*x1 - x2)
+        }
+    )
+
+    return df
+
+
+@pytest.fixture
+def pca_mixed_numeric_nonnumeric():
+    """Create DataFrame with both numeric and non-numeric columns.
+
+    Returns:
+        pd.DataFrame: Mixed data types
+    """
+    np.random.seed(42)
+    n_samples = 50
+
+    return pd.DataFrame(
+        {
+            "barcode": [f"BC{i:04d}" for i in range(n_samples)],
+            "value1": np.random.randn(n_samples),
+            "category": np.random.choice(["A", "B", "C"], n_samples),
+            "value2": np.random.randn(n_samples) * 2,
+            "value3": np.random.randn(n_samples) * 0.5,
+            "description": [f"Sample {i}" for i in range(n_samples)],
+            "value4": np.random.randn(n_samples) * 3,
+        }
+    )
+
+
+@pytest.fixture
+def pca_empty_after_nan_removal():
+    """Create DataFrame that becomes empty after NaN removal.
+
+    Returns:
+        pd.DataFrame: Data where every row has at least one NaN
+    """
+    np.random.seed(42)
+    n_samples = 20
+
+    df = pd.DataFrame(
+        {
+            "feat1": np.random.randn(n_samples),
+            "feat2": np.random.randn(n_samples),
+            "feat3": np.random.randn(n_samples),
+        }
+    )
+
+    # Ensure every row has at least one NaN
+    for i in range(n_samples):
+        col_idx = i % 3
+        df.iloc[i, col_idx] = np.nan
+
+    return df
+
+
+# ============================================================================
+# PCA MATHEMATICAL VALIDATION FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def controlled_spectrum_data():
+    """Create data with known eigenvalue spectrum using low-rank structure.
+
+    Returns:
+        pd.DataFrame: Data with 3 strong components and noise
+    """
+    rng = np.random.default_rng(0)
+    n_samples = 50
+    n_features = 7
+
+    # Create data with known covariance structure
+    # Low-rank structure: 3 strong components, rest noise
+    latent_dim = 3
+    W = rng.standard_normal((n_features, latent_dim))
+    Z = rng.standard_normal((n_samples, latent_dim))
+    noise = rng.standard_normal((n_samples, n_features)) * 0.1
+    X = Z @ W.T + noise
+
+    return pd.DataFrame(X, columns=[f"feat_{i}" for i in range(n_features)])
+
+
+@pytest.fixture
+def diagonal_covariance_data():
+    """Create data with diagonal covariance (known eigenvalues).
+
+    Returns:
+        tuple: (DataFrame, known eigenvalues array)
+    """
+    rng = np.random.default_rng(42)
+    n_samples = 100
+    # Eigenvalues: [5, 3, 2, 1, 0.5, 0.2, 0.1]
+    eigenvalues = np.array([5, 3, 2, 1, 0.5, 0.2, 0.1])
+    n_features = len(eigenvalues)
+
+    # Generate independent features with specified variances
+    X = rng.standard_normal((n_samples, n_features))
+    X *= np.sqrt(eigenvalues)
+
+    return (
+        pd.DataFrame(X, columns=[f"feat_{i}" for i in range(n_features)]),
+        eigenvalues,
+    )
+
+
+@pytest.fixture
+def correlated_pairs_data():
+    """Create data with pairs of correlated features.
+
+    Returns:
+        pd.DataFrame: Data with 3 pairs of correlated features
+    """
+    rng = np.random.default_rng(123)
+    n_samples = 80
+
+    # Create 3 pairs of correlated features
+    data = []
+    for _ in range(3):
+        z = rng.standard_normal(n_samples)
+        noise1 = rng.standard_normal(n_samples) * 0.3
+        noise2 = rng.standard_normal(n_samples) * 0.3
+        data.append(z + noise1)
+        data.append(z + noise2)
+
+    X = np.column_stack(data)
+    return pd.DataFrame(X, columns=[f"feat_{i}" for i in range(6)])
