@@ -1246,3 +1246,76 @@ def pca_empty_after_nan_removal():
         df.iloc[i, col_idx] = np.nan
 
     return df
+
+
+# ============================================================================
+# PCA MATHEMATICAL VALIDATION FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def controlled_spectrum_data():
+    """Create data with known eigenvalue spectrum using low-rank structure.
+
+    Returns:
+        pd.DataFrame: Data with 3 strong components and noise
+    """
+    rng = np.random.default_rng(0)
+    n_samples = 50
+    n_features = 7
+
+    # Create data with known covariance structure
+    # Low-rank structure: 3 strong components, rest noise
+    latent_dim = 3
+    W = rng.standard_normal((n_features, latent_dim))
+    Z = rng.standard_normal((n_samples, latent_dim))
+    noise = rng.standard_normal((n_samples, n_features)) * 0.1
+    X = Z @ W.T + noise
+
+    return pd.DataFrame(X, columns=[f"feat_{i}" for i in range(n_features)])
+
+
+@pytest.fixture
+def diagonal_covariance_data():
+    """Create data with diagonal covariance (known eigenvalues).
+
+    Returns:
+        tuple: (DataFrame, known eigenvalues array)
+    """
+    rng = np.random.default_rng(42)
+    n_samples = 100
+    # Eigenvalues: [5, 3, 2, 1, 0.5, 0.2, 0.1]
+    eigenvalues = np.array([5, 3, 2, 1, 0.5, 0.2, 0.1])
+    n_features = len(eigenvalues)
+
+    # Generate independent features with specified variances
+    X = rng.standard_normal((n_samples, n_features))
+    X *= np.sqrt(eigenvalues)
+
+    return (
+        pd.DataFrame(X, columns=[f"feat_{i}" for i in range(n_features)]),
+        eigenvalues,
+    )
+
+
+@pytest.fixture
+def correlated_pairs_data():
+    """Create data with pairs of correlated features.
+
+    Returns:
+        pd.DataFrame: Data with 3 pairs of correlated features
+    """
+    rng = np.random.default_rng(123)
+    n_samples = 80
+
+    # Create 3 pairs of correlated features
+    data = []
+    for _ in range(3):
+        z = rng.standard_normal(n_samples)
+        noise1 = rng.standard_normal(n_samples) * 0.3
+        noise2 = rng.standard_normal(n_samples) * 0.3
+        data.append(z + noise1)
+        data.append(z + noise2)
+
+    X = np.column_stack(data)
+    return pd.DataFrame(X, columns=[f"feat_{i}" for i in range(6)])
