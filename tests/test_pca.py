@@ -964,7 +964,7 @@ class TestStandardizationVerification:
     def test_standardization_with_real_trait_data(self, traits_summary_df):
         """Test standardization with real trait data."""
         from sleap_roots_analyze.data_cleanup import get_trait_columns
-        
+
         # Use get_trait_columns to properly exclude metadata columns
         trait_cols = get_trait_columns(traits_summary_df)
         # Select subset of columns with fewer NaNs for testing
