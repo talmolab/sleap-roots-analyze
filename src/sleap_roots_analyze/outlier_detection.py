@@ -13,6 +13,7 @@ from sleap_roots_analyze.pca import (
     calculate_mahalanobis_distances,
     calculate_pca_metrics,
     build_feature_metrics_df,
+    calculate_pca_reconstruction_error,
 )
 
 
@@ -271,3 +272,164 @@ def identify_outliers_from_distances(
         "outlier_indices": outlier_indices,
         "n_outliers": int(np.sum(outlier_mask)),
     }
+
+
+def detect_outliers_pca(
+    data: Union[pd.DataFrame, np.ndarray],
+    n_components: Optional[int] = None,
+    explained_variance_threshold: float = 0.95,
+    outlier_threshold: float = 2.5,
+) -> Dict:
+    """Detect outliers using PCA reconstruction error.
+
+    Principal Component Analysis (PCA) reduces data dimensionality while preserving
+    variance. Outliers are detected by reconstruction error - samples that cannot
+    be well-reconstructed from the principal components.
+
+    Reconstruction Error = Σ(X_original - X_reconstructed)²
+
+    Args:
+        data: DataFrame with numeric trait data or numpy array
+        n_components: Number of PCA components (auto-determined if None)
+        explained_variance_threshold: Cumulative variance threshold for auto-selection (0-1)
+        outlier_threshold: Threshold for outlier detection (standard deviations)
+
+    Returns:
+        Dictionary with outlier detection results including:
+        - outlier_indices: List of row indices identified as outliers
+        - n_components: Number of components used
+        - reconstruction_errors: Per-sample reconstruction errors
+        - explained_variance_ratio: Variance explained by each component
+        - cumulative_variance: Cumulative variance explained
+        - explained_variance_per_feature: Variance explained for each original feature
+        - explained_variance_ratio_per_feature: Fraction of each feature's variance explained
+        - error: Error message if detection failed
+    """
+    # Convert to DataFrame if needed
+    if isinstance(data, np.ndarray):
+        df = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(data.shape[1])])
+        original_indices = list(range(len(data)))
+    else:
+        df = data.copy()
+        original_indices = df.index.tolist()
+
+    # Check if data is empty
+    if df.empty or df.shape[0] == 0:
+        return {
+            "method": "PCA",
+            "outlier_indices": [],
+            "error": "Empty data provided",
+        }
+
+    # Check if only single sample
+    if len(df) < 2:
+        return {
+            "method": "PCA",
+            "outlier_indices": [],
+            "error": "PCA requires at least 2 samples",
+        }
+
+    # Check if data has NaN values
+    if df.isna().any().any():
+        return {
+            "method": "PCA",
+            "outlier_indices": [],
+            "error": "Data contains NaN values. Please remove NaN samples before outlier detection.",
+        }
+
+    try:
+        # Perform PCA analysis using our simplified API
+        pca_result = perform_pca_analysis(
+            df,
+            standardize=True,  # Always standardize for outlier detection
+            explained_variance_threshold=explained_variance_threshold,
+            n_components=n_components,
+            random_state=42,
+        )
+
+        # Check if PCA was successful
+        if "error" in pca_result:
+            return {
+                "method": "PCA",
+                "outlier_indices": [],
+                "error": f"PCA failed: {pca_result['error']}",
+            }
+
+        # Get processed data for reconstruction error calculation
+        X_processed = pca_result.get("data_processed")
+        if X_processed is None:
+            # If not available, reconstruct from original data
+            # This shouldn't happen with our current implementation
+            return {
+                "method": "PCA",
+                "outlier_indices": [],
+                "error": "Unable to get processed data for reconstruction",
+            }
+
+        # Calculate reconstruction errors
+        reconstruction_errors = calculate_pca_reconstruction_error(
+            X_processed, pca_result
+        )
+
+        # Detect outliers using z-score of reconstruction errors
+        error_mean = np.mean(reconstruction_errors)
+        error_std = np.std(reconstruction_errors)
+
+        if error_std == 0:
+            # All samples have the same reconstruction error
+            outlier_indices = []
+            threshold_value = error_mean
+        else:
+            # Calculate threshold
+            threshold_value = error_mean + outlier_threshold * error_std
+
+            # Identify outliers
+            outlier_mask = reconstruction_errors > threshold_value
+            outlier_indices = [original_indices[i] for i in np.where(outlier_mask)[0]]
+
+        # Get per-feature metrics using calculate_pca_metrics
+        pca_metrics = calculate_pca_metrics(
+            pca_result["pca"],
+            pca_result["transformed_data"],
+            X_fitted=X_processed,
+            ddof_for_feature_var=1,
+        )
+
+        # Compile results
+        result = {
+            "method": "PCA",
+            "n_components": pca_result["n_components_selected"],
+            "explained_variance_ratio": pca_result["explained_variance_ratio"].tolist(),
+            "cumulative_variance": pca_result["cumulative_variance_ratio"].tolist(),
+            "total_variance_explained": float(
+                pca_result["cumulative_variance_ratio"][-1]
+            ),
+            "explained_variance_threshold": explained_variance_threshold,
+            "outlier_threshold": outlier_threshold,
+            "threshold_value": float(threshold_value),
+            "reconstruction_errors": reconstruction_errors.tolist(),
+            "outlier_indices": outlier_indices,
+            "n_outliers": len(outlier_indices),
+            "pca_components": pca_result["transformed_data"].tolist(),
+            "loadings": pca_result["loadings"].tolist(),
+            "eigenvalues": pca_result["eigenvalues"].tolist(),
+            "feature_names": pca_result["feature_names"],
+            "data_indices": original_indices,
+            "explained_variance_per_feature": pca_metrics.get(
+                "explained_variance_per_feature",
+                np.zeros(len(pca_result["feature_names"])),
+            ).tolist(),
+            "explained_variance_ratio_per_feature": pca_metrics.get(
+                "explained_variance_ratio_per_feature",
+                np.zeros(len(pca_result["feature_names"])),
+            ).tolist(),
+        }
+
+        return result
+
+    except Exception as e:
+        return {
+            "method": "PCA",
+            "outlier_indices": [],
+            "error": f"PCA reconstruction outlier detection failed: {str(e)}",
+        }

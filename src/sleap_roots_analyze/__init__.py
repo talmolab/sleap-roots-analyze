@@ -17,6 +17,7 @@ from sleap_roots_analyze.pca import (
 
 from sleap_roots_analyze.outlier_detection import (
     detect_outliers_mahalanobis,
+    detect_outliers_pca,
     calculate_outlier_threshold,
     identify_outliers_from_distances,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "build_feature_metrics_df",
     # Outlier detection functions
     "detect_outliers_mahalanobis",
+    "detect_outliers_pca",
     "calculate_outlier_threshold",
     "identify_outliers_from_distances",
 ]

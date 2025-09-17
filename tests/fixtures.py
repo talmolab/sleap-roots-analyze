@@ -1594,3 +1594,102 @@ def outlier_data_edge_cases():
     edge_cases["single_feature"] = pd.DataFrame({"value": rng.standard_normal(25)})
 
     return edge_cases
+
+
+@pytest.fixture
+def pca_reconstruction_data_low_rank():
+    """Generate low-rank data with noise for reconstruction error testing.
+
+    Creates data that primarily lies in a 2D subspace of 5D space,
+    with small noise added. Outliers are created by adding large noise.
+    """
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 5
+
+    # Create low-rank structure (rank 2)
+    # Generate data in 2D subspace
+    latent = np.random.randn(n_samples, 2)
+
+    # Create loading matrix (5x2)
+    W = np.random.randn(n_features, 2)
+
+    # Generate low-rank data
+    X_low_rank = latent @ W.T
+
+    # Add small noise to most samples
+    noise = np.random.randn(n_samples, n_features) * 0.1
+    X_noisy = X_low_rank + noise
+
+    # Add outliers with large reconstruction error
+    outlier_indices = [95, 96, 97, 98, 99]
+    for idx in outlier_indices:
+        # Add large noise perpendicular to the manifold
+        X_noisy[idx, :] += np.random.randn(n_features) * 3.0
+
+    df = pd.DataFrame(X_noisy, columns=[f"feature_{i}" for i in range(n_features)])
+
+    return (
+        df,
+        outlier_indices,
+        {
+            "true_rank": 2,
+            "n_features": n_features,
+            "n_outliers": len(outlier_indices),
+            "noise_level": 0.1,
+            "outlier_noise": 3.0,
+        },
+    )
+
+
+@pytest.fixture
+def pca_reconstruction_perfect_low_rank():
+    """Generate perfect low-rank data (no noise) for testing edge cases."""
+    np.random.seed(42)
+    n_samples = 50
+    n_features = 6
+
+    # Create perfect rank-3 data
+    latent = np.random.randn(n_samples, 3)
+    W = np.random.randn(n_features, 3)
+    X = latent @ W.T
+
+    df = pd.DataFrame(X, columns=[f"dim_{i}" for i in range(n_features)])
+
+    return df, {
+        "true_rank": 3,
+        "n_features": n_features,
+        "expected_reconstruction_error": 0.0,  # Perfect reconstruction with 3 components
+    }
+
+
+@pytest.fixture
+def pca_reconstruction_varying_errors():
+    """Generate data with varying reconstruction errors for threshold testing."""
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 4
+
+    # Create base low-rank structure
+    latent = np.random.randn(n_samples, 2)
+    W = np.random.randn(n_features, 2)
+    X = latent @ W.T
+
+    # Add varying levels of noise to create gradient of reconstruction errors
+    # First 70: small noise (normal samples)
+    X[:70, :] += np.random.randn(70, n_features) * 0.2
+
+    # Next 20: medium noise (borderline)
+    X[70:90, :] += np.random.randn(20, n_features) * 1.0
+
+    # Last 10: large noise (clear outliers)
+    X[90:, :] += np.random.randn(10, n_features) * 3.0
+
+    df = pd.DataFrame(X, columns=[f"var_{i}" for i in range(n_features)])
+
+    return df, {
+        "n_normal": 70,
+        "n_borderline": 20,
+        "n_outliers": 10,
+        "outlier_indices": list(range(90, 100)),
+    }
