@@ -13,6 +13,7 @@ from sleap_roots_analyze.outlier_detection import (
     detect_outliers_isolation_forest,
     calculate_outlier_threshold,
     identify_outliers_from_distances,
+    remove_outliers_from_data,
 )
 
 
@@ -1352,6 +1353,186 @@ class TestIndexValidationWithRealData:
         # Check data_indices match
         assert mahal_result["data_indices"] == df_traits.index.tolist()
         assert pca_result["data_indices"] == df_traits.index.tolist()
+
+
+class TestRemoveOutliersFromData:
+    """Test the remove_outliers_from_data function."""
+    
+    def test_basic_outlier_removal(self):
+        """Test basic functionality of removing outliers."""
+        # Create sample data
+        df = pd.DataFrame({
+            'feature1': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            'feature2': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+            'metadata': ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+        })
+        
+        outlier_indices = [1, 5, 8]  # Remove rows at index 1, 5, 8
+        
+        # Test with return_outliers=True
+        cleaned_df, outlier_df = remove_outliers_from_data(
+            df, outlier_indices, return_outliers=True
+        )
+        
+        # Check cleaned DataFrame
+        assert len(cleaned_df) == 7  # 10 - 3 outliers
+        assert outlier_indices[0] not in cleaned_df.index
+        assert outlier_indices[1] not in cleaned_df.index
+        assert outlier_indices[2] not in cleaned_df.index
+        
+        # Check outlier DataFrame
+        assert len(outlier_df) == 3
+        assert list(outlier_df.index) == outlier_indices
+        assert outlier_df.loc[1, 'feature1'] == 2
+        assert outlier_df.loc[5, 'feature1'] == 6
+        assert outlier_df.loc[8, 'feature1'] == 9
+        
+    def test_custom_index_handling(self):
+        """Test handling of custom DataFrame indices."""
+        # Create DataFrame with custom string indices
+        df = pd.DataFrame({
+            'value': [10, 20, 30, 40, 50],
+            'category': ['A', 'B', 'C', 'D', 'E']
+        }, index=['row_a', 'row_b', 'row_c', 'row_d', 'row_e'])
+        
+        outlier_indices = ['row_b', 'row_d']
+        
+        cleaned_df, outlier_df = remove_outliers_from_data(
+            df, outlier_indices, return_outliers=True
+        )
+        
+        # Check indices are handled correctly
+        assert len(cleaned_df) == 3
+        assert 'row_b' not in cleaned_df.index
+        assert 'row_d' not in cleaned_df.index
+        assert 'row_a' in cleaned_df.index
+        
+        # Check outlier DataFrame preserves original indices
+        assert list(outlier_df.index) == outlier_indices
+        assert outlier_df.loc['row_b', 'value'] == 20
+        
+    def test_reset_index_option(self):
+        """Test the reset_index option."""
+        df = pd.DataFrame({
+            'data': [1, 2, 3, 4, 5]
+        }, index=[10, 20, 30, 40, 50])
+        
+        outlier_indices = [20, 40]
+        
+        # Without reset_index
+        cleaned_df = remove_outliers_from_data(
+            df, outlier_indices, return_outliers=False, reset_index=False
+        )
+        assert list(cleaned_df.index) == [10, 30, 50]
+        
+        # With reset_index
+        cleaned_df_reset = remove_outliers_from_data(
+            df, outlier_indices, return_outliers=False, reset_index=True
+        )
+        assert list(cleaned_df_reset.index) == [0, 1, 2]
+        
+    def test_metadata_handling(self):
+        """Test keep_metadata flag."""
+        df = pd.DataFrame({
+            'numeric1': [1, 2, 3, 4, 5],
+            'numeric2': [5, 4, 3, 2, 1],
+            'text': ['a', 'b', 'c', 'd', 'e'],
+            'category': pd.Categorical(['X', 'Y', 'X', 'Y', 'X'])
+        })
+        
+        outlier_indices = [1, 3]
+        
+        # Keep all columns (default)
+        cleaned_all = remove_outliers_from_data(
+            df, outlier_indices, keep_metadata=True, return_outliers=False
+        )
+        assert list(cleaned_all.columns) == ['numeric1', 'numeric2', 'text', 'category']
+        
+        # Only numeric columns
+        cleaned_numeric = remove_outliers_from_data(
+            df, outlier_indices, keep_metadata=False, return_outliers=False
+        )
+        assert list(cleaned_numeric.columns) == ['numeric1', 'numeric2']
+        
+    def test_edge_cases(self):
+        """Test edge cases."""
+        df = pd.DataFrame({
+            'col1': [1, 2, 3, 4, 5],
+            'col2': [5, 4, 3, 2, 1]
+        })
+        
+        # Empty outlier list
+        cleaned_df = remove_outliers_from_data(
+            df, [], return_outliers=False
+        )
+        assert len(cleaned_df) == len(df)
+        pd.testing.assert_frame_equal(cleaned_df, df)
+        
+        # All samples are outliers
+        all_indices = list(df.index)
+        cleaned_df, outlier_df = remove_outliers_from_data(
+            df, all_indices, return_outliers=True
+        )
+        assert len(cleaned_df) == 0
+        assert len(outlier_df) == len(df)
+        
+    def test_invalid_indices(self):
+        """Test handling of invalid indices."""
+        df = pd.DataFrame({
+            'data': [1, 2, 3, 4, 5]
+        })
+        
+        # Mix of valid and invalid indices
+        outlier_indices = [1, 2, 99]  # 99 doesn't exist
+        
+        # Should only remove valid indices
+        cleaned_df = remove_outliers_from_data(
+            df, outlier_indices, return_outliers=False
+        )
+        assert len(cleaned_df) == 3  # Removed indices 1 and 2
+        
+    def test_integration_with_detection(self, outlier_data_with_known_outliers):
+        """Test integration with outlier detection functions."""
+        df, expected_outliers, _ = outlier_data_with_known_outliers
+        
+        # Detect outliers
+        result = detect_outliers_mahalanobis(
+            df, variance_threshold=0.95, chi2_percentile=95.0
+        )
+        
+        # Remove detected outliers
+        cleaned_df, outlier_df = remove_outliers_from_data(
+            df, result["outlier_indices"], return_outliers=True
+        )
+        
+        # Check that outliers were removed
+        assert len(cleaned_df) < len(df)
+        assert len(outlier_df) == result["n_outliers"]
+        
+        # Outlier indices should not be in cleaned data
+        for idx in result["outlier_indices"]:
+            assert idx not in cleaned_df.index
+            
+    def test_with_nan_data(self):
+        """Test handling data with NaN values."""
+        df = pd.DataFrame({
+            'col1': [1, 2, np.nan, 4, 5],
+            'col2': [5, 4, 3, np.nan, 1]
+        })
+        
+        outlier_indices = [0, 4]  # Remove first and last
+        
+        cleaned_df = remove_outliers_from_data(
+            df, outlier_indices, return_outliers=False
+        )
+        
+        # Should handle NaN values correctly
+        assert len(cleaned_df) == 3
+        assert 0 not in cleaned_df.index
+        assert 4 not in cleaned_df.index
+        # NaN values should still be present in remaining rows
+        assert pd.isna(cleaned_df.loc[2, 'col1'])
+        assert pd.isna(cleaned_df.loc[3, 'col2'])
 
 
 class TestDetectOutliersIsolationForest:

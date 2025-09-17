@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -467,3 +467,83 @@ def detect_outliers_isolation_forest(
             "outlier_indices": [],
             "error": f"Isolation Forest outlier detection failed: {str(e)}",
         }
+
+
+def remove_outliers_from_data(
+    df: pd.DataFrame,
+    outlier_indices: Union[List, np.ndarray, pd.Index],
+    keep_metadata: bool = True,
+    return_outliers: bool = True,
+    reset_index: bool = False,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame]]:
+    """Remove outlier samples from dataset and optionally return them.
+    
+    This function removes outlier samples identified by outlier detection methods
+    and returns both the cleaned data and the outlier data. It properly handles
+    different index types (integer, string, custom) and preserves them.
+    
+    Args:
+        df: Original DataFrame with data
+        outlier_indices: Indices of outliers to remove (from detection functions)
+        keep_metadata: Whether to preserve all columns (True) or only numeric (False)
+        return_outliers: Whether to also return the outlier DataFrame
+        reset_index: Whether to reset index after removal (only for cleaned_df)
+        
+    Returns:
+        If return_outliers=False: cleaned DataFrame
+        If return_outliers=True: Tuple of (cleaned_df, outliers_df)
+        
+    Examples:
+        >>> # Basic usage with outlier detection
+        >>> result = detect_outliers_mahalanobis(df)
+        >>> cleaned_df, outlier_df = remove_outliers_from_data(
+        ...     df, result["outlier_indices"]
+        ... )
+        
+        >>> # Only get cleaned data with reset index
+        >>> cleaned = remove_outliers_from_data(
+        ...     df, [1, 5, 10], 
+        ...     return_outliers=False,
+        ...     reset_index=True
+        ... )
+    """
+    # Make a copy to avoid modifying original
+    df = df.copy()
+    
+    # Convert outlier_indices to list if needed
+    if isinstance(outlier_indices, np.ndarray):
+        outlier_indices = outlier_indices.tolist()
+    elif isinstance(outlier_indices, pd.Index):
+        outlier_indices = outlier_indices.tolist()
+    
+    # Filter to only valid indices that exist in df
+    valid_outlier_indices = [idx for idx in outlier_indices if idx in df.index]
+    
+    # Create outlier DataFrame before removing them
+    if len(valid_outlier_indices) > 0:
+        outlier_df = df.loc[valid_outlier_indices].copy()
+    else:
+        # Empty DataFrame with same structure
+        outlier_df = df.iloc[0:0].copy()
+    
+    # Remove outliers from main DataFrame
+    cleaned_df = df.drop(index=valid_outlier_indices).copy()
+    
+    # Handle metadata filtering if requested
+    if not keep_metadata:
+        # Only keep numeric columns
+        numeric_cols = cleaned_df.select_dtypes(include=[np.number]).columns.tolist()
+        cleaned_df = cleaned_df[numeric_cols].copy()
+        if len(outlier_df) > 0:
+            outlier_df = outlier_df[numeric_cols].copy()
+    
+    # Reset index if requested (only for cleaned DataFrame)
+    if reset_index:
+        cleaned_df = cleaned_df.reset_index(drop=True)
+        # Note: outlier_df keeps original indices for traceability
+    
+    # Return based on return_outliers flag
+    if return_outliers:
+        return cleaned_df, outlier_df
+    else:
+        return cleaned_df

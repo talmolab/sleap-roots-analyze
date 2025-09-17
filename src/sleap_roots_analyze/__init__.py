@@ -21,6 +21,7 @@ from sleap_roots_analyze.outlier_detection import (
     detect_outliers_isolation_forest,
     calculate_outlier_threshold,
     identify_outliers_from_distances,
+    remove_outliers_from_data,
 )
 
 __all__ = [
@@ -41,4 +42,5 @@ __all__ = [
     "detect_outliers_isolation_forest",
     "calculate_outlier_threshold",
     "identify_outliers_from_distances",
+    "remove_outliers_from_data",
 ]
