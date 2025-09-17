@@ -1515,14 +1515,16 @@ class TestDetectOutliersIsolationForest:
         assert "error" in result_empty
         assert "Empty" in result_empty["error"]
 
-        # Data with NaN
+        # Data with NaN - should process valid rows
         with_nan = pd.DataFrame({
             "col1": [1, 2, np.nan, 4],
             "col2": [5, 6, 7, 8]
         })
         result_nan = detect_outliers_isolation_forest(with_nan)
-        assert "error" in result_nan
-        assert "NaN" in result_nan["error"]
+        # Should process the 3 valid rows successfully
+        assert result_nan["method"] == "IsolationForest"
+        assert len(result_nan["anomaly_scores"]) == 3  # 3 valid rows
+        assert result_nan["data_indices"] == [0, 1, 3]  # Indices of valid rows
 
     def test_anomaly_score_ordering(self, isolation_forest_data_with_anomalies):
         """Test that anomaly scores correctly identify outliers."""

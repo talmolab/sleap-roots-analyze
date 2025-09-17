@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
 
 from sleap_roots_analyze.pca import (
     perform_pca_analysis,
@@ -16,6 +15,7 @@ from sleap_roots_analyze.pca import (
     calculate_pca_metrics,
     build_feature_metrics_df,
     calculate_pca_reconstruction_error,
+    standardize_data,
 )
 
 
@@ -410,33 +410,28 @@ def detect_outliers_isolation_forest(
         - data_indices: Original indices of the data
         - error: Error message if detection failed
     """
-    # Track original indices
+    # Convert to DataFrame to handle indices consistently
     if isinstance(data, np.ndarray):
-        original_indices = list(range(len(data)))
         df = pd.DataFrame(data, columns=[f"Feature_{i}" for i in range(data.shape[1])])
     else:
-        original_indices = data.index.tolist()
         df = data.copy()
-
-    # Basic validation
-    if df.empty or df.shape[0] == 0:
+    
+    # Track indices - handle NaN removal like other methods
+    df_clean = df.dropna()
+    
+    # Check if we have enough data after cleaning
+    if df_clean.empty or df_clean.shape[0] == 0:
         return {
             "method": "IsolationForest",
             "outlier_indices": [],
-            "error": "Empty data provided",
+            "error": "Empty data provided or all rows contain NaN",
         }
-
-    if df.isna().any().any():
-        return {
-            "method": "IsolationForest",
-            "outlier_indices": [],
-            "error": "Data contains NaN values. Please remove NaN samples before outlier detection.",
-        }
+    
+    original_indices = df_clean.index.tolist()
 
     try:
-        # Standardize data for consistency with other methods
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(df)
+        # Standardize data using our consistent approach
+        X_scaled, scaler, _ = standardize_data(df_clean)
 
         # Fit Isolation Forest
         iso_forest = IsolationForest(
