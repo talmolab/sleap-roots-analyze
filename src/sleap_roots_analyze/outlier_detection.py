@@ -55,32 +55,19 @@ def detect_outliers_mahalanobis(
         - feature_names: List of feature names
         - error: Error message if detection failed
     """
-    # Convert to DataFrame if needed
+    # Convert to DataFrame to handle indices consistently
     if isinstance(data, np.ndarray):
-        df = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(data.shape[1])])
-        original_indices = list(range(len(data)))
+        df = pd.DataFrame(data, columns=[f"Feature_{i}" for i in range(data.shape[1])])
     else:
         df = data.copy()
-        original_indices = df.index.tolist()
-
-    # Check if data is empty
-    if df.empty or df.shape[0] == 0:
-        return {
-            "method": "Mahalanobis",
-            "outlier_indices": [],
-            "error": "Empty data provided",
-        }
-
-    # Check for NaN values
-    if df.isna().any().any():
-        return {
-            "method": "Mahalanobis",
-            "outlier_indices": [],
-            "error": "Data contains NaN values. Please remove NaN samples before outlier detection.",
-        }
+    
+    # Track indices - PCA will drop NaN rows, we need to track valid indices
+    # perform_pca_analysis handles NaN removal internally
+    original_indices = df.dropna().index.tolist()
 
     try:
         # Perform PCA analysis with the specified variance threshold
+        # This will handle NaN removal internally
         pca_result = perform_pca_analysis(
             df,
             standardize=standardize,
@@ -88,14 +75,6 @@ def detect_outliers_mahalanobis(
             n_components=None,
             random_state=random_state,
         )
-
-        # Check if PCA was successful
-        if "error" in pca_result:
-            return {
-                "method": "Mahalanobis",
-                "outlier_indices": [],
-                "error": f"PCA failed: {pca_result['error']}",
-            }
 
         # Use all selected components for Mahalanobis distance
         X_pca = pca_result["transformed_data"]
@@ -307,37 +286,14 @@ def detect_outliers_pca(
         - explained_variance_ratio_per_feature: Fraction of each feature's variance explained
         - error: Error message if detection failed
     """
-    # Convert to DataFrame if needed
+    # Convert to DataFrame to handle indices consistently
     if isinstance(data, np.ndarray):
-        df = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(data.shape[1])])
-        original_indices = list(range(len(data)))
+        df = pd.DataFrame(data, columns=[f"Feature_{i}" for i in range(data.shape[1])])
     else:
         df = data.copy()
-        original_indices = df.index.tolist()
-
-    # Check if data is empty
-    if df.empty or df.shape[0] == 0:
-        return {
-            "method": "PCA",
-            "outlier_indices": [],
-            "error": "Empty data provided",
-        }
-
-    # Check if only single sample
-    if len(df) < 2:
-        return {
-            "method": "PCA",
-            "outlier_indices": [],
-            "error": "PCA requires at least 2 samples",
-        }
-
-    # Check if data has NaN values
-    if df.isna().any().any():
-        return {
-            "method": "PCA",
-            "outlier_indices": [],
-            "error": "Data contains NaN values. Please remove NaN samples before outlier detection.",
-        }
+    
+    # Track indices - PCA will drop NaN rows, we need to track valid indices
+    original_indices = df.dropna().index.tolist()
 
     try:
         # Perform PCA analysis using our simplified API
@@ -349,24 +305,11 @@ def detect_outliers_pca(
             random_state=42,
         )
 
-        # Check if PCA was successful
-        if "error" in pca_result:
-            return {
-                "method": "PCA",
-                "outlier_indices": [],
-                "error": f"PCA failed: {pca_result['error']}",
-            }
-
         # Get processed data for reconstruction error calculation
         X_processed = pca_result.get("data_processed")
         if X_processed is None:
-            # If not available, reconstruct from original data
             # This shouldn't happen with our current implementation
-            return {
-                "method": "PCA",
-                "outlier_indices": [],
-                "error": "Unable to get processed data for reconstruction",
-            }
+            raise ValueError("Unable to get processed data for reconstruction")
 
         # Calculate reconstruction errors
         reconstruction_errors = calculate_pca_reconstruction_error(
@@ -467,15 +410,15 @@ def detect_outliers_isolation_forest(
         - data_indices: Original indices of the data
         - error: Error message if detection failed
     """
-    # Convert to DataFrame if needed
+    # Track original indices
     if isinstance(data, np.ndarray):
-        df = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(data.shape[1])])
         original_indices = list(range(len(data)))
+        df = pd.DataFrame(data, columns=[f"Feature_{i}" for i in range(data.shape[1])])
     else:
+        original_indices = data.index.tolist()
         df = data.copy()
-        original_indices = df.index.tolist()
 
-    # Check if data is empty
+    # Basic validation
     if df.empty or df.shape[0] == 0:
         return {
             "method": "IsolationForest",
@@ -483,7 +426,6 @@ def detect_outliers_isolation_forest(
             "error": "Empty data provided",
         }
 
-    # Check if data has NaN values
     if df.isna().any().any():
         return {
             "method": "IsolationForest",

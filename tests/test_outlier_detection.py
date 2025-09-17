@@ -232,7 +232,8 @@ class TestDetectOutliersMahalanobis:
         assert "feature_names" in result
         # Should have generated feature names
         assert len(result["feature_names"]) == X.shape[1]
-        assert result["feature_names"][0].startswith("feature_")
+        # PCA generates "Feature_" with capital F
+        assert result["feature_names"][0].startswith("Feature_")
 
     def test_empty_data(self, outlier_data_edge_cases):
         """Test with empty data."""
@@ -249,18 +250,28 @@ class TestDetectOutliersMahalanobis:
         assert "empty" in result["error"].lower()
 
     def test_nan_handling(self, outlier_data_edge_cases):
-        """Test handling of NaN values."""
+        """Test handling of NaN values - should process valid rows."""
         edge_cases = outlier_data_edge_cases
+        df_with_nan = edge_cases["with_nan"]
+        
+        # Check how many valid samples we have
+        n_valid = len(df_with_nan.dropna())
+        assert n_valid > 2  # Need at least a few samples for outlier detection
 
         result = detect_outliers_mahalanobis(
-            edge_cases["with_nan"],
+            df_with_nan,
             standardize=True,
         )
 
+        # Should process the valid samples successfully
         assert result["method"] == "Mahalanobis"
-        assert result["outlier_indices"] == []
-        assert "error" in result
-        assert "nan" in result["error"].lower()
+        # Should have results for valid samples
+        assert "mahalanobis_distances" in result
+        assert len(result["mahalanobis_distances"]) == n_valid
+        # Outlier indices should be from the original DataFrame's valid rows
+        valid_indices = df_with_nan.dropna().index.tolist()
+        for idx in result["outlier_indices"]:
+            assert idx in valid_indices
 
     def test_single_sample(self, outlier_data_edge_cases):
         """Test with single sample."""
@@ -771,11 +782,13 @@ class TestDetectOutliersPCA:
         assert "error" in result_single
         assert "at least 2 samples" in result_single["error"]
 
-        # Data with NaN
+        # Data with NaN - should process valid rows
         with_nan = pd.DataFrame({"col1": [1, 2, np.nan, 4], "col2": [5, 6, 7, 8]})
         result_nan = detect_outliers_pca(with_nan)
-        assert "error" in result_nan
-        assert "NaN" in result_nan["error"]
+        # Should process the 3 valid rows successfully
+        assert result_nan["method"] == "PCA"
+        assert len(result_nan["reconstruction_errors"]) == 3  # 3 valid rows
+        assert result_nan["data_indices"] == [0, 1, 3]  # Indices of valid rows
 
     def test_pca_constant_features(self):
         """Test PCA with constant features."""
