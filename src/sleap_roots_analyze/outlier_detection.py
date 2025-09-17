@@ -7,6 +7,8 @@ from typing import Dict, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from scipy import stats
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
 
 from sleap_roots_analyze.pca import (
     perform_pca_analysis,
@@ -432,4 +434,99 @@ def detect_outliers_pca(
             "method": "PCA",
             "outlier_indices": [],
             "error": f"PCA reconstruction outlier detection failed: {str(e)}",
+        }
+
+
+def detect_outliers_isolation_forest(
+    data: Union[pd.DataFrame, np.ndarray],
+    contamination: float = 0.1,
+    random_state: int = 42,
+) -> Dict:
+    """Detect outliers using Isolation Forest.
+
+    Isolation Forest isolates anomalies by randomly selecting features and split values.
+    Outliers are data points that require fewer splits to isolate, indicating they are
+    different from the majority of the data.
+
+    Anomaly Score = 2^(-E(h(x))/c(n))
+
+    Where E(h(x)) is the average path length of sample x in isolation trees,
+    and c(n) is the average path length of unsuccessful search in a BST with n points.
+
+    Args:
+        data: DataFrame with numeric trait data or numpy array
+        contamination: Expected proportion of outliers (0-0.5)
+        random_state: Random seed for reproducibility
+
+    Returns:
+        Dictionary with outlier detection results including:
+        - outlier_indices: List of row indices identified as outliers
+        - anomaly_scores: Per-sample anomaly scores (more negative = more anomalous)
+        - contamination: Contamination parameter used
+        - outlier_labels: -1 for outliers, 1 for inliers
+        - data_indices: Original indices of the data
+        - error: Error message if detection failed
+    """
+    # Convert to DataFrame if needed
+    if isinstance(data, np.ndarray):
+        df = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(data.shape[1])])
+        original_indices = list(range(len(data)))
+    else:
+        df = data.copy()
+        original_indices = df.index.tolist()
+
+    # Check if data is empty
+    if df.empty or df.shape[0] == 0:
+        return {
+            "method": "IsolationForest",
+            "outlier_indices": [],
+            "error": "Empty data provided",
+        }
+
+    # Check if data has NaN values
+    if df.isna().any().any():
+        return {
+            "method": "IsolationForest",
+            "outlier_indices": [],
+            "error": "Data contains NaN values. Please remove NaN samples before outlier detection.",
+        }
+
+    try:
+        # Standardize data for consistency with other methods
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(df)
+
+        # Fit Isolation Forest
+        iso_forest = IsolationForest(
+            contamination=contamination,
+            random_state=random_state,
+            n_estimators=100,  # Default number of trees
+        )
+        
+        # Fit and predict outliers
+        outlier_labels = iso_forest.fit_predict(X_scaled)
+
+        # Get outlier indices (Isolation Forest returns -1 for outliers, 1 for inliers)
+        outlier_mask = outlier_labels == -1
+        outlier_indices = [original_indices[i] for i in np.where(outlier_mask)[0]]
+
+        # Get anomaly scores (more negative = more anomalous)
+        # decision_function returns the opposite of anomaly scores
+        anomaly_scores = iso_forest.decision_function(X_scaled)
+
+        return {
+            "method": "IsolationForest",
+            "contamination": contamination,
+            "outlier_indices": outlier_indices,
+            "n_outliers": len(outlier_indices),
+            "anomaly_scores": anomaly_scores.tolist(),
+            "outlier_labels": outlier_labels.tolist(),
+            "data_indices": original_indices,
+        }
+        
+    except Exception as e:
+        return {
+            "method": "IsolationForest",
+            "outlier_indices": [],
+            "error": f"Isolation Forest outlier detection failed: {str(e)}",
         }

@@ -1693,3 +1693,154 @@ def pca_reconstruction_varying_errors():
         "n_outliers": 10,
         "outlier_indices": list(range(90, 100)),
     }
+
+
+@pytest.fixture
+def isolation_forest_data_with_anomalies():
+    """Generate data with clear anomalies suitable for Isolation Forest detection.
+    
+    Isolation Forest works well with:
+    - Global outliers (far from all normal data)
+    - Local outliers (isolated in specific feature subspaces)
+    - Anomalies that are easy to isolate with few splits
+    """
+    np.random.seed(42)
+    n_normal = 100
+    n_anomalies = 10
+    n_features = 5
+    
+    # Generate normal data (compact cluster)
+    normal_data = np.random.randn(n_normal, n_features) * 0.5
+    
+    # Generate anomalies (scattered, easy to isolate)
+    anomalies = []
+    for i in range(n_anomalies):
+        # Each anomaly is isolated in different ways
+        anomaly = np.zeros(n_features)
+        if i < 3:
+            # Global outliers - far from origin
+            anomaly = np.random.randn(n_features) * 3.0 + np.sign(np.random.randn(n_features)) * 5.0
+        elif i < 6:
+            # Feature-specific outliers
+            anomaly = np.random.randn(n_features) * 0.5
+            anomaly[i % n_features] = np.random.choice([-7, 7])  # Extreme in one dimension
+        else:
+            # Mixed outliers
+            anomaly = np.random.randn(n_features) * 2.0
+            anomaly[0:2] *= 3.0  # Extreme in subset of dimensions
+        anomalies.append(anomaly)
+    
+    anomalies = np.array(anomalies)
+    
+    # Combine data
+    X = np.vstack([normal_data, anomalies])
+    
+    # Shuffle while keeping track of anomaly indices
+    original_anomaly_indices = list(range(n_normal, n_normal + n_anomalies))
+    shuffle_indices = np.random.permutation(len(X))
+    X_shuffled = X[shuffle_indices]
+    
+    # Track where anomalies ended up after shuffling
+    anomaly_indices = []
+    for i, idx in enumerate(shuffle_indices):
+        if idx in original_anomaly_indices:
+            anomaly_indices.append(i)
+    
+    df = pd.DataFrame(X_shuffled, columns=[f"feature_{i}" for i in range(n_features)])
+    
+    return df, anomaly_indices, {
+        "n_normal": n_normal,
+        "n_anomalies": n_anomalies,
+        "contamination": n_anomalies / (n_normal + n_anomalies),
+    }
+
+
+@pytest.fixture
+def isolation_forest_multimodal_data():
+    """Generate multimodal data where Isolation Forest should excel.
+    
+    Isolation Forest handles multimodal distributions well because it doesn't
+    assume a single center or distribution shape.
+    """
+    np.random.seed(42)
+    n_per_cluster = 40
+    n_features = 4
+    n_anomalies = 8
+    
+    # Create three distinct clusters
+    cluster1 = np.random.randn(n_per_cluster, n_features) * 0.3 + np.array([-3, -3, 0, 0])
+    cluster2 = np.random.randn(n_per_cluster, n_features) * 0.3 + np.array([3, -3, 0, 0])
+    cluster3 = np.random.randn(n_per_cluster, n_features) * 0.3 + np.array([0, 3, 0, 0])
+    
+    # Add anomalies between and outside clusters
+    anomalies = []
+    for i in range(n_anomalies):
+        if i < 3:
+            # Anomalies between clusters
+            anomaly = np.array([0, 0, 0, 0]) + np.random.randn(n_features) * 0.5
+        else:
+            # Anomalies far from all clusters
+            anomaly = np.random.randn(n_features) * 5.0
+        anomalies.append(anomaly)
+    
+    anomalies = np.array(anomalies)
+    
+    # Combine all data
+    X = np.vstack([cluster1, cluster2, cluster3, anomalies])
+    expected_anomaly_indices = list(range(3 * n_per_cluster, len(X)))
+    
+    df = pd.DataFrame(X, columns=[f"dim_{i}" for i in range(n_features)])
+    
+    return df, expected_anomaly_indices, {
+        "n_clusters": 3,
+        "n_per_cluster": n_per_cluster,
+        "n_anomalies": n_anomalies,
+        "contamination": n_anomalies / len(X),
+    }
+
+
+@pytest.fixture
+def isolation_forest_high_dimensional_sparse():
+    """Generate high-dimensional sparse data where Isolation Forest performs well.
+    
+    In high dimensions, Isolation Forest can efficiently isolate anomalies
+    without suffering from the curse of dimensionality as much as distance-based methods.
+    """
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 20  # High dimensional
+    n_anomalies = 5
+    sparsity = 0.7  # 70% of values will be near zero
+    
+    # Generate sparse normal data
+    normal_data = np.random.randn(n_samples - n_anomalies, n_features) * 0.1
+    mask = np.random.random((n_samples - n_anomalies, n_features)) < sparsity
+    normal_data[mask] = np.random.randn(np.sum(mask)) * 0.01  # Very small values
+    
+    # Generate anomalies (dense or with different sparsity pattern)
+    anomalies = []
+    for i in range(n_anomalies):
+        if i < 2:
+            # Dense anomalies (not sparse)
+            anomaly = np.random.randn(n_features) * 0.5
+        else:
+            # Different sparsity pattern
+            anomaly = np.zeros(n_features)
+            active_features = np.random.choice(n_features, size=5, replace=False)
+            anomaly[active_features] = np.random.randn(5) * 2.0
+        anomalies.append(anomaly)
+    
+    anomalies = np.array(anomalies)
+    
+    # Combine and create DataFrame
+    X = np.vstack([normal_data, anomalies])
+    expected_anomaly_indices = list(range(n_samples - n_anomalies, n_samples))
+    
+    df = pd.DataFrame(X, columns=[f"feat_{i:02d}" for i in range(n_features)])
+    
+    return df, expected_anomaly_indices, {
+        "n_features": n_features,
+        "sparsity": sparsity,
+        "n_anomalies": n_anomalies,
+        "contamination": n_anomalies / n_samples,
+    }

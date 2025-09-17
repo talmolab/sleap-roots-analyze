@@ -10,6 +10,7 @@ from scipy import stats
 from sleap_roots_analyze.outlier_detection import (
     detect_outliers_mahalanobis,
     detect_outliers_pca,
+    detect_outliers_isolation_forest,
     calculate_outlier_threshold,
     identify_outliers_from_distances,
 )
@@ -1338,4 +1339,264 @@ class TestIndexValidationWithRealData:
         # Check data_indices match
         assert mahal_result["data_indices"] == df_traits.index.tolist()
         assert pca_result["data_indices"] == df_traits.index.tolist()
+
+
+class TestDetectOutliersIsolationForest:
+    """Test suite for Isolation Forest outlier detection."""
+
+    def test_basic_isolation_forest_detection(self, isolation_forest_data_with_anomalies):
+        """Test basic Isolation Forest outlier detection."""
+        df, expected_anomalies, metadata = isolation_forest_data_with_anomalies
+
+        result = detect_outliers_isolation_forest(
+            df,
+            contamination=metadata["contamination"],
+            random_state=42
+        )
+
+        # Check basic structure
+        assert result["method"] == "IsolationForest"
+        assert "outlier_indices" in result
+        assert "anomaly_scores" in result
+        assert "n_outliers" in result
+        assert "contamination" in result
+
+        # Should find approximately the right number of outliers
+        expected_n = metadata["n_anomalies"]
+        assert abs(result["n_outliers"] - expected_n) <= 2  # Allow some tolerance
+
+        # Check that anomaly scores are present for all samples
+        assert len(result["anomaly_scores"]) == len(df)
+
+        # Outliers should have more negative anomaly scores
+        scores = np.array(result["anomaly_scores"])
+        outlier_mask = np.zeros(len(df), dtype=bool)
+        for idx in result["outlier_indices"]:
+            outlier_mask[idx] = True
+        
+        if result["n_outliers"] > 0:
+            mean_outlier_score = np.mean(scores[outlier_mask])
+            mean_normal_score = np.mean(scores[~outlier_mask])
+            assert mean_outlier_score < mean_normal_score  # More negative is more anomalous
+
+    def test_contamination_parameter(self, isolation_forest_data_with_anomalies):
+        """Test effect of contamination parameter."""
+        df, _, _ = isolation_forest_data_with_anomalies
+
+        # Low contamination - expect fewer outliers
+        result_low = detect_outliers_isolation_forest(
+            df, contamination=0.05, random_state=42
+        )
+
+        # High contamination - expect more outliers
+        result_high = detect_outliers_isolation_forest(
+            df, contamination=0.2, random_state=42
+        )
+
+        # Higher contamination should find more outliers
+        assert result_high["n_outliers"] > result_low["n_outliers"]
+
+        # Check that approximately correct proportion is flagged
+        n_samples = len(df)
+        assert abs(result_low["n_outliers"] / n_samples - 0.05) <= 0.02
+        assert abs(result_high["n_outliers"] / n_samples - 0.2) <= 0.03
+
+    def test_multimodal_data_handling(self, isolation_forest_multimodal_data):
+        """Test Isolation Forest on multimodal data (its strength)."""
+        df, expected_anomalies, metadata = isolation_forest_multimodal_data
+
+        result = detect_outliers_isolation_forest(
+            df,
+            contamination=metadata["contamination"],
+            random_state=42
+        )
+
+        # Should identify anomalies even in multimodal distribution
+        found_anomalies = set(result["outlier_indices"])
+        expected_set = set(expected_anomalies)
+        
+        # Check overlap - should find most anomalies
+        overlap = found_anomalies.intersection(expected_set)
+        assert len(overlap) >= len(expected_anomalies) * 0.5  # At least 50% overlap
+
+    def test_high_dimensional_sparse_data(self, isolation_forest_high_dimensional_sparse):
+        """Test on high-dimensional sparse data where IF excels."""
+        df, expected_anomalies, metadata = isolation_forest_high_dimensional_sparse
+
+        result = detect_outliers_isolation_forest(
+            df,
+            contamination=metadata["contamination"],
+            random_state=42
+        )
+
+        # Should handle high dimensions well
+        assert result["n_outliers"] > 0
+        
+        # Check that it found some of the expected anomalies
+        found = set(result["outlier_indices"])
+        expected = set(expected_anomalies)
+        overlap = found.intersection(expected)
+        assert len(overlap) >= 2  # Should find at least some true anomalies
+
+    def test_reproducibility(self, isolation_forest_data_with_anomalies):
+        """Test that same random_state gives same results."""
+        df, _, _ = isolation_forest_data_with_anomalies
+
+        result1 = detect_outliers_isolation_forest(
+            df, contamination=0.1, random_state=42
+        )
+        
+        result2 = detect_outliers_isolation_forest(
+            df, contamination=0.1, random_state=42
+        )
+
+        # Same random state should give identical results
+        assert result1["outlier_indices"] == result2["outlier_indices"]
+        assert result1["anomaly_scores"] == result2["anomaly_scores"]
+
+        # Different random state should give different results
+        result3 = detect_outliers_isolation_forest(
+            df, contamination=0.1, random_state=123
+        )
+        
+        # Scores might be slightly different
+        assert result1["anomaly_scores"] != result3["anomaly_scores"]
+
+    def test_index_preservation(self, dataframe_with_custom_indices):
+        """Test that DataFrame indices are preserved."""
+        df, _, _ = dataframe_with_custom_indices
+
+        result = detect_outliers_isolation_forest(
+            df, contamination=0.1, random_state=42
+        )
+
+        # Check that returned indices are from DataFrame
+        assert all(idx in df.index for idx in result["outlier_indices"])
+
+        # Check data_indices matches DataFrame index
+        assert result["data_indices"] == df.index.tolist()
+
+    def test_numpy_array_input(self, isolation_forest_data_with_anomalies):
+        """Test with numpy array input."""
+        df, _, metadata = isolation_forest_data_with_anomalies
+        X = df.values
+
+        result = detect_outliers_isolation_forest(
+            X, contamination=metadata["contamination"], random_state=42
+        )
+
+        # Should work with numpy array
+        assert result["method"] == "IsolationForest"
+        assert "outlier_indices" in result
+        
+        # Indices should be integers for array input
+        assert all(isinstance(idx, int) for idx in result["outlier_indices"])
+        assert all(0 <= idx < len(X) for idx in result["outlier_indices"])
+
+    def test_edge_cases(self, outlier_data_edge_cases):
+        """Test edge cases for Isolation Forest."""
+        edge_cases = outlier_data_edge_cases
+
+        # Empty data
+        result_empty = detect_outliers_isolation_forest(edge_cases["empty"])
+        assert "error" in result_empty
+        assert "Empty" in result_empty["error"]
+
+        # Data with NaN
+        with_nan = pd.DataFrame({
+            "col1": [1, 2, np.nan, 4],
+            "col2": [5, 6, 7, 8]
+        })
+        result_nan = detect_outliers_isolation_forest(with_nan)
+        assert "error" in result_nan
+        assert "NaN" in result_nan["error"]
+
+    def test_anomaly_score_ordering(self, isolation_forest_data_with_anomalies):
+        """Test that anomaly scores correctly identify outliers."""
+        df, expected_anomalies, _ = isolation_forest_data_with_anomalies
+
+        result = detect_outliers_isolation_forest(
+            df, contamination=0.1, random_state=42
+        )
+
+        scores = np.array(result["anomaly_scores"])
+        labels = np.array(result["outlier_labels"])
+        
+        # Outliers (label=-1) should have lower scores than inliers (label=1)
+        outlier_scores = scores[labels == -1]
+        inlier_scores = scores[labels == 1]
+        
+        if len(outlier_scores) > 0 and len(inlier_scores) > 0:
+            assert np.max(outlier_scores) <= np.min(inlier_scores) + 0.1  # Small tolerance
+
+    def test_output_completeness(self, isolation_forest_data_with_anomalies):
+        """Test that all expected outputs are present."""
+        df, _, _ = isolation_forest_data_with_anomalies
+
+        result = detect_outliers_isolation_forest(df, contamination=0.1)
+
+        # Check all expected keys
+        expected_keys = [
+            "method",
+            "contamination", 
+            "outlier_indices",
+            "n_outliers",
+            "anomaly_scores",
+            "outlier_labels",
+            "data_indices",
+        ]
+
+        for key in expected_keys:
+            assert key in result, f"Missing key: {key}"
+
+    def test_comparison_with_other_methods(self, outlier_data_with_known_outliers):
+        """Compare Isolation Forest with other methods on same data."""
+        df, expected_outliers, _ = outlier_data_with_known_outliers
+
+        # Run all three methods
+        iso_result = detect_outliers_isolation_forest(
+            df, contamination=0.1, random_state=42
+        )
+        
+        pca_result = detect_outliers_pca(
+            df, explained_variance_threshold=0.95, outlier_threshold=2.5
+        )
+        
+        mahal_result = detect_outliers_mahalanobis(
+            df, variance_threshold=0.95, chi2_percentile=95.0
+        )
+
+        # All should find some outliers
+        assert iso_result["n_outliers"] > 0
+        assert pca_result["n_outliers"] > 0  
+        assert mahal_result["n_outliers"] > 0
+
+        # Isolation Forest might find different outliers than distance-based methods
+        iso_outliers = set(iso_result["outlier_indices"])
+        pca_outliers = set(pca_result["outlier_indices"])
+        mahal_outliers = set(mahal_result["outlier_indices"])
+
+        # But there should be some agreement on clear outliers
+        # At least some overlap between any two methods
+        overlap_iso_pca = iso_outliers.intersection(pca_outliers)
+        overlap_iso_mahal = iso_outliers.intersection(mahal_outliers)
+        overlap_all = iso_outliers.intersection(pca_outliers).intersection(mahal_outliers)
+        
+        # At least some method agreement expected
+        assert len(overlap_iso_pca) > 0 or len(overlap_iso_mahal) > 0
+
+    def test_contamination_validation(self):
+        """Test that contamination parameter is validated."""
+        df = pd.DataFrame(np.random.randn(100, 5))
+        
+        # Valid contamination
+        result = detect_outliers_isolation_forest(df, contamination=0.1)
+        assert "error" not in result
+        
+        # Test with boundary values
+        result = detect_outliers_isolation_forest(df, contamination=0.01)  # Very low
+        assert "error" not in result
+        
+        result = detect_outliers_isolation_forest(df, contamination=0.5)  # Maximum
+        assert "error" not in result
 

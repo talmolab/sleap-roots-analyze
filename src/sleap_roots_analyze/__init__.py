@@ -18,6 +18,7 @@ from sleap_roots_analyze.pca import (
 from sleap_roots_analyze.outlier_detection import (
     detect_outliers_mahalanobis,
     detect_outliers_pca,
+    detect_outliers_isolation_forest,
     calculate_outlier_threshold,
     identify_outliers_from_distances,
 )
@@ -37,6 +38,7 @@ __all__ = [
     # Outlier detection functions
     "detect_outliers_mahalanobis",
     "detect_outliers_pca",
+    "detect_outliers_isolation_forest",
     "calculate_outlier_threshold",
     "identify_outliers_from_distances",
 ]
