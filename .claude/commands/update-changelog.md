@@ -1,10 +1,10 @@
 # Update CHANGELOG.md
 
-This command helps maintain the project's CHANGELOG.md file following the Keep a Changelog format.
+This command helps maintain the project's CHANGELOG.md file (located at `docs/CHANGELOG.md`) following the Keep a Changelog format.
 
 ## Usage
 
-Update the CHANGELOG.md file when:
+Update the docs/CHANGELOG.md file when:
 - Adding new features
 - Fixing bugs
 - Making breaking changes
@@ -139,7 +139,7 @@ uv version 0.2.0
 
 3. **Commit and tag**
 ```bash
-git add CHANGELOG.md pyproject.toml
+git add docs/CHANGELOG.md pyproject.toml
 git commit -m "Release version 0.2.0"
 git tag -a v0.2.0 -m "Release version 0.2.0"
 ```

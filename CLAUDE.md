@@ -235,7 +235,7 @@ def process_data(df, optional_col=None):
 2. **Check coverage**: `uv run pytest --cov --cov-branch`
 3. **Format code**: `uv run black src/sleap_roots_analyze tests`
 4. **Update version**: `uv version --bump patch/minor/major`
-5. **Update CHANGELOG.md**
+5. **Update docs/CHANGELOG.md**
 6. **Create release**: Via GitHub Actions or manually
 
 ## Troubleshooting
