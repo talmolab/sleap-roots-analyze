@@ -81,12 +81,41 @@ transformed_data = result['transformed_data']
 loadings = result['loadings']
 ```
 
+### Outlier Detection
+
+```python
+from sleap_roots_analyze.outlier_detection import (
+    detect_outliers_mahalanobis,
+    detect_outliers_isolation_forest,
+    remove_outliers_from_data
+)
+
+# Detect outliers using Mahalanobis distance
+outliers_maha = detect_outliers_mahalanobis(
+    df_filtered[trait_cols],
+    use_robust=True
+)
+
+# Or use Isolation Forest for complex patterns
+outliers_iso = detect_outliers_isolation_forest(
+    df_filtered[trait_cols],
+    contamination=0.1
+)
+
+# Remove outliers from data
+df_clean, df_outliers = remove_outliers_from_data(
+    df_filtered,
+    outliers_maha['outlier_indices'],
+    return_outliers=True
+)
+```
+
 ## Features
 
 - **Data Cleaning**: Automatic metadata detection, NaN handling, zero-inflated trait removal
 - **Statistical Analysis**: Broad-sense heritability (H²), ANOVA, trait statistics
 - **PCA Analysis**: Dimensionality reduction with automatic component selection
-- **Outlier Detection**: Statistical outlier identification (in development)
+- **Outlier Detection**: Mahalanobis, PCA reconstruction, and Isolation Forest methods
 
 ## Data Format
 

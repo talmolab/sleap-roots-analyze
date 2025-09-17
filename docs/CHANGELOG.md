@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `calculate_pca_metrics()` for comprehensive PCA metrics
   - `build_feature_metrics_df()` for per-feature analysis
   - Edge case handling for single samples and constant features
+- **Outlier Detection Module** (`sleap_roots_analyze.outlier_detection`) with three complementary methods:
+  - `detect_outliers_mahalanobis()`: Statistical detection using Mahalanobis distance with chi-squared and custom thresholds
+  - `detect_outliers_pca()`: Outlier detection based on PCA reconstruction error
+  - `detect_outliers_isolation_forest()`: Tree-based anomaly detection for complex, non-linear patterns
+  - `remove_outliers_from_data()`: Utility to remove outliers while preserving DataFrame structure and metadata
+  - `calculate_outlier_threshold()`: Calculate chi-squared or direct distance thresholds
+  - `identify_outliers_from_distances()`: Identify outliers from pre-calculated distances
+  - Support for robust covariance estimation using MinCovDet
+  - Automatic index preservation through NaN removal
+  - Comprehensive test suite with 94% coverage (74 tests)
 - Improved PCA documentation with scikit-learn references and mathematical proofs
 - Numerical accuracy tests with known correct answers
 - Edge case fixtures for boundary condition testing
@@ -26,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude commands for PR review (`.claude/commands/review-pr.md`) and changelog updates (`.claude/commands/update-changelog.md`)
 
 ### Changed
+- **Outlier Detection Refactoring**:
+  - Removed redundant validation checks from outlier detection functions (now handled by `perform_pca_analysis`)
+  - Isolation Forest now uses shared `standardize_data` function for consistency
+  - Standardized feature naming convention across all methods (using "Feature_" prefix)
 - Made `statsmodels` a required dependency (removed `mixed_model_available` checks)
 - Integrated `save_nan_removed_rows` functionality into `remove_nan_samples()`
 - Moved utility functions to `data_utils.py` module

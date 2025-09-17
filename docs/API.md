@@ -7,6 +7,8 @@ Complete API documentation for `sleap-roots-analyze`.
 - [data_cleanup](#data_cleanup-module)
 - [statistics](#statistics-module)
 - [data_utils](#data_utils-module)
+- [pca](#pca-module)
+- [outlier_detection](#outlier_detection-module)
 
 ---
 
@@ -656,6 +658,247 @@ df_clean = remove_nan_samples(df, trait_cols)[0]
 df_clean = remove_zero_inflated_traits(df_clean, trait_cols)[0]
 # Then run expensive calculations
 ```
+
+## `outlier_detection` Module
+
+Outlier detection using Mahalanobis distance on PCA-transformed data.
+
+### Functions
+
+#### `detect_outliers_mahalanobis`
+
+```python
+detect_outliers_mahalanobis(
+    data: Union[pd.DataFrame, np.ndarray],
+    standardize: bool = True,
+    variance_threshold: float = 0.95,
+    use_chi_squared: bool = True,
+    chi2_percentile: float = 97.5,
+    distance_threshold: Optional[float] = None,
+    robust_covariance: bool = False,
+    random_state: int = 42
+) -> Dict
+```
+
+Detect outliers using Mahalanobis distance on PCA-transformed data.
+
+**Parameters:**
+- `data`: Input data as DataFrame or array
+- `standardize`: Whether to standardize data before PCA (default: True)
+- `variance_threshold`: Cumulative variance threshold for PCA component selection (default: 0.95)
+- `use_chi_squared`: Use chi-squared distribution threshold (default: True)
+- `chi2_percentile`: Percentile for chi-squared threshold (default: 97.5)
+- `distance_threshold`: Direct Mahalanobis distance threshold (if not using chi-squared)
+- `robust_covariance`: Use robust covariance estimation (MinCovDet) (default: False)
+- `random_state`: Random seed for reproducibility (default: 42)
+
+**Returns:**
+Dictionary containing:
+- `outlier_indices`: List of outlier sample indices
+- `mahalanobis_distances`: Distance for each sample
+- `n_outliers`: Number of outliers detected
+- `n_components`: Number of PCA components used
+- `threshold_type`: Type of threshold used ("chi_squared" or "distance")
+- `threshold_value`: Threshold value used
+- `feature_names`: List of feature names
+- `error`: Error message if detection failed (only if error occurred)
+
+**Example:**
+```python
+# Basic outlier detection
+result = detect_outliers_mahalanobis(df_traits, standardize=True)
+print(f"Found {result['n_outliers']} outliers")
+print(f"Outlier indices: {result['outlier_indices']}")
+
+# With custom threshold
+result = detect_outliers_mahalanobis(
+    df_traits,
+    chi2_percentile=99.0,  # More conservative threshold
+    robust_covariance=True  # Use robust estimation
+)
+
+# Using direct distance threshold instead of chi-squared
+result = detect_outliers_mahalanobis(
+    df_traits,
+    use_chi_squared=False,
+    distance_threshold=3.5  # 3.5 standard deviations
+)
+```
+
+---
+
+#### `calculate_outlier_threshold`
+
+```python
+calculate_outlier_threshold(
+    n_components: int,
+    use_chi_squared: bool = True,
+    chi2_percentile: float = 97.5,
+    distance_threshold: Optional[float] = None
+) -> Tuple[float, str]
+```
+
+Calculate threshold for outlier detection.
+
+**Parameters:**
+- `n_components`: Number of PCA components (degrees of freedom)
+- `use_chi_squared`: Whether to use chi-squared distribution (default: True)
+- `chi2_percentile`: Percentile for chi-squared threshold (0-100)
+- `distance_threshold`: Direct distance threshold
+
+**Returns:**
+- Tuple of (threshold value, threshold type string)
+
+**Raises:**
+- `ValueError`: If parameters are invalid
+
+**Example:**
+```python
+# Chi-squared threshold for 5 components
+threshold, threshold_type = calculate_outlier_threshold(
+    n_components=5,
+    use_chi_squared=True,
+    chi2_percentile=97.5
+)
+print(f"{threshold_type} threshold: {threshold:.2f}")
+
+# Direct distance threshold
+threshold, threshold_type = calculate_outlier_threshold(
+    n_components=5,
+    use_chi_squared=False,
+    distance_threshold=3.0
+)
+```
+
+---
+
+#### `identify_outliers_from_distances`
+
+```python
+identify_outliers_from_distances(
+    distances: np.ndarray,
+    threshold: float,
+    threshold_type: str = "chi_squared",
+    indices: Optional[pd.Index] = None
+) -> Dict
+```
+
+Identify outliers from Mahalanobis distances.
+
+**Parameters:**
+- `distances`: Array of Mahalanobis distances
+- `threshold`: Threshold value for outlier detection
+- `threshold_type`: Type of threshold ("chi_squared" or "distance")
+- `indices`: Optional custom indices for the samples
+
+**Returns:**
+Dictionary with:
+- `outlier_mask`: Boolean mask of outliers
+- `outlier_indices`: List of outlier indices
+- `n_outliers`: Number of outliers
+
+**Example:**
+```python
+# Calculate distances first
+distances, _, _ = calculate_mahalanobis_distances(pca_transformed_data)
+
+# Identify outliers using chi-squared threshold
+threshold, _ = calculate_outlier_threshold(n_components=5)
+outliers = identify_outliers_from_distances(
+    distances,
+    threshold,
+    threshold_type="chi_squared"
+)
+
+print(f"Found {outliers['n_outliers']} outliers")
+```
+
+---
+
+### Complete Outlier Detection Pipeline
+
+```python
+from sleap_roots_analyze import (
+    load_trait_data,
+    get_trait_columns,
+    remove_nan_samples,
+    detect_outliers_mahalanobis
+)
+
+# Load and prepare data
+df = load_trait_data("experiment_traits.csv")
+trait_cols = get_trait_columns(df)
+
+# Clean NaN samples first
+df_clean, _, _ = remove_nan_samples(df, trait_cols)
+
+# Select only trait columns for outlier detection
+df_traits = df_clean[trait_cols]
+
+# Detect outliers using default settings
+result = detect_outliers_mahalanobis(
+    df_traits,
+    standardize=True,
+    variance_threshold=0.95,
+    chi2_percentile=97.5
+)
+
+# Report results
+print(f"Analysis used {result['n_components']} PCA components")
+print(f"Cumulative variance explained: {result['cumulative_variance_at_selection']:.2%}")
+print(f"Found {result['n_outliers']} outliers out of {len(df_traits)} samples")
+print(f"Outlier threshold ({result['threshold_type']}): {result['threshold_value']:.2f}")
+
+# Get outlier samples
+outlier_samples = df_clean.iloc[result['outlier_indices']]
+print(f"Outlier barcodes: {outlier_samples['Barcode'].tolist()}")
+
+# Optional: Remove outliers from dataset
+df_no_outliers = df_clean.drop(index=result['outlier_indices'])
+```
+
+### Visualizing Outliers
+
+```python
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Run outlier detection
+result = detect_outliers_mahalanobis(df_traits, standardize=True)
+
+# Create visualization
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Histogram of Mahalanobis distances
+ax1.hist(result['mahalanobis_distances'], bins=30, edgecolor='black')
+ax1.axvline(x=np.sqrt(result['threshold_value']), color='red', 
+           linestyle='--', label=f"Threshold ({result['threshold_type']})")
+ax1.set_xlabel("Mahalanobis Distance")
+ax1.set_ylabel("Frequency")
+ax1.set_title("Distribution of Mahalanobis Distances")
+ax1.legend()
+
+# PCA biplot with outliers highlighted
+pca_components = np.array(result['pca_components'])
+outlier_mask = np.zeros(len(pca_components), dtype=bool)
+outlier_mask[result['outlier_indices']] = True
+
+ax2.scatter(pca_components[~outlier_mask, 0], 
+           pca_components[~outlier_mask, 1],
+           alpha=0.5, label='Normal')
+ax2.scatter(pca_components[outlier_mask, 0],
+           pca_components[outlier_mask, 1],
+           color='red', s=100, label='Outliers')
+ax2.set_xlabel(f"PC1 ({result['explained_variance_ratio'][0]:.1%} var)")
+ax2.set_ylabel(f"PC2 ({result['explained_variance_ratio'][1]:.1%} var)")
+ax2.set_title("PCA Biplot with Outliers")
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+```
+
+---
 
 ## Examples
 

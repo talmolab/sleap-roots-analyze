@@ -66,7 +66,7 @@ sleap-roots-analyze/
 │       ├── statistics.py        # Statistical analysis
 │       ├── pca.py               # PCA analysis module
 │       ├── data_utils.py        # Utility functions
-│       └── outlier_detection.py # Outlier detection (in development)
+│       └── outlier_detection.py # Outlier detection using Mahalanobis distance
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py              # Pytest configuration
@@ -74,6 +74,7 @@ sleap-roots-analyze/
 │   ├── test_data_cleanup.py    # Tests for data_cleanup module
 │   ├── test_statistics.py      # Tests for statistics module
 │   ├── test_pca.py             # Tests for PCA module
+│   ├── test_outlier_detection.py # Tests for outlier detection module
 │   └── data/                   # Test data files
 │       ├── features.csv
 │       ├── traits_summary.csv
@@ -90,10 +91,11 @@ sleap-roots-analyze/
 
 - Target: 95%+ coverage for critical modules
 - Current status:
-  - `data_cleanup.py`: 99% coverage ✅
-  - `statistics.py`: 95%+ coverage ✅
-  - `pca.py`: 97% coverage ✅
+  - `data_cleanup.py`: 98% coverage ✅
+  - `statistics.py`: 92% coverage ✅
+  - `pca.py`: 94% coverage ✅
   - `data_utils.py`: 100% coverage ✅
+  - `outlier_detection.py`: 95% coverage ✅
 
 ### Writing Tests
 
@@ -159,12 +161,34 @@ The module automatically excludes these metadata patterns:
 - Date/time columns
 - Non-numeric columns
 
+### outlier_detection.py
+
+Key functions to maintain:
+- `detect_outliers_mahalanobis()` - Detect outliers using Mahalanobis distance on PCA-transformed data
+- `calculate_outlier_threshold()` - Calculate chi-squared or distance thresholds
+- `identify_outliers_from_distances()` - Identify outliers from pre-calculated distances
+
+#### Implementation Details
+
+The module integrates with the PCA module to:
+- Perform PCA transformation for dimensionality reduction
+- Select components based on variance threshold (default 95%)
+- Calculate Mahalanobis distances in PCA space
+- Use chi-squared distribution for automatic threshold determination
+- Support robust covariance estimation via MinCovDet
+
+### pca.py
+
+Key functions to maintain:
+- `perform_pca_analysis()` - Complete PCA pipeline with standardization
+- `calculate_mahalanobis_distances()` - Calculate distances with optional robust estimation
+- `calculate_pca_metrics()` - Comprehensive metrics including per-feature variance
+- `build_feature_metrics_df()` - Build DataFrame with per-feature PCA metrics
+
 ### Future Modules
 
 Planned modules to develop:
-- `statistical_analysis.py` - Heritability, GWAS prep
 - `visualization.py` - Plotting utilities
-- `outlier_detection.py` - Statistical outlier detection
 - `gwas_prep.py` - GWAS data preparation
 
 ## Best Practices
@@ -211,7 +235,7 @@ def process_data(df, optional_col=None):
 2. **Check coverage**: `uv run pytest --cov --cov-branch`
 3. **Format code**: `uv run black src/sleap_roots_analyze tests`
 4. **Update version**: `uv version --bump patch/minor/major`
-5. **Update CHANGELOG.md**
+5. **Update docs/CHANGELOG.md**
 6. **Create release**: Via GitHub Actions or manually
 
 ## Troubleshooting
