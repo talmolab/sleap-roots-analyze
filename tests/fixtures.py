@@ -1319,3 +1319,278 @@ def correlated_pairs_data():
 
     X = np.column_stack(data)
     return pd.DataFrame(X, columns=[f"feat_{i}" for i in range(6)])
+
+
+# ============================================================================
+# OUTLIER DETECTION FIXTURES - Data with known outlier patterns
+# ============================================================================
+
+
+@pytest.fixture
+def outlier_data_with_known_outliers():
+    """Generate data with known outliers at specific positions.
+
+    Returns:
+        tuple: (DataFrame, list of outlier indices, dict with metadata)
+    """
+    rng = np.random.default_rng(42)
+    n_normal = 100
+    n_outliers = 5
+    n_features = 6
+
+    # Generate normal data from multivariate normal
+    mean = np.zeros(n_features)
+    cov = np.eye(n_features)
+    # Add some correlation structure
+    cov[0, 1] = cov[1, 0] = 0.5
+    cov[2, 3] = cov[3, 2] = 0.3
+
+    normal_data = rng.multivariate_normal(mean, cov, n_normal)
+
+    # Generate outliers far from the mean
+    outlier_data = []
+    outlier_directions = [
+        np.array([5, 5, 0, 0, 0, 0]),  # Outlier in first two dims
+        np.array([0, 0, -6, 0, 0, 0]),  # Outlier in third dim
+        np.array([0, 0, 0, 0, 4, 4]),  # Outlier in last two dims
+        np.array([3, 3, 3, 3, 3, 3]),  # Global outlier
+        np.array([-4, 4, -4, 4, -4, 4]),  # Alternating outlier
+    ]
+
+    for direction in outlier_directions:
+        outlier_data.append(direction + rng.normal(0, 0.1, n_features))
+
+    # Combine data
+    all_data = np.vstack([normal_data, np.array(outlier_data)])
+    outlier_indices = list(range(n_normal, n_normal + n_outliers))
+
+    df = pd.DataFrame(all_data, columns=[f"trait_{i}" for i in range(n_features)])
+
+    metadata = {
+        "n_normal": n_normal,
+        "n_outliers": n_outliers,
+        "n_features": n_features,
+        "outlier_types": [
+            "correlated_pair",
+            "single_dim",
+            "correlated_pair",
+            "global",
+            "alternating",
+        ],
+        "expected_mahalanobis_min": 3.0,  # Minimum expected distance for outliers
+    }
+
+    return df, outlier_indices, metadata
+
+
+@pytest.fixture
+def outlier_data_high_dimensional():
+    """Generate high-dimensional data for testing PCA-based outlier detection.
+
+    Returns:
+        tuple: (DataFrame, list of outlier indices, dict with metadata)
+    """
+    rng = np.random.default_rng(123)
+    n_samples = 50
+    n_features = 20  # High dimensional
+    n_outliers = 3
+
+    # Generate data with intrinsic lower dimensionality (rank ~5)
+    n_components = 5
+    U = rng.standard_normal((n_samples - n_outliers, n_components))
+    V = rng.standard_normal((n_components, n_features))
+    normal_data = U @ V + rng.normal(0, 0.1, (n_samples - n_outliers, n_features))
+
+    # Add outliers in the high-dimensional space
+    outlier_data = rng.normal(0, 5, (n_outliers, n_features))
+
+    all_data = np.vstack([normal_data, outlier_data])
+    outlier_indices = list(range(n_samples - n_outliers, n_samples))
+
+    df = pd.DataFrame(all_data, columns=[f"feature_{i}" for i in range(n_features)])
+
+    metadata = {
+        "n_samples": n_samples,
+        "n_features": n_features,
+        "n_outliers": n_outliers,
+        "intrinsic_dim": n_components,
+        "variance_threshold_suggested": 0.9,
+    }
+
+    return df, outlier_indices, metadata
+
+
+@pytest.fixture
+def outlier_data_multimodal():
+    """Generate multimodal distribution to test robustness.
+
+    Returns:
+        tuple: (DataFrame, list of outlier indices, dict with metadata)
+    """
+    rng = np.random.default_rng(456)
+
+    # Create two clusters
+    n_cluster1 = 40
+    n_cluster2 = 40
+    n_outliers = 5
+    n_features = 4
+
+    # Cluster 1 centered at origin
+    cluster1 = rng.multivariate_normal(
+        [0, 0, 0, 0], np.eye(n_features) * 0.5, n_cluster1
+    )
+
+    # Cluster 2 offset
+    cluster2 = rng.multivariate_normal(
+        [3, 3, 0, 0], np.eye(n_features) * 0.5, n_cluster2
+    )
+
+    # Outliers between and beyond clusters
+    outliers = np.array(
+        [
+            [1.5, 1.5, 4, 0],  # Between clusters but off in dim 3
+            [6, 6, 0, 0],  # Beyond cluster 2
+            [-3, -3, 0, 0],  # Beyond cluster 1
+            [0, 0, 0, 5],  # Off in dim 4
+            [1.5, 1.5, -3, 3],  # Between clusters, off in dims 3&4
+        ]
+    )
+
+    all_data = np.vstack([cluster1, cluster2, outliers])
+    outlier_indices = list(
+        range(n_cluster1 + n_cluster2, n_cluster1 + n_cluster2 + n_outliers)
+    )
+
+    df = pd.DataFrame(all_data, columns=[f"metric_{i}" for i in range(n_features)])
+
+    metadata = {
+        "n_cluster1": n_cluster1,
+        "n_cluster2": n_cluster2,
+        "n_outliers": n_outliers,
+        "n_features": n_features,
+        "cluster_separation": 3.0,
+        "robust_covariance_recommended": True,
+    }
+
+    return df, outlier_indices, metadata
+
+
+@pytest.fixture
+def outlier_data_with_clusters():
+    """Generate data with distinct clusters for testing cluster-aware outlier detection.
+
+    Returns:
+        tuple: (DataFrame with cluster labels, list of outlier indices, dict with metadata)
+    """
+    rng = np.random.default_rng(789)
+
+    # Create three distinct clusters
+    n_per_cluster = 30
+    n_outliers = 4
+    n_features = 3
+
+    clusters = []
+    cluster_centers = [
+        [0, 0, 0],
+        [5, 0, 0],
+        [2.5, 4, 0],
+    ]
+
+    for i, center in enumerate(cluster_centers):
+        cluster_data = rng.multivariate_normal(
+            center, np.eye(n_features) * 0.3, n_per_cluster
+        )
+        clusters.append(cluster_data)
+
+    # Outliers at various positions
+    outliers = np.array(
+        [
+            [2.5, 2, 5],  # Above the triangle of clusters
+            [2.5, 2, -5],  # Below the triangle of clusters
+            [10, 0, 0],  # Far right
+            [-5, 0, 0],  # Far left
+        ]
+    )
+
+    all_data = np.vstack(clusters + [outliers])
+
+    # Create cluster labels
+    cluster_labels = []
+    for i in range(3):
+        cluster_labels.extend([f"cluster_{i}"] * n_per_cluster)
+    cluster_labels.extend(["outlier"] * n_outliers)
+
+    df = pd.DataFrame(all_data, columns=[f"dim_{i}" for i in range(n_features)])
+    df["cluster"] = cluster_labels
+
+    outlier_indices = list(range(n_per_cluster * 3, n_per_cluster * 3 + n_outliers))
+
+    metadata = {
+        "n_clusters": 3,
+        "n_per_cluster": n_per_cluster,
+        "n_outliers": n_outliers,
+        "n_features": n_features,
+        "cluster_column": "cluster",
+        "outlier_label": "outlier",
+    }
+
+    return df, outlier_indices, metadata
+
+
+@pytest.fixture
+def outlier_data_edge_cases():
+    """Generate edge case data for outlier detection.
+
+    Returns:
+        dict: Dictionary of edge case datasets
+    """
+    rng = np.random.default_rng(101)
+
+    edge_cases = {}
+
+    # Single sample (cannot compute covariance)
+    edge_cases["single_sample"] = pd.DataFrame([[1, 2, 3]], columns=["a", "b", "c"])
+
+    # Two samples (minimum for covariance)
+    edge_cases["two_samples"] = pd.DataFrame(
+        [[1, 2, 3], [2, 3, 4]], columns=["a", "b", "c"]
+    )
+
+    # All identical samples (zero variance)
+    edge_cases["identical_samples"] = pd.DataFrame(
+        [[1, 2, 3]] * 10, columns=["a", "b", "c"]
+    )
+
+    # One constant feature
+    data = rng.standard_normal((20, 3))
+    data[:, 1] = 5.0  # Make middle column constant
+    edge_cases["constant_feature"] = pd.DataFrame(
+        data, columns=["var1", "constant", "var2"]
+    )
+
+    # High correlation (near singular covariance)
+    n = 30
+    x = rng.standard_normal(n)
+    edge_cases["high_correlation"] = pd.DataFrame(
+        {
+            "x": x,
+            "y": x + rng.normal(0, 0.01, n),  # Almost perfectly correlated
+            "z": x + rng.normal(0, 0.01, n),  # Almost perfectly correlated
+        }
+    )
+
+    # Data with NaN values
+    data_with_nan = rng.standard_normal((20, 4))
+    data_with_nan[5:8, 1] = np.nan
+    data_with_nan[10, :] = np.nan
+    edge_cases["with_nan"] = pd.DataFrame(
+        data_with_nan, columns=[f"col_{i}" for i in range(4)]
+    )
+
+    # Empty dataframe
+    edge_cases["empty"] = pd.DataFrame()
+
+    # Single feature (1D)
+    edge_cases["single_feature"] = pd.DataFrame({"value": rng.standard_normal(25)})
+
+    return edge_cases
