@@ -11,7 +11,6 @@ from unittest.mock import patch, MagicMock
 from src.sleap_roots_analyze.data_cleanup import (
     load_trait_data,
     get_trait_columns,
-    link_rhizovision_images_to_samples,
     save_cleaned_data,
     remove_nan_samples,
     get_numeric_traits_only,
@@ -20,6 +19,7 @@ from src.sleap_roots_analyze.data_cleanup import (
 from src.sleap_roots_analyze.data_utils import (
     create_run_directory,
     convert_to_json_serializable,
+    link_rhizovision_images_to_samples,
 )
 
 
