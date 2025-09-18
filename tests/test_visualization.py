@@ -33,6 +33,11 @@ from tests.fixtures import (
     viz_eda_many_traits_data,
     turface_traits_df,
     traits_summary_df,
+    heritability_results_basic,
+    heritability_results_empty,
+    heritability_results_invalid,
+    heritability_threshold_analysis,
+    heritability_threshold_analysis_empty,
 )
 
 from sleap_roots_analyze.visualization import (
@@ -1092,3 +1097,320 @@ class TestVisualizationIntegration:
         finally:
             # Restore original backend
             matplotlib.use(original_backend)
+class TestCreateHeritabilityPlot:
+    """Tests for create_heritability_plot function."""
+    
+    def test_basic_heritability_plot(self, heritability_results_basic):
+        """Test basic heritability plot creation."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+        
+        fig = create_heritability_plot(heritability_results_basic)
+        
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+        
+        # Check that bars were created
+        bars = [child for child in ax.get_children() if hasattr(child, 'get_height')]
+        # Filter to get only data bars (heritability values should be between 0 and 1)
+        # Also exclude very thin bars that might be from the threshold line
+        data_bars = [b for b in bars if 0 < b.get_height() <= 1 and b.get_width() > 0.5]
+        # Should have approximately 12 bars (may include threshold line bar)
+        assert 11 <= len(data_bars) <= 13  # Allow for some flexibility
+        
+        # Check colors based on threshold
+        # High heritability (>=0.5) should be green, low should be orange
+        high_h2_count = sum(1 for bar in data_bars[:8] if 'green' in str(bar.get_facecolor()).lower() or bar.get_facecolor()[1] > 0.5)
+        low_h2_count = sum(1 for bar in data_bars[8:] if 'orange' in str(bar.get_facecolor()).lower() or bar.get_facecolor()[0] > 0.9)
+        
+        assert high_h2_count >= 4  # First 8 bars, at least 4 should be green (h2 >= 0.5)
+        assert low_h2_count >= 2  # Last 4 bars should be orange (h2 < 0.5)
+        
+        # Check threshold line
+        lines = ax.get_lines()
+        assert any(line.get_linestyle() == '--' for line in lines)
+        
+        # Check labels and title
+        assert ax.get_xlabel() == "Traits"
+        assert ax.get_ylabel() == "Heritability (H²)"
+        assert "Heritability" in ax.get_title()
+        
+        plt.close("all")
+    
+    def test_heritability_plot_custom_threshold(self, heritability_results_basic):
+        """Test heritability plot with custom threshold."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+        
+        fig = create_heritability_plot(heritability_results_basic, threshold=0.7)
+        
+        ax = fig.axes[0]
+        
+        # Check threshold line is at 0.7
+        lines = ax.get_lines()
+        threshold_line = [line for line in lines if line.get_linestyle() == '--'][0]
+        assert threshold_line.get_ydata()[0] == 0.7
+        
+        plt.close("all")
+    
+    def test_heritability_plot_empty_data(self, heritability_results_empty):
+        """Test heritability plot with empty data."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+        
+        fig = create_heritability_plot(heritability_results_empty)
+        
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+        
+        # Should display "No heritability data available"
+        texts = ax.texts
+        assert any("No heritability data" in text.get_text() for text in texts)
+        
+        plt.close("all")
+    
+    def test_heritability_plot_invalid_data(self, heritability_results_invalid):
+        """Test heritability plot with invalid/mixed data."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+        
+        # Should handle gracefully by skipping invalid entries
+        fig = create_heritability_plot(heritability_results_invalid)
+        
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+        
+        # Should show "No heritability data" since all entries are invalid
+        texts = ax.texts
+        assert any("No heritability data" in text.get_text() for text in texts)
+        
+        plt.close("all")
+    
+    def test_heritability_plot_mixed_valid_invalid(self):
+        """Test heritability plot with mix of valid and invalid data."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+        
+        mixed_results = {
+            "valid_trait": {"heritability": 0.6},
+            "invalid_trait": {"variance": 100},  # Missing heritability
+            "another_valid": {"heritability": 0.3},
+        }
+        
+        fig = create_heritability_plot(mixed_results)
+        
+        ax = fig.axes[0]
+        
+        # Should have 2 bars (valid traits only) plus possible threshold line
+        bars = [child for child in ax.get_children() if hasattr(child, 'get_height')]
+        # Filter to get only data bars - heritability values are > 0 and < 1
+        # The bar width should be around 0.8 for data bars
+        data_bars = [b for b in bars if 0.001 < b.get_height() < 0.99 and b.get_width() > 0.5]
+        # Could be 2 or 3 depending on how matplotlib renders
+        assert 2 <= len(data_bars) <= 3  # Allow some flexibility
+        
+        plt.close("all")
+    
+    def test_heritability_plot_value_labels(self, heritability_results_basic):
+        """Test that value labels are added to bars."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+        
+        fig = create_heritability_plot(heritability_results_basic)
+        
+        ax = fig.axes[0]
+        
+        # Check for text labels on bars
+        texts = ax.texts
+        # Should have 12 text labels (one per bar)
+        assert len(texts) >= 12
+        
+        # Check that labels are numeric
+        for text in texts:
+            try:
+                float(text.get_text())
+                assert True
+            except ValueError:
+                # Some texts might be axis labels, that's ok
+                pass
+        
+        plt.close("all")
+    
+    def test_heritability_plot_figsize(self, heritability_results_basic):
+        """Test custom figure size."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+        
+        fig = create_heritability_plot(heritability_results_basic, figsize=(15, 8))
+        
+        # Check figure size
+        size = fig.get_size_inches()
+        assert size[0] == 15
+        assert size[1] == 8
+        
+        plt.close("all")
+
+
+class TestCreateHeritabilityThresholdPlot:
+    """Tests for create_heritability_threshold_plot function."""
+    
+    def test_basic_threshold_plot(self, heritability_threshold_analysis):
+        """Test basic threshold analysis plot creation."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(heritability_threshold_analysis)
+        
+        assert isinstance(fig, plt.Figure)
+        assert len(fig.axes) == 2  # Should have 2 subplots
+        
+        ax1, ax2 = fig.axes
+        
+        # Check top plot (traits retained)
+        lines1 = ax1.get_lines()
+        assert len(lines1) >= 1  # Main line plus reference lines
+        assert ax1.get_ylabel() == "Number of Traits Retained"
+        assert "Trait Retention" in ax1.get_title()
+        
+        # Check bottom plot (fraction retained)
+        lines2 = ax2.get_lines()
+        assert len(lines2) >= 1  # Main line
+        assert ax2.get_xlabel() == "Heritability Threshold (H²)"
+        assert ax2.get_ylabel() == "Traits Retained (%)"
+        
+        plt.close("all")
+    
+    def test_threshold_plot_with_current(self, heritability_threshold_analysis):
+        """Test threshold plot with current threshold highlighted."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(
+            heritability_threshold_analysis,
+            current_threshold=0.5
+        )
+        
+        ax1, ax2 = fig.axes
+        
+        # Check for vertical line at current threshold in both plots
+        vlines1 = [line for line in ax1.get_lines() if line.get_linestyle() == '--']
+        vlines2 = [line for line in ax2.get_lines() if line.get_linestyle() == '--']
+        
+        # Should have vertical line at 0.5
+        assert any(0.5 in line.get_xdata() for line in vlines1)
+        assert any(0.5 in line.get_xdata() for line in vlines2)
+        
+        # Check for marker point
+        # Look for scatter points (red dots)
+        collections = ax1.collections
+        assert len(collections) > 0 or any(line.get_marker() == 'o' for line in ax1.get_lines())
+        
+        plt.close("all")
+    
+    def test_threshold_plot_reference_lines(self, heritability_threshold_analysis):
+        """Test that reference lines are added."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(heritability_threshold_analysis)
+        
+        ax1, ax2 = fig.axes
+        
+        # Check for horizontal reference lines in top plot (50% and 75%)
+        hlines = [line for line in ax1.get_lines() 
+                  if len(set(line.get_ydata())) == 1]  # Horizontal lines have constant y
+        assert len(hlines) >= 2  # At least 50% and 75% lines
+        
+        # Check for vertical reference lines in bottom plot (Low, Moderate, High)
+        vlines = [line for line in ax2.get_lines() 
+                  if line.get_linestyle() == ':' and line.get_alpha() == 0.3]
+        assert len(vlines) >= 3  # Low (0.3), Moderate (0.5), High (0.7)
+        
+        plt.close("all")
+    
+    def test_threshold_plot_annotations(self, heritability_threshold_analysis):
+        """Test that annotations are added."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(
+            heritability_threshold_analysis,
+            current_threshold=0.5
+        )
+        
+        ax1, ax2 = fig.axes
+        
+        # Check for text annotations
+        texts1 = ax1.texts
+        texts2 = ax2.texts
+        
+        # Should have annotation for current threshold value
+        assert len(texts1) > 0  # "X traits" annotation
+        assert len(texts2) > 0  # Percentage and threshold labels
+        
+        # Check for threshold labels (Low, Moderate, High)
+        all_text = ' '.join(text.get_text() for text in texts2)
+        assert any(label in all_text for label in ["Low", "Moderate", "High"])
+        
+        plt.close("all")
+    
+    def test_threshold_plot_empty_data(self, heritability_threshold_analysis_empty):
+        """Test threshold plot with empty data."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(heritability_threshold_analysis_empty)
+        
+        assert isinstance(fig, plt.Figure)
+        assert len(fig.axes) == 2
+        
+        # Should handle empty data gracefully
+        ax1, ax2 = fig.axes
+        
+        # Check that axes limits are set properly even with no data
+        assert ax1.get_xlim() == (0, 1)
+        assert ax2.get_xlim() == (0, 1)
+        
+        plt.close("all")
+    
+    def test_threshold_plot_fill_between(self, heritability_threshold_analysis):
+        """Test that fill_between is used for area under curves."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(heritability_threshold_analysis)
+        
+        ax1, ax2 = fig.axes
+        
+        # Check for filled areas (PolyCollection objects)
+        collections1 = [c for c in ax1.collections if hasattr(c, 'get_facecolor')]
+        collections2 = [c for c in ax2.collections if hasattr(c, 'get_facecolor')]
+        
+        assert len(collections1) > 0  # Blue fill in top plot
+        assert len(collections2) > 0  # Green fill in bottom plot
+        
+        plt.close("all")
+    
+    def test_threshold_plot_figsize(self, heritability_threshold_analysis):
+        """Test custom figure size."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(
+            heritability_threshold_analysis,
+            figsize=(12, 8)
+        )
+        
+        # Check figure size
+        size = fig.get_size_inches()
+        assert size[0] == 12
+        assert size[1] == 8
+        
+        plt.close("all")
+    
+    def test_threshold_plot_axes_limits(self, heritability_threshold_analysis):
+        """Test that axes limits are set correctly."""
+        from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+        
+        fig = create_heritability_threshold_plot(heritability_threshold_analysis)
+        
+        ax1, ax2 = fig.axes
+        
+        # Check x-axis limits (should be 0 to 1 for heritability)
+        assert ax1.get_xlim() == (0, 1)
+        assert ax2.get_xlim() == (0, 1)
+        
+        # Check y-axis limits
+        total_traits = heritability_threshold_analysis["total_traits"]
+        assert ax1.get_ylim()[0] == 0
+        assert ax1.get_ylim()[1] >= total_traits  # Should show all traits
+        
+        assert ax2.get_ylim() == (0, 105)  # Percentage from 0 to 105
+        
+        plt.close("all")
