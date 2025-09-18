@@ -2446,3 +2446,105 @@ def outlier_viz_pca_results():
         "eigenvalues": eigenvalues.tolist(),
         "n_outliers": len(outlier_indices),
     }
+
+
+# ============================================================================
+# HERITABILITY FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def heritability_results_basic():
+    """Basic heritability results for testing visualization."""
+    np.random.seed(42)
+    
+    # Generate heritability values with different ranges
+    trait_names = [
+        "root_depth", "root_width", "lateral_count", "primary_length",
+        "total_length", "convex_area", "network_area", "perimeter",
+        "avg_radius", "max_radius", "stem_width", "density"
+    ]
+    
+    # Mix of high, medium, and low heritability values
+    h2_values = [
+        0.85, 0.72, 0.68, 0.65,  # High heritability
+        0.55, 0.48, 0.42, 0.38,  # Medium heritability
+        0.25, 0.18, 0.12, 0.08   # Low heritability
+    ]
+    
+    results = {}
+    for trait, h2 in zip(trait_names, h2_values):
+        results[trait] = {
+            "heritability": h2,
+            "variance_components": {
+                "genetic": h2 * 100,
+                "environmental": (1 - h2) * 100,
+                "total": 100
+            },
+            "confidence_interval": [max(0, h2 - 0.1), min(1, h2 + 0.1)],
+            "n_genotypes": 50,
+            "n_observations": 150
+        }
+    
+    return results
+
+
+@pytest.fixture
+def heritability_results_empty():
+    """Empty heritability results for edge case testing."""
+    return {}
+
+
+@pytest.fixture
+def heritability_results_invalid():
+    """Heritability results with invalid/missing data."""
+    return {
+        "trait_1": {"variance": 100},  # Missing heritability key
+        "trait_2": {"heritability": None},  # None value
+        "trait_3": "not_a_dict",  # Invalid format
+        "trait_4": {"heritability": -0.1},  # Invalid value (negative)
+        "trait_5": {"heritability": 1.5},  # Invalid value (>1)
+    }
+
+
+@pytest.fixture
+def heritability_threshold_analysis():
+    """Threshold analysis results for heritability threshold plot."""
+    thresholds = np.linspace(0, 1, 101)
+    total_traits = 50
+    
+    # Simulate retention curve - exponential decay
+    traits_retained = np.zeros_like(thresholds)
+    for i, thresh in enumerate(thresholds):
+        # Count traits above threshold
+        traits_retained[i] = total_traits * np.exp(-3 * thresh)
+    
+    # Ensure integer counts and reasonable values
+    traits_retained = np.round(traits_retained).astype(int)
+    traits_retained = np.maximum(0, traits_retained)
+    traits_retained = np.minimum(total_traits, traits_retained)
+    
+    fraction_retained = traits_retained / total_traits
+    
+    return {
+        "thresholds": thresholds,
+        "traits_retained": traits_retained,
+        "fraction_retained": fraction_retained,
+        "total_traits": total_traits,
+        "trait_names_by_threshold": {
+            0.3: ["trait_" + str(i) for i in range(35)],
+            0.5: ["trait_" + str(i) for i in range(18)],
+            0.7: ["trait_" + str(i) for i in range(7)]
+        }
+    }
+
+
+@pytest.fixture
+def heritability_threshold_analysis_empty():
+    """Empty threshold analysis for edge case testing."""
+    return {
+        "thresholds": np.array([]),
+        "traits_retained": np.array([]),
+        "fraction_retained": np.array([]),
+        "total_traits": 0
+    }
