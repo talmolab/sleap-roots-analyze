@@ -705,3 +705,154 @@ def apply_data_cleanup_filters(
     )
 
     return df_clean, cleanup_log
+
+
+def inspect_nan_samples(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: str = "rep",
+    save_path: Optional[str] = None,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Inspect samples with NaN values and provide detailed information.
+
+    This function identifies samples containing NaN values in trait columns
+    and creates a detailed report including which traits have missing values
+    and the fraction of missing data per sample. When verbose=True, it logs
+    helpful summary statistics about the NaN distribution.
+
+    Args:
+        df: DataFrame containing trait data
+        trait_cols: List of trait column names to inspect
+        barcode_col: Name of the barcode/sample ID column (default: "Barcode")
+        genotype_col: Name of the genotype column (default: "geno")
+        replicate_col: Name of the replicate column (default: "rep")
+        save_path: Optional path to save the inspection results as CSV
+        verbose: Whether to log inspection summary (default: True)
+
+    Returns:
+        DataFrame with NaN inspection details including:
+        - sample_index: Original DataFrame index
+        - barcode: Sample barcode/ID
+        - genotype: Genotype name
+        - rep: Replicate number
+        - nan_count: Number of traits with NaN
+        - nan_fraction: Fraction of traits with NaN
+        - nan_traits: Semicolon-separated list of traits with NaN
+        - data_status: Status indicator ("original_data_with_nan")
+
+    Examples:
+        >>> df = pd.DataFrame({
+        ...     'Barcode': ['BC1', 'BC2', 'BC3'],
+        ...     'geno': ['G1', 'G2', 'G3'],
+        ...     'rep': [1, 2, 3],
+        ...     'trait1': [1.0, np.nan, 3.0],
+        ...     'trait2': [4.0, 5.0, np.nan]
+        ... })
+        >>> trait_cols = ['trait1', 'trait2']
+        >>> inspection_df = inspect_nan_samples(df, trait_cols)
+        >>> len(inspection_df)  # 2 samples have NaN
+        2
+    """
+    # Identify samples with NaN values in trait columns
+    samples_with_nan = df[trait_cols].isna().any(axis=1)
+    n_samples_with_nan = samples_with_nan.sum()
+
+    if n_samples_with_nan > 0:
+        # Get samples with NaN
+        nan_samples = df[samples_with_nan].copy()
+        nan_info_detailed = []
+
+        # Create detailed information for each sample with NaN
+        for idx in nan_samples.index:
+            # Find which traits have NaN for this sample
+            nan_traits_list = [col for col in trait_cols if pd.isna(df.loc[idx, col])]
+            nan_count = len(nan_traits_list)
+            nan_fraction = nan_count / len(trait_cols) if len(trait_cols) > 0 else 0
+
+            # Build info dictionary
+            info = {
+                "sample_index": int(idx),
+                "nan_count": nan_count,
+                "nan_fraction": nan_fraction,
+                "nan_traits": "; ".join(nan_traits_list),
+                "data_status": "original_data_with_nan",
+            }
+
+            # Add sample metadata if columns exist
+            if barcode_col in df.columns:
+                info["barcode"] = nan_samples.loc[idx, barcode_col]
+            if genotype_col in df.columns:
+                info["genotype"] = nan_samples.loc[idx, genotype_col]
+            if replicate_col in df.columns:
+                info["rep"] = nan_samples.loc[idx, replicate_col]
+
+            nan_info_detailed.append(info)
+
+        # Create DataFrame from collected information
+        inspection_df = pd.DataFrame(nan_info_detailed)
+
+        # Reorder columns for better readability
+        col_order = []
+        if "sample_index" in inspection_df.columns:
+            col_order.append("sample_index")
+        if "barcode" in inspection_df.columns:
+            col_order.append("barcode")
+        if "genotype" in inspection_df.columns:
+            col_order.append("genotype")
+        if "rep" in inspection_df.columns:
+            col_order.append("rep")
+        col_order.extend(["nan_count", "nan_fraction", "nan_traits", "data_status"])
+
+        inspection_df = inspection_df[col_order]
+
+        # Log helpful information if verbose
+        if verbose:
+            logger.info(
+                f"Initial NaN inspection - found {len(inspection_df)} samples with NaN values"
+            )
+            logger.info(
+                "These samples will be handled based on your data cleaning strategy"
+            )
+
+            # Show sample distribution of NaN counts
+            nan_count_distribution = (
+                inspection_df["nan_count"].value_counts().sort_index()
+            )
+            if len(nan_count_distribution) > 0:
+                logger.info("NaN distribution:")
+                for count, n_samples in nan_count_distribution.items():
+                    logger.info(f"  - {n_samples} sample(s) with {count} NaN trait(s)")
+
+            # Log summary statistics
+            logger.info(
+                f"Summary: {len(inspection_df)} samples with NaN values out of {len(df)} total samples ({len(inspection_df)/len(df)*100:.1f}%)"
+            )
+
+        # Save to CSV if path provided
+        if save_path is not None:
+            inspection_df.to_csv(save_path, index=False)
+            if verbose:
+                logger.info(f"Saved NaN inspection to: {save_path}")
+
+        return inspection_df
+    else:
+        # No samples with NaN
+        if verbose:
+            logger.info("No NaN values found in the data")
+
+        # Return empty DataFrame with expected structure
+        return pd.DataFrame(
+            columns=[
+                "sample_index",
+                "barcode",
+                "genotype",
+                "rep",
+                "nan_count",
+                "nan_fraction",
+                "nan_traits",
+                "data_status",
+            ]
+        )

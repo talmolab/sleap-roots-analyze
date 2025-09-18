@@ -5,6 +5,10 @@ from sleap_roots_analyze.data_cleanup import (
     get_trait_columns,
     remove_nan_samples,
     remove_low_heritability_traits,
+    inspect_nan_samples,
+)
+
+from sleap_roots_analyze.data_utils import (
     link_rhizovision_images_to_samples,
 )
 
@@ -31,6 +35,7 @@ __all__ = [
     "remove_nan_samples",
     "remove_low_heritability_traits",
     "link_rhizovision_images_to_samples",
+    "inspect_nan_samples",
     # PCA functions
     "perform_pca_analysis",
     "calculate_mahalanobis_distances",
