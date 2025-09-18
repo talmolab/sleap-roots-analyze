@@ -473,9 +473,10 @@ Use `ddof=1` (default) for mathematical consistency unless you specifically need
 
 Our comprehensive test suite (`tests/test_pca.py`) includes:
 
-- **88 total tests** covering all PCA functionality
+- **91 total tests** covering all PCA functionality
 - **Mathematical validation tests** in `TestPCAMathematicalValidation` class
 - **Per-feature variance tests** in `TestPerFeatureVariance` class
+- **Visualization consistency tests** in `TestVisualizationDataConsistency` class
 - **Edge case handling** for single samples, constant features, etc.
 - **Integration tests** with real root trait data
 
