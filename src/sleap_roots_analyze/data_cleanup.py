@@ -151,6 +151,35 @@ def get_trait_columns(
     return numeric_cols
 
 
+def get_numeric_traits_only(
+    df: pd.DataFrame,
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: Optional[str] = "rep",
+    additional_exclude: Optional[List[str]] = None,
+) -> pd.DataFrame:
+    """Extract only numeric trait columns for analysis.
+
+    Args:
+        df: Full trait dataframe
+        barcode_col: Name of the barcode/plant ID column to exclude (default: "Barcode")
+        genotype_col: Name of the genotype column to exclude (default: "geno")
+        replicate_col: Name of the replicate column to exclude if present (default: "rep")
+        additional_exclude: Additional columns to exclude (e.g., date columns)
+
+    Returns:
+        DataFrame with only numeric trait columns
+    """
+    trait_cols = get_trait_columns(
+        df,
+        barcode_col=barcode_col,
+        genotype_col=genotype_col,
+        replicate_col=replicate_col,
+        additional_exclude=additional_exclude,
+    )
+    return df[trait_cols].copy()
+
+
 def save_cleaned_data(
     df: pd.DataFrame,
     outliers: Dict,
