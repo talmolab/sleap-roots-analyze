@@ -2217,3 +2217,232 @@ def isolation_forest_high_dimensional_sparse():
             "contamination": n_anomalies / n_samples,
         },
     )
+
+
+# =============================================================================
+# Outlier Visualization Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def outlier_viz_sample_data():
+    """Sample data with genotypes for outlier visualization testing."""
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 5
+    n_genotypes = 4
+    
+    # Create data with some structure
+    data = np.random.randn(n_samples, n_features)
+    
+    # Add some outliers
+    outlier_indices = [10, 25, 40, 55, 70, 85]
+    for idx in outlier_indices:
+        data[idx, :] *= 3  # Make these samples outliers
+    
+    df = pd.DataFrame(data, columns=[f"trait_{i}" for i in range(n_features)])
+    
+    # Add genotype column
+    genotypes = ["Geno_A", "Geno_B", "Geno_C", "Geno_D"]
+    df["geno"] = np.random.choice(genotypes, size=n_samples)
+    
+    return df, outlier_indices
+
+
+@pytest.fixture
+def outlier_viz_isolation_results():
+    """Isolation Forest results for visualization testing."""
+    np.random.seed(42)
+    n_samples = 100
+    
+    # Generate anomaly scores (lower = more anomalous)
+    scores = np.random.beta(5, 2, n_samples)  # Most scores high
+    outlier_indices = [5, 15, 25, 35, 45]
+    
+    # Make outliers have lower scores
+    for idx in outlier_indices:
+        scores[idx] = np.random.uniform(0, 0.3)
+    
+    return {
+        "method": "IsolationForest",
+        "anomaly_scores": scores.tolist(),
+        "outlier_indices": outlier_indices,
+        "data_indices": list(range(n_samples)),
+        "contamination": 0.05,
+        "n_outliers": len(outlier_indices),
+    }
+
+
+@pytest.fixture
+def outlier_viz_mahalanobis_results():
+    """Mahalanobis results for visualization testing."""
+    np.random.seed(42)
+    n_samples = 100
+    n_components = 3
+    
+    # Generate distances (chi-squared distributed for normal points)
+    from scipy.stats import chi2
+    distances = np.sqrt(chi2.rvs(df=n_components, size=n_samples))
+    outlier_indices = [8, 18, 28, 38, 48, 58]
+    
+    # Make outliers have larger distances
+    for idx in outlier_indices:
+        distances[idx] = np.random.uniform(3, 5)
+    
+    # Generate PCA components for visualization
+    pca_components = np.random.randn(n_samples, n_components)
+    
+    # Feature importance data
+    n_features = 10
+    feature_names = [f"trait_{i}" for i in range(n_features)]
+    explained_var_ratio = np.random.dirichlet(np.ones(n_components))
+    explained_var_per_feature = np.random.uniform(0.5, 1.0, n_features)
+    
+    return {
+        "method": "Mahalanobis",
+        "mahalanobis_distances": distances.tolist(),
+        "outlier_indices": outlier_indices,
+        "data_indices": list(range(n_samples)),
+        "n_components": n_components,
+        "threshold_type": "chi_squared",
+        "threshold_value": chi2.ppf(0.975, df=n_components),
+        "chi2_percentile": 97.5,
+        "pca_components": pca_components.tolist(),
+        "explained_variance_ratio": explained_var_ratio.tolist(),
+        "explained_variance_ratio_per_feature": explained_var_per_feature.tolist(),
+        "feature_names": feature_names,
+        "variance_threshold": 0.95,
+        "n_outliers": len(outlier_indices),
+    }
+
+
+@pytest.fixture
+def outlier_viz_all_methods_results(
+    outlier_viz_isolation_results,
+    outlier_viz_mahalanobis_results
+):
+    """Combined results from multiple outlier detection methods."""
+    # PCA results
+    pca_results = {
+        "method": "PCA",
+        "outlier_indices": [5, 15, 25, 35],
+        "reconstruction_errors": np.random.exponential(1, 100).tolist(),
+        "n_outliers": 4,
+    }
+    
+    # Combined results
+    combined_results = {
+        "method": "Combined", 
+        "consensus_outliers": [5, 15, 25],  # Overlap between methods
+        "n_consensus_outliers": 3,
+        "consensus_threshold": 0.5,
+        "n_methods": 3,
+        "pca_outliers": pca_results["outlier_indices"],
+        "isolation_forest_outliers": outlier_viz_isolation_results["outlier_indices"],
+        "mahalanobis_outliers": outlier_viz_mahalanobis_results["outlier_indices"],
+        "agreement_summary": {
+            "methods_compared": ["pca", "isolation_forest", "mahalanobis"],
+            "total_methods": 3,
+            "consensus_rule": "Agreed by at least 50% of methods (2 out of 3)",
+        },
+    }
+    
+    return {
+        "pca": pca_results,
+        "isolation_forest": outlier_viz_isolation_results,
+        "mahalanobis": outlier_viz_mahalanobis_results,
+        "combined": combined_results,
+    }
+
+
+@pytest.fixture  
+def outlier_viz_error_results():
+    """Results with errors for testing error handling."""
+    return {
+        "isolation_forest": {
+            "error": "Not enough samples for Isolation Forest",
+            "outlier_indices": [],
+        },
+        "mahalanobis": {
+            "error": "Singular covariance matrix",
+            "outlier_indices": [],
+        },
+    }
+
+
+@pytest.fixture
+def outlier_viz_empty_results():
+    """Empty results for edge case testing."""
+    return {
+        "pca": {
+            "method": "PCA",
+            "outlier_indices": [],
+            "n_outliers": 0,
+        },
+        "isolation_forest": {
+            "method": "IsolationForest",
+            "outlier_indices": [],
+            "anomaly_scores": [],
+            "n_outliers": 0,
+        },
+        "mahalanobis": {
+            "method": "Mahalanobis",
+            "outlier_indices": [],
+            "mahalanobis_distances": [],
+            "n_outliers": 0,
+        },
+    }
+
+
+@pytest.fixture
+def outlier_viz_pca_results():
+    """PCA outlier detection results for visualization testing."""
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 15
+    n_components_used = 5
+    n_total_components = 10
+    
+    # Generate explained variance ratios
+    raw_variances = np.random.exponential(1, n_total_components)
+    raw_variances = np.sort(raw_variances)[::-1]  # Sort descending
+    explained_var_ratio = raw_variances / raw_variances.sum()
+    cumulative_variance = np.cumsum(explained_var_ratio)
+    
+    # Generate reconstruction errors
+    reconstruction_errors = np.random.exponential(0.5, n_samples)
+    outlier_indices = [5, 15, 25, 35, 45, 55]
+    
+    # Make outliers have larger errors
+    for idx in outlier_indices:
+        reconstruction_errors[idx] = np.random.uniform(2, 4)
+    
+    # Generate PCA components
+    pca_components = np.random.randn(n_samples, n_components_used)
+    
+    # Feature names and their explained variance
+    feature_names = [f"trait_{i}" for i in range(n_features)]
+    explained_var_per_feature = np.random.uniform(0.3, 1.0, n_features)
+    
+    # Generate loadings
+    loadings = np.random.randn(n_features, n_total_components)
+    eigenvalues = raw_variances
+    
+    return {
+        "method": "PCA",
+        "reconstruction_errors": reconstruction_errors.tolist(),
+        "outlier_indices": outlier_indices,
+        "data_indices": list(range(n_samples)),
+        "n_components": n_components_used,
+        "explained_variance_threshold": 0.95,
+        "threshold_value": 1.8,
+        "outlier_threshold": 2.5,
+        "pca_components": pca_components.tolist(),
+        "explained_variance_ratio": explained_var_ratio.tolist(),
+        "cumulative_variance": cumulative_variance.tolist(),
+        "explained_variance_ratio_per_feature": explained_var_per_feature.tolist(),
+        "feature_names": feature_names,
+        "loadings": loadings.tolist(),
+        "eigenvalues": eigenvalues.tolist(),
+        "n_outliers": len(outlier_indices),
+    }
