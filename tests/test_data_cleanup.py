@@ -533,6 +533,210 @@ class TestGetNumericTraitsOnly:
         assert "trait1" in numeric_df.columns
         assert "trait2" in numeric_df.columns
         assert len(numeric_df.columns) == 2
+        
+    def test_custom_column_names(self):
+        """Test with custom metadata column names."""
+        df = pd.DataFrame({
+            "PlantID": ["P1", "P2", "P3"],
+            "genotype": ["TypeA", "TypeB", "TypeA"],
+            "replicate": [1, 2, 3],
+            "root_length": [10.5, 12.3, 11.8],
+            "lateral_count": [5, 7, 6],
+            "notes": ["good", "ok", "good"]
+        })
+        
+        numeric_df = get_numeric_traits_only(
+            df,
+            barcode_col="PlantID",
+            genotype_col="genotype",
+            replicate_col="replicate",
+            additional_exclude=["notes"]
+        )
+        
+        assert "PlantID" not in numeric_df.columns
+        assert "genotype" not in numeric_df.columns
+        assert "replicate" not in numeric_df.columns
+        assert "notes" not in numeric_df.columns
+        assert "root_length" in numeric_df.columns
+        assert "lateral_count" in numeric_df.columns
+        assert len(numeric_df.columns) == 2
+        
+    def test_no_replicate_column(self):
+        """Test when replicate column doesn't exist."""
+        df = pd.DataFrame({
+            "Barcode": ["BC001", "BC002"],
+            "geno": ["G1", "G2"],
+            "trait1": [1.5, 2.5],
+            "trait2": [3.5, 4.5]
+        })
+        
+        # Should work even if rep column doesn't exist
+        numeric_df = get_numeric_traits_only(df, replicate_col="rep")
+        
+        assert "trait1" in numeric_df.columns
+        assert "trait2" in numeric_df.columns
+        assert len(numeric_df.columns) == 2
+        
+    def test_additional_exclusions(self):
+        """Test excluding additional columns."""
+        df = pd.DataFrame({
+            "Barcode": ["BC001", "BC002"],
+            "geno": ["G1", "G2"],
+            "rep": [1, 2],
+            "date_scanned": ["2024-01-01", "2024-01-02"],
+            "QC_status": ["pass", "pass"],
+            "trait1": [1.0, 2.0],
+            "trait2": [3.0, 4.0]
+        })
+        
+        numeric_df = get_numeric_traits_only(
+            df,
+            additional_exclude=["date_scanned", "QC_status"]
+        )
+        
+        assert "date_scanned" not in numeric_df.columns
+        assert "QC_status" not in numeric_df.columns
+        assert "trait1" in numeric_df.columns
+        assert "trait2" in numeric_df.columns
+        assert len(numeric_df.columns) == 2
+        
+    def test_with_nan_values(self):
+        """Test that NaN values are preserved in numeric columns."""
+        df = pd.DataFrame({
+            "Barcode": ["BC001", "BC002", "BC003"],
+            "geno": ["G1", "G2", "G1"],
+            "trait1": [1.0, np.nan, 3.0],
+            "trait2": [np.nan, 2.0, 3.0]
+        })
+        
+        numeric_df = get_numeric_traits_only(df)
+        
+        assert len(numeric_df.columns) == 2
+        assert pd.isna(numeric_df.iloc[0, 1])  # trait2 first row
+        assert pd.isna(numeric_df.iloc[1, 0])  # trait1 second row
+        
+    def test_with_mixed_types(self):
+        """Test with mixed numeric types (int, float)."""
+        df = pd.DataFrame({
+            "Barcode": ["BC001", "BC002"],
+            "geno": ["G1", "G2"],
+            "int_trait": [1, 2],
+            "float_trait": [1.5, 2.5],
+            "bool_col": [True, False],
+            "str_trait": ["1.0", "2.0"]  # String that looks numeric
+        })
+        
+        numeric_df = get_numeric_traits_only(df)
+        
+        assert "int_trait" in numeric_df.columns
+        assert "float_trait" in numeric_df.columns
+        # Boolean columns might be included as they're numeric-like
+        # String columns should be excluded
+        assert "str_trait" not in numeric_df.columns
+        
+    def test_empty_dataframe(self):
+        """Test with empty DataFrame."""
+        df = pd.DataFrame()
+        numeric_df = get_numeric_traits_only(df)
+        
+        assert numeric_df.empty
+        assert len(numeric_df.columns) == 0
+        
+    def test_no_numeric_columns(self):
+        """Test when no numeric columns exist."""
+        df = pd.DataFrame({
+            "Barcode": ["BC001", "BC002"],
+            "geno": ["G1", "G2"],
+            "notes": ["good", "bad"],
+            "category": ["A", "B"]
+        })
+        
+        numeric_df = get_numeric_traits_only(df)
+        
+        assert numeric_df.empty
+        assert len(numeric_df.columns) == 0
+        
+    def test_preserves_copy(self):
+        """Test that function returns a copy, not a view."""
+        df = pd.DataFrame({
+            "Barcode": ["BC001", "BC002"],
+            "geno": ["G1", "G2"],
+            "trait1": [1.0, 2.0]
+        })
+        
+        numeric_df = get_numeric_traits_only(df)
+        
+        # Modify the returned dataframe
+        numeric_df.iloc[0, 0] = 999
+        
+        # Original should be unchanged
+        assert df["trait1"].iloc[0] == 1.0
+        assert numeric_df.iloc[0, 0] == 999
+        
+    def test_with_real_data(self, features_df):
+        """Test with real features data."""
+        # Get metadata columns to exclude
+        metadata_cols = ["File.Name", "Region.of.Interest"]
+        
+        numeric_df = get_numeric_traits_only(
+            features_df,
+            barcode_col="File.Name",  # Using File.Name as ID
+            genotype_col="Region.of.Interest",  # Using as pseudo-genotype
+            replicate_col=None,
+            additional_exclude=[]
+        )
+        
+        # Should only have numeric columns
+        assert all(pd.api.types.is_numeric_dtype(numeric_df[col]) 
+                  for col in numeric_df.columns)
+        
+        # Should not have metadata columns
+        assert "File.Name" not in numeric_df.columns
+        assert "Region.of.Interest" not in numeric_df.columns
+        
+    def test_with_turface_data(self, turface_traits_df):
+        """Test with Turface trait data."""
+        numeric_df = get_numeric_traits_only(
+            turface_traits_df,
+            barcode_col="Barcode",
+            genotype_col="geno",
+            replicate_col="rep",
+            additional_exclude=["wave_name"] if "wave_name" in turface_traits_df.columns else []
+        )
+        
+        # Should exclude metadata
+        assert "Barcode" not in numeric_df.columns
+        assert "geno" not in numeric_df.columns
+        assert "rep" not in numeric_df.columns
+        
+        # Should only have numeric columns
+        assert all(pd.api.types.is_numeric_dtype(numeric_df[col]) 
+                  for col in numeric_df.columns)
+        
+    def test_integration_with_get_trait_columns(self, mixed_problem_data):
+        """Test that get_numeric_traits_only uses get_trait_columns correctly."""
+        # First get trait columns
+        trait_cols = get_trait_columns(
+            mixed_problem_data,
+            barcode_col="Barcode",
+            genotype_col="geno",
+            replicate_col="rep"
+        )
+        
+        # Then get numeric traits only
+        numeric_df = get_numeric_traits_only(
+            mixed_problem_data,
+            barcode_col="Barcode",
+            genotype_col="geno",
+            replicate_col="rep"
+        )
+        
+        # All columns in numeric_df should be in trait_cols
+        assert all(col in trait_cols for col in numeric_df.columns)
+        
+        # All columns should be numeric
+        assert all(pd.api.types.is_numeric_dtype(numeric_df[col]) 
+                  for col in numeric_df.columns)
 
 
 class TestRemoveLowHeritabilityTraits:
