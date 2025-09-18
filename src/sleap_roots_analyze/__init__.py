@@ -3,6 +3,7 @@
 from sleap_roots_analyze.data_cleanup import (
     load_trait_data,
     get_trait_columns,
+    get_numeric_traits_only,
     remove_nan_samples,
     remove_low_heritability_traits,
     inspect_nan_samples,
@@ -26,12 +27,23 @@ from sleap_roots_analyze.outlier_detection import (
     calculate_outlier_threshold,
     identify_outliers_from_distances,
     remove_outliers_from_data,
+    combine_outlier_methods,
+)
+
+from sleap_roots_analyze.visualization import (
+    create_trait_histograms,
+    create_trait_boxplots_by_genotype,
+    create_correlation_heatmap,
+    save_figure_with_unique_name,
+    create_exploratory_summary_plots,
+    create_trait_eda_plots,
 )
 
 __all__ = [
     # Data cleanup functions
     "load_trait_data",
     "get_trait_columns",
+    "get_numeric_traits_only",
     "remove_nan_samples",
     "remove_low_heritability_traits",
     "link_rhizovision_images_to_samples",
@@ -48,4 +60,12 @@ __all__ = [
     "calculate_outlier_threshold",
     "identify_outliers_from_distances",
     "remove_outliers_from_data",
+    "combine_outlier_methods",
+    # Visualization functions
+    "create_trait_histograms",
+    "create_trait_boxplots_by_genotype",
+    "create_correlation_heatmap",
+    "save_figure_with_unique_name",
+    "create_exploratory_summary_plots",
+    "create_trait_eda_plots",
 ]
