@@ -37,6 +37,8 @@ from sleap_roots_analyze.visualization import (
     save_figure_with_unique_name,
     create_exploratory_summary_plots,
     create_trait_eda_plots,
+    create_heritability_plot,
+    create_heritability_threshold_plot,
 )
 
 from sleap_roots_analyze.outlier_visualization import (
@@ -77,6 +79,8 @@ __all__ = [
     "save_figure_with_unique_name",
     "create_exploratory_summary_plots",
     "create_trait_eda_plots",
+    "create_heritability_plot",
+    "create_heritability_threshold_plot",
     # Outlier visualization functions
     "create_isolation_forest_plots",
     "create_outlier_overlap_heatmap",
