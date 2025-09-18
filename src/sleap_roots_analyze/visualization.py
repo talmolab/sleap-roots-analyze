@@ -567,3 +567,176 @@ def create_trait_eda_plots(
     figures["variance_distribution"] = fig
 
     return figures
+
+
+def create_heritability_plot(
+    heritability_results: Dict,
+    threshold: float = 0.5,
+    figsize: Tuple[int, int] = (12, 6),
+) -> plt.Figure:
+    """Create bar plot of heritability estimates.
+
+    Args:
+        heritability_results: Results from heritability analysis
+        threshold: Threshold line for high heritability
+        figsize: Figure size
+
+    Returns:
+        Matplotlib figure object
+    """
+    # Extract valid heritability values
+    traits = []
+    h2_values = []
+
+    for trait, results in heritability_results.items():
+        if isinstance(results, dict) and "heritability" in results:
+            h2_value = results["heritability"]
+            # Skip None or invalid values
+            if h2_value is not None and isinstance(h2_value, (int, float)) and 0 <= h2_value <= 1:
+                traits.append(trait)
+                h2_values.append(h2_value)
+
+    if not traits:
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(0.5, 0.5, "No heritability data available", ha="center", va="center")
+        ax.set_title("Heritability Estimates")
+        return fig
+
+    # Create plot
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Color bars based on threshold
+    colors = ["green" if h2 >= threshold else "orange" for h2 in h2_values]
+
+    bars = ax.bar(range(len(traits)), h2_values, color=colors, alpha=0.7)
+
+    # Add threshold line
+    ax.axhline(
+        y=threshold,
+        color="red",
+        linestyle="--",
+        alpha=0.7,
+        label=f"Threshold ({threshold})",
+    )
+
+    # Customize plot
+    ax.set_xlabel("Traits")
+    ax.set_ylabel("Heritability (H²)")
+    ax.set_title("Broad-sense Heritability Estimates")
+    ax.set_xticks(range(len(traits)))
+    ax.set_xticklabels(traits, rotation=45, ha="right")
+    ax.set_ylim(0, 1)
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis="y")
+
+    # Add value labels on bars
+    for bar, h2 in zip(bars, h2_values):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 0.01,
+            f"{h2:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+
+    plt.tight_layout()
+    return fig
+
+
+def create_heritability_threshold_plot(
+    threshold_analysis: Dict[str, np.ndarray],
+    current_threshold: Optional[float] = None,
+    figsize: Tuple[float, float] = (10, 6),
+) -> plt.Figure:
+    """Create plot showing trait retention vs heritability threshold.
+
+    Args:
+        threshold_analysis: Results from analyze_heritability_thresholds
+        current_threshold: Current threshold to highlight (optional)
+        figsize: Figure size
+
+    Returns:
+        Figure with threshold analysis plot
+    """
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, height_ratios=[2, 1])
+
+    thresholds = threshold_analysis["thresholds"]
+    traits_retained = threshold_analysis["traits_retained"]
+    fraction_retained = threshold_analysis["fraction_retained"]
+    total_traits = threshold_analysis["total_traits"]
+
+    # Top plot: Number of traits retained
+    ax1.plot(thresholds, traits_retained, "b-", linewidth=2, label="Traits retained")
+    ax1.fill_between(thresholds, 0, traits_retained, alpha=0.3, color="blue")
+
+    # Add reference lines
+    ax1.axhline(
+        y=total_traits * 0.5,
+        color="gray",
+        linestyle="--",
+        alpha=0.5,
+        label="50% of traits",
+    )
+    ax1.axhline(
+        y=total_traits * 0.75,
+        color="gray",
+        linestyle=":",
+        alpha=0.5,
+        label="75% of traits",
+    )
+
+    # Highlight current threshold
+    if current_threshold is not None:
+        idx = np.argmin(np.abs(thresholds - current_threshold))
+        ax1.axvline(
+            x=current_threshold,
+            color="red",
+            linestyle="--",
+            alpha=0.7,
+            label=f"Current: {current_threshold}",
+        )
+        ax1.plot(current_threshold, traits_retained[idx], "ro", markersize=8)
+        ax1.text(
+            current_threshold + 0.02,
+            traits_retained[idx],
+            f"{int(traits_retained[idx])} traits",
+            verticalalignment="center",
+        )
+
+    ax1.set_ylabel("Number of Traits Retained", fontsize=12)
+    ax1.set_title("Trait Retention vs Heritability Threshold", fontsize=14)
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(loc="upper right")
+    ax1.set_xlim(0, 1)
+    ax1.set_ylim(0, total_traits * 1.05)
+
+    # Bottom plot: Fraction retained
+    ax2.plot(thresholds, fraction_retained * 100, "g-", linewidth=2)
+    ax2.fill_between(thresholds, 0, fraction_retained * 100, alpha=0.3, color="green")
+
+    if current_threshold is not None:
+        ax2.axvline(x=current_threshold, color="red", linestyle="--", alpha=0.7)
+        idx = np.argmin(np.abs(thresholds - current_threshold))
+        ax2.plot(current_threshold, fraction_retained[idx] * 100, "ro", markersize=8)
+        ax2.text(
+            current_threshold + 0.02,
+            fraction_retained[idx] * 100,
+            f"{fraction_retained[idx]*100:.1f}%",
+            verticalalignment="center",
+        )
+
+    ax2.set_xlabel("Heritability Threshold (H²)", fontsize=12)
+    ax2.set_ylabel("Traits Retained (%)", fontsize=12)
+    ax2.grid(True, alpha=0.3)
+    ax2.set_xlim(0, 1)
+    ax2.set_ylim(0, 105)
+
+    # Add some common threshold annotations
+    for threshold, label in [(0.3, "Low"), (0.5, "Moderate"), (0.7, "High")]:
+        ax2.axvline(x=threshold, color="gray", linestyle=":", alpha=0.3)
+        ax2.text(threshold, 102, label, ha="center", fontsize=9, alpha=0.7)
+
+    plt.tight_layout()
+    return fig
