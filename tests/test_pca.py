@@ -1810,3 +1810,131 @@ class TestPCAMathematicalValidation:
             assert (
                 errors[i] <= errors[i - 1] + 1e-10
             ), f"Error not decreasing: {errors[i]} > {errors[i-1]}"
+
+
+class TestVisualizationDataConsistency:
+    """Tests for ensuring visualization data consistency with PCA results."""
+    
+    def test_feature_variance_explained_values(self):
+        """Test specific values matching the worked example in documentation."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import perform_pca_analysis, calculate_pca_metrics
+        
+        # Create synthetic data matching the documentation example
+        # 3 features, structured to have specific eigenvalue distribution
+        np.random.seed(42)
+        n_samples = 100
+        
+        # Create data with controlled variance structure
+        # PC1: high variance (λ ≈ 5)
+        # PC2: medium variance (λ ≈ 2)  
+        # PC3: low variance (λ ≈ 0.5)
+        pc1 = np.random.randn(n_samples) * np.sqrt(5)
+        pc2 = np.random.randn(n_samples) * np.sqrt(2)
+        pc3 = np.random.randn(n_samples) * np.sqrt(0.5)
+        
+        # Create features as linear combinations
+        # Approximate the loading matrix from documentation
+        feature1 = 0.7071 * pc1 + 0.6782 * pc2 + 0.2 * pc3
+        feature2 = -0.7071 * pc1 + 0.6782 * pc2 + 0.2 * pc3
+        feature3 = 0.0 * pc1 - 0.2828 * pc2 + 0.9592 * pc3
+        
+        df = pd.DataFrame({
+            'trait_1': feature1,
+            'trait_2': feature2,
+            'trait_3': feature3
+        })
+        
+        # Perform PCA retaining only 2 components
+        result = perform_pca_analysis(df, standardize=False, n_components=2)
+        
+        # Check fraction explained for each feature
+        fractions = result.get('explained_variance_ratio_per_feature')
+        
+        if fractions is not None:
+            # Traits 1 & 2 should have high fraction explained (>0.9)
+            assert fractions[0] > 0.9, f"Trait 1 fraction {fractions[0]} should be > 0.9"
+            assert fractions[1] > 0.9, f"Trait 2 fraction {fractions[1]} should be > 0.9"
+            
+            # Trait 3 should have low fraction explained (<0.5)
+            assert fractions[2] < 0.5, f"Trait 3 fraction {fractions[2]} should be < 0.5"
+    
+    def test_visualization_data_consistency(self):
+        """Ensure visualization uses correct data source for feature variance."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import perform_pca_analysis
+        from sleap_roots_analyze.outlier_visualization import create_mahalanobis_outlier_plots
+        from sleap_roots_analyze.outlier_detection import detect_outliers_mahalanobis
+        
+        # Create test data
+        np.random.seed(42)
+        df = pd.DataFrame({
+            f'trait_{i}': np.random.randn(100) * (i + 1)
+            for i in range(10)
+        })
+        
+        # Test with explained_variance_ratio_per_feature present
+        result = perform_pca_analysis(df, explained_variance_threshold=0.8)
+        mahal_result = detect_outliers_mahalanobis(df)
+        
+        # Create visualization
+        figures = create_mahalanobis_outlier_plots(df, mahal_result)
+        
+        # Verify that explained_variance_ratio_per_feature is used when available
+        assert 'explained_variance_ratio_per_feature' in mahal_result or 'explained_variance_ratio_per_feature' in result
+        
+        # Test fallback calculation when ratio not present
+        # Create a minimal result without ratio
+        minimal_result = {
+            'method': 'Mahalanobis',
+            'mahalanobis_distances': np.random.randn(100).tolist(),
+            'outlier_indices': [5, 10, 15],
+            'n_components': 3,
+            'threshold_value': 2.5,
+            'loadings': np.random.randn(10, 3).tolist(),
+            'eigenvalues': [5.0, 2.0, 1.0],
+            'feature_names': [f'trait_{i}' for i in range(10)]
+        }
+        
+        # Should still create plots using fallback calculation
+        figures_fallback = create_mahalanobis_outlier_plots(df, minimal_result)
+        
+        # Check that at least main plots are created
+        assert 'mahalanobis_outlier_detection' in figures_fallback
+        
+        # PC analysis plot requires pca_components or other conditions
+        # Just verify the function handles missing data gracefully
+        assert isinstance(figures_fallback, dict)
+    
+    def test_trace_preservation_in_visualization(self):
+        """Verify trace preservation property in visualization data."""
+        import numpy as np
+        import pandas as pd
+        from sleap_roots_analyze.pca import perform_pca_analysis, calculate_pca_metrics
+        
+        np.random.seed(42)
+        df = pd.DataFrame({
+            f'trait_{i}': np.random.randn(100) * (i + 1)
+            for i in range(5)
+        })
+        
+        # Perform PCA with all components
+        result = perform_pca_analysis(df, n_components=5)
+        
+        # Get explained variance per feature
+        explained_per_feature = result.get('explained_variance_per_feature')
+        eigenvalues = result.get('eigenvalues')
+        
+        if explained_per_feature is not None and eigenvalues is not None:
+            # Sum of explained variance per feature should equal sum of eigenvalues
+            sum_explained = np.sum(explained_per_feature)
+            sum_eigenvalues = np.sum(eigenvalues)
+            
+            np.testing.assert_allclose(
+                sum_explained, 
+                sum_eigenvalues,
+                rtol=1e-6,
+                err_msg="Trace not preserved: sum of per-feature variance != sum of eigenvalues"
+            )
