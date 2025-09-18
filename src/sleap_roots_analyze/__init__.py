@@ -39,6 +39,15 @@ from sleap_roots_analyze.visualization import (
     create_trait_eda_plots,
 )
 
+from sleap_roots_analyze.outlier_visualization import (
+    create_isolation_forest_plots,
+    create_outlier_overlap_heatmap,
+    create_outliers_per_genotype_plot,
+    create_mahalanobis_outlier_plots,
+    create_pca_outlier_plot,
+    create_comprehensive_outlier_comparison,
+)
+
 __all__ = [
     # Data cleanup functions
     "load_trait_data",
@@ -68,4 +77,11 @@ __all__ = [
     "save_figure_with_unique_name",
     "create_exploratory_summary_plots",
     "create_trait_eda_plots",
+    # Outlier visualization functions
+    "create_isolation_forest_plots",
+    "create_outlier_overlap_heatmap",
+    "create_outliers_per_genotype_plot",
+    "create_mahalanobis_outlier_plots",
+    "create_pca_outlier_plot",
+    "create_comprehensive_outlier_comparison",
 ]
