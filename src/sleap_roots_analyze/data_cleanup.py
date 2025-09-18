@@ -5,12 +5,16 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 import json
+import logging
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 from .data_utils import convert_to_json_serializable, create_run_directory
+
+# Set up module logger
+logger = logging.getLogger(__name__)
 
 
 def load_trait_data(
