@@ -547,3 +547,119 @@ def remove_outliers_from_data(
         return cleaned_df, outlier_df
     else:
         return cleaned_df
+
+
+def combine_outlier_methods(
+    pca_results: Dict,
+    isolation_results: Dict,
+    mahalanobis_results: Optional[Dict] = None,
+    consensus_threshold: float = 0.5,
+) -> Dict:
+    """Combine results from multiple outlier detection methods.
+
+    Args:
+        pca_results: Results from PCA-based detection
+        isolation_results: Results from Isolation Forest detection
+        mahalanobis_results: Results from Mahalanobis distance detection
+        consensus_threshold: Minimum fraction of methods that must agree
+
+    Returns:
+        Dictionary with combined outlier detection results
+    """
+    # Collect outlier indices from all methods
+    method_outliers = {}
+    method_outliers["pca"] = set(pca_results.get("outlier_indices", []))
+    method_outliers["isolation_forest"] = set(
+        isolation_results.get("outlier_indices", [])
+    )
+
+    if mahalanobis_results and "error" not in mahalanobis_results:
+        method_outliers["mahalanobis"] = set(
+            mahalanobis_results.get("outlier_indices", [])
+        )
+
+    # Find all unique outliers
+    all_outliers = set()
+    for outliers in method_outliers.values():
+        all_outliers.update(outliers)
+
+    # Count agreement for each outlier and track which methods agree
+    consensus_outliers = []
+    outlier_agreement_count = {}
+    outlier_agreement_methods = {}
+    n_methods = len(method_outliers)
+
+    for outlier_idx in all_outliers:
+        methods_agreeing = []
+        for method_name, outliers in method_outliers.items():
+            if outlier_idx in outliers:
+                methods_agreeing.append(method_name)
+
+        agreement_count = len(methods_agreeing)
+        outlier_agreement_count[outlier_idx] = agreement_count
+        outlier_agreement_methods[outlier_idx] = methods_agreeing
+
+        if agreement_count / n_methods >= consensus_threshold:
+            consensus_outliers.append(outlier_idx)
+
+    # Calculate method-specific statistics
+    method_only = {}
+    for method_name, outliers in method_outliers.items():
+        others = set()
+        for other_name, other_outliers in method_outliers.items():
+            if other_name != method_name:
+                others.update(other_outliers)
+        method_only[f"{method_name}_only"] = list(outliers - others)
+
+    # Find overlaps between methods
+    overlaps = {}
+    method_names = list(method_outliers.keys())
+    for i, method1 in enumerate(method_names):
+        for j, method2 in enumerate(method_names[i + 1 :], i + 1):
+            overlap_key = f"{method1}_{method2}_overlap"
+            overlaps[overlap_key] = list(
+                method_outliers[method1].intersection(method_outliers[method2])
+            )
+
+    # Create agreement summary
+    import math
+
+    min_methods_required = math.ceil(n_methods * consensus_threshold)
+    agreement_summary = {
+        "methods_compared": list(method_outliers.keys()),
+        "total_methods": n_methods,
+        "consensus_rule": f"Agreed by at least {consensus_threshold:.0%} of methods ({min_methods_required} out of {n_methods})",
+    }
+
+    # Agreement distribution
+    agreement_distribution = {}
+    for count in range(1, n_methods + 1):
+        samples_with_count = [
+            idx for idx, c in outlier_agreement_count.items() if c == count
+        ]
+        if samples_with_count:
+            agreement_distribution[f"agreed_by_{count}_methods"] = sorted(
+                samples_with_count
+            )
+
+    return {
+        "method": "Combined",
+        "consensus_threshold": consensus_threshold,
+        "n_methods": n_methods,
+        "agreement_summary": agreement_summary,
+        **{
+            f"{name}_outliers": list(outliers)
+            for name, outliers in method_outliers.items()
+        },
+        "consensus_outliers": sorted(consensus_outliers),
+        "n_consensus_outliers": len(consensus_outliers),
+        "outlier_agreement_count": {
+            k: v for k, v in sorted(outlier_agreement_count.items())
+        },
+        "outlier_agreement_methods": {
+            k: v for k, v in sorted(outlier_agreement_methods.items())
+        },
+        **agreement_distribution,
+        **method_only,
+        **overlaps,
+    }

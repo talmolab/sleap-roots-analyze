@@ -6,8 +6,12 @@
 3. [Implementation Pipeline](#implementation-pipeline)
 4. [API Reference](#api-reference)
 5. [Mathematical Properties](#mathematical-properties)
-6. [Usage Examples](#usage-examples)
-7. [References](#references)
+6. [Trait Variance Contribution in Visualizations](#trait-variance-contribution-in-visualizations)
+7. [Usage Examples](#usage-examples)
+8. [Degrees of Freedom Considerations](#degrees-of-freedom-ddof-considerations)
+9. [Test Suite](#test-suite)
+10. [References](#references)
+11. [Appendix: Implementation Details](#appendix-implementation-details)
 
 ---
 
@@ -235,6 +239,145 @@ $$\|X - \hat{X}_m\|_F^2 \geq \|X - \hat{X}_{m+1}\|_F^2$$
 
 ---
 
+## Trait Variance Contribution in Visualizations
+
+This section explains the "Feature Variance Explained" panel in `create_mahalanobis_outlier_plots`, detailing its computation and interpretation.
+
+### Quick Summary
+
+The "Feature Variance Explained" bar chart shows what fraction of each trait's variance is captured by the retained principal components used for Mahalanobis distance calculation. Values close to 1 indicate traits well-represented in the reduced space; lower values suggest important variance was discarded.
+
+### Relevant Code Paths
+
+| Component | Function | Output Keys |
+|-----------|----------|-------------|
+| **Computation** | `calculate_pca_metrics()` | `loadings`, `eigenvalues`, `explained_variance_per_feature`, `explained_variance_ratio_per_feature` |
+| **DataFrame** | `build_feature_metrics_df()` | Columns: `variance_total`, `variance_explained`, `fraction_explained` |
+| **Visualization** | `create_mahalanobis_outlier_plots()` | Right panel of "PC Selection Analysis" figure |
+
+### Mathematical Foundation for Feature Variance
+
+#### Core Definitions
+
+Given processed data $X_{\text{proc}} \in \mathbb{R}^{n \times p'}$ and PCA decomposition:
+
+$$\Sigma = \frac{1}{n-1} X_{\text{proc}}^T X_{\text{proc}} = V \Lambda V^T$$
+
+where:
+- $V = [v_1, \ldots, v_{p'}]$ are orthonormal eigenvectors
+- $\Lambda = \text{diag}(\lambda_1, \ldots, \lambda_{p'})$ are eigenvalues
+
+When retaining $m$ components:
+- $V_m = [v_1, \ldots, v_m]$ (first $m$ eigenvectors)
+- $\Lambda_m = \text{diag}(\lambda_1, \ldots, \lambda_m)$
+
+#### Per-Feature Metrics
+
+**1. Variance Explained (in feature units)**
+
+$$\boxed{\text{VarExplained}_j(m) = \sum_{k=1}^{m} v_{jk}^2 \cdot \lambda_k}$$
+
+This represents the diagonal element of the rank-$m$ covariance approximation.
+
+**2. Total Variance**
+
+$$\text{VarTotal}_j = \text{Var}(X_{\text{proc}, \cdot j})$$
+
+Computed with specified degrees of freedom (default `ddof=1`).
+
+**3. Fraction Explained (plotted value)**
+
+$$\boxed{\text{FracExplained}_j(m) = \frac{\text{VarExplained}_j(m)}{\text{VarTotal}_j} \in [0, 1]}$$
+
+Since only top $m$ components are retained: $\text{VarExplained}_j(m) \leq \text{VarTotal}_j$
+
+#### Code Mapping
+
+```python
+# In calculate_pca_metrics() output:
+loadings                                  # ≡ V_m (shape p' × m)
+eigenvalues                              # ≡ [λ₁, ..., λₘ]
+explained_variance_per_feature[j]        # ≡ Σₖ v²ⱼₖ·λₖ
+explained_variance_ratio_per_feature[j]  # ≡ FracExplained_j
+```
+
+### Worked Example: 3 Traits, 2 Components
+
+#### Setup
+- **3 traits** with different variance contributions
+- **Keep 2 PCs** out of 3 total
+- **Eigenvalues**: λ₁ = 5.0, λ₂ = 2.0, λ₃ = 0.5
+
+#### Orthonormal Loading Matrix
+
+```
+       PC1      PC2      PC3
+v₁ = [0.7071, -0.7071,  0.0000]ᵀ
+v₂ = [0.6782,  0.6782, -0.2828]ᵀ  
+v₃ = [0.2000,  0.2000,  0.9592]ᵀ
+```
+
+#### Calculations
+
+**Total Variance (using all 3 PCs)**
+
+| Trait | Calculation | Result |
+|-------|------------|--------|
+| Trait 1 | (0.7071)²·5.0 + (0.6782)²·2.0 + (0.2)²·0.5 | ≈ 3.44 |
+| Trait 2 | (-0.7071)²·5.0 + (0.6782)²·2.0 + (0.2)²·0.5 | ≈ 3.44 |
+| Trait 3 | (0)²·5.0 + (-0.2828)²·2.0 + (0.9592)²·0.5 | ≈ 0.62 |
+
+**Variance Explained by 2 PCs**
+
+| Trait | Calculation (only PC1 & PC2) | Result |
+|-------|------------------------------|--------|
+| Trait 1 | (0.7071)²·5.0 + (0.6782)²·2.0 | ≈ 3.42 |
+| Trait 2 | (-0.7071)²·5.0 + (0.6782)²·2.0 | ≈ 3.42 |
+| Trait 3 | (0)²·5.0 + (-0.2828)²·2.0 | ≈ 0.16 |
+
+**Fraction Explained**
+
+| Trait | FracExplained = VarExplained / VarTotal | Interpretation |
+|-------|------------------------------------------|----------------|
+| Trait 1 | 3.42 / 3.44 ≈ **0.994** | 99.4% captured |
+| Trait 2 | 3.42 / 3.44 ≈ **0.994** | 99.4% captured |
+| Trait 3 | 0.16 / 0.62 ≈ **0.258** | 25.8% captured |
+
+**Key Insight**: Traits 1 & 2 appear near (but below) 1.0 because ~99% of their variance is in the retained 2 PCs. Trait 3 shows low fraction because most of its variance lies in the discarded PC3.
+
+### Visualization Details
+
+#### Data Source Priority
+
+The `create_mahalanobis_outlier_plots()` function uses:
+
+1. **Primary**: `explained_variance_ratio_per_feature` if available (true fractions in [0,1])
+2. **Fallback**: Computes $\sum_{k \leq m} v_{jk}^2 \lambda_k$ from `loadings` and `eigenvalues`
+
+#### Plot Interpretation
+
+- **Bar Height**: Fraction of trait variance captured by retained PCs
+- **Ordering**: Top 10 traits by fraction explained
+- **Color Coding**: 
+  - Near 1.0 (well-represented) → Standard color
+  - Near 0.0 (poorly-represented) → May indicate traits needing attention
+
+### Validation Tests
+
+#### Required Mathematical Properties
+
+The following tests ensure mathematical correctness:
+
+| Test | Property | Location |
+|------|----------|----------|
+| **Trace Preservation** | $\sum_j \text{VarExplained}_j = \sum_k \lambda_k$ | `test_trace_preservation()` |
+| **Fraction Bounds** | $0 \leq \text{FracExplained}_j \leq 1$ | `test_per_feature_bounds()` |
+| **Orthonormality** | $V_m^T V_m = I$ | `test_orthonormal_loadings()` |
+| **Worked Example** | Traits 1&2 > 0.99, Trait 3 < 0.3 | `test_feature_variance_explained_values()` |
+| **Data Consistency** | Visualization uses correct source | `test_visualization_data_consistency()` |
+
+---
+
 ## Usage Examples
 
 ### Basic PCA Analysis
@@ -330,9 +473,10 @@ Use `ddof=1` (default) for mathematical consistency unless you specifically need
 
 Our comprehensive test suite (`tests/test_pca.py`) includes:
 
-- **88 total tests** covering all PCA functionality
+- **91 total tests** covering all PCA functionality
 - **Mathematical validation tests** in `TestPCAMathematicalValidation` class
 - **Per-feature variance tests** in `TestPerFeatureVariance` class
+- **Visualization consistency tests** in `TestVisualizationDataConsistency` class
 - **Edge case handling** for single samples, constant features, etc.
 - **Integration tests** with real root trait data
 

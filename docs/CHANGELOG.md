@@ -35,6 +35,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modular data cleanup functions: `remove_zero_inflated_traits()`, `remove_traits_with_many_nans()`, `remove_low_sample_traits()`
 - Claude commands for PR review (`.claude/commands/review-pr.md`) and changelog updates (`.claude/commands/update-changelog.md`)
 
+- **Visualization Module** (`sleap_roots_analyze.visualization`):
+  - `create_feature_contribution_heatmap()`: Heatmap showing feature contributions to principal components
+  - `save_publication_figure()`: Save figures in publication-ready formats (PDF, EPS, PNG, SVG)
+  - `identify_extreme_phenotypes()`: Identify genotypes with extreme phenotypes for each trait
+  - `create_phenotype_variation_plot()`: Box plots with jittered points showing phenotypic variation
+  - `create_feature_contribution_plot()`: Now uses pre-calculated contributions from `run_pca_and_export_artifacts` for efficiency
+  - All visualization functions now use Google-style docstrings for consistency
+- **PCA Module Enhancements**:
+  - `run_pca_and_export_artifacts()`: Comprehensive PCA analysis with CSV export functionality
+    - Exports loadings, trait variance contributions, PC scores, and variance explained
+    - Calculates trait fractional contributions that sum to 1.0
+    - Integration with existing visualization functions
+  - Added tests verifying fractional contributions sum to 1 in all scenarios
+  - Added metadata hygiene tests for `trait_cols=None` behavior
+- **Outlier Visualization Module** (`sleap_roots_analyze.outlier_visualization`):
+  - Support for all three outlier detection methods
+  - `create_comprehensive_outlier_comparison()`: Compare results from multiple detection methods
+  - Integration with new PCA artifact export functionality
+
 ### Changed
 - **Outlier Detection Refactoring**:
   - Removed redundant validation checks from outlier detection functions (now handled by `perform_pca_analysis`)

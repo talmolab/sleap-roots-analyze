@@ -1,8 +1,8 @@
 # SLEAP Roots Analyze
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-![Coverage: 97%](https://img.shields.io/badge/Coverage-97%25-brightgreen)
-![Tests: 134+](https://img.shields.io/badge/Tests-134%2B-brightgreen)
+![Coverage: 88%](https://img.shields.io/badge/Coverage-88%25-brightgreen)
+![Tests: 150+](https://img.shields.io/badge/Tests-150%2B-brightgreen)
 ![Python: 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)
 
 Statistical analysis tools for root trait data from [SLEAP Roots](https://github.com/talmolab/sleap-roots).
@@ -110,12 +110,67 @@ df_clean, df_outliers = remove_outliers_from_data(
 )
 ```
 
+### Visualization
+
+```python
+from sleap_roots_analyze.visualization import (
+    create_heritability_plot,
+    create_pca_biplot,
+    create_feature_contribution_heatmap,
+    create_phenotype_variation_plot,
+    save_publication_figure
+)
+
+# Create heritability plot
+fig = create_heritability_plot(h2_results, threshold=0.3)
+
+# Create PCA biplot
+fig_biplot = create_pca_biplot(
+    pca_result,
+    color_by="geno",
+    metadata_df=df_filtered[["Barcode", "geno"]]
+)
+
+# Create feature contribution heatmap
+fig_heatmap = create_feature_contribution_heatmap(
+    pca_result['feature_contributions'],
+    n_components=5
+)
+
+# Save in publication format
+save_publication_figure(fig, "heritability", formats=["pdf", "png"])
+```
+
+### Comprehensive PCA Analysis with Export
+
+```python
+from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+# Run comprehensive PCA analysis with CSV exports
+results = run_pca_and_export_artifacts(
+    df_filtered,
+    trait_cols=trait_cols,
+    analysis_dir="pca_results",
+    n_components=10,
+    save_csv=True,
+    save_prefix="experiment1_"
+)
+
+# Access results DataFrames
+loadings_df = results['loadings_df']
+pc_scores_df = results['pc_scores_df']
+variance_df = results['variance_explained_df']
+contributions_df = results['trait_variance_contributions_df']
+```
+
 ## Features
 
 - **Data Cleaning**: Automatic metadata detection, NaN handling, zero-inflated trait removal
 - **Statistical Analysis**: Broad-sense heritability (H²), ANOVA, trait statistics
-- **PCA Analysis**: Dimensionality reduction with automatic component selection
+- **PCA Analysis**: Dimensionality reduction with automatic component selection, comprehensive export artifacts
 - **Outlier Detection**: Mahalanobis, PCA reconstruction, and Isolation Forest methods
+- **Visualization**: Publication-ready plots for heritability, PCA, outliers, and phenotype variation
+- **UMAP Analysis**: Non-linear dimensionality reduction for complex trait relationships
 
 ## Data Format
 
@@ -153,13 +208,17 @@ uv run pytest --cov --cov-branch
 ```
 sleap-roots-analyze/
 ├── src/sleap_roots_analyze/
-│   ├── data_cleanup.py      # Data loading and cleaning
-│   ├── statistics.py         # Statistical analysis
-│   ├── pca.py               # PCA analysis
-│   └── outlier_detection.py # Outlier detection
-├── tests/                   # Test suite
-├── docs/                    # Documentation
-└── pyproject.toml          # Project configuration
+│   ├── data_cleanup.py          # Data loading and cleaning
+│   ├── statistics.py            # Statistical analysis
+│   ├── pca.py                   # PCA analysis
+│   ├── outlier_detection.py     # Outlier detection
+│   ├── visualization.py         # Plotting and visualization
+│   ├── outlier_visualization.py # Outlier-specific plots
+│   ├── umap.py                  # UMAP dimensionality reduction
+│   └── data_utils.py            # Utility functions
+├── tests/                       # Test suite (150+ tests)
+├── docs/                        # Documentation
+└── pyproject.toml              # Project configuration
 ```
 
 ## License
