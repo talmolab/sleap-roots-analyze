@@ -958,6 +958,100 @@ def pca_standardized_data():
     return df, scaler
 
 
+# ============================================================================
+# CROSS-EXPERIMENT ANALYSIS FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def cross_experiment_data_fixture():
+    """Create sample data for cross-experiment analysis testing.
+
+    Returns:
+        tuple: (exp1_df, exp2_df) with common and unique genotypes
+    """
+    np.random.seed(42)
+
+    # Common genotypes
+    common_genotypes = ["Col-0", "Ler", "C24", "Ws", "Bay-0"]
+    # Unique to exp1
+    exp1_unique = ["Cvi", "Nd"]
+    # Unique to exp2
+    exp2_unique = ["Po", "Rld"]
+
+    # Create experiment 1 data (e.g., cylinder experiment)
+    exp1_genotypes = common_genotypes + exp1_unique
+    exp1_data = []
+    for geno in exp1_genotypes:
+        for rep in range(1, 4):  # 3 replicates
+            exp1_data.append(
+                {
+                    "Geno": geno,
+                    "Rep": rep,
+                    "primary_length_mm": np.random.normal(100, 20),
+                    "lateral_length_mm": np.random.normal(50, 10),
+                    "total_length_mm": np.random.normal(150, 25),
+                    "root_depth_mm": np.random.normal(80, 15),
+                }
+            )
+    exp1_df = pd.DataFrame(exp1_data)
+
+    # Create experiment 2 data (e.g., turface experiment)
+    exp2_genotypes = common_genotypes + exp2_unique
+    exp2_data = []
+    for geno in exp2_genotypes:
+        for rep in range(1, 4):  # 3 replicates
+            exp2_data.append(
+                {
+                    "geno": geno,
+                    "rep": rep,
+                    "network_length_mean": np.random.normal(120, 30),
+                    "stem_length_mm": np.random.normal(60, 12),
+                    "chull_area_mean": np.random.normal(200, 40),
+                    "crown_lengths_mean_mean": np.random.normal(70, 15),
+                }
+            )
+    exp2_df = pd.DataFrame(exp2_data)
+
+    return exp1_df, exp2_df
+
+
+@pytest.fixture
+def cross_experiment_means_fixture():
+    """Create genotype means DataFrames for cross-experiment testing.
+
+    Returns:
+        tuple: (exp1_means, exp2_means) DataFrames with genotype means
+    """
+    np.random.seed(42)
+
+    genotypes = ["G1", "G2", "G3", "G4", "G5"]
+
+    # Experiment 1 means
+    exp1_means = pd.DataFrame(
+        {
+            "trait1": np.random.normal(100, 20, size=len(genotypes)),
+            "trait2": np.random.normal(50, 10, size=len(genotypes)),
+            "n_samples": [3, 3, 2, 3, 3],
+        },
+        index=genotypes,
+    )
+
+    # Experiment 2 means - correlated with exp1
+    exp2_means = pd.DataFrame(
+        {
+            "trait3": exp1_means["trait1"] * 1.2
+            + np.random.normal(0, 10, size=len(genotypes)),
+            "trait4": exp1_means["trait2"] * 0.8
+            + np.random.normal(0, 5, size=len(genotypes)),
+            "n_samples": [3, 2, 3, 3, 2],
+        },
+        index=genotypes,
+    )
+
+    return exp1_means, exp2_means
+
+
 @pytest.fixture
 def pca_real_traits_data(traits_summary_df):
     """Use real trait data for PCA testing.

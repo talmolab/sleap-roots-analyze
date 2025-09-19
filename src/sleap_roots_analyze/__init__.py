@@ -40,7 +40,6 @@ from sleap_roots_analyze.visualization import (
     create_trait_boxplots_by_genotype,
     create_correlation_heatmap,
     save_figure_with_unique_name,
-    save_publication_figure,
     create_exploratory_summary_plots,
     create_trait_eda_plots,
     create_heritability_plot,
@@ -65,6 +64,25 @@ from sleap_roots_analyze.outlier_visualization import (
     create_mahalanobis_outlier_plots,
     create_pca_outlier_plot,
     create_comprehensive_outlier_comparison,
+)
+
+from sleap_roots_analyze.cross_experiment_analysis import (
+    load_and_align_experiments,
+    calculate_genotype_means,
+    calculate_genotype_statistics,
+    calculate_cross_experiment_correlations,
+    calculate_cross_experiment_correlations_extended,
+    summarize_statistic_combinations,
+    create_statistic_combination_heatmap,
+    create_cross_experiment_heatmap,
+    create_top_correlations_plot,
+    create_scatter_plot_grid,
+    calculate_per_trait_correlations,
+    create_joint_plot,
+    identify_significant_correlations,
+    calculate_correlation_confidence_intervals,
+    summarize_correlation_results,
+    create_genotype_boxplots,
 )
 
 __all__ = [
@@ -97,7 +115,6 @@ __all__ = [
     "create_trait_boxplots_by_genotype",
     "create_correlation_heatmap",
     "save_figure_with_unique_name",
-    "save_publication_figure",
     "create_exploratory_summary_plots",
     "create_trait_eda_plots",
     "create_heritability_plot",
@@ -120,4 +137,21 @@ __all__ = [
     "create_mahalanobis_outlier_plots",
     "create_pca_outlier_plot",
     "create_comprehensive_outlier_comparison",
+    # Cross-experiment analysis functions
+    "load_and_align_experiments",
+    "calculate_genotype_means",
+    "calculate_genotype_statistics",
+    "calculate_cross_experiment_correlations",
+    "calculate_cross_experiment_correlations_extended",
+    "summarize_statistic_combinations",
+    "create_statistic_combination_heatmap",
+    "create_cross_experiment_heatmap",
+    "create_top_correlations_plot",
+    "create_scatter_plot_grid",
+    "calculate_per_trait_correlations",
+    "create_joint_plot",
+    "identify_significant_correlations",
+    "calculate_correlation_confidence_intervals",
+    "summarize_correlation_results",
+    "create_genotype_boxplots",
 ]
