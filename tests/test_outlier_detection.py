@@ -1797,20 +1797,20 @@ class TestCombineOutlierMethods:
     def test_basic_combination(self, outlier_data_with_known_outliers):
         """Test basic combination of outlier detection methods."""
         df, expected_outliers, metadata = outlier_data_with_known_outliers
-        
+
         # Run individual methods
         pca_results = detect_outliers_pca(df)
         isolation_results = detect_outliers_isolation_forest(df)
         mahalanobis_results = detect_outliers_mahalanobis(df)
-        
+
         # Combine results with default threshold
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Check basic structure
         assert combined["method"] == "Combined"
         assert combined["consensus_threshold"] == 0.5
@@ -1818,221 +1818,223 @@ class TestCombineOutlierMethods:
         assert "consensus_outliers" in combined
         assert "n_consensus_outliers" in combined
         assert "agreement_summary" in combined
-        
+
         # Check method-specific outliers are preserved
         assert "pca_outliers" in combined
         assert "isolation_forest_outliers" in combined
         assert "mahalanobis_outliers" in combined
-        
+
         # Check agreement tracking
         assert "outlier_agreement_count" in combined
         assert "outlier_agreement_methods" in combined
-        
+
         # Check method-only outliers
         assert "pca_only" in combined
         assert "isolation_forest_only" in combined
         assert "mahalanobis_only" in combined
-        
+
         # Check overlaps
         assert "pca_isolation_forest_overlap" in combined
         assert "pca_mahalanobis_overlap" in combined
         assert "isolation_forest_mahalanobis_overlap" in combined
-    
+
     def test_two_methods_combination(self, outlier_data_with_known_outliers):
         """Test combination with only two methods."""
         df, _, _ = outlier_data_with_known_outliers
-        
+
         # Run only two methods
         pca_results = detect_outliers_pca(df)
         isolation_results = detect_outliers_isolation_forest(df)
-        
+
         # Combine without Mahalanobis
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=None,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Check structure
         assert combined["n_methods"] == 2
         assert "mahalanobis_outliers" not in combined
         assert "mahalanobis_only" not in combined
-        
+
         # Check that consensus requires at least 1 method (50% of 2)
         agreement_summary = combined["agreement_summary"]
         assert "1 out of 2" in agreement_summary["consensus_rule"]
-        
+
     def test_mahalanobis_with_error(self, outlier_data_with_known_outliers):
         """Test handling Mahalanobis results with error."""
         df, _, _ = outlier_data_with_known_outliers
-        
+
         # Run methods
         pca_results = detect_outliers_pca(df)
         isolation_results = detect_outliers_isolation_forest(df)
-        
+
         # Create Mahalanobis results with error
         mahalanobis_results = {
             "error": "Singular covariance matrix",
-            "outlier_indices": []
+            "outlier_indices": [],
         }
-        
+
         # Combine
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Should only use 2 methods
         assert combined["n_methods"] == 2
         assert "mahalanobis_outliers" not in combined
-        
+
     def test_consensus_thresholds(self, outlier_data_with_known_outliers):
         """Test different consensus thresholds."""
         df, _, _ = outlier_data_with_known_outliers
-        
+
         # Run all methods
         pca_results = detect_outliers_pca(df)
         isolation_results = detect_outliers_isolation_forest(df)
         mahalanobis_results = detect_outliers_mahalanobis(df)
-        
+
         # Test with strict consensus (all methods must agree)
         combined_strict = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=1.0
+            consensus_threshold=1.0,
         )
-        
+
         # Test with loose consensus (any method is enough)
         combined_loose = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.34  # Just over 1/3
+            consensus_threshold=0.34,  # Just over 1/3
         )
-        
+
         # Test with majority consensus
         combined_majority = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.67  # Just over 2/3
+            consensus_threshold=0.67,  # Just over 2/3
         )
-        
+
         # Strict consensus should have fewer or equal outliers than loose
-        assert len(combined_strict["consensus_outliers"]) <= len(combined_loose["consensus_outliers"])
-        
+        assert len(combined_strict["consensus_outliers"]) <= len(
+            combined_loose["consensus_outliers"]
+        )
+
         # Majority should be between strict and loose
-        assert len(combined_strict["consensus_outliers"]) <= len(combined_majority["consensus_outliers"])
-        assert len(combined_majority["consensus_outliers"]) <= len(combined_loose["consensus_outliers"])
-        
+        assert len(combined_strict["consensus_outliers"]) <= len(
+            combined_majority["consensus_outliers"]
+        )
+        assert len(combined_majority["consensus_outliers"]) <= len(
+            combined_loose["consensus_outliers"]
+        )
+
     def test_agreement_distribution(self, outlier_data_with_known_outliers):
         """Test agreement distribution tracking."""
         df, _, _ = outlier_data_with_known_outliers
-        
+
         # Run all methods
         pca_results = detect_outliers_pca(df)
         isolation_results = detect_outliers_isolation_forest(df)
         mahalanobis_results = detect_outliers_mahalanobis(df)
-        
+
         # Combine
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Check agreement distribution keys
         possible_keys = [
             "agreed_by_1_methods",
-            "agreed_by_2_methods", 
-            "agreed_by_3_methods"
+            "agreed_by_2_methods",
+            "agreed_by_3_methods",
         ]
-        
+
         # At least one of these should exist if there are outliers
         all_outliers = set()
         all_outliers.update(pca_results.get("outlier_indices", []))
         all_outliers.update(isolation_results.get("outlier_indices", []))
         all_outliers.update(mahalanobis_results.get("outlier_indices", []))
-        
+
         if all_outliers:
             assert any(key in combined for key in possible_keys)
-            
+
             # Check that all outliers are accounted for
             total_in_distribution = []
             for key in possible_keys:
                 if key in combined:
                     total_in_distribution.extend(combined[key])
-            
+
             assert set(total_in_distribution) == all_outliers
-            
+
     def test_empty_outliers(self):
         """Test when no outliers are detected."""
         # Create clean data without outliers
         np.random.seed(42)
-        df = pd.DataFrame(np.random.randn(50, 5), columns=[f"trait_{i}" for i in range(5)])
-        
+        df = pd.DataFrame(
+            np.random.randn(50, 5), columns=[f"trait_{i}" for i in range(5)]
+        )
+
         # Create results with no outliers
         pca_results = {"outlier_indices": [], "method": "PCA"}
         isolation_results = {"outlier_indices": [], "method": "IsolationForest"}
         mahalanobis_results = {"outlier_indices": [], "method": "Mahalanobis"}
-        
+
         # Combine
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Check empty results
         assert combined["consensus_outliers"] == []
         assert combined["n_consensus_outliers"] == 0
         assert combined["outlier_agreement_count"] == {}
         assert combined["outlier_agreement_methods"] == {}
-        
+
         # Method-only should be empty lists
         assert combined["pca_only"] == []
         assert combined["isolation_forest_only"] == []
         assert combined["mahalanobis_only"] == []
-        
+
         # Overlaps should be empty
         assert combined["pca_isolation_forest_overlap"] == []
         assert combined["pca_mahalanobis_overlap"] == []
         assert combined["isolation_forest_mahalanobis_overlap"] == []
-        
+
     def test_partial_overlap(self):
         """Test with known partial overlaps between methods."""
         # Create specific outlier patterns
-        pca_results = {
-            "outlier_indices": [0, 1, 2, 3],
-            "method": "PCA"
-        }
+        pca_results = {"outlier_indices": [0, 1, 2, 3], "method": "PCA"}
         isolation_results = {
             "outlier_indices": [2, 3, 4, 5],
-            "method": "IsolationForest"
+            "method": "IsolationForest",
         }
-        mahalanobis_results = {
-            "outlier_indices": [0, 3, 5, 6],
-            "method": "Mahalanobis"
-        }
-        
+        mahalanobis_results = {"outlier_indices": [0, 3, 5, 6], "method": "Mahalanobis"}
+
         # Combine with majority consensus
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.66  # Need 2 out of 3 (2/3 = 0.666...)
+            consensus_threshold=0.66,  # Need 2 out of 3 (2/3 = 0.666...)
         )
-        
+
         # Check consensus outliers (those agreed by at least 2 methods)
         # Index 3 is agreed by all 3 methods
         # Index 0 is agreed by PCA and Mahalanobis (2/3)
-        # Index 5 is agreed by Isolation and Mahalanobis (2/3) 
+        # Index 5 is agreed by Isolation and Mahalanobis (2/3)
         # Index 2 is agreed by PCA and Isolation (2/3)
         # With 0.66 threshold, 2/3 methods (0.666...) passes the threshold
         # So consensus should include all indices agreed by 2+ methods
@@ -2040,209 +2042,197 @@ class TestCombineOutlierMethods:
         assert 0 in combined["consensus_outliers"]  # PCA and Mahalanobis agree
         assert 5 in combined["consensus_outliers"]  # Isolation and Mahalanobis agree
         assert 2 in combined["consensus_outliers"]  # PCA and Isolation agree
-        
+
         # Check that the right indices are marked as consensus
         # With threshold 0.67, need 2/3 methods = indices with agreement >= 2
         consensus = sorted(combined["consensus_outliers"])
-        
+
         # Check method-only outliers (outliers unique to each method)
         # PCA has [0,1,2,3], others have [0,2,3,4,5,6], so PCA-only is [1]
         assert sorted(combined["pca_only"]) == [1]
-        
+
         # Isolation has [2,3,4,5], others have [0,1,2,3,5,6], so Isolation-only is [4]
         assert sorted(combined["isolation_forest_only"]) == [4]
-        
+
         # Mahalanobis has [0,3,5,6], others have [0,1,2,3,4,5], so Mahalanobis-only is [6]
         assert sorted(combined["mahalanobis_only"]) == [6]
-        
+
         # Check overlaps
         assert sorted(combined["pca_isolation_forest_overlap"]) == [2, 3]
         assert sorted(combined["pca_mahalanobis_overlap"]) == [0, 3]
         assert sorted(combined["isolation_forest_mahalanobis_overlap"]) == [3, 5]
-        
+
     def test_agreement_methods_tracking(self):
         """Test tracking which methods agree on each outlier."""
         # Create specific outlier patterns
-        pca_results = {
-            "outlier_indices": [0, 1, 2],
-            "method": "PCA"
-        }
-        isolation_results = {
-            "outlier_indices": [0, 2, 3],
-            "method": "IsolationForest"
-        }
-        mahalanobis_results = {
-            "outlier_indices": [0, 3, 4],
-            "method": "Mahalanobis"
-        }
-        
+        pca_results = {"outlier_indices": [0, 1, 2], "method": "PCA"}
+        isolation_results = {"outlier_indices": [0, 2, 3], "method": "IsolationForest"}
+        mahalanobis_results = {"outlier_indices": [0, 3, 4], "method": "Mahalanobis"}
+
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
             mahalanobis_results=mahalanobis_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Check agreement methods for each outlier
         agreement_methods = combined["outlier_agreement_methods"]
-        
+
         # Outlier 0 should be agreed by all methods
         assert set(agreement_methods[0]) == {"pca", "isolation_forest", "mahalanobis"}
-        
+
         # Outlier 1 only by PCA
         assert agreement_methods[1] == ["pca"]
-        
+
         # Outlier 2 by PCA and Isolation Forest
         assert set(agreement_methods[2]) == {"pca", "isolation_forest"}
-        
+
         # Outlier 3 by Isolation Forest and Mahalanobis
         assert set(agreement_methods[3]) == {"isolation_forest", "mahalanobis"}
-        
+
         # Outlier 4 only by Mahalanobis
         assert agreement_methods[4] == ["mahalanobis"]
-        
+
     def test_with_real_data(self, features_df):
         """Test with real feature data."""
         # Get numeric columns only
         numeric_cols = features_df.select_dtypes(include=[np.number]).columns
         df_numeric = features_df[numeric_cols].dropna()
-        
+
         if len(df_numeric) > 10:  # Need enough samples
             # Run all methods
             pca_results = detect_outliers_pca(df_numeric)
             isolation_results = detect_outliers_isolation_forest(df_numeric)
             mahalanobis_results = detect_outliers_mahalanobis(df_numeric)
-            
+
             # Combine
             combined = combine_outlier_methods(
                 pca_results=pca_results,
                 isolation_results=isolation_results,
                 mahalanobis_results=mahalanobis_results,
-                consensus_threshold=0.5
+                consensus_threshold=0.5,
             )
-            
+
             # Basic checks
             assert combined["method"] == "Combined"
             assert combined["n_methods"] in [2, 3]  # Mahalanobis might fail
             assert isinstance(combined["consensus_outliers"], list)
             assert isinstance(combined["n_consensus_outliers"], int)
-            
+
     def test_sorted_outputs(self):
         """Test that outputs are properly sorted."""
-        pca_results = {
-            "outlier_indices": [5, 2, 8, 1],
-            "method": "PCA"
-        }
+        pca_results = {"outlier_indices": [5, 2, 8, 1], "method": "PCA"}
         isolation_results = {
             "outlier_indices": [3, 1, 7, 2],
-            "method": "IsolationForest"  
+            "method": "IsolationForest",
         }
-        
+
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=isolation_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Check consensus outliers are sorted
         consensus = combined["consensus_outliers"]
         assert consensus == sorted(consensus)
-        
+
         # Check agreement count dict is sorted by key
         agreement_count = combined["outlier_agreement_count"]
         keys = list(agreement_count.keys())
         assert keys == sorted(keys)
-        
+
         # Check agreement methods dict is sorted by key
         agreement_methods = combined["outlier_agreement_methods"]
         keys = list(agreement_methods.keys())
         assert keys == sorted(keys)
-        
+
     def test_integration_with_detection_methods(self, outlier_data_with_known_outliers):
         """Test full integration with actual detection methods."""
         df, expected_outliers, metadata = outlier_data_with_known_outliers
-        
+
         # Run detection with different parameters
         pca_strict = detect_outliers_pca(df, n_components=3, outlier_threshold=3.0)
         pca_loose = detect_outliers_pca(df, n_components=2, outlier_threshold=2.0)
         isolation = detect_outliers_isolation_forest(df, contamination=0.1)
-        
+
         # Combine different PCA results with isolation forest
         combined = combine_outlier_methods(
             pca_results=pca_strict,
             isolation_results=isolation,
             mahalanobis_results={"outlier_indices": pca_loose["outlier_indices"]},
-            consensus_threshold=0.67
+            consensus_threshold=0.67,
         )
-        
+
         # Should have valid results
         assert "consensus_outliers" in combined
         assert "n_consensus_outliers" in combined
         assert combined["n_methods"] == 3
-        
+
         # Check that the structure is complete
         assert "pca_outliers" in combined
         assert "isolation_forest_outliers" in combined
         assert "mahalanobis_outliers" in combined
-    
+
     def test_consensus_calculation_edge_cases(self):
         """Test edge cases in consensus calculation, particularly ceiling behavior."""
         # Test case 1: 3 methods with 0.5 threshold should require 2 methods (ceiling of 1.5)
         pca_results = {"outlier_indices": [0, 1], "method": "PCA"}
         iso_results = {"outlier_indices": [1, 2], "method": "IsolationForest"}
         mah_results = {"outlier_indices": [2, 3], "method": "Mahalanobis"}
-        
+
         combined = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=iso_results,
             mahalanobis_results=mah_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         # Check consensus rule shows correct calculation (2 out of 3)
         assert "2 out of 3" in combined["agreement_summary"]["consensus_rule"]
-        
+
         # Indices 1 and 2 are flagged by 2 methods each, should be in consensus
         assert 1 in combined["consensus_outliers"]  # PCA and Isolation
         assert 2 in combined["consensus_outliers"]  # Isolation and Mahalanobis
         assert 0 not in combined["consensus_outliers"]  # Only PCA
         assert 3 not in combined["consensus_outliers"]  # Only Mahalanobis
-        
+
         # Test case 2: 3 methods with 0.33 threshold should require 1 method (ceiling of 0.99)
         combined_low = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=iso_results,
             mahalanobis_results=mah_results,
-            consensus_threshold=0.33
+            consensus_threshold=0.33,
         )
-        
+
         assert "1 out of 3" in combined_low["agreement_summary"]["consensus_rule"]
         # All indices should be in consensus
         assert sorted(combined_low["consensus_outliers"]) == [0, 1, 2, 3]
-        
+
         # Test case 3: 3 methods with 0.67 threshold should require 3 methods (ceiling of 2.01)
         combined_high = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=iso_results,
             mahalanobis_results=mah_results,
-            consensus_threshold=0.67
+            consensus_threshold=0.67,
         )
-        
+
         assert "3 out of 3" in combined_high["agreement_summary"]["consensus_rule"]
         # No indices are flagged by all 3 methods
         assert combined_high["consensus_outliers"] == []
-        
+
         # Test case 4: 2 methods with 0.5 threshold should require 1 method (ceiling of 1.0)
         combined_two = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=iso_results,
-            consensus_threshold=0.5
+            consensus_threshold=0.5,
         )
-        
+
         assert "1 out of 2" in combined_two["agreement_summary"]["consensus_rule"]
         # Index 1 is flagged by both methods
         assert 1 in combined_two["consensus_outliers"]
-        
+
         # Test case 5: Verify exact threshold boundaries
         # With 5 methods and 0.4 threshold: 5 * 0.4 = 2.0, ceil(2.0) = 2
         pca_results = {"outlier_indices": [0, 1], "method": "PCA"}
@@ -2250,7 +2240,7 @@ class TestCombineOutlierMethods:
         mah_results = {"outlier_indices": [0, 3], "method": "Mahalanobis"}
         method4 = {"outlier_indices": [0, 4], "method": "Method4"}
         method5 = {"outlier_indices": [1, 5], "method": "Method5"}
-        
+
         # Manually create the scenario with 5 methods
         # Index 0 is flagged by 4 methods (PCA, Iso, Mah, Method4)
         # Index 1 is flagged by 2 methods (PCA, Method5)
@@ -2260,91 +2250,96 @@ class TestCombineOutlierMethods:
             "isolation_forest": iso_results,
             "mahalanobis": mah_results,
         }
-        
+
         combined_5 = combine_outlier_methods(
             pca_results=pca_results,
             isolation_results=iso_results,
             mahalanobis_results=mah_results,
-            consensus_threshold=0.4  # 40% of 3 methods = 1.2, ceil = 2
+            consensus_threshold=0.4,  # 40% of 3 methods = 1.2, ceil = 2
         )
-        
+
         assert "2 out of 3" in combined_5["agreement_summary"]["consensus_rule"]
         # Index 0 is flagged by all 3 methods
         assert 0 in combined_5["consensus_outliers"]
-    
+
     def test_consensus_rule_string_accuracy(self):
         """Test that consensus rule string accurately reflects the calculation."""
         import math
-        
+
         # Test cases for 2 and 3 methods only (what combine_outlier_methods supports)
         test_cases_3_methods = [
             (0.33, 1),  # 3 * 0.33 = 0.99, ceil = 1
-            (0.34, 2),  # 3 * 0.34 = 1.02, ceil = 2 
-            (0.5, 2),   # 3 * 0.5 = 1.5, ceil = 2
+            (0.34, 2),  # 3 * 0.34 = 1.02, ceil = 2
+            (0.5, 2),  # 3 * 0.5 = 1.5, ceil = 2
             (0.66, 2),  # 3 * 0.66 = 1.98, ceil = 2
             (0.67, 3),  # 3 * 0.67 = 2.01, ceil = 3
-            (1.0, 3),   # 3 * 1.0 = 3.0, ceil = 3
+            (1.0, 3),  # 3 * 1.0 = 3.0, ceil = 3
         ]
-        
+
         test_cases_2_methods = [
             (0.49, 1),  # 2 * 0.49 = 0.98, ceil = 1
-            (0.5, 1),   # 2 * 0.5 = 1.0, ceil = 1
+            (0.5, 1),  # 2 * 0.5 = 1.0, ceil = 1
             (0.51, 2),  # 2 * 0.51 = 1.02, ceil = 2
             (0.99, 2),  # 2 * 0.99 = 1.98, ceil = 2
-            (1.0, 2),   # 2 * 1.0 = 2.0, ceil = 2
+            (1.0, 2),  # 2 * 1.0 = 2.0, ceil = 2
         ]
-        
+
         # Test with 3 methods
         for threshold, expected_min in test_cases_3_methods:
             pca_results = {"outlier_indices": [], "method": "PCA"}
             iso_results = {"outlier_indices": [], "method": "IsolationForest"}
             mah_results = {"outlier_indices": [], "method": "Mahalanobis"}
-            
+
             combined = combine_outlier_methods(
                 pca_results=pca_results,
                 isolation_results=iso_results,
                 mahalanobis_results=mah_results,
-                consensus_threshold=threshold
+                consensus_threshold=threshold,
             )
-            
+
             # Extract the minimum methods from the consensus rule string
             rule = combined["agreement_summary"]["consensus_rule"]
             # Pattern: "X out of Y"
             import re
+
             match = re.search(r"(\d+) out of (\d+)", rule)
             assert match is not None, f"Could not parse rule: {rule}"
-            
+
             actual_min = int(match.group(1))
             actual_total = int(match.group(2))
-            
+
             # Verify the calculation
             assert actual_min == expected_min, (
                 f"For 3 methods with threshold {threshold}: "
                 f"expected {expected_min}, got {actual_min}"
             )
-            assert actual_total == 3, f"Total methods mismatch: expected 3, got {actual_total}"
-        
+            assert (
+                actual_total == 3
+            ), f"Total methods mismatch: expected 3, got {actual_total}"
+
         # Test with 2 methods (no Mahalanobis)
         for threshold, expected_min in test_cases_2_methods:
             pca_results = {"outlier_indices": [], "method": "PCA"}
             iso_results = {"outlier_indices": [], "method": "IsolationForest"}
-            
+
             combined = combine_outlier_methods(
                 pca_results=pca_results,
                 isolation_results=iso_results,
                 mahalanobis_results=None,
-                consensus_threshold=threshold
+                consensus_threshold=threshold,
             )
-            
+
             rule = combined["agreement_summary"]["consensus_rule"]
             match = re.search(r"(\d+) out of (\d+)", rule)
             assert match is not None, f"Could not parse rule: {rule}"
-            
+
             actual_min = int(match.group(1))
             actual_total = int(match.group(2))
-            
+
             assert actual_min == expected_min, (
                 f"For 2 methods with threshold {threshold}: "
                 f"expected {expected_min}, got {actual_min}"
             )
-            assert actual_total == 2, f"Total methods mismatch: expected 2, got {actual_total}"
+            assert (
+                actual_total == 2
+            ), f"Total methods mismatch: expected 2, got {actual_total}"

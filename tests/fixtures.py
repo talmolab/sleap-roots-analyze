@@ -1261,349 +1261,377 @@ def pca_empty_after_nan_removal():
 @pytest.fixture
 def viz_sample_data():
     """Create sample data for basic visualization testing.
-    
+
     Returns:
         pd.DataFrame: Sample data with traits and genotype
     """
     np.random.seed(42)
     n_samples = 100
-    
-    df = pd.DataFrame({
-        'trait1': np.random.normal(0, 1, n_samples),
-        'trait2': np.random.normal(5, 2, n_samples),
-        'trait3': np.random.uniform(0, 10, n_samples),
-        'geno': np.random.choice(['A', 'B', 'C'], n_samples),
-        'Barcode': [f'BC{i:04d}' for i in range(n_samples)]
-    })
-    
+
+    df = pd.DataFrame(
+        {
+            "trait1": np.random.normal(0, 1, n_samples),
+            "trait2": np.random.normal(5, 2, n_samples),
+            "trait3": np.random.uniform(0, 10, n_samples),
+            "geno": np.random.choice(["A", "B", "C"], n_samples),
+            "Barcode": [f"BC{i:04d}" for i in range(n_samples)],
+        }
+    )
+
     return df
 
 
 @pytest.fixture
 def viz_data_with_nan():
     """Create data with NaN values for visualization testing.
-    
+
     Returns:
         pd.DataFrame: Data containing various NaN patterns
     """
     np.random.seed(42)
     n_samples = 50
-    
-    df = pd.DataFrame({
-        'trait_complete': np.random.randn(n_samples),
-        'trait_some_nan': np.concatenate([np.random.randn(40), [np.nan]*10]),
-        'trait_all_nan': [np.nan] * n_samples,
-        'geno': np.random.choice(['Type1', 'Type2'], n_samples),
-        'Barcode': [f'BC{i:03d}' for i in range(n_samples)]
-    })
-    
+
+    df = pd.DataFrame(
+        {
+            "trait_complete": np.random.randn(n_samples),
+            "trait_some_nan": np.concatenate([np.random.randn(40), [np.nan] * 10]),
+            "trait_all_nan": [np.nan] * n_samples,
+            "geno": np.random.choice(["Type1", "Type2"], n_samples),
+            "Barcode": [f"BC{i:03d}" for i in range(n_samples)],
+        }
+    )
+
     return df
 
 
 @pytest.fixture
 def viz_empty_data():
     """Create empty DataFrame for edge case testing.
-    
+
     Returns:
         pd.DataFrame: Empty DataFrame with expected columns
     """
-    return pd.DataFrame(columns=['trait1', 'trait2', 'geno', 'Barcode'])
+    return pd.DataFrame(columns=["trait1", "trait2", "geno", "Barcode"])
 
 
-@pytest.fixture  
+@pytest.fixture
 def viz_single_trait_data():
     """Create data with single trait for testing.
-    
+
     Returns:
         pd.DataFrame: Data with one trait column
     """
     np.random.seed(42)
-    return pd.DataFrame({
-        'single_trait': np.random.randn(75),
-        'geno': np.random.choice(['G1', 'G2', 'G3'], 75),
-        'Barcode': [f'BC{i:03d}' for i in range(75)]
-    })
+    return pd.DataFrame(
+        {
+            "single_trait": np.random.randn(75),
+            "geno": np.random.choice(["G1", "G2", "G3"], 75),
+            "Barcode": [f"BC{i:03d}" for i in range(75)],
+        }
+    )
 
 
 @pytest.fixture
 def viz_many_traits_data():
     """Create data with many traits for testing subplot layouts.
-    
+
     Returns:
         pd.DataFrame: Data with 30+ trait columns
     """
     np.random.seed(42)
     n_samples = 50
     n_traits = 30
-    
-    data = {'Barcode': [f'BC{i:03d}' for i in range(n_samples)],
-            'geno': np.random.choice(['A', 'B', 'C', 'D'], n_samples)}
-    
+
+    data = {
+        "Barcode": [f"BC{i:03d}" for i in range(n_samples)],
+        "geno": np.random.choice(["A", "B", "C", "D"], n_samples),
+    }
+
     for i in range(n_traits):
-        data[f'trait_{i:02d}'] = np.random.randn(n_samples) * (i+1) 
-    
+        data[f"trait_{i:02d}"] = np.random.randn(n_samples) * (i + 1)
+
     return pd.DataFrame(data)
 
 
 @pytest.fixture
 def viz_perfect_correlation_data():
     """Create data with perfectly correlated traits.
-    
+
     Returns:
         pd.DataFrame: Data where some traits are perfectly correlated
     """
     np.random.seed(42)
     n_samples = 100
     base = np.random.randn(n_samples)
-    
-    df = pd.DataFrame({
-        'trait_a': base,
-        'trait_b': base * 2,  # Perfect positive correlation
-        'trait_c': -base,     # Perfect negative correlation  
-        'trait_d': np.random.randn(n_samples),  # Independent
-        'geno': np.random.choice(['X', 'Y'], n_samples)
-    })
-    
+
+    df = pd.DataFrame(
+        {
+            "trait_a": base,
+            "trait_b": base * 2,  # Perfect positive correlation
+            "trait_c": -base,  # Perfect negative correlation
+            "trait_d": np.random.randn(n_samples),  # Independent
+            "geno": np.random.choice(["X", "Y"], n_samples),
+        }
+    )
+
     return df
 
 
 @pytest.fixture
 def viz_bimodal_data():
     """Create bimodal distributed data for visualization.
-    
+
     Returns:
         pd.DataFrame: Data with bimodal distributions
     """
     np.random.seed(42)
     n_samples = 120
-    
+
     # Create bimodal distribution
-    group1 = np.random.normal(-2, 0.5, n_samples//2)
-    group2 = np.random.normal(2, 0.5, n_samples//2) 
-    
-    df = pd.DataFrame({
-        'trait_bimodal': np.concatenate([group1, group2]),
-        'trait_normal': np.random.normal(0, 1, n_samples),
-        'geno': ['GroupA']*(n_samples//2) + ['GroupB']*(n_samples//2)
-    })
-    
+    group1 = np.random.normal(-2, 0.5, n_samples // 2)
+    group2 = np.random.normal(2, 0.5, n_samples // 2)
+
+    df = pd.DataFrame(
+        {
+            "trait_bimodal": np.concatenate([group1, group2]),
+            "trait_normal": np.random.normal(0, 1, n_samples),
+            "geno": ["GroupA"] * (n_samples // 2) + ["GroupB"] * (n_samples // 2),
+        }
+    )
+
     return df
 
 
 @pytest.fixture
 def viz_single_genotype_data():
     """Create data with only one genotype group.
-    
+
     Returns:
         pd.DataFrame: Data with single genotype value
     """
     np.random.seed(42)
     n_samples = 60
-    
-    df = pd.DataFrame({
-        'trait1': np.random.randn(n_samples),
-        'trait2': np.random.exponential(2, n_samples),
-        'geno': ['SingleType'] * n_samples
-    })
-    
+
+    df = pd.DataFrame(
+        {
+            "trait1": np.random.randn(n_samples),
+            "trait2": np.random.exponential(2, n_samples),
+            "geno": ["SingleType"] * n_samples,
+        }
+    )
+
     return df
 
 
 @pytest.fixture
 def viz_constant_trait_data():
     """Create data with constant (zero variance) traits.
-    
+
     Returns:
         pd.DataFrame: Data with some constant traits
     """
     np.random.seed(42)
     n_samples = 80
-    
-    df = pd.DataFrame({
-        'trait_constant': [42.0] * n_samples,
-        'trait_variable': np.random.randn(n_samples),
-        'trait_zero': np.zeros(n_samples),
-        'geno': np.random.choice(['A', 'B'], n_samples)
-    })
-    
+
+    df = pd.DataFrame(
+        {
+            "trait_constant": [42.0] * n_samples,
+            "trait_variable": np.random.randn(n_samples),
+            "trait_zero": np.zeros(n_samples),
+            "geno": np.random.choice(["A", "B"], n_samples),
+        }
+    )
+
     return df
+
 
 @pytest.fixture
 def viz_eda_sample_data():
     """Create sample data for EDA plots testing with known metrics.
-    
+
     Returns:
         pd.DataFrame: Data with various trait quality patterns
     """
     np.random.seed(42)
     n_samples = 100
-    
+
     # Create traits with different quality issues
     data = {
-        'Barcode': [f'BC{i:04d}' for i in range(n_samples)],
-        'geno': np.random.choice(['A', 'B', 'C'], n_samples),
-        'rep': np.random.choice([1, 2, 3], n_samples),
+        "Barcode": [f"BC{i:04d}" for i in range(n_samples)],
+        "geno": np.random.choice(["A", "B", "C"], n_samples),
+        "rep": np.random.choice([1, 2, 3], n_samples),
         # Good trait - normal distribution
-        'trait_good': np.random.normal(10, 2, n_samples),
+        "trait_good": np.random.normal(10, 2, n_samples),
         # High NaN trait (40% NaN)
-        'trait_high_nan': np.where(np.random.random(n_samples) < 0.4, np.nan, 
-                                   np.random.normal(5, 1, n_samples)),
+        "trait_high_nan": np.where(
+            np.random.random(n_samples) < 0.4, np.nan, np.random.normal(5, 1, n_samples)
+        ),
         # High zero trait (60% zeros)
-        'trait_high_zero': np.where(np.random.random(n_samples) < 0.6, 0, 
-                                    np.random.normal(3, 0.5, n_samples)),
+        "trait_high_zero": np.where(
+            np.random.random(n_samples) < 0.6, 0, np.random.normal(3, 0.5, n_samples)
+        ),
         # Low variance trait
-        'trait_low_var': np.random.normal(50, 0.01, n_samples),
+        "trait_low_var": np.random.normal(50, 0.01, n_samples),
         # Outlier-prone trait
-        'trait_outliers': np.concatenate([
-            np.random.normal(0, 1, 90),  # Normal values
-            np.random.normal(10, 0.5, 10)  # Outliers
-        ])
+        "trait_outliers": np.concatenate(
+            [
+                np.random.normal(0, 1, 90),  # Normal values
+                np.random.normal(10, 0.5, 10),  # Outliers
+            ]
+        ),
     }
-    
+
     return pd.DataFrame(data)
 
 
 @pytest.fixture
 def viz_eda_thresholds():
     """Standard thresholds for EDA cleanup.
-    
+
     Returns:
         dict: Thresholds for NaN, zero, and outlier fractions
     """
     return {
-        'nan': 0.3,    # 30% maximum NaN
-        'zero': 0.5,   # 50% maximum zeros
-        'outlier': 0.1  # 10% maximum outliers (though not used for trait removal)
+        "nan": 0.3,  # 30% maximum NaN
+        "zero": 0.5,  # 50% maximum zeros
+        "outlier": 0.1,  # 10% maximum outliers (though not used for trait removal)
     }
 
 
 @pytest.fixture
 def viz_eda_cleanup_log():
     """Sample cleanup log from apply_data_cleanup_filters.
-    
+
     Returns:
         dict: Cleanup log with removed traits information
     """
     return {
-        'removed_traits': [
+        "removed_traits": [
             {
-                'trait': 'trait_high_nan',
-                'reason': 'too_many_nans',
-                'nan_fraction': 0.4,
-                'zero_fraction': 0.05,
-                'valid_samples': 60
+                "trait": "trait_high_nan",
+                "reason": "too_many_nans",
+                "nan_fraction": 0.4,
+                "zero_fraction": 0.05,
+                "valid_samples": 60,
             },
             {
-                'trait': 'trait_high_zero',
-                'reason': 'too_many_zeros',
-                'nan_fraction': 0.02,
-                'zero_fraction': 0.6,
-                'valid_samples': 98
+                "trait": "trait_high_zero",
+                "reason": "too_many_zeros",
+                "nan_fraction": 0.02,
+                "zero_fraction": 0.6,
+                "valid_samples": 98,
             },
             {
-                'trait': 'trait_insufficient',
-                'reason': 'insufficient_samples',
-                'nan_fraction': 0.85,
-                'zero_fraction': 0.05,
-                'valid_samples': 5
-            }
+                "trait": "trait_insufficient",
+                "reason": "insufficient_samples",
+                "nan_fraction": 0.85,
+                "zero_fraction": 0.05,
+                "valid_samples": 5,
+            },
         ],
-        'initial_traits': 10,
-        'remaining_traits': 7,
-        'traits_removed_high_nan': 1,
-        'traits_removed_high_zero': 1,
-        'traits_removed_low_samples': 1
+        "initial_traits": 10,
+        "remaining_traits": 7,
+        "traits_removed_high_nan": 1,
+        "traits_removed_high_zero": 1,
+        "traits_removed_low_samples": 1,
     }
 
 
 @pytest.fixture
 def viz_eda_data_with_extremes():
     """Create data with extreme values for EDA testing.
-    
+
     Returns:
         pd.DataFrame: Data with various extreme patterns
     """
     np.random.seed(42)
     n_samples = 50
-    
-    df = pd.DataFrame({
-        'Barcode': [f'BC{i:03d}' for i in range(n_samples)],
-        'geno': np.random.choice(['Type1', 'Type2'], n_samples),
-        # All NaN trait
-        'trait_all_nan': [np.nan] * n_samples,
-        # All zero trait
-        'trait_all_zero': np.zeros(n_samples),
-        # Single valid value
-        'trait_single_valid': [np.nan] * (n_samples - 1) + [5.0],
-        # Boundary case - exactly at threshold (30% NaN)
-        'trait_boundary_nan': np.where(np.arange(n_samples) < 15, np.nan,
-                                       np.random.normal(10, 1, n_samples)),
-        # Boundary case - exactly at threshold (50% zero)
-        'trait_boundary_zero': np.where(np.arange(n_samples) < 25, 0,
-                                        np.random.normal(5, 1, n_samples)),
-        # High variance trait
-        'trait_high_var': np.random.normal(100, 50, n_samples),
-        # Negative values
-        'trait_negative': np.random.normal(-5, 2, n_samples)
-    })
-    
+
+    df = pd.DataFrame(
+        {
+            "Barcode": [f"BC{i:03d}" for i in range(n_samples)],
+            "geno": np.random.choice(["Type1", "Type2"], n_samples),
+            # All NaN trait
+            "trait_all_nan": [np.nan] * n_samples,
+            # All zero trait
+            "trait_all_zero": np.zeros(n_samples),
+            # Single valid value
+            "trait_single_valid": [np.nan] * (n_samples - 1) + [5.0],
+            # Boundary case - exactly at threshold (30% NaN)
+            "trait_boundary_nan": np.where(
+                np.arange(n_samples) < 15, np.nan, np.random.normal(10, 1, n_samples)
+            ),
+            # Boundary case - exactly at threshold (50% zero)
+            "trait_boundary_zero": np.where(
+                np.arange(n_samples) < 25, 0, np.random.normal(5, 1, n_samples)
+            ),
+            # High variance trait
+            "trait_high_var": np.random.normal(100, 50, n_samples),
+            # Negative values
+            "trait_negative": np.random.normal(-5, 2, n_samples),
+        }
+    )
+
     return df
 
 
 @pytest.fixture
 def viz_eda_empty_cleanup_log():
     """Empty cleanup log for testing.
-    
+
     Returns:
         dict: Empty cleanup log
     """
     return {
-        'removed_traits': [],
-        'initial_traits': 5,
-        'remaining_traits': 5,
-        'traits_removed_high_nan': 0,
-        'traits_removed_high_zero': 0,
-        'traits_removed_low_samples': 0
+        "removed_traits": [],
+        "initial_traits": 5,
+        "remaining_traits": 5,
+        "traits_removed_high_nan": 0,
+        "traits_removed_high_zero": 0,
+        "traits_removed_low_samples": 0,
     }
 
 
 @pytest.fixture
 def viz_eda_many_traits_data():
     """Create data with many traits for comprehensive EDA.
-    
+
     Returns:
         pd.DataFrame: Data with 50+ traits
     """
     np.random.seed(42)
     n_samples = 100
     n_traits = 50
-    
+
     data = {
-        'Barcode': [f'BC{i:04d}' for i in range(n_samples)],
-        'geno': np.random.choice(['G1', 'G2', 'G3'], n_samples),
-        'rep': np.random.choice([1, 2, 3, 4], n_samples)
+        "Barcode": [f"BC{i:04d}" for i in range(n_samples)],
+        "geno": np.random.choice(["G1", "G2", "G3"], n_samples),
+        "rep": np.random.choice([1, 2, 3, 4], n_samples),
     }
-    
+
     # Add traits with various prefixes and patterns
-    prefixes = ['root', 'lateral', 'crown', 'network', 'depth']
+    prefixes = ["root", "lateral", "crown", "network", "depth"]
     for i in range(n_traits):
         prefix = prefixes[i % len(prefixes)]
-        trait_name = f'{prefix}_{i:02d}'
-        
+        trait_name = f"{prefix}_{i:02d}"
+
         # Vary the quality of traits
         if i % 5 == 0:
             # Some high NaN traits
-            data[trait_name] = np.where(np.random.random(n_samples) < 0.35,
-                                       np.nan, np.random.randn(n_samples))
+            data[trait_name] = np.where(
+                np.random.random(n_samples) < 0.35, np.nan, np.random.randn(n_samples)
+            )
         elif i % 7 == 0:
             # Some high zero traits
-            data[trait_name] = np.where(np.random.random(n_samples) < 0.55,
-                                       0, np.random.randn(n_samples))
+            data[trait_name] = np.where(
+                np.random.random(n_samples) < 0.55, 0, np.random.randn(n_samples)
+            )
         else:
             # Normal traits with varying variance
             data[trait_name] = np.random.randn(n_samples) * (i + 1)
-    
+
     return pd.DataFrame(data)
+
 
 @pytest.fixture
 def controlled_spectrum_data():
@@ -2231,21 +2259,21 @@ def outlier_viz_sample_data():
     n_samples = 100
     n_features = 5
     n_genotypes = 4
-    
+
     # Create data with some structure
     data = np.random.randn(n_samples, n_features)
-    
+
     # Add some outliers
     outlier_indices = [10, 25, 40, 55, 70, 85]
     for idx in outlier_indices:
         data[idx, :] *= 3  # Make these samples outliers
-    
+
     df = pd.DataFrame(data, columns=[f"trait_{i}" for i in range(n_features)])
-    
+
     # Add genotype column
     genotypes = ["Geno_A", "Geno_B", "Geno_C", "Geno_D"]
     df["geno"] = np.random.choice(genotypes, size=n_samples)
-    
+
     return df, outlier_indices
 
 
@@ -2254,15 +2282,15 @@ def outlier_viz_isolation_results():
     """Isolation Forest results for visualization testing."""
     np.random.seed(42)
     n_samples = 100
-    
+
     # Generate anomaly scores (lower = more anomalous)
     scores = np.random.beta(5, 2, n_samples)  # Most scores high
     outlier_indices = [5, 15, 25, 35, 45]
-    
+
     # Make outliers have lower scores
     for idx in outlier_indices:
         scores[idx] = np.random.uniform(0, 0.3)
-    
+
     return {
         "method": "IsolationForest",
         "anomaly_scores": scores.tolist(),
@@ -2279,25 +2307,26 @@ def outlier_viz_mahalanobis_results():
     np.random.seed(42)
     n_samples = 100
     n_components = 3
-    
+
     # Generate distances (chi-squared distributed for normal points)
     from scipy.stats import chi2
+
     distances = np.sqrt(chi2.rvs(df=n_components, size=n_samples))
     outlier_indices = [8, 18, 28, 38, 48, 58]
-    
+
     # Make outliers have larger distances
     for idx in outlier_indices:
         distances[idx] = np.random.uniform(3, 5)
-    
+
     # Generate PCA components for visualization
     pca_components = np.random.randn(n_samples, n_components)
-    
+
     # Feature importance data
     n_features = 10
     feature_names = [f"trait_{i}" for i in range(n_features)]
     explained_var_ratio = np.random.dirichlet(np.ones(n_components))
     explained_var_per_feature = np.random.uniform(0.5, 1.0, n_features)
-    
+
     return {
         "method": "Mahalanobis",
         "mahalanobis_distances": distances.tolist(),
@@ -2318,8 +2347,7 @@ def outlier_viz_mahalanobis_results():
 
 @pytest.fixture
 def outlier_viz_all_methods_results(
-    outlier_viz_isolation_results,
-    outlier_viz_mahalanobis_results
+    outlier_viz_isolation_results, outlier_viz_mahalanobis_results
 ):
     """Combined results from multiple outlier detection methods."""
     # PCA results
@@ -2329,10 +2357,10 @@ def outlier_viz_all_methods_results(
         "reconstruction_errors": np.random.exponential(1, 100).tolist(),
         "n_outliers": 4,
     }
-    
+
     # Combined results
     combined_results = {
-        "method": "Combined", 
+        "method": "Combined",
         "consensus_outliers": [5, 15, 25],  # Overlap between methods
         "n_consensus_outliers": 3,
         "consensus_threshold": 0.5,
@@ -2346,7 +2374,7 @@ def outlier_viz_all_methods_results(
             "consensus_rule": "Agreed by at least 50% of methods (2 out of 3)",
         },
     }
-    
+
     return {
         "pca": pca_results,
         "isolation_forest": outlier_viz_isolation_results,
@@ -2355,7 +2383,7 @@ def outlier_viz_all_methods_results(
     }
 
 
-@pytest.fixture  
+@pytest.fixture
 def outlier_viz_error_results():
     """Results with errors for testing error handling."""
     return {
@@ -2402,32 +2430,32 @@ def outlier_viz_pca_results():
     n_features = 15
     n_components_used = 5
     n_total_components = 10
-    
+
     # Generate explained variance ratios
     raw_variances = np.random.exponential(1, n_total_components)
     raw_variances = np.sort(raw_variances)[::-1]  # Sort descending
     explained_var_ratio = raw_variances / raw_variances.sum()
     cumulative_variance = np.cumsum(explained_var_ratio)
-    
+
     # Generate reconstruction errors
     reconstruction_errors = np.random.exponential(0.5, n_samples)
     outlier_indices = [5, 15, 25, 35, 45, 55]
-    
+
     # Make outliers have larger errors
     for idx in outlier_indices:
         reconstruction_errors[idx] = np.random.uniform(2, 4)
-    
+
     # Generate PCA components
     pca_components = np.random.randn(n_samples, n_components_used)
-    
+
     # Feature names and their explained variance
     feature_names = [f"trait_{i}" for i in range(n_features)]
     explained_var_per_feature = np.random.uniform(0.3, 1.0, n_features)
-    
+
     # Generate loadings
     loadings = np.random.randn(n_features, n_total_components)
     eigenvalues = raw_variances
-    
+
     return {
         "method": "PCA",
         "reconstruction_errors": reconstruction_errors.tolist(),
@@ -2457,21 +2485,39 @@ def outlier_viz_pca_results():
 def heritability_results_basic():
     """Basic heritability results for testing visualization."""
     np.random.seed(42)
-    
+
     # Generate heritability values with different ranges
     trait_names = [
-        "root_depth", "root_width", "lateral_count", "primary_length",
-        "total_length", "convex_area", "network_area", "perimeter",
-        "avg_radius", "max_radius", "stem_width", "density"
+        "root_depth",
+        "root_width",
+        "lateral_count",
+        "primary_length",
+        "total_length",
+        "convex_area",
+        "network_area",
+        "perimeter",
+        "avg_radius",
+        "max_radius",
+        "stem_width",
+        "density",
     ]
-    
+
     # Mix of high, medium, and low heritability values
     h2_values = [
-        0.85, 0.72, 0.68, 0.65,  # High heritability
-        0.55, 0.48, 0.42, 0.38,  # Medium heritability
-        0.25, 0.18, 0.12, 0.08   # Low heritability
+        0.85,
+        0.72,
+        0.68,
+        0.65,  # High heritability
+        0.55,
+        0.48,
+        0.42,
+        0.38,  # Medium heritability
+        0.25,
+        0.18,
+        0.12,
+        0.08,  # Low heritability
     ]
-    
+
     results = {}
     for trait, h2 in zip(trait_names, h2_values):
         results[trait] = {
@@ -2479,13 +2525,13 @@ def heritability_results_basic():
             "variance_components": {
                 "genetic": h2 * 100,
                 "environmental": (1 - h2) * 100,
-                "total": 100
+                "total": 100,
             },
             "confidence_interval": [max(0, h2 - 0.1), min(1, h2 + 0.1)],
             "n_genotypes": 50,
-            "n_observations": 150
+            "n_observations": 150,
         }
-    
+
     return results
 
 
@@ -2512,20 +2558,20 @@ def heritability_threshold_analysis():
     """Threshold analysis results for heritability threshold plot."""
     thresholds = np.linspace(0, 1, 101)
     total_traits = 50
-    
+
     # Simulate retention curve - exponential decay
     traits_retained = np.zeros_like(thresholds)
     for i, thresh in enumerate(thresholds):
         # Count traits above threshold
         traits_retained[i] = total_traits * np.exp(-3 * thresh)
-    
+
     # Ensure integer counts and reasonable values
     traits_retained = np.round(traits_retained).astype(int)
     traits_retained = np.maximum(0, traits_retained)
     traits_retained = np.minimum(total_traits, traits_retained)
-    
+
     fraction_retained = traits_retained / total_traits
-    
+
     return {
         "thresholds": thresholds,
         "traits_retained": traits_retained,
@@ -2534,8 +2580,8 @@ def heritability_threshold_analysis():
         "trait_names_by_threshold": {
             0.3: ["trait_" + str(i) for i in range(35)],
             0.5: ["trait_" + str(i) for i in range(18)],
-            0.7: ["trait_" + str(i) for i in range(7)]
-        }
+            0.7: ["trait_" + str(i) for i in range(7)],
+        },
     }
 
 
@@ -2546,5 +2592,303 @@ def heritability_threshold_analysis_empty():
         "thresholds": np.array([]),
         "traits_retained": np.array([]),
         "fraction_retained": np.array([]),
-        "total_traits": 0
+        "total_traits": 0,
     }
+
+
+# ============================================================================
+# PCA VISUALIZATION FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def pca_viz_results():
+    """PCA results for visualization testing."""
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 20
+    n_components = 5
+
+    # Create fake PCA results
+    X_transformed = np.random.randn(n_samples, n_components)
+
+    # Create loadings matrix
+    loadings = np.random.randn(n_features, n_components)
+    # Normalize to make orthonormal
+    loadings, _ = np.linalg.qr(loadings)
+
+    # Create eigenvalues (decreasing)
+    eigenvalues = np.array([5.0, 3.0, 2.0, 1.0, 0.5])
+
+    # Calculate explained variance
+    total_var = np.sum(eigenvalues)
+    explained_variance = eigenvalues / total_var
+    cumulative_variance = np.cumsum(explained_variance)
+
+    # Feature names
+    feature_names = [f"trait_{i}" for i in range(n_features)]
+
+    return {
+        "transformed_data": X_transformed,
+        "loadings": loadings,
+        "eigenvalues": eigenvalues,
+        "explained_variance_ratio": explained_variance,
+        "cumulative_variance_ratio": cumulative_variance,
+        "n_components_selected": n_components,
+        "feature_names": feature_names,
+        "n_features": n_features,
+    }
+
+
+@pytest.fixture
+def pca_viz_dataframe():
+    """DataFrame with PCA-ready data and metadata."""
+    np.random.seed(42)
+    n_samples = 100
+
+    # Create trait data
+    trait_data = {}
+    for i in range(10):
+        trait_data[f"trait_{i}"] = np.random.randn(n_samples) * (i + 1)
+
+    # Add metadata
+    df = pd.DataFrame(trait_data)
+    df["Barcode"] = [f"Sample_{i:03d}" for i in range(n_samples)]
+    df["geno"] = np.random.choice(["A", "B", "C", "D", "E"], n_samples)
+    df["treatment"] = np.random.choice(["Control", "Treated"], n_samples)
+
+    return df
+
+
+@pytest.fixture
+def umap_viz_results():
+    """UMAP embedding results for visualization testing."""
+    np.random.seed(42)
+    n_samples = 100
+
+    # Create 2D UMAP embedding with some structure
+    # Three clusters
+    cluster_centers = np.array([[0, 0], [5, 5], [-5, 2]])
+    labels = np.random.choice(3, n_samples)
+
+    umap_embedding = np.zeros((n_samples, 2))
+    for i in range(n_samples):
+        center = cluster_centers[labels[i]]
+        umap_embedding[i] = center + np.random.randn(2) * 0.5
+
+    return umap_embedding
+
+
+@pytest.fixture
+def extreme_samples_data():
+    """Data with known extreme samples for testing."""
+    np.random.seed(42)
+    n_samples = 100
+    n_features = 5
+
+    # Create normal data
+    X = np.random.randn(n_samples, n_features)
+
+    # Add extreme samples
+    X[0, :] = 5  # Extreme high in all dimensions
+    X[1, :] = -5  # Extreme low in all dimensions
+    X[10, 0] = 4  # Extreme in first PC
+    X[20, 1] = -4  # Extreme in second PC
+
+    # Create PCA results
+    from sklearn.decomposition import PCA
+
+    pca = PCA(n_components=n_features)
+    X_transformed = pca.fit_transform(X)
+
+    df = pd.DataFrame(X, columns=[f"trait_{i}" for i in range(n_features)])
+    df["Barcode"] = [f"Sample_{i:03d}" for i in range(n_samples)]
+    df["geno"] = np.random.choice(["A", "B", "C"], n_samples)
+
+    pca_results = {
+        "transformed_data": X_transformed,
+        "loadings": pca.components_.T,
+        "eigenvalues": pca.explained_variance_,
+        "explained_variance_ratio": pca.explained_variance_ratio_,
+        "cumulative_variance_ratio": np.cumsum(pca.explained_variance_ratio_),
+        "n_components_selected": n_features,
+    }
+
+    return df, pca_results
+
+
+@pytest.fixture
+def genotype_pc_data():
+    """Data with genotype-specific PC patterns."""
+    np.random.seed(42)
+    n_samples_per_geno = 20
+    genotypes = ["Geno_A", "Geno_B", "Geno_C", "Geno_D", "Geno_E"]
+
+    data_list = []
+    geno_list = []
+
+    # Create genotype-specific patterns
+    for i, geno in enumerate(genotypes):
+        # Each genotype has a different mean in PC space
+        mean_shift = np.array([i - 2, 2 - i, 0, 0, 0])
+        data = np.random.randn(n_samples_per_geno, 5) + mean_shift
+        data_list.append(data)
+        geno_list.extend([geno] * n_samples_per_geno)
+
+    X = np.vstack(data_list)
+
+    # Create DataFrame
+    df = pd.DataFrame(X, columns=[f"trait_{i}" for i in range(5)])
+    df["geno"] = geno_list
+    df["Barcode"] = [f"Sample_{i:03d}" for i in range(len(df))]
+
+    # Create PCA results
+    from sklearn.decomposition import PCA
+
+    pca = PCA(n_components=5)
+    X_transformed = pca.fit_transform(X)
+
+    pca_results = {
+        "transformed_data": X_transformed,
+        "loadings": pca.components_.T,
+        "eigenvalues": pca.explained_variance_,
+        "explained_variance_ratio": pca.explained_variance_ratio_,
+        "cumulative_variance_ratio": np.cumsum(pca.explained_variance_ratio_),
+        "n_components_selected": 5,
+    }
+
+    return df, pca_results
+
+
+@pytest.fixture
+def pca_results_with_feature_importance():
+    """Create PCA results with feature importance for heatmap testing."""
+    np.random.seed(42)
+    n_features = 30
+    n_components = 10
+
+    # Create mock PCA results
+    loadings = np.random.randn(n_features, n_components) * 0.3
+
+    # Make some features have strong loadings on first few PCs
+    loadings[0:5, 0] = np.random.uniform(0.7, 0.9, 5)  # Strong on PC1
+    loadings[5:10, 1] = np.random.uniform(0.6, 0.8, 5)  # Strong on PC2
+    loadings[10:15, 2] = np.random.uniform(0.5, 0.7, 5)  # Strong on PC3
+
+    # Create feature importance DataFrame
+    feature_names = [f"trait_{i}" for i in range(n_features)]
+    feature_importance = pd.DataFrame(
+        loadings[:, :5],  # First 5 components
+        index=feature_names,
+        columns=[f"PC{i+1}" for i in range(5)],
+    )
+
+    # Add total contribution
+    feature_importance["total_contribution"] = np.abs(feature_importance).sum(axis=1)
+
+    pca_results = {
+        "loadings": loadings,
+        "feature_importance": feature_importance,
+        "n_components_selected": 5,
+        "feature_names": feature_names,
+        "explained_variance_ratio": np.array(
+            [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
+        ),
+        "cumulative_variance_ratio": np.cumsum(
+            [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
+        ),
+    }
+
+    return pca_results
+
+
+@pytest.fixture
+def phenotype_variation_data():
+    """Create data for testing phenotype variation plots."""
+    np.random.seed(42)
+
+    # Create groups with different means and variances
+    groups = []
+    for i, geno in enumerate(["G1", "G2", "G3", "G4", "G5"]):
+        n_samples = np.random.randint(5, 15)
+        mean = i * 2 - 4  # Means: -4, -2, 0, 2, 4
+        std = 0.5 + i * 0.2  # Increasing variance
+        values = np.random.normal(mean, std, n_samples)
+
+        for j, val in enumerate(values):
+            groups.append(
+                {
+                    "geno": geno,
+                    "rep": j + 1,
+                    "trait_A": val,
+                    "trait_B": val * 0.5 + np.random.normal(0, 0.2),
+                }
+            )
+
+    # Add extreme groups
+    for val in np.random.normal(10, 0.5, 8):  # Extremely high
+        groups.append(
+            {
+                "geno": "G_high",
+                "rep": len([g for g in groups if g["geno"] == "G_high"]) + 1,
+                "trait_A": val,
+                "trait_B": val * 0.3,
+            }
+        )
+
+    for val in np.random.normal(-10, 0.5, 8):  # Extremely low
+        groups.append(
+            {
+                "geno": "G_low",
+                "rep": len([g for g in groups if g["geno"] == "G_low"]) + 1,
+                "trait_A": val,
+                "trait_B": val * 0.3,
+            }
+        )
+
+    df = pd.DataFrame(groups)
+
+    # Add some NaN values
+    df.loc[df.index[::10], "trait_B"] = np.nan
+
+    return df
+
+
+@pytest.fixture
+def pca_export_data():
+    """Create data for testing PCA export functionality."""
+    np.random.seed(42)
+
+    # Create sample data with known structure
+    n_samples = 50
+    n_features = 10
+
+    # Generate correlated features with known variance structure
+    # First 3 features have high variance, next 3 medium, last 4 low
+    data = []
+    for i in range(n_samples):
+        sample = []
+        # High variance features
+        base1 = np.random.normal(0, 3)
+        sample.extend([base1 + np.random.normal(0, 0.5) for _ in range(3)])
+        # Medium variance features
+        base2 = np.random.normal(0, 1.5)
+        sample.extend([base2 + np.random.normal(0, 0.3) for _ in range(3)])
+        # Low variance features
+        base3 = np.random.normal(0, 0.5)
+        sample.extend([base3 + np.random.normal(0, 0.1) for _ in range(4)])
+        data.append(sample)
+
+    # Create DataFrame with metadata
+    trait_cols = [f"trait_{i}" for i in range(n_features)]
+    df = pd.DataFrame(data, columns=trait_cols)
+
+    # Add metadata columns
+    df["Barcode"] = [f"Sample_{i:03d}" for i in range(n_samples)]
+    df["geno"] = [f"G{i%5}" for i in range(n_samples)]  # 5 genotypes
+    df["rep"] = [(i // 5) % 3 + 1 for i in range(n_samples)]  # 3 replicates
+
+    # Reorder to put metadata first
+    df = df[["Barcode", "geno", "rep"] + trait_cols]
+
+    return df, trait_cols

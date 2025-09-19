@@ -623,6 +623,7 @@ def combine_outlier_methods(
 
     # Create agreement summary
     import math
+
     min_methods_required = math.ceil(n_methods * consensus_threshold)
     agreement_summary = {
         "methods_compared": list(method_outliers.keys()),

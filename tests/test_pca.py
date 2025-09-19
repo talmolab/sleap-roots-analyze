@@ -1562,6 +1562,379 @@ class TestPerFeatureVariance:
         assert abs(frac0 - 3.0 * expected_factor) < 0.01
 
 
+class TestRunPCAAndExportArtifacts:
+    """Tests for run_pca_and_export_artifacts function."""
+
+    def test_basic_export(self, pca_export_data, tmp_path):
+        """Test basic PCA export functionality."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=5,
+            save_csv=True,
+            save_prefix="test_",
+        )
+
+        # Check returned dictionary structure
+        assert "loadings_df" in result
+        assert "trait_contrib_df" in result
+        assert "variance_df" in result
+        assert "pc_scores_df" in result
+        assert "pca_results" in result
+        assert "feature_metrics_df" in result
+
+        # Verify DataFrames
+        assert isinstance(result["loadings_df"], pd.DataFrame)
+        assert isinstance(result["trait_contrib_df"], pd.DataFrame)
+        assert isinstance(result["variance_df"], pd.DataFrame)
+        assert isinstance(result["pc_scores_df"], pd.DataFrame)
+        assert isinstance(result["feature_metrics_df"], pd.DataFrame)
+
+        # Check loadings dimensions
+        assert result["loadings_df"].shape[0] == len(trait_cols)  # n_features rows
+        assert result["loadings_df"].shape[1] <= 5  # at most n_components columns
+
+        # Check trait contributions
+        trait_contrib = result["trait_contrib_df"]
+        assert "trait" in trait_contrib.columns
+        assert "trait_total_variance_contrib" in trait_contrib.columns
+        assert "trait_fractional_contrib" in trait_contrib.columns
+
+        # Verify fractional contributions sum to 1
+        total_frac = trait_contrib["trait_fractional_contrib"].sum()
+        assert np.allclose(
+            total_frac, 1.0
+        ), f"Fractional contributions sum to {total_frac}, not 1.0"
+
+        # Check PC scores include metadata
+        pc_scores = result["pc_scores_df"]
+        assert "Barcode" in pc_scores.columns
+        assert "geno" in pc_scores.columns
+        assert "rep" in pc_scores.columns
+        assert "PC1" in pc_scores.columns
+
+        # Verify CSV files were created
+        assert (tmp_path / "test_pca_loadings.csv").exists()
+        assert (tmp_path / "test_trait_variance_contrib.csv").exists()
+        assert (tmp_path / "test_pca_variance_explained.csv").exists()
+        assert (tmp_path / "test_pca_transformed_data.csv").exists()
+        assert (tmp_path / "test_feature_metrics.csv").exists()
+
+    def test_variance_threshold(self, pca_export_data, tmp_path):
+        """Test export with variance threshold instead of n_components."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            explained_variance_threshold=0.90,
+            save_csv=False,  # Don't save files for this test
+        )
+
+        # Check that cumulative variance meets threshold
+        pca_results = result["pca_results"]
+        n_selected = pca_results["n_components_selected"]
+        cumulative_variance = pca_results["cumulative_variance_ratio"][n_selected - 1]
+        assert cumulative_variance >= 0.90
+
+        # Verify loadings match selected components
+        assert result["loadings_df"].shape[1] == n_selected
+
+    def test_no_save_csv(self, pca_export_data, tmp_path):
+        """Test that CSV files are not created when save_csv=False."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=3,
+            save_csv=False,
+        )
+
+        # Check data is returned
+        assert "loadings_df" in result
+        assert "trait_contrib_df" in result
+
+        # Verify no CSV files were created
+        assert not (tmp_path / "pca_loadings.csv").exists()
+        assert not (tmp_path / "trait_variance_contrib.csv").exists()
+
+    def test_no_feature_metrics(self, pca_export_data, tmp_path):
+        """Test export without feature metrics."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=3,
+            save_csv=False,
+            include_feature_metrics=False,
+        )
+
+        # Feature metrics should not be in result
+        assert "feature_metrics_df" not in result
+
+        # Other results should still be present
+        assert "loadings_df" in result
+        assert "trait_contrib_df" in result
+
+    def test_trait_cols_none(self, pca_export_data, tmp_path):
+        """Test with trait_cols=None (should auto-detect numeric columns)."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, _ = pca_export_data
+
+        # Pass only trait columns (no metadata)
+        df_traits_only = df.select_dtypes(include=[np.number])
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df_traits_only,
+            trait_cols=None,  # Auto-detect
+            analysis_dir=tmp_path,
+            n_components=3,
+            save_csv=False,
+            metadata_cols=[],  # No metadata to add
+        )
+
+        # Should work without error
+        assert "loadings_df" in result
+        assert result["loadings_df"].shape[0] == df_traits_only.shape[1]
+
+    def test_custom_metadata_cols(self, pca_export_data, tmp_path):
+        """Test with custom metadata columns."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        # Add additional metadata column
+        df["batch"] = ["A" if i < 25 else "B" for i in range(len(df))]
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=3,
+            save_csv=False,
+            metadata_cols=("Barcode", "geno", "batch"),  # Custom metadata
+        )
+
+        # Check that custom metadata is included
+        pc_scores = result["pc_scores_df"]
+        assert "batch" in pc_scores.columns
+        assert "rep" not in pc_scores.columns  # Not in custom list
+
+    def test_variance_contributions_math(self, pca_export_data, tmp_path):
+        """Test mathematical correctness of variance contributions."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=5,
+            save_csv=False,
+        )
+
+        pca_results = result["pca_results"]
+        trait_contrib = result["trait_contrib_df"]
+
+        # Get components used
+        n_used = pca_results["n_components_selected"]
+        eigenvalues = pca_results["eigenvalues"][:n_used]
+        loadings = pca_results["loadings"][:, :n_used]
+
+        # Manually compute variance contributions
+        manual_contrib = (loadings**2) * eigenvalues
+        manual_total = manual_contrib.sum(axis=1)
+
+        # Compare with function output (match trait ordering)
+        pc_contrib_cols = [f"PC{i+1}_variance_contrib" for i in range(n_used)]
+
+        # Map traits to their indices in the original trait_cols
+        trait_to_idx = {trait: i for i, trait in enumerate(trait_cols)}
+        trait_order = [trait_to_idx[t] for t in trait_contrib["trait"]]
+
+        func_contrib = trait_contrib[pc_contrib_cols].values
+        func_total = trait_contrib["trait_total_variance_contrib"].values
+
+        # Reorder manual calculations to match function output
+        manual_contrib_sorted = manual_contrib[trait_order]
+        manual_total_sorted = manual_total[trait_order]
+
+        assert np.allclose(func_contrib, manual_contrib_sorted)
+        assert np.allclose(func_total, manual_total_sorted)
+
+        # Verify fractional contributions
+        total_variance = eigenvalues.sum()
+        manual_frac = manual_total_sorted / total_variance
+        func_frac = trait_contrib["trait_fractional_contrib"].values
+
+        assert np.allclose(func_frac, manual_frac)
+        assert np.allclose(func_frac.sum(), 1.0)
+
+    def test_standardization_option(self, pca_export_data, tmp_path):
+        """Test with and without standardization."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        # With standardization
+        result_std = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=3,
+            standardize=True,
+            save_csv=False,
+        )
+
+        # Without standardization
+        result_no_std = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=3,
+            standardize=False,
+            save_csv=False,
+        )
+
+        # Results should be different
+        loadings_std = result_std["loadings_df"].values
+        loadings_no_std = result_no_std["loadings_df"].values
+
+        assert not np.allclose(loadings_std, loadings_no_std)
+
+    def test_fractional_contrib_sum_without_standardize(
+        self, pca_export_data, tmp_path
+    ):
+        """Test that fractional contributions sum to 1 without standardization."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=4,
+            standardize=False,  # No standardization
+            save_csv=False,
+        )
+
+        contrib = result["trait_contrib_df"]["trait_fractional_contrib"].to_numpy()
+        assert np.isclose(
+            contrib.sum(), 1.0, atol=1e-9
+        ), f"Fractional contributions sum to {contrib.sum():.12f}, expected ~1.0"
+
+    def test_fractional_contrib_sum_with_threshold(self, pca_export_data, tmp_path):
+        """Test that fractional contributions sum to 1 with variance threshold."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        df, trait_cols = pca_export_data
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=trait_cols,
+            analysis_dir=tmp_path,
+            n_components=None,  # Use threshold
+            explained_variance_threshold=0.85,
+            standardize=True,
+            save_csv=False,
+        )
+
+        contrib = result["trait_contrib_df"]["trait_fractional_contrib"].to_numpy()
+        assert np.isclose(
+            contrib.sum(), 1.0, atol=1e-9
+        ), f"Fractional contributions sum to {contrib.sum():.12f}, expected ~1.0"
+
+    def test_metadata_handling_with_trait_cols_none(self, tmp_path):
+        """Test that auto-detection includes all numeric columns when trait_cols=None."""
+        from sleap_roots_analyze.pca import run_pca_and_export_artifacts
+
+        # Create data with numeric metadata that could be mistaken for traits
+        np.random.seed(42)
+        df = pd.DataFrame(
+            {
+                "trait_1": np.random.randn(50),
+                "trait_2": np.random.randn(50),
+                "trait_3": np.random.randn(50),
+                "Barcode": [f"S{i:04d}" for i in range(50)],
+                "geno": np.random.choice(["A", "B", "C"], 50),
+                "rep": np.random.randint(1, 4, 50),  # Numeric metadata
+                "batch": np.random.randint(1, 3, 50),  # Another numeric metadata
+            }
+        )
+
+        result = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=None,  # Auto-detect traits
+            analysis_dir=tmp_path,
+            n_components=2,
+            standardize=True,
+            save_csv=False,
+            metadata_cols=("Barcode", "geno", "rep", "batch"),
+        )
+
+        # When trait_cols=None, all numeric columns are treated as traits
+        # This is the current expected behavior
+        loadings_idx = set(result["loadings_df"].index)
+
+        # String columns should not be in loadings
+        assert (
+            "Barcode" not in loadings_idx
+        ), "String metadata 'Barcode' should not be in loadings"
+        assert (
+            "geno" not in loadings_idx
+        ), "String metadata 'geno' should not be in loadings"
+
+        # All numeric columns (including rep and batch) will be included
+        assert "trait_1" in loadings_idx
+        assert "trait_2" in loadings_idx
+        assert "trait_3" in loadings_idx
+        assert (
+            "rep" in loadings_idx
+        )  # Numeric metadata is included when trait_cols=None
+        assert (
+            "batch" in loadings_idx
+        )  # Numeric metadata is included when trait_cols=None
+        assert (
+            len(loadings_idx) == 5
+        ), f"Expected 5 numeric columns, got {len(loadings_idx)}"
+
+        # To exclude metadata, users should explicitly specify trait_cols
+        result2 = run_pca_and_export_artifacts(
+            df_traits=df,
+            trait_cols=["trait_1", "trait_2", "trait_3"],  # Explicit trait list
+            analysis_dir=tmp_path,
+            n_components=2,
+            standardize=True,
+            save_csv=False,
+            metadata_cols=("Barcode", "geno", "rep", "batch"),
+        )
+
+        # With explicit trait_cols, only specified traits are included
+        loadings_idx2 = set(result2["loadings_df"].index)
+        assert "rep" not in loadings_idx2
+        assert "batch" not in loadings_idx2
+        assert len(loadings_idx2) == 3
+
+
 class TestPCAMathematicalValidation:
     """Mathematical validation of PCA implementation correctness."""
 
@@ -1814,127 +2187,134 @@ class TestPCAMathematicalValidation:
 
 class TestVisualizationDataConsistency:
     """Tests for ensuring visualization data consistency with PCA results."""
-    
+
     def test_feature_variance_explained_values(self):
         """Test specific values matching the worked example in documentation."""
         import numpy as np
         import pandas as pd
         from sleap_roots_analyze.pca import perform_pca_analysis, calculate_pca_metrics
-        
+
         # Create synthetic data matching the documentation example
         # 3 features, structured to have specific eigenvalue distribution
         np.random.seed(42)
         n_samples = 100
-        
+
         # Create data with controlled variance structure
         # PC1: high variance (λ ≈ 5)
-        # PC2: medium variance (λ ≈ 2)  
+        # PC2: medium variance (λ ≈ 2)
         # PC3: low variance (λ ≈ 0.5)
         pc1 = np.random.randn(n_samples) * np.sqrt(5)
         pc2 = np.random.randn(n_samples) * np.sqrt(2)
         pc3 = np.random.randn(n_samples) * np.sqrt(0.5)
-        
+
         # Create features as linear combinations
         # Approximate the loading matrix from documentation
         feature1 = 0.7071 * pc1 + 0.6782 * pc2 + 0.2 * pc3
         feature2 = -0.7071 * pc1 + 0.6782 * pc2 + 0.2 * pc3
         feature3 = 0.0 * pc1 - 0.2828 * pc2 + 0.9592 * pc3
-        
-        df = pd.DataFrame({
-            'trait_1': feature1,
-            'trait_2': feature2,
-            'trait_3': feature3
-        })
-        
+
+        df = pd.DataFrame(
+            {"trait_1": feature1, "trait_2": feature2, "trait_3": feature3}
+        )
+
         # Perform PCA retaining only 2 components
         result = perform_pca_analysis(df, standardize=False, n_components=2)
-        
+
         # Check fraction explained for each feature
-        fractions = result.get('explained_variance_ratio_per_feature')
-        
+        fractions = result.get("explained_variance_ratio_per_feature")
+
         if fractions is not None:
             # Traits 1 & 2 should have high fraction explained (>0.9)
-            assert fractions[0] > 0.9, f"Trait 1 fraction {fractions[0]} should be > 0.9"
-            assert fractions[1] > 0.9, f"Trait 2 fraction {fractions[1]} should be > 0.9"
-            
+            assert (
+                fractions[0] > 0.9
+            ), f"Trait 1 fraction {fractions[0]} should be > 0.9"
+            assert (
+                fractions[1] > 0.9
+            ), f"Trait 2 fraction {fractions[1]} should be > 0.9"
+
             # Trait 3 should have low fraction explained (<0.5)
-            assert fractions[2] < 0.5, f"Trait 3 fraction {fractions[2]} should be < 0.5"
-    
+            assert (
+                fractions[2] < 0.5
+            ), f"Trait 3 fraction {fractions[2]} should be < 0.5"
+
     def test_visualization_data_consistency(self):
         """Ensure visualization uses correct data source for feature variance."""
         import numpy as np
         import pandas as pd
         from sleap_roots_analyze.pca import perform_pca_analysis
-        from sleap_roots_analyze.outlier_visualization import create_mahalanobis_outlier_plots
+        from sleap_roots_analyze.outlier_visualization import (
+            create_mahalanobis_outlier_plots,
+        )
         from sleap_roots_analyze.outlier_detection import detect_outliers_mahalanobis
-        
+
         # Create test data
         np.random.seed(42)
-        df = pd.DataFrame({
-            f'trait_{i}': np.random.randn(100) * (i + 1)
-            for i in range(10)
-        })
-        
+        df = pd.DataFrame(
+            {f"trait_{i}": np.random.randn(100) * (i + 1) for i in range(10)}
+        )
+
         # Test with explained_variance_ratio_per_feature present
         result = perform_pca_analysis(df, explained_variance_threshold=0.8)
         mahal_result = detect_outliers_mahalanobis(df)
-        
+
         # Create visualization
         figures = create_mahalanobis_outlier_plots(df, mahal_result)
-        
+
         # Verify that explained_variance_ratio_per_feature is used when available
-        assert 'explained_variance_ratio_per_feature' in mahal_result or 'explained_variance_ratio_per_feature' in result
-        
+        assert (
+            "explained_variance_ratio_per_feature" in mahal_result
+            or "explained_variance_ratio_per_feature" in result
+        )
+
         # Test fallback calculation when ratio not present
         # Create a minimal result without ratio
         minimal_result = {
-            'method': 'Mahalanobis',
-            'mahalanobis_distances': np.random.randn(100).tolist(),
-            'outlier_indices': [5, 10, 15],
-            'n_components': 3,
-            'threshold_value': 2.5,
-            'loadings': np.random.randn(10, 3).tolist(),
-            'eigenvalues': [5.0, 2.0, 1.0],
-            'feature_names': [f'trait_{i}' for i in range(10)]
+            "method": "Mahalanobis",
+            "mahalanobis_distances": np.random.randn(100).tolist(),
+            "outlier_indices": [5, 10, 15],
+            "n_components": 3,
+            "threshold_value": 2.5,
+            "loadings": np.random.randn(10, 3).tolist(),
+            "eigenvalues": [5.0, 2.0, 1.0],
+            "feature_names": [f"trait_{i}" for i in range(10)],
         }
-        
+
         # Should still create plots using fallback calculation
         figures_fallback = create_mahalanobis_outlier_plots(df, minimal_result)
-        
+
         # Check that at least main plots are created
-        assert 'mahalanobis_outlier_detection' in figures_fallback
-        
+        assert "mahalanobis_outlier_detection" in figures_fallback
+
         # PC analysis plot requires pca_components or other conditions
         # Just verify the function handles missing data gracefully
         assert isinstance(figures_fallback, dict)
-    
+
     def test_trace_preservation_in_visualization(self):
         """Verify trace preservation property in visualization data."""
         import numpy as np
         import pandas as pd
         from sleap_roots_analyze.pca import perform_pca_analysis, calculate_pca_metrics
-        
+
         np.random.seed(42)
-        df = pd.DataFrame({
-            f'trait_{i}': np.random.randn(100) * (i + 1)
-            for i in range(5)
-        })
-        
+        df = pd.DataFrame(
+            {f"trait_{i}": np.random.randn(100) * (i + 1) for i in range(5)}
+        )
+
         # Perform PCA with all components
         result = perform_pca_analysis(df, n_components=5)
-        
+
         # Get explained variance per feature
-        explained_per_feature = result.get('explained_variance_per_feature')
-        eigenvalues = result.get('eigenvalues')
-        
+        explained_per_feature = result.get("explained_variance_per_feature")
+        eigenvalues = result.get("eigenvalues")
+
         if explained_per_feature is not None and eigenvalues is not None:
             # Sum of explained variance per feature should equal sum of eigenvalues
             sum_explained = np.sum(explained_per_feature)
             sum_eigenvalues = np.sum(eigenvalues)
-            
+
             np.testing.assert_allclose(
-                sum_explained, 
+                sum_explained,
                 sum_eigenvalues,
                 rtol=1e-6,
-                err_msg="Trace not preserved: sum of per-feature variance != sum of eigenvalues"
+                err_msg="Trace not preserved: sum of per-feature variance != sum of eigenvalues",
             )

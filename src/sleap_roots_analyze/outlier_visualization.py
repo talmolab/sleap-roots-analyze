@@ -107,10 +107,17 @@ def create_outlier_overlap_heatmap(all_outlier_results: Dict) -> plt.Figure:
     # Handle case with no methods
     if n_methods == 0:
         fig, ax = plt.subplots(figsize=(10, 8))
-        ax.text(0.5, 0.5, 'No outlier detection methods found', 
-                ha='center', va='center', transform=ax.transAxes, fontsize=12)
+        ax.text(
+            0.5,
+            0.5,
+            "No outlier detection methods found",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=12,
+        )
         ax.set_title("Outlier Method Overlap", fontsize=14, fontweight="bold")
-        ax.axis('off')
+        ax.axis("off")
         return fig
 
     # Create overlap matrix
@@ -263,16 +270,27 @@ def create_mahalanobis_outlier_plots(
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
 
         distances = np.array(mahal_results["mahalanobis_distances"])
-        
+
         # Handle empty distances
         if len(distances) == 0:
             for ax in [ax1, ax2, ax3]:
-                ax.text(0.5, 0.5, 'No data available', ha='center', va='center', transform=ax.transAxes)
-                ax.set_title('No data')
-            fig.suptitle("Mahalanobis Distance Outlier Detection - No Data", fontsize=14, fontweight="bold")
+                ax.text(
+                    0.5,
+                    0.5,
+                    "No data available",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                )
+                ax.set_title("No data")
+            fig.suptitle(
+                "Mahalanobis Distance Outlier Detection - No Data",
+                fontsize=14,
+                fontweight="bold",
+            )
             figures["mahalanobis_outlier_detection"] = fig
             return figures
-            
+
         outlier_indices = set(mahal_results.get("outlier_indices", []))
         threshold_value = mahal_results.get("threshold_value", 0)
         n_components = mahal_results.get("n_components", 1)
@@ -422,7 +440,7 @@ def create_mahalanobis_outlier_plots(
                 label=threshold_label,
             ),
         ]
-        # Add enhanced legend with distribution info if chi-squared
+        # Add legend with distribution info if chi-squared
         if threshold_type == "chi_squared":
             # Add distribution lines to legend
             dist_elements = [
@@ -1041,14 +1059,21 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
     """
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle("Comprehensive Outlier Detection Comparison", fontsize=16)
-    
+
     # Handle empty results
     if not outlier_results:
         for ax in [ax1, ax2, ax3, ax4]:
-            ax.text(0.5, 0.5, 'No outlier detection results available', 
-                    ha='center', va='center', transform=ax.transAxes, fontsize=12)
-            ax.set_title('No data')
-            ax.axis('off')
+            ax.text(
+                0.5,
+                0.5,
+                "No outlier detection results available",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=12,
+            )
+            ax.set_title("No data")
+            ax.axis("off")
         return fig
 
     # Extract method names and counts
@@ -1071,7 +1096,7 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
     # Dynamically detect available methods
     methods = []
     method_outliers = {}
-    
+
     if "combined" in outlier_results:
         # Get methods from combined results
         combined = outlier_results["combined"]
@@ -1085,15 +1110,19 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
     else:
         # Get methods from individual results
         for method, results in outlier_results.items():
-            if isinstance(results, dict) and "outlier_indices" in results and method != "combined":
+            if (
+                isinstance(results, dict)
+                and "outlier_indices" in results
+                and method != "combined"
+            ):
                 methods.append(method)
                 method_outliers[method] = set(results["outlier_indices"])
-    
+
     # Sort methods for consistent ordering
     methods = sorted(methods)
-    
+
     if methods:
-        
+
         # Create overlap matrix
         overlap_data = []
         for i, method1 in enumerate(methods):
@@ -1131,7 +1160,7 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
                 else:
                     # Default: replace underscores and title case
                     display_names.append(m.replace("_", " ").title())
-            
+
             sns.heatmap(
                 overlap_data,
                 annot=True,
@@ -1143,13 +1172,25 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
             )
             ax2.set_title("Outlier Overlap Between Methods")
         else:
-            ax2.text(0.5, 0.5, "No overlap data available", 
-                    ha="center", va="center", transform=ax2.transAxes)
+            ax2.text(
+                0.5,
+                0.5,
+                "No overlap data available",
+                ha="center",
+                va="center",
+                transform=ax2.transAxes,
+            )
             ax2.set_title("Outlier Overlap Between Methods")
     else:
         # No methods found at all
-        ax2.text(0.5, 0.5, "No outlier methods found", 
-                ha="center", va="center", transform=ax2.transAxes)
+        ax2.text(
+            0.5,
+            0.5,
+            "No outlier methods found",
+            ha="center",
+            va="center",
+            transform=ax2.transAxes,
+        )
         ax2.set_title("Outlier Overlap Between Methods")
         ax2.set_xticks([])
         ax2.set_yticks([])

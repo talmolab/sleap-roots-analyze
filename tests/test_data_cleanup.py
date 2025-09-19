@@ -533,26 +533,28 @@ class TestGetNumericTraitsOnly:
         assert "trait1" in numeric_df.columns
         assert "trait2" in numeric_df.columns
         assert len(numeric_df.columns) == 2
-        
+
     def test_custom_column_names(self):
         """Test with custom metadata column names."""
-        df = pd.DataFrame({
-            "PlantID": ["P1", "P2", "P3"],
-            "genotype": ["TypeA", "TypeB", "TypeA"],
-            "replicate": [1, 2, 3],
-            "root_length": [10.5, 12.3, 11.8],
-            "lateral_count": [5, 7, 6],
-            "notes": ["good", "ok", "good"]
-        })
-        
+        df = pd.DataFrame(
+            {
+                "PlantID": ["P1", "P2", "P3"],
+                "genotype": ["TypeA", "TypeB", "TypeA"],
+                "replicate": [1, 2, 3],
+                "root_length": [10.5, 12.3, 11.8],
+                "lateral_count": [5, 7, 6],
+                "notes": ["good", "ok", "good"],
+            }
+        )
+
         numeric_df = get_numeric_traits_only(
             df,
             barcode_col="PlantID",
             genotype_col="genotype",
             replicate_col="replicate",
-            additional_exclude=["notes"]
+            additional_exclude=["notes"],
         )
-        
+
         assert "PlantID" not in numeric_df.columns
         assert "genotype" not in numeric_df.columns
         assert "replicate" not in numeric_df.columns
@@ -560,140 +562,148 @@ class TestGetNumericTraitsOnly:
         assert "root_length" in numeric_df.columns
         assert "lateral_count" in numeric_df.columns
         assert len(numeric_df.columns) == 2
-        
+
     def test_no_replicate_column(self):
         """Test when replicate column doesn't exist."""
-        df = pd.DataFrame({
-            "Barcode": ["BC001", "BC002"],
-            "geno": ["G1", "G2"],
-            "trait1": [1.5, 2.5],
-            "trait2": [3.5, 4.5]
-        })
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "trait1": [1.5, 2.5],
+                "trait2": [3.5, 4.5],
+            }
+        )
+
         # Should work even if rep column doesn't exist
         numeric_df = get_numeric_traits_only(df, replicate_col="rep")
-        
+
         assert "trait1" in numeric_df.columns
         assert "trait2" in numeric_df.columns
         assert len(numeric_df.columns) == 2
-        
+
     def test_additional_exclusions(self):
         """Test excluding additional columns."""
-        df = pd.DataFrame({
-            "Barcode": ["BC001", "BC002"],
-            "geno": ["G1", "G2"],
-            "rep": [1, 2],
-            "date_scanned": ["2024-01-01", "2024-01-02"],
-            "QC_status": ["pass", "pass"],
-            "trait1": [1.0, 2.0],
-            "trait2": [3.0, 4.0]
-        })
-        
-        numeric_df = get_numeric_traits_only(
-            df,
-            additional_exclude=["date_scanned", "QC_status"]
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 2],
+                "date_scanned": ["2024-01-01", "2024-01-02"],
+                "QC_status": ["pass", "pass"],
+                "trait1": [1.0, 2.0],
+                "trait2": [3.0, 4.0],
+            }
         )
-        
+
+        numeric_df = get_numeric_traits_only(
+            df, additional_exclude=["date_scanned", "QC_status"]
+        )
+
         assert "date_scanned" not in numeric_df.columns
         assert "QC_status" not in numeric_df.columns
         assert "trait1" in numeric_df.columns
         assert "trait2" in numeric_df.columns
         assert len(numeric_df.columns) == 2
-        
+
     def test_with_nan_values(self):
         """Test that NaN values are preserved in numeric columns."""
-        df = pd.DataFrame({
-            "Barcode": ["BC001", "BC002", "BC003"],
-            "geno": ["G1", "G2", "G1"],
-            "trait1": [1.0, np.nan, 3.0],
-            "trait2": [np.nan, 2.0, 3.0]
-        })
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002", "BC003"],
+                "geno": ["G1", "G2", "G1"],
+                "trait1": [1.0, np.nan, 3.0],
+                "trait2": [np.nan, 2.0, 3.0],
+            }
+        )
+
         numeric_df = get_numeric_traits_only(df)
-        
+
         assert len(numeric_df.columns) == 2
         assert pd.isna(numeric_df.iloc[0, 1])  # trait2 first row
         assert pd.isna(numeric_df.iloc[1, 0])  # trait1 second row
-        
+
     def test_with_mixed_types(self):
         """Test with mixed numeric types (int, float)."""
-        df = pd.DataFrame({
-            "Barcode": ["BC001", "BC002"],
-            "geno": ["G1", "G2"],
-            "int_trait": [1, 2],
-            "float_trait": [1.5, 2.5],
-            "bool_col": [True, False],
-            "str_trait": ["1.0", "2.0"]  # String that looks numeric
-        })
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "int_trait": [1, 2],
+                "float_trait": [1.5, 2.5],
+                "bool_col": [True, False],
+                "str_trait": ["1.0", "2.0"],  # String that looks numeric
+            }
+        )
+
         numeric_df = get_numeric_traits_only(df)
-        
+
         assert "int_trait" in numeric_df.columns
         assert "float_trait" in numeric_df.columns
         # Boolean columns might be included as they're numeric-like
         # String columns should be excluded
         assert "str_trait" not in numeric_df.columns
-        
+
     def test_empty_dataframe(self):
         """Test with empty DataFrame."""
         df = pd.DataFrame()
         numeric_df = get_numeric_traits_only(df)
-        
+
         assert numeric_df.empty
         assert len(numeric_df.columns) == 0
-        
+
     def test_no_numeric_columns(self):
         """Test when no numeric columns exist."""
-        df = pd.DataFrame({
-            "Barcode": ["BC001", "BC002"],
-            "geno": ["G1", "G2"],
-            "notes": ["good", "bad"],
-            "category": ["A", "B"]
-        })
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "notes": ["good", "bad"],
+                "category": ["A", "B"],
+            }
+        )
+
         numeric_df = get_numeric_traits_only(df)
-        
+
         assert numeric_df.empty
         assert len(numeric_df.columns) == 0
-        
+
     def test_preserves_copy(self):
         """Test that function returns a copy, not a view."""
-        df = pd.DataFrame({
-            "Barcode": ["BC001", "BC002"],
-            "geno": ["G1", "G2"],
-            "trait1": [1.0, 2.0]
-        })
-        
+        df = pd.DataFrame(
+            {"Barcode": ["BC001", "BC002"], "geno": ["G1", "G2"], "trait1": [1.0, 2.0]}
+        )
+
         numeric_df = get_numeric_traits_only(df)
-        
+
         # Modify the returned dataframe
         numeric_df.iloc[0, 0] = 999
-        
+
         # Original should be unchanged
         assert df["trait1"].iloc[0] == 1.0
         assert numeric_df.iloc[0, 0] == 999
-        
+
     def test_with_real_data(self, features_df):
         """Test with real features data."""
         # Get metadata columns to exclude
         metadata_cols = ["File.Name", "Region.of.Interest"]
-        
+
         numeric_df = get_numeric_traits_only(
             features_df,
             barcode_col="File.Name",  # Using File.Name as ID
             genotype_col="Region.of.Interest",  # Using as pseudo-genotype
             replicate_col=None,
-            additional_exclude=[]
+            additional_exclude=[],
         )
-        
+
         # Should only have numeric columns
-        assert all(pd.api.types.is_numeric_dtype(numeric_df[col]) 
-                  for col in numeric_df.columns)
-        
+        assert all(
+            pd.api.types.is_numeric_dtype(numeric_df[col]) for col in numeric_df.columns
+        )
+
         # Should not have metadata columns
         assert "File.Name" not in numeric_df.columns
         assert "Region.of.Interest" not in numeric_df.columns
-        
+
     def test_with_turface_data(self, turface_traits_df):
         """Test with Turface trait data."""
         numeric_df = get_numeric_traits_only(
@@ -701,18 +711,21 @@ class TestGetNumericTraitsOnly:
             barcode_col="Barcode",
             genotype_col="geno",
             replicate_col="rep",
-            additional_exclude=["wave_name"] if "wave_name" in turface_traits_df.columns else []
+            additional_exclude=(
+                ["wave_name"] if "wave_name" in turface_traits_df.columns else []
+            ),
         )
-        
+
         # Should exclude metadata
         assert "Barcode" not in numeric_df.columns
         assert "geno" not in numeric_df.columns
         assert "rep" not in numeric_df.columns
-        
+
         # Should only have numeric columns
-        assert all(pd.api.types.is_numeric_dtype(numeric_df[col]) 
-                  for col in numeric_df.columns)
-        
+        assert all(
+            pd.api.types.is_numeric_dtype(numeric_df[col]) for col in numeric_df.columns
+        )
+
     def test_integration_with_get_trait_columns(self, mixed_problem_data):
         """Test that get_numeric_traits_only uses get_trait_columns correctly."""
         # First get trait columns
@@ -720,23 +733,24 @@ class TestGetNumericTraitsOnly:
             mixed_problem_data,
             barcode_col="Barcode",
             genotype_col="geno",
-            replicate_col="rep"
+            replicate_col="rep",
         )
-        
+
         # Then get numeric traits only
         numeric_df = get_numeric_traits_only(
             mixed_problem_data,
             barcode_col="Barcode",
             genotype_col="geno",
-            replicate_col="rep"
+            replicate_col="rep",
         )
-        
+
         # All columns in numeric_df should be in trait_cols
         assert all(col in trait_cols for col in numeric_df.columns)
-        
+
         # All columns should be numeric
-        assert all(pd.api.types.is_numeric_dtype(numeric_df[col]) 
-                  for col in numeric_df.columns)
+        assert all(
+            pd.api.types.is_numeric_dtype(numeric_df[col]) for col in numeric_df.columns
+        )
 
 
 class TestRemoveLowHeritabilityTraits:
@@ -1147,262 +1161,282 @@ class TestModularCleanupFunctions:
 
 class TestInspectNanSamples:
     """Test the inspect_nan_samples function."""
-    
+
     def test_basic_nan_inspection(self):
         """Test basic NaN inspection functionality."""
         from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
-        
+
         # Create test data with some NaN values
-        df = pd.DataFrame({
-            'Barcode': ['BC001', 'BC002', 'BC003', 'BC004', 'BC005'],
-            'geno': ['G1', 'G2', 'G3', 'G1', 'G2'],
-            'rep': [1, 1, 1, 2, 2],
-            'trait1': [1.0, np.nan, 3.0, 4.0, 5.0],
-            'trait2': [6.0, 7.0, np.nan, 9.0, np.nan],
-            'trait3': [10.0, np.nan, 12.0, 13.0, 14.0]
-        })
-        trait_cols = ['trait1', 'trait2', 'trait3']
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002", "BC003", "BC004", "BC005"],
+                "geno": ["G1", "G2", "G3", "G1", "G2"],
+                "rep": [1, 1, 1, 2, 2],
+                "trait1": [1.0, np.nan, 3.0, 4.0, 5.0],
+                "trait2": [6.0, 7.0, np.nan, 9.0, np.nan],
+                "trait3": [10.0, np.nan, 12.0, 13.0, 14.0],
+            }
+        )
+        trait_cols = ["trait1", "trait2", "trait3"]
+
         # Inspect NaN samples
         inspection_df = inspect_nan_samples(df, trait_cols)
-        
+
         # Check results
         assert len(inspection_df) == 3  # BC002, BC003, BC005 have NaN
-        assert 'sample_index' in inspection_df.columns
-        assert 'barcode' in inspection_df.columns
-        assert 'genotype' in inspection_df.columns
-        assert 'rep' in inspection_df.columns
-        assert 'nan_count' in inspection_df.columns
-        assert 'nan_fraction' in inspection_df.columns
-        assert 'nan_traits' in inspection_df.columns
-        assert 'data_status' in inspection_df.columns
-        
+        assert "sample_index" in inspection_df.columns
+        assert "barcode" in inspection_df.columns
+        assert "genotype" in inspection_df.columns
+        assert "rep" in inspection_df.columns
+        assert "nan_count" in inspection_df.columns
+        assert "nan_fraction" in inspection_df.columns
+        assert "nan_traits" in inspection_df.columns
+        assert "data_status" in inspection_df.columns
+
         # Check specific sample details
-        bc002_row = inspection_df[inspection_df['barcode'] == 'BC002'].iloc[0]
-        assert bc002_row['nan_count'] == 2  # trait1 and trait3 have NaN
-        assert bc002_row['nan_fraction'] == 2/3
-        assert 'trait1' in bc002_row['nan_traits']
-        assert 'trait3' in bc002_row['nan_traits']
-        assert bc002_row['data_status'] == 'original_data_with_nan'
-    
+        bc002_row = inspection_df[inspection_df["barcode"] == "BC002"].iloc[0]
+        assert bc002_row["nan_count"] == 2  # trait1 and trait3 have NaN
+        assert bc002_row["nan_fraction"] == 2 / 3
+        assert "trait1" in bc002_row["nan_traits"]
+        assert "trait3" in bc002_row["nan_traits"]
+        assert bc002_row["data_status"] == "original_data_with_nan"
+
     def test_no_nan_values(self):
         """Test when no NaN values are present."""
         from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
-        
+
         # Create test data without NaN
-        df = pd.DataFrame({
-            'Barcode': ['BC001', 'BC002'],
-            'geno': ['G1', 'G2'],
-            'rep': [1, 1],
-            'trait1': [1.0, 2.0],
-            'trait2': [3.0, 4.0]
-        })
-        trait_cols = ['trait1', 'trait2']
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 1],
+                "trait1": [1.0, 2.0],
+                "trait2": [3.0, 4.0],
+            }
+        )
+        trait_cols = ["trait1", "trait2"]
+
         # Inspect NaN samples
         inspection_df = inspect_nan_samples(df, trait_cols)
-        
+
         # Should return empty DataFrame with correct structure
         assert len(inspection_df) == 0
-        assert 'sample_index' in inspection_df.columns
-        assert 'nan_count' in inspection_df.columns
-        assert 'nan_fraction' in inspection_df.columns
-    
+        assert "sample_index" in inspection_df.columns
+        assert "nan_count" in inspection_df.columns
+        assert "nan_fraction" in inspection_df.columns
+
     def test_custom_column_names(self):
         """Test with custom column names."""
         from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
-        
+
         # Create test data with custom column names
-        df = pd.DataFrame({
-            'SampleID': ['S1', 'S2', 'S3'],
-            'Genotype': ['G1', 'G2', 'G3'],
-            'Replicate': [1, 2, 3],
-            'trait1': [1.0, np.nan, 3.0],
-            'trait2': [4.0, 5.0, np.nan]
-        })
-        trait_cols = ['trait1', 'trait2']
-        
+        df = pd.DataFrame(
+            {
+                "SampleID": ["S1", "S2", "S3"],
+                "Genotype": ["G1", "G2", "G3"],
+                "Replicate": [1, 2, 3],
+                "trait1": [1.0, np.nan, 3.0],
+                "trait2": [4.0, 5.0, np.nan],
+            }
+        )
+        trait_cols = ["trait1", "trait2"]
+
         # Inspect with custom column names
         inspection_df = inspect_nan_samples(
-            df, trait_cols,
-            barcode_col='SampleID',
-            genotype_col='Genotype',
-            replicate_col='Replicate'
+            df,
+            trait_cols,
+            barcode_col="SampleID",
+            genotype_col="Genotype",
+            replicate_col="Replicate",
         )
-        
+
         # Check results
         assert len(inspection_df) == 2  # S2 and S3 have NaN
-        assert 'barcode' in inspection_df.columns
-        assert inspection_df.iloc[0]['barcode'] == 'S2'
-        assert inspection_df.iloc[0]['genotype'] == 'G2'
-        assert inspection_df.iloc[0]['rep'] == 2
-    
+        assert "barcode" in inspection_df.columns
+        assert inspection_df.iloc[0]["barcode"] == "S2"
+        assert inspection_df.iloc[0]["genotype"] == "G2"
+        assert inspection_df.iloc[0]["rep"] == 2
+
     def test_missing_metadata_columns(self):
         """Test when metadata columns don't exist."""
         from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
-        
+
         # Create test data without metadata columns
-        df = pd.DataFrame({
-            'trait1': [1.0, np.nan, 3.0],
-            'trait2': [4.0, 5.0, np.nan]
-        })
-        trait_cols = ['trait1', 'trait2']
-        
+        df = pd.DataFrame({"trait1": [1.0, np.nan, 3.0], "trait2": [4.0, 5.0, np.nan]})
+        trait_cols = ["trait1", "trait2"]
+
         # Inspect without metadata columns
         inspection_df = inspect_nan_samples(df, trait_cols)
-        
+
         # Should still work but without metadata
         assert len(inspection_df) == 2
-        assert 'sample_index' in inspection_df.columns
-        assert 'nan_count' in inspection_df.columns
+        assert "sample_index" in inspection_df.columns
+        assert "nan_count" in inspection_df.columns
         # Metadata columns won't be present
-        assert 'barcode' not in inspection_df.columns or inspection_df['barcode'].isna().all()
-    
+        assert (
+            "barcode" not in inspection_df.columns
+            or inspection_df["barcode"].isna().all()
+        )
+
     def test_save_to_csv(self, tmp_path):
         """Test saving inspection results to CSV."""
         from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
-        
+
         # Create test data
-        df = pd.DataFrame({
-            'Barcode': ['BC001', 'BC002'],
-            'geno': ['G1', 'G2'],
-            'rep': [1, 2],
-            'trait1': [1.0, np.nan],
-            'trait2': [np.nan, 5.0]
-        })
-        trait_cols = ['trait1', 'trait2']
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 2],
+                "trait1": [1.0, np.nan],
+                "trait2": [np.nan, 5.0],
+            }
+        )
+        trait_cols = ["trait1", "trait2"]
+
         # Save path
         save_path = tmp_path / "nan_inspection.csv"
-        
+
         # Inspect and save
         inspection_df = inspect_nan_samples(df, trait_cols, save_path=str(save_path))
-        
+
         # Check file was created
         assert save_path.exists()
-        
+
         # Load and verify
         loaded_df = pd.read_csv(save_path)
         pd.testing.assert_frame_equal(inspection_df, loaded_df)
-    
+
     def test_with_turface_data(self, turface_traits_df):
         """Test with real Turface data fixture."""
         from src.sleap_roots_analyze.data_cleanup import (
             inspect_nan_samples,
-            get_trait_columns
+            get_trait_columns,
         )
-        
+
         trait_cols = get_trait_columns(turface_traits_df)
-        
+
         # Inspect NaN samples
         inspection_df = inspect_nan_samples(turface_traits_df, trait_cols)
-        
+
         # Check structure
         if len(inspection_df) > 0:
-            assert 'sample_index' in inspection_df.columns
-            assert 'barcode' in inspection_df.columns
-            assert 'genotype' in inspection_df.columns
-            assert 'rep' in inspection_df.columns
-            assert 'nan_count' in inspection_df.columns
-            assert 'nan_fraction' in inspection_df.columns
-            assert 'nan_traits' in inspection_df.columns
-            assert 'data_status' in inspection_df.columns
-            
+            assert "sample_index" in inspection_df.columns
+            assert "barcode" in inspection_df.columns
+            assert "genotype" in inspection_df.columns
+            assert "rep" in inspection_df.columns
+            assert "nan_count" in inspection_df.columns
+            assert "nan_fraction" in inspection_df.columns
+            assert "nan_traits" in inspection_df.columns
+            assert "data_status" in inspection_df.columns
+
             # All data_status should be 'original_data_with_nan'
-            assert all(inspection_df['data_status'] == 'original_data_with_nan')
-            
+            assert all(inspection_df["data_status"] == "original_data_with_nan")
+
             # nan_fraction should be between 0 and 1
-            assert all((inspection_df['nan_fraction'] >= 0) & (inspection_df['nan_fraction'] <= 1))
-    
+            assert all(
+                (inspection_df["nan_fraction"] >= 0)
+                & (inspection_df["nan_fraction"] <= 1)
+            )
+
     def test_with_traits_summary_data(self, traits_summary_df):
         """Test with real traits summary data."""
         from src.sleap_roots_analyze.data_cleanup import (
             inspect_nan_samples,
-            get_trait_columns
+            get_trait_columns,
         )
-        
+
         trait_cols = get_trait_columns(traits_summary_df)
-        
+
         # Inspect NaN samples
         inspection_df = inspect_nan_samples(
-            traits_summary_df, 
+            traits_summary_df,
             trait_cols,
-            barcode_col='Barcode' if 'Barcode' in traits_summary_df.columns else 'plant_id',
-            genotype_col='geno' if 'geno' in traits_summary_df.columns else 'genotype',
-            replicate_col='rep' if 'rep' in traits_summary_df.columns else 'replicate'
+            barcode_col=(
+                "Barcode" if "Barcode" in traits_summary_df.columns else "plant_id"
+            ),
+            genotype_col="geno" if "geno" in traits_summary_df.columns else "genotype",
+            replicate_col="rep" if "rep" in traits_summary_df.columns else "replicate",
         )
-        
+
         # Check structure
         if len(inspection_df) > 0:
-            assert 'sample_index' in inspection_df.columns
-            assert 'nan_count' in inspection_df.columns
-            assert 'nan_fraction' in inspection_df.columns
-            assert 'nan_traits' in inspection_df.columns
-            assert 'data_status' in inspection_df.columns
-    
+            assert "sample_index" in inspection_df.columns
+            assert "nan_count" in inspection_df.columns
+            assert "nan_fraction" in inspection_df.columns
+            assert "nan_traits" in inspection_df.columns
+            assert "data_status" in inspection_df.columns
+
     def test_fraction_calculation(self):
         """Test that NaN fraction is calculated correctly."""
         from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
-        
+
         # Create test data with specific NaN patterns
-        df = pd.DataFrame({
-            'Barcode': ['BC001', 'BC002', 'BC003'],
-            'geno': ['G1', 'G2', 'G3'],
-            'rep': [1, 1, 1],
-            'trait1': [np.nan, np.nan, 1.0],
-            'trait2': [np.nan, 2.0, 3.0],
-            'trait3': [np.nan, 4.0, 5.0],
-            'trait4': [np.nan, 6.0, 7.0]
-        })
-        trait_cols = ['trait1', 'trait2', 'trait3', 'trait4']
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002", "BC003"],
+                "geno": ["G1", "G2", "G3"],
+                "rep": [1, 1, 1],
+                "trait1": [np.nan, np.nan, 1.0],
+                "trait2": [np.nan, 2.0, 3.0],
+                "trait3": [np.nan, 4.0, 5.0],
+                "trait4": [np.nan, 6.0, 7.0],
+            }
+        )
+        trait_cols = ["trait1", "trait2", "trait3", "trait4"]
+
         inspection_df = inspect_nan_samples(df, trait_cols)
-        
+
         # BC001 should have all 4 traits as NaN (fraction = 1.0)
-        bc001_row = inspection_df[inspection_df['barcode'] == 'BC001'].iloc[0]
-        assert bc001_row['nan_count'] == 4
-        assert bc001_row['nan_fraction'] == 1.0
-        
+        bc001_row = inspection_df[inspection_df["barcode"] == "BC001"].iloc[0]
+        assert bc001_row["nan_count"] == 4
+        assert bc001_row["nan_fraction"] == 1.0
+
         # BC002 should have 1 trait as NaN (fraction = 0.25)
-        bc002_row = inspection_df[inspection_df['barcode'] == 'BC002'].iloc[0]
-        assert bc002_row['nan_count'] == 1
-        assert bc002_row['nan_fraction'] == 0.25
-    
+        bc002_row = inspection_df[inspection_df["barcode"] == "BC002"].iloc[0]
+        assert bc002_row["nan_count"] == 1
+        assert bc002_row["nan_fraction"] == 0.25
+
     def test_verbose_false(self, caplog):
         """Test with verbose=False to ensure quiet operation."""
         from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
         import logging
-        
+
         # Create test data with NaN
-        df = pd.DataFrame({
-            'Barcode': ['BC001', 'BC002'],
-            'geno': ['G1', 'G2'],
-            'rep': [1, 2],
-            'trait1': [1.0, np.nan],
-            'trait2': [np.nan, 2.0]
-        })
-        trait_cols = ['trait1', 'trait2']
-        
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 2],
+                "trait1": [1.0, np.nan],
+                "trait2": [np.nan, 2.0],
+            }
+        )
+        trait_cols = ["trait1", "trait2"]
+
         # Clear any previous logs
         caplog.clear()
-        
+
         # Test with verbose=False (should not log)
         with caplog.at_level(logging.INFO):
             inspection_df = inspect_nan_samples(df, trait_cols, verbose=False)
-        
+
         # Check that we got results but no logs from the function
         assert len(inspection_df) == 2
         assert "Initial NaN inspection" not in caplog.text
-        
+
         # Also test the no-NaN case with verbose=False
-        df_no_nan = pd.DataFrame({
-            'Barcode': ['BC001'],
-            'geno': ['G1'],
-            'rep': [1],
-            'trait1': [1.0],
-            'trait2': [2.0]
-        })
-        
+        df_no_nan = pd.DataFrame(
+            {
+                "Barcode": ["BC001"],
+                "geno": ["G1"],
+                "rep": [1],
+                "trait1": [1.0],
+                "trait2": [2.0],
+            }
+        )
+
         caplog.clear()
         inspection_df_no_nan = inspect_nan_samples(df_no_nan, trait_cols, verbose=False)
         assert len(inspection_df_no_nan) == 0

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -251,6 +252,200 @@ def build_feature_metrics_df(
         df = df.sort_values(sort_by, ascending=False).reset_index(drop=True)
 
     return df
+
+
+def run_pca_and_export_artifacts(
+    df_traits: pd.DataFrame,
+    trait_cols: Optional[list] = None,
+    *,
+    analysis_dir: Union[str, Path],
+    n_components: Optional[int] = None,
+    explained_variance_threshold: float = 0.95,
+    standardize: bool = True,
+    metadata_cols: tuple = ("Barcode", "geno", "rep"),
+    save_csv: bool = True,
+    save_prefix: str = "",
+    include_feature_metrics: bool = True,
+) -> Dict[str, Union[pd.DataFrame, Dict]]:
+    """Run PCA analysis and export comprehensive artifacts.
+
+    Performs PCA via perform_pca_analysis and produces consistent artifacts:
+    - Loadings matrix ({prefix}pca_loadings.csv)
+    - Per-trait variance contributions ({prefix}trait_variance_contrib.csv)
+    - Per-PC explained variance ratios ({prefix}pca_variance_explained.csv)
+    - PC scores with metadata ({prefix}pca_transformed_data.csv)
+    - Optional tidy feature metrics ({prefix}feature_metrics.csv)
+
+    Args:
+        df_traits: DataFrame containing traits and optionally metadata columns.
+        trait_cols: List of trait column names. If None, uses all numeric columns.
+        analysis_dir: Directory to save CSV files.
+        n_components: Number of components to compute. If None, determined by
+            variance threshold.
+        explained_variance_threshold: Cumulative variance threshold for component
+            selection.
+        standardize: Whether to standardize features before PCA.
+        metadata_cols: Metadata columns to include in PC scores output.
+        save_csv: Whether to save CSV files to disk.
+        save_prefix: Prefix for saved CSV filenames.
+        include_feature_metrics: Whether to compute and return feature metrics
+            DataFrame via build_feature_metrics_df.
+
+    Returns:
+        Dictionary containing:
+            - "pca_results": Dict with PCA results from perform_pca_analysis
+            - "scores_df": DataFrame with PC scores and metadata
+            - "trait_contrib_df": DataFrame with trait variance contributions
+            - "variance_df": DataFrame with variance explained per PC
+
+    Raises:
+        ValueError: If analysis_dir doesn't exist or if PCA fails.
+
+    Example:
+        >>> results = run_pca_and_export_artifacts(
+        ...     df_traits=df,
+        ...     trait_cols=["trait1", "trait2", "trait3"],
+        ...     analysis_dir="./pca_output",
+        ...     n_components=5,
+        ...     save_csv=True
+        ... )
+        >>> pca_results = results["pca_results"]
+        >>> scores_df = results["scores_df"]
+    """
+    analysis_dir = Path(analysis_dir)
+    if save_csv:
+        analysis_dir.mkdir(parents=True, exist_ok=True)
+
+    # Select trait matrix
+    if trait_cols is not None:
+        X_df = df_traits[trait_cols]
+    else:
+        # Use all numeric columns if trait_cols not specified
+        X_df = df_traits.select_dtypes(include=[np.number])
+
+    # Main PCA call
+    pca_results = perform_pca_analysis(
+        data=X_df,
+        standardize=standardize,
+        n_components=n_components,
+        explained_variance_threshold=explained_variance_threshold,
+    )
+
+    # Pull essentials
+    n_used = int(pca_results["n_components_selected"])
+    loadings = pca_results["loadings"][:, :n_used]  # (n_features, n_used)
+    eigenvalues = pca_results["eigenvalues"][:n_used]  # (n_used,)
+    evr = pca_results["explained_variance_ratio"][:n_used]
+    cvr = pca_results["cumulative_variance_ratio"][:n_used]
+    features = pca_results["feature_names"]
+
+    # (1) Loadings matrix (unit vectors)
+    loadings_df = pd.DataFrame(
+        loadings,
+        columns=[f"PC{i+1}" for i in range(n_used)],
+        index=features,
+    )
+
+    # (2) Per-trait contributions (variance units): λ_k * v_{jk}^2
+    trait_pc_variance_contrib = (loadings**2) * eigenvalues  # (features x PCs)
+    trait_total = trait_pc_variance_contrib.sum(axis=1)  # per-feature total
+    total_variance_selected = float(eigenvalues.sum())  # scalar
+
+    # Unitless fraction of explained variance attributable to each trait (sums to 1)
+    trait_fractional_contrib = (
+        trait_total / total_variance_selected if total_variance_selected > 0 else 0.0
+    )
+
+    trait_contrib_df = (
+        pd.DataFrame(
+            trait_pc_variance_contrib,
+            columns=[f"PC{i+1}_variance_contrib" for i in range(n_used)],
+            index=features,
+        )
+        .assign(
+            trait=lambda d: d.index,
+            trait_total_variance_contrib=trait_total,
+            trait_fractional_contrib=trait_fractional_contrib,
+        )
+        .sort_values("trait_total_variance_contrib", ascending=False)
+    )
+
+    # Reorder columns
+    cols_order = (
+        ["trait"]
+        + [f"PC{i+1}_variance_contrib" for i in range(n_used)]
+        + ["trait_total_variance_contrib", "trait_fractional_contrib"]
+    )
+    trait_contrib_df = trait_contrib_df[cols_order]
+
+    # Keep handy in pca_results for downstream code
+    pca_results["trait_ev_df"] = trait_contrib_df
+    pca_results["feature_importance_consistent"] = trait_contrib_df
+
+    # (3) Per-PC variance explained (ratios → %)
+    variance_df = pd.DataFrame(
+        {
+            "PC": [f"PC{i+1}" for i in range(len(evr))],
+            "Explained Variance (%)": evr * 100.0,
+            "Cumulative Variance (%)": cvr * 100.0,
+        }
+    )
+
+    # (4) PC scores + metadata
+    scores = pca_results["transformed_data"][:, :n_used]
+    pc_cols = [f"PC{i+1}" for i in range(n_used)]
+    scores_df = pd.DataFrame(scores, columns=pc_cols)
+
+    # Add metadata if present
+    idx_map = pca_results.get("data_indices", None)
+    meta_df = df_traits if idx_map is None else df_traits.iloc[idx_map]
+
+    for col in metadata_cols:
+        if col in meta_df.columns:
+            scores_df[col] = meta_df[col].values
+
+    # Put metadata first
+    ordered = [c for c in metadata_cols if c in scores_df.columns] + pc_cols
+    pc_scores_df = scores_df[ordered]
+
+    # (5) Optional tidy feature metrics
+    feature_metrics_df = None
+    if include_feature_metrics:
+        feature_metrics_df = build_feature_metrics_df(
+            pca_results,
+            include_loadings=True,
+            sort_by="fraction_explained",
+        )
+
+    # Save CSVs with configurable prefix
+    if save_csv:
+        loadings_df.to_csv(analysis_dir / f"{save_prefix}pca_loadings.csv")
+        trait_contrib_df.to_csv(
+            analysis_dir / f"{save_prefix}trait_variance_contrib.csv", index=False
+        )
+        variance_df.to_csv(
+            analysis_dir / f"{save_prefix}pca_variance_explained.csv", index=False
+        )
+        pc_scores_df.to_csv(
+            analysis_dir / f"{save_prefix}pca_transformed_data.csv", index=False
+        )
+        if feature_metrics_df is not None:
+            feature_metrics_df.to_csv(
+                analysis_dir / f"{save_prefix}feature_metrics.csv", index=False
+            )
+
+    # Return everything useful for notebooks
+    out: Dict[str, Union[pd.DataFrame, Dict]] = {
+        "loadings_df": loadings_df,
+        "trait_contrib_df": trait_contrib_df,
+        "variance_df": variance_df,
+        "pc_scores_df": pc_scores_df,
+        "pca_results": pca_results,
+    }
+    if feature_metrics_df is not None:
+        out["feature_metrics_df"] = feature_metrics_df
+
+    return out
 
 
 def perform_pca_with_variance_threshold(

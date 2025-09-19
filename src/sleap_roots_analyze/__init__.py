@@ -18,6 +18,11 @@ from sleap_roots_analyze.pca import (
     calculate_mahalanobis_distances,
     calculate_pca_metrics,
     build_feature_metrics_df,
+    run_pca_and_export_artifacts,
+)
+
+from sleap_roots_analyze.umap import (
+    perform_umap_analysis,
 )
 
 from sleap_roots_analyze.outlier_detection import (
@@ -39,6 +44,17 @@ from sleap_roots_analyze.visualization import (
     create_trait_eda_plots,
     create_heritability_plot,
     create_heritability_threshold_plot,
+    identify_extreme_samples_in_pc_space,
+    create_pca_scree_plot,
+    create_feature_contribution_plot,
+    create_pca_biplot,
+    create_umap_colored_by_top_traits,
+    identify_extreme_genotypes_by_pc,
+    create_pc_genotype_boxplots,
+    create_feature_contribution_heatmap,
+    create_publication_figure,
+    identify_extreme_phenotypes,
+    create_phenotype_variation_plot,
 )
 
 from sleap_roots_analyze.outlier_visualization import (
@@ -64,6 +80,9 @@ __all__ = [
     "calculate_mahalanobis_distances",
     "calculate_pca_metrics",
     "build_feature_metrics_df",
+    "run_pca_and_export_artifacts",
+    # UMAP functions
+    "perform_umap_analysis",
     # Outlier detection functions
     "detect_outliers_mahalanobis",
     "detect_outliers_pca",
@@ -81,6 +100,17 @@ __all__ = [
     "create_trait_eda_plots",
     "create_heritability_plot",
     "create_heritability_threshold_plot",
+    "identify_extreme_samples_in_pc_space",
+    "create_pca_scree_plot",
+    "create_feature_contribution_plot",
+    "create_pca_biplot",
+    "create_umap_colored_by_top_traits",
+    "identify_extreme_genotypes_by_pc",
+    "create_pc_genotype_boxplots",
+    "create_feature_contribution_heatmap",
+    "create_publication_figure",
+    "identify_extreme_phenotypes",
+    "create_phenotype_variation_plot",
     # Outlier visualization functions
     "create_isolation_forest_plots",
     "create_outlier_overlap_heatmap",
