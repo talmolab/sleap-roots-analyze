@@ -1975,37 +1975,65 @@ class TestFeatureContributionHeatmap:
             create_feature_contribution_heatmap,
         )
 
-        fig = create_feature_contribution_heatmap(
+        # Test default behavior (returns both plots)
+        result = create_feature_contribution_heatmap(
             pca_results_with_feature_importance, n_components=5, n_features=10
         )
 
-        assert isinstance(fig, plt.Figure)
-        assert len(fig.axes) == 2  # Main plot + colorbar
+        # Should return tuple of (variance_fig, loadings_fig)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
 
-        ax = fig.axes[0]
-        assert "Feature Contributions" in ax.get_title()
-        assert ax.get_xlabel() == "Principal Component"
-        assert ax.get_ylabel() == "Feature"
+        variance_fig, loadings_fig = result
+        assert isinstance(variance_fig, plt.Figure)
+        assert isinstance(loadings_fig, plt.Figure)
+
+        # Check variance figure
+        ax = variance_fig.axes[0]
+        assert "Variance Contributions" in ax.get_title()
+
+        # Check loadings figure
+        ax = loadings_fig.axes[0]
+        assert "Loadings" in ax.get_title() or "Correlations" in ax.get_title()
+
+        # Test single variance plot
+        fig_var = create_feature_contribution_heatmap(
+            pca_results_with_feature_importance,
+            n_components=5,
+            n_features=10,
+            plot_type="variance",
+        )
+        assert isinstance(fig_var, plt.Figure)
+
+        # Test single loadings plot
+        fig_load = create_feature_contribution_heatmap(
+            pca_results_with_feature_importance,
+            n_components=5,
+            n_features=10,
+            plot_type="loadings",
+        )
+        assert isinstance(fig_load, plt.Figure)
 
         plt.close("all")
 
     def test_heatmap_with_fewer_components(self, pca_results_with_feature_importance):
-        """Test heatmap when requesting fewer components than available."""
+        """Test heatmap with fewer components than available."""
         from sleap_roots_analyze.visualization import (
             create_feature_contribution_heatmap,
         )
 
+        # Request only variance plot with 3 components
         fig = create_feature_contribution_heatmap(
             pca_results_with_feature_importance,
-            n_components=3,  # Less than available
-            n_features=5,
+            n_components=3,
+            n_features=15,
+            plot_type="variance",
         )
 
         assert isinstance(fig, plt.Figure)
         ax = fig.axes[0]
-
-        # Should show only 3 components
-        assert "First 3 PCs" in ax.get_title()
+        assert "Variance Contributions" in ax.get_title()
+        assert ax.get_xlabel() == "Principal Component"
 
         plt.close("all")
 
@@ -2015,14 +2043,20 @@ class TestFeatureContributionHeatmap:
             create_feature_contribution_heatmap,
         )
 
+        custom_figsize = (12, 6)
+
+        # Test loadings plot with custom size
         fig = create_feature_contribution_heatmap(
-            pca_results_with_feature_importance, figsize=(15, 10)
+            pca_results_with_feature_importance,
+            n_components=5,
+            n_features=10,
+            figsize=custom_figsize,
+            plot_type="loadings",
         )
 
         assert isinstance(fig, plt.Figure)
-        width, height = fig.get_size_inches()
-        assert width == 15
-        assert height == 10
+        assert fig.get_size_inches()[0] == custom_figsize[0]
+        assert fig.get_size_inches()[1] == custom_figsize[1]
 
         plt.close("all")
 

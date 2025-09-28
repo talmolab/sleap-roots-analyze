@@ -22,6 +22,9 @@ import seaborn as sns
 from datetime import datetime
 import logging
 
+# Import PCA functions
+from sleap_roots_analyze.pca import select_top_features_from_pca
+
 try:
     import plotly.graph_objects as go
 except ImportError:
@@ -1024,6 +1027,7 @@ def create_feature_contribution_plot(
     n_components: Optional[int] = None,
     variance_threshold: float = 0.95,
     top_n: int = 20,
+    feature_selection: str = "top_variance",  # New parameter
     figsize: Tuple[float, float] = (12, 8),
 ) -> plt.Figure:
     """Create a plot showing feature contributions across selected PCs.
@@ -1038,19 +1042,21 @@ def create_feature_contribution_plot(
         n_components: Number of PCs to consider. If None, use variance threshold.
         variance_threshold: Cumulative variance threshold for PC selection.
         top_n: Number of top contributing features to show.
+        feature_selection: Method for selecting features:
+            - "top_variance": Top N by total variance contribution (default)
+            - "extreme": Top N most positive and negative for displayed PCs
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by contribution to displayed PCs
         figsize: Figure size.
 
     Returns:
         Feature contribution plot.
     """
     # Check if pre-calculated contributions are available
-    if (
-        "trait_contrib_df" in pca_results
-        or "feature_importance_consistent" in pca_results
-    ):
+    if "feature_contributions" in pca_results or "trait_contrib_df" in pca_results:
         # Use pre-calculated contributions
         trait_contrib_df = pca_results.get(
-            "trait_contrib_df", pca_results.get("feature_importance_consistent")
+            "feature_contributions", pca_results.get("trait_contrib_df")
         )
 
         # Determine number of components
@@ -1058,24 +1064,78 @@ def create_feature_contribution_plot(
             cumulative_var = pca_results["cumulative_variance_ratio"]
             n_components = np.argmax(cumulative_var >= variance_threshold) + 1
 
-        # Get available PC columns from the DataFrame
+        # Check what type of contribution data we have
         pc_contrib_cols = [
             col
             for col in trait_contrib_df.columns
             if col.startswith("PC") and col.endswith("_variance_contrib")
         ]
-        available_pcs = min(len(pc_contrib_cols), n_components)
 
-        # Use the first n_components PCs
-        pc_cols_to_use = [f"PC{i+1}_variance_contrib" for i in range(available_pcs)]
+        if pc_contrib_cols:
+            # We have per-PC contributions (from run_pca_and_export_artifacts)
+            available_pcs = min(len(pc_contrib_cols), n_components)
+            pc_cols_to_use = [f"PC{i+1}_variance_contrib" for i in range(available_pcs)]
 
-        # Get top contributors (already sorted in trait_contrib_df)
-        top_features_df = trait_contrib_df.head(min(top_n, len(trait_contrib_df)))
+            # Get top contributors
+            top_features_df = trait_contrib_df.head(min(top_n, len(trait_contrib_df)))
 
-        # Extract data for plotting
-        top_traits = top_features_df["trait"].tolist()
-        contributions = top_features_df[pc_cols_to_use].values
-        total_contributions = top_features_df["trait_total_variance_contrib"].values
+            # Extract traits
+            if "trait" in top_features_df.columns:
+                top_traits = top_features_df["trait"].tolist()
+            else:
+                top_traits = top_features_df.index.tolist()
+
+            # Get contributions per PC
+            contributions = top_features_df[pc_cols_to_use].values
+
+            # Get total contributions
+            if "trait_total_variance_contrib" in top_features_df.columns:
+                total_contributions = top_features_df[
+                    "trait_total_variance_contrib"
+                ].values
+            else:
+                total_contributions = contributions.sum(axis=1)
+
+        else:
+            # We only have total contributions (from perform_pca_analysis)
+            # Need to calculate per-PC contributions
+            n_components = min(
+                n_components,
+                pca_results.get(
+                    "n_components_selected",
+                    len(pca_results["explained_variance_ratio"]),
+                ),
+            )
+
+            # Get top features
+            top_features_df = trait_contrib_df.head(min(top_n, len(trait_contrib_df)))
+
+            # Extract trait names from index
+            top_traits = top_features_df.index.tolist()
+
+            # Get total contributions
+            if "total_contribution" in top_features_df.columns:
+                total_contributions = top_features_df["total_contribution"].values
+            else:
+                total_contributions = top_features_df[
+                    "trait_total_variance_contrib"
+                ].values
+
+            # Calculate per-PC contributions for these features
+            loadings = pca_results["loadings"][:, :n_components]
+            eigenvalues = pca_results["eigenvalues"][:n_components]
+            feature_names = pca_results["feature_names"]
+
+            # Find indices of top features
+            top_indices = [feature_names.index(trait) for trait in top_traits]
+
+            # Calculate contributions
+            contributions = np.zeros((len(top_traits), n_components))
+            for i in range(n_components):
+                for j, idx in enumerate(top_indices):
+                    contributions[j, i] = eigenvalues[i] * loadings[idx, i] ** 2
+
+            available_pcs = n_components
 
     else:
         # Calculate contributions on the fly (backward compatibility)
@@ -1178,11 +1238,12 @@ def create_pca_biplot(
     pc_x: int = 1,
     pc_y: int = 2,
     top_n_features: int = 10,
+    feature_selection: str = "extreme",  # "extreme", "top_absolute", or "top_contribution"
     figsize: Tuple[float, float] = (10, 8),
     alpha: float = 0.6,
-    arrow_scale: float = 4.0,
+    arrow_scale: Optional[float] = None,  # Auto-scale if None
 ) -> plt.Figure:
-    """Create a decluttered PCA biplot showing only top contributing features.
+    """Create a PCA biplot showing samples and feature loadings.
 
     Args:
         pca_results: Results from perform_pca_analysis.
@@ -1191,13 +1252,17 @@ def create_pca_biplot(
         color_by: Column name to color points by.
         pc_x: PC for x-axis (1-indexed).
         pc_y: PC for y-axis (1-indexed).
-        top_n_features: Number of top contributing features to show.
+        top_n_features: Number of features to show per direction (if extreme) or total.
+        feature_selection: Method for selecting features to display:
+            - "extreme": Top N most positive and negative for each PC
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by contribution to displayed PCs
         figsize: Figure size.
         alpha: Transparency for scatter points.
-        arrow_scale: Scaling factor for feature arrows.
+        arrow_scale: Scaling factor for feature arrows (auto-calculated if None).
 
     Returns:
-        Decluttered biplot.
+        PCA biplot figure.
     """
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -1205,36 +1270,78 @@ def create_pca_biplot(
     loadings = pca_results["loadings"]
     explained_var = pca_results["explained_variance_ratio"]
 
-    # Calculate variance-weighted contributions for feature selection
-    eigenvalues = pca_results["eigenvalues"]
-    pc_indices = [pc_x - 1, pc_y - 1]
+    # Get PC indices (0-based)
+    pc_x_idx = pc_x - 1
+    pc_y_idx = pc_y - 1
 
     # Ensure we handle the correct number of features
     n_features = min(len(trait_names), loadings.shape[0])
-    contributions = np.zeros(n_features)
 
-    for pc_idx in pc_indices:
-        contributions += eigenvalues[pc_idx] * loadings[:n_features, pc_idx] ** 2
+    # Get eigenvalues if available for variance-based selection
+    eigenvalues = pca_results.get("eigenvalues", np.ones(loadings.shape[1]))
 
-    # Get top contributing features
-    top_indices = np.argsort(contributions)[::-1][:top_n_features]
+    # Map feature_selection parameter to method
+    if feature_selection == "extreme":
+        method = "extreme"
+    elif feature_selection == "top_absolute":
+        method = "top_absolute"
+    elif feature_selection == "top_contribution":
+        method = "top_contribution"
+    else:
+        method = "top_contribution"  # Default
+
+    # Select features using modular function
+    top_indices = select_top_features_from_pca(
+        loadings=loadings,
+        eigenvalues=eigenvalues,
+        n_features_total=n_features,
+        n_features_to_select=top_n_features,
+        method=method,
+        pc_indices=[pc_x_idx, pc_y_idx],
+    )
 
     # Plot samples
     if color_by and color_by in df.columns:
+        # Handle data indices if PCA removed NaN samples
+        if "data_indices" in pca_results:
+            # PCA was run on a subset of samples
+            data_indices = pca_results["data_indices"]
+            df_pca = (
+                df.iloc[data_indices]
+                if isinstance(data_indices[0], int)
+                else df.loc[data_indices]
+            )
+        else:
+            # Assume PCA was run on all samples in df order
+            # But check if sizes match
+            if len(X_pca) != len(df):
+                # Try to match by dropping NaN rows
+                numeric_cols = (
+                    df[trait_names].select_dtypes(include=[np.number]).columns
+                )
+                mask_complete = ~df[numeric_cols].isna().any(axis=1)
+                df_pca = df[mask_complete]
+                if len(df_pca) != len(X_pca):
+                    raise ValueError(
+                        f"Cannot match PCA samples ({len(X_pca)}) to dataframe ({len(df)})"
+                    )
+            else:
+                df_pca = df
+
         # Handle categorical coloring
-        if df[color_by].dtype == "object" or isinstance(
-            df[color_by].dtype, pd.CategoricalDtype
+        if df_pca[color_by].dtype == "object" or isinstance(
+            df_pca[color_by].dtype, pd.CategoricalDtype
         ):
             # Get unique categories
-            categories = df[color_by].unique()
+            categories = df_pca[color_by].unique()
             colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
 
             # Plot each category separately
             for i, cat in enumerate(categories):
-                mask = df[color_by] == cat
+                mask = df_pca[color_by] == cat
                 ax.scatter(
-                    X_pca[mask, pc_x - 1],
-                    X_pca[mask, pc_y - 1],
+                    X_pca[mask, pc_x_idx],
+                    X_pca[mask, pc_y_idx],
                     c=[colors[i]],
                     label=cat,
                     alpha=alpha,
@@ -1245,9 +1352,9 @@ def create_pca_biplot(
         else:
             # Numeric coloring
             scatter = ax.scatter(
-                X_pca[:, pc_x - 1],
-                X_pca[:, pc_y - 1],
-                c=df[color_by],
+                X_pca[:, pc_x_idx],
+                X_pca[:, pc_y_idx],
+                c=df_pca[color_by],
                 alpha=alpha,
                 s=50,
                 edgecolors="none",
@@ -1257,22 +1364,33 @@ def create_pca_biplot(
     else:
         # No coloring
         ax.scatter(
-            X_pca[:, pc_x - 1],
-            X_pca[:, pc_y - 1],
+            X_pca[:, pc_x_idx],
+            X_pca[:, pc_y_idx],
             c="blue",
             alpha=alpha,
             s=50,
             edgecolors="none",
         )
 
-    # Plot feature vectors (only top contributors)
+    # Auto-scale arrows if not specified
+    if arrow_scale is None:
+        # Scale arrows to be visible relative to the data spread
+        data_range_x = np.ptp(X_pca[:, pc_x_idx])
+        data_range_y = np.ptp(X_pca[:, pc_y_idx])
+        max_loading = np.max(np.abs(loadings[:, [pc_x_idx, pc_y_idx]]))
+        if max_loading > 0:
+            arrow_scale = min(data_range_x, data_range_y) / (4 * max_loading)
+        else:
+            arrow_scale = 1.0
+
+    # Plot feature vectors (only selected features)
     for idx in top_indices:
         # Skip if index is out of bounds for trait_names
         if idx >= len(trait_names):
             continue
-        # Scale loadings by explained variance for visibility
-        x_load = loadings[idx, pc_x - 1] * arrow_scale
-        y_load = loadings[idx, pc_y - 1] * arrow_scale
+        # Use raw loadings (these are the eigenvector components)
+        x_load = loadings[idx, pc_x_idx] * arrow_scale
+        y_load = loadings[idx, pc_y_idx] * arrow_scale
 
         # Draw arrow
         ax.arrow(
@@ -1337,24 +1455,30 @@ def create_pca_biplot(
 
 
 def create_umap_colored_by_top_traits(
-    umap_results: np.ndarray,
+    umap_results: Union[np.ndarray, Dict],
     df: pd.DataFrame,
     trait_columns: List[str],
     trait_names: List[str],
     pca_results: Dict,
     n_traits: int = 6,
+    feature_selection: str = "top_variance",  # New parameter
     variance_threshold: Optional[float] = None,
     figsize: Tuple[float, float] = (15, 10),
 ) -> plt.Figure:
     """Create UMAP plots colored by top contributing traits.
 
     Args:
-        umap_results: 2D UMAP embedding.
+        umap_results: 2D UMAP embedding array or dictionary with 'embedding' key.
         df: Original dataframe with trait values.
         trait_columns: Column names of traits.
         trait_names: Display names of traits.
         pca_results: PCA results for determining trait importance.
         n_traits: Number of top traits to plot.
+        feature_selection: Method for selecting features:
+            - "top_variance": Top N by total variance contribution (default)
+            - "extreme": Top N most positive and negative for first 2 PCs
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by contribution to first 2 PCs
         variance_threshold: Cumulative variance threshold for PC selection.
             If None, use the same threshold as perform_pca_analysis.
         figsize: Figure size.
@@ -1362,34 +1486,55 @@ def create_umap_colored_by_top_traits(
     Returns:
         UMAP plots colored by traits.
     """
-    # Calculate trait contributions
+    # Extract embedding if umap_results is a dictionary
+    if isinstance(umap_results, dict):
+        umap_embedding = umap_results["embedding"]
+    else:
+        umap_embedding = umap_results
+
+    # Get necessary data from PCA results
     loadings = pca_results["loadings"]
     eigenvalues = pca_results["eigenvalues"]
 
-    # Use the same PCA threshold/components as perform_pca_analysis by default
-    cumulative_var = pca_results["cumulative_variance_ratio"]
+    # Determine which PCs to use for variance calculation
+    if feature_selection == "top_variance":
+        # Use the same PCA threshold/components as perform_pca_analysis by default
+        cumulative_var = pca_results["cumulative_variance_ratio"]
 
-    # Check if pca_results has the selected components info
-    if "n_components_selected" in pca_results:
-        n_pcs = pca_results["n_components_selected"]
-    elif variance_threshold is not None:
-        # Use provided threshold
-        n_pcs = np.argmax(cumulative_var >= variance_threshold) + 1
+        # Check if pca_results has the selected components info
+        if "n_components_selected" in pca_results:
+            n_pcs = pca_results["n_components_selected"]
+        elif variance_threshold is not None:
+            # Use provided threshold
+            n_pcs = np.argmax(cumulative_var >= variance_threshold) + 1
+        else:
+            # Default to 95% variance if not specified
+            n_pcs = np.argmax(cumulative_var >= 0.95) + 1
+
+        # Clamp n_pcs to available data
+        n_pcs = min(n_pcs, loadings.shape[1], len(eigenvalues))
+        pc_indices = list(range(n_pcs))
     else:
-        # Default to 95% variance if not specified
-        n_pcs = np.argmax(cumulative_var >= 0.95) + 1
-
-    # Clamp n_pcs to available data
-    n_pcs = min(n_pcs, loadings.shape[1], len(eigenvalues))
+        # For other methods, use first 2 PCs by default
+        pc_indices = [0, 1]
 
     # Ensure we handle the correct number of features
     n_features = min(len(trait_columns), loadings.shape[0])
-    contributions = np.zeros(n_features)
-    for i in range(n_pcs):
-        contributions += eigenvalues[i] * loadings[:n_features, i] ** 2
 
-    # Get top contributing traits
-    top_indices = np.argsort(contributions)[::-1][:n_traits]
+    # Select top features using modular function
+    top_indices = select_top_features_from_pca(
+        loadings=loadings,
+        eigenvalues=eigenvalues,
+        n_features_total=n_features,
+        n_features_to_select=n_traits,
+        method=feature_selection,
+        pc_indices=pc_indices if feature_selection != "top_variance" else None,
+    )
+
+    # Calculate contributions for display (always use variance contribution for labels)
+    contributions = np.zeros(n_features)
+    for i in range(min(loadings.shape[1], len(eigenvalues))):
+        contributions += eigenvalues[i] * loadings[:n_features, i] ** 2
 
     # Create subplots
     n_cols = 3
@@ -1397,7 +1542,7 @@ def create_umap_colored_by_top_traits(
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
     axes = axes.flatten() if n_rows > 1 else axes
 
-    for i, trait_idx in enumerate(top_indices):
+    for i, trait_idx in enumerate(top_indices[:n_traits]):
         ax = axes[i]
         # Skip if index is out of bounds
         if trait_idx >= len(trait_columns) or trait_idx >= len(trait_names):
@@ -1408,8 +1553,8 @@ def create_umap_colored_by_top_traits(
 
         # Create scatter plot
         scatter = ax.scatter(
-            umap_results[:, 0],
-            umap_results[:, 1],
+            umap_embedding[:, 0],
+            umap_embedding[:, 1],
             c=trait_values,
             cmap="viridis",
             s=30,
@@ -1425,17 +1570,34 @@ def create_umap_colored_by_top_traits(
         # Set labels and title
         ax.set_xlabel("UMAP 1", fontsize=9)
         ax.set_ylabel("UMAP 2", fontsize=9)
+
+        # Add selection method to subtitle if not default
+        subtitle = f"(Contribution: {contributions[trait_idx]:.3f})"
+        if feature_selection == "extreme":
+            # Check if this was positive or negative loading
+            pc1_loading = loadings[trait_idx, 0] if loadings.shape[1] > 0 else 0
+            direction = "+" if pc1_loading > 0 else "-"
+            subtitle = f"(PC1{direction}, Contrib: {contributions[trait_idx]:.3f})"
+
         ax.set_title(
-            f"{trait_name}\n(Contribution: {contributions[trait_idx]:.3f})",
+            f"{trait_name}\n{subtitle}",
             fontsize=10,
         )
         ax.tick_params(labelsize=8)
 
     # Remove empty subplots
-    for i in range(n_traits, len(axes)):
+    for i in range(len(top_indices), len(axes)):
         fig.delaxes(axes[i])
 
-    fig.suptitle(f"UMAP Colored by Top {n_traits} Contributing Traits", fontsize=14)
+    # Update title based on selection method
+    method_desc = {
+        "top_variance": "Contributing",
+        "extreme": "Extreme Loading",
+        "top_absolute": "Highest Absolute Loading",
+        "top_contribution": "Contributing to PC1-PC2",
+    }
+    title = f"UMAP Colored by Top {n_traits} {method_desc.get(feature_selection, 'Contributing')} Traits"
+    fig.suptitle(title, fontsize=14)
     plt.tight_layout()
 
     return fig
@@ -1684,121 +1846,110 @@ def create_feature_contribution_heatmap(
     n_components: int = 5,
     n_features: int = 20,
     figsize: Tuple[float, float] = (10, 8),
-) -> plt.Figure:
-    """Create a heatmap showing feature contributions to principal components.
+    plot_type: str = "both",  # "variance", "loadings", or "both"
+) -> Union[plt.Figure, Tuple[plt.Figure, plt.Figure]]:
+    """Create heatmaps showing feature loadings and/or variance contributions to PCs.
 
     Args:
-        pca_results: Results from perform_pca_analysis containing 'feature_importance'
-            DataFrame.
+        pca_results: Results from perform_pca_analysis containing loadings and eigenvalues.
         n_components: Number of components to show.
         n_features: Number of top features to show.
-        figsize: Figure size.
+        figsize: Figure size for each plot.
+        plot_type: Type of plot to create:
+            - "variance": Only variance contribution heatmap
+            - "loadings": Only raw loadings heatmap
+            - "both": Return tuple of (variance_fig, loadings_fig)
 
     Returns:
-        The generated figure.
+        Single figure if plot_type is "variance" or "loadings",
+        tuple of (variance_fig, loadings_fig) if plot_type is "both".
     """
-    # Get feature importance - check multiple possible keys
-    feature_importance = None
-    for key in [
-        "feature_importance",
-        "feature_importance_consistent",
-        "trait_ev_df",
-        "trait_contrib_df",
-    ]:
-        if key in pca_results:
-            feature_importance = pca_results[key]
-            break
+    # Get necessary data from pca_results
+    if "loadings" not in pca_results or "eigenvalues" not in pca_results:
+        raise ValueError("pca_results must contain 'loadings' and 'eigenvalues' keys")
 
-    if feature_importance is None:
-        raise ValueError(
-            "pca_results must contain feature importance data. "
-            "Expected one of: 'feature_importance', 'feature_importance_consistent', "
-            "'trait_ev_df', or 'trait_contrib_df'"
-        )
-
-    # Get top features by total contribution
-    # Check for different column naming conventions
-    if "total_contribution" in feature_importance.columns:
-        sort_col = "total_contribution"
-    elif "trait_total_variance_contrib" in feature_importance.columns:
-        sort_col = "trait_total_variance_contrib"
-    else:
-        # Calculate total contribution if not present
-        pc_cols = [col for col in feature_importance.columns if col.startswith("PC")]
-        top_features = feature_importance.copy()
-        top_features["total_contribution"] = np.abs(top_features[pc_cols]).sum(axis=1)
-        sort_col = "total_contribution"
-
-    # Sort by total contribution (already sorted if from run_pca_and_export_artifacts)
-    if sort_col in feature_importance.columns:
-        top_features = feature_importance.nlargest(n_features, sort_col)
-    else:
-        top_features = feature_importance.head(n_features)
+    loadings = pca_results["loadings"]
+    eigenvalues = pca_results["eigenvalues"]
+    feature_names = pca_results.get(
+        "feature_names", [f"Feature_{i}" for i in range(loadings.shape[0])]
+    )
 
     # Determine number of components to show
-    n_comp_available = pca_results.get(
-        "n_components_selected",
-        len([c for c in feature_importance.columns if c.startswith("PC")]),
-    )
+    n_comp_available = min(loadings.shape[1], len(eigenvalues))
     n_comp_to_show = min(n_components, n_comp_available)
 
-    # Select PC columns for heatmap
-    # First try standard PC column names
-    pc_cols = [f"PC{i+1}" for i in range(n_comp_to_show)]
-    available_pc_cols = [col for col in pc_cols if col in top_features.columns]
+    # Calculate total variance contributions for feature selection
+    variance_contributions = np.zeros(loadings.shape[0])
+    for i in range(n_comp_to_show):
+        variance_contributions += eigenvalues[i] * loadings[:, i] ** 2
 
-    if not available_pc_cols:
-        # Try variance contribution column names (from run_pca_and_export_artifacts)
-        pc_cols = [f"PC{i+1}_variance_contrib" for i in range(n_comp_to_show)]
-        available_pc_cols = [col for col in pc_cols if col in top_features.columns]
+    # Get top features by total variance contribution
+    top_indices = np.argsort(variance_contributions)[::-1][:n_features]
+    top_feature_names = [feature_names[i] for i in top_indices]
 
-    if not available_pc_cols:
-        # Fall back to any PC-prefixed columns
-        available_pc_cols = [
-            col for col in top_features.columns if col.startswith("PC")
-        ][:n_comp_to_show]
+    # Helper function to create a heatmap
+    def create_heatmap(data, title, cbar_label):
+        fig, ax = plt.subplots(figsize=figsize)
 
-    heatmap_data = top_features[available_pc_cols]
+        sns.heatmap(
+            data,
+            cmap="RdBu_r",
+            center=0,
+            fmt=".3f",
+            cbar_kws={"label": cbar_label},
+            ax=ax,
+            annot=True,
+            annot_kws={"size": 8},
+        )
 
-    # Set row labels to trait names if available
-    if "trait" in top_features.columns:
-        heatmap_data.index = top_features["trait"].values
-    elif top_features.index.name == "trait":
-        # Index might already be trait names
-        pass
-    else:
-        # Use existing index
-        pass
+        ax.set_title(title)
+        ax.set_xlabel("Principal Component")
+        ax.set_ylabel("Feature")
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+        plt.tight_layout()
+        return fig
 
-    # Create heatmap
-    # Determine appropriate label based on column names
-    if available_pc_cols and "variance_contrib" in available_pc_cols[0]:
-        cbar_label = "Variance Contribution"
-    else:
-        cbar_label = "Loading"
+    # Create variance contribution heatmap
+    if plot_type in ["variance", "both"]:
+        # Calculate variance contributions for selected features
+        variance_data = {}
+        for i in range(n_comp_to_show):
+            contributions = [
+                eigenvalues[i] * loadings[idx, i] ** 2 for idx in top_indices
+            ]
+            variance_data[f"PC{i+1}"] = contributions
 
-    sns.heatmap(
-        heatmap_data,
-        cmap="RdBu_r",
-        center=0,
-        fmt=".3f",
-        cbar_kws={"label": cbar_label},
-        ax=ax,
-        annot=True,
-        annot_kws={"size": 8},
-    )
+        variance_df = pd.DataFrame(variance_data, index=top_feature_names)
 
-    ax.set_title(
-        f"Top {n_features} Feature Contributions to First {n_comp_to_show} PCs"
-    )
-    ax.set_xlabel("Principal Component")
-    ax.set_ylabel("Feature")
+        variance_fig = create_heatmap(
+            variance_df,
+            f"Top {n_features} Feature Variance Contributions to First {n_comp_to_show} PCs",
+            "Variance Contribution",
+        )
 
-    plt.tight_layout()
-    return fig
+    # Create raw loadings heatmap
+    if plot_type in ["loadings", "both"]:
+        # Extract raw loadings for selected features
+        loadings_data = {}
+        for i in range(n_comp_to_show):
+            # Use raw loadings (eigenvectors) - these show correlations
+            loadings_data[f"PC{i+1}"] = [loadings[idx, i] for idx in top_indices]
+
+        loadings_df = pd.DataFrame(loadings_data, index=top_feature_names)
+
+        loadings_fig = create_heatmap(
+            loadings_df,
+            f"Top {n_features} Feature Loadings (Correlations) for First {n_comp_to_show} PCs",
+            "Loading (Correlation)",
+        )
+
+    # Return appropriate figure(s)
+    if plot_type == "variance":
+        return variance_fig
+    elif plot_type == "loadings":
+        return loadings_fig
+    else:  # both
+        return variance_fig, loadings_fig
 
 
 def create_publication_figure(
