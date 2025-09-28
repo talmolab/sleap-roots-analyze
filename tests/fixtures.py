@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 from scipy import stats
+from omegaconf import OmegaConf, DictConfig
 
 
 # ============================================================================
@@ -2716,21 +2717,38 @@ def pca_viz_results():
 
     # Calculate explained variance
     total_var = np.sum(eigenvalues)
-    explained_variance = eigenvalues / total_var
-    cumulative_variance = np.cumsum(explained_variance)
+    explained_variance_ratio = eigenvalues / total_var
+    cumulative_variance = np.cumsum(explained_variance_ratio)
 
     # Feature names
     feature_names = [f"trait_{i}" for i in range(n_features)]
+
+    # Create feature contributions DataFrame with feature names as index
+    # This matches the new standard key name
+    total_contributions = np.sum(loadings**2 * eigenvalues, axis=1)
+    fractional_contributions = total_contributions / np.sum(total_contributions)
+
+    feature_contributions = pd.DataFrame(
+        {
+            "total_contribution": total_contributions,
+            "fractional_contribution": fractional_contributions,
+        },
+        index=feature_names,
+    )
+    feature_contributions = feature_contributions.sort_values(
+        "total_contribution", ascending=False
+    )
 
     return {
         "transformed_data": X_transformed,
         "loadings": loadings,
         "eigenvalues": eigenvalues,
-        "explained_variance_ratio": explained_variance,
+        "explained_variance_ratio": explained_variance_ratio,
         "cumulative_variance_ratio": cumulative_variance,
         "n_components_selected": n_components,
         "feature_names": feature_names,
         "n_features": n_features,
+        "feature_contributions": feature_contributions,  # Standard key for feature contributions
     }
 
 
@@ -2770,7 +2788,14 @@ def umap_viz_results():
         center = cluster_centers[labels[i]]
         umap_embedding[i] = center + np.random.randn(2) * 0.5
 
-    return umap_embedding
+    # Return in the format expected from perform_umap_analysis
+    return {
+        "embedding": umap_embedding,
+        "n_neighbors": 15,
+        "min_dist": 0.1,
+        "reducer": None,  # Would be the UMAP object in real usage
+        "scaler": None,  # Would be StandardScaler in real usage
+    }
 
 
 @pytest.fixture
@@ -2880,17 +2905,22 @@ def pca_results_with_feature_importance():
     # Add total contribution
     feature_importance["total_contribution"] = np.abs(feature_importance).sum(axis=1)
 
+    # Calculate eigenvalues (explained variance)
+    # For a dataset with total variance of 30 (30 features with variance 1 each if standardized)
+    explained_variance_ratio = np.array(
+        [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
+    )
+    eigenvalues = explained_variance_ratio * n_features  # Scale by total variance
+
     pca_results = {
         "loadings": loadings,
+        "eigenvalues": eigenvalues,
         "feature_importance": feature_importance,
+        "feature_contributions": feature_importance,  # Add alias for new code
         "n_components_selected": 5,
         "feature_names": feature_names,
-        "explained_variance_ratio": np.array(
-            [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
-        ),
-        "cumulative_variance_ratio": np.cumsum(
-            [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
-        ),
+        "explained_variance_ratio": explained_variance_ratio,
+        "cumulative_variance_ratio": np.cumsum(explained_variance_ratio),
     }
 
     return pca_results
@@ -2986,3 +3016,142 @@ def pca_export_data():
     df = df[["Barcode", "geno", "rep"] + trait_cols]
 
     return df, trait_cols
+
+
+# ============================================================================
+# CONFIGURATION FIXTURES - Pipeline configuration objects
+# ============================================================================
+
+
+@pytest.fixture
+def sample_config_dict():
+    """Sample configuration dictionary for pipeline testing."""
+    return {
+        "data": {
+            "cleaned_data_path": "test_data.csv",
+            "image_dir": "test_images/",
+            "barcode_col": "Barcode",
+            "genotype_col": "geno",
+            "replicate_col": "rep",
+        },
+        "output": {
+            "base_dir": "./test_runs",
+            "subdirs": [
+                "figures",
+                "publication_figures",
+                "interactive_plots",
+                "analysis_outputs",
+            ],
+            "figure_format": "png",
+            "figure_dpi": 150,
+            "save_publication": True,
+        },
+        "analysis": {
+            "pca": {
+                "variance_threshold": 0.95,
+                "n_components": None,
+                "standardize": True,
+                "n_features_show": 15,
+            },
+            "umap": {"n_neighbors": 8, "min_dist": 0.1, "n_components": 2},
+            "heritability": {"threshold": 0.6, "min_samples_per_genotype": 3},
+            "outliers": {
+                "phenotype_n_std": 2.0,
+                "pc_space_n_std": 2.5,
+                "n_pcs_check": 3,
+            },
+        },
+        "visualization": {
+            "interactive": True,
+            "figsize": {
+                "standard": [10, 8],
+                "correlation": [12, 10],
+                "scree": [12, 5],
+                "biplot": [10, 8],
+            },
+            "colors": {"scheme": "tab20"},
+            "scatter": {"point_size": 50, "alpha": 0.7},
+        },
+        "logging": {
+            "level": "INFO",
+            "file": "pipeline.log",
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        },
+    }
+
+
+@pytest.fixture
+def sample_omegaconf_config(sample_config_dict):
+    """OmegaConf configuration object for pipeline testing."""
+    return OmegaConf.create(sample_config_dict)
+
+
+@pytest.fixture
+def minimal_config_dict():
+    """Minimal configuration with only required fields."""
+    return {
+        "data": {
+            "cleaned_data_path": "data.csv",
+            "genotype_col": "geno",
+            "replicate_col": "rep",
+        },
+        "output": {"base_dir": "./runs"},
+    }
+
+
+@pytest.fixture
+def minimal_omegaconf_config(minimal_config_dict):
+    """Minimal OmegaConf configuration object."""
+    return OmegaConf.create(minimal_config_dict)
+
+
+@pytest.fixture
+def invalid_config_dict():
+    """Invalid configuration missing required fields."""
+    return {
+        "output": {"base_dir": "./runs"}
+        # Missing data section
+    }
+
+
+@pytest.fixture
+def config_with_env_vars():
+    """Configuration with environment variable interpolation."""
+    return OmegaConf.create(
+        {
+            "data": {
+                "cleaned_data_path": "${oc.env:DATA_PATH,default_data.csv}",
+                "image_dir": "${oc.env:IMAGE_DIR,./images}",
+                "genotype_col": "geno",
+                "replicate_col": "rep",
+            },
+            "output": {"base_dir": "${oc.env:OUTPUT_DIR,./runs}"},
+        }
+    )
+
+
+@pytest.fixture
+def sample_trait_data():
+    """Create sample trait data for testing."""
+    np.random.seed(42)
+    n_samples = 50
+    n_traits = 10
+
+    # Create sample data
+    data = pd.DataFrame(
+        {
+            "geno": np.random.choice(["Geno_A", "Geno_B", "Geno_C"], n_samples),
+            "rep": np.random.choice([1, 2, 3], n_samples),
+            "Barcode": [f"BC{i:04d}" for i in range(n_samples)],
+        }
+    )
+
+    # Add trait columns
+    for i in range(n_traits):
+        data[f"trait_{i+1}"] = np.random.normal(100 + i * 10, 10, n_samples)
+
+    # Add some metadata columns
+    data["QC_status"] = "pass"
+    data["scan_date"] = "2024-01-01"
+
+    return data
