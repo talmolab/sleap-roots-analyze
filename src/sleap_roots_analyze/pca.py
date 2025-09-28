@@ -8,7 +8,101 @@ from pathlib import Path
 
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union, List
+
+
+def select_top_features_from_pca(
+    loadings: np.ndarray,
+    eigenvalues: np.ndarray,
+    n_features_total: int,
+    n_features_to_select: int,
+    method: str = "extreme",
+    pc_indices: Optional[List[int]] = None,
+) -> List[int]:
+    """Select top features based on PCA loadings using various strategies.
+
+    Args:
+        loadings: Loading matrix (n_features, n_components)
+        eigenvalues: Eigenvalues for each PC
+        n_features_total: Total number of features to consider
+        n_features_to_select: Number of features to select (per direction for "extreme")
+        method: Selection method:
+            - "extreme": Top N most positive and negative loadings for specified PCs
+            - "top_absolute": Top N by absolute loading magnitude on specified PCs
+            - "top_contribution": Top N by variance contribution to specified PCs
+            - "top_variance": Top N by total variance contribution (all PCs)
+        pc_indices: Which PCs to consider (0-based). If None, uses first 2 PCs.
+
+    Returns:
+        List of selected feature indices
+
+    Raises:
+        ValueError: If method is not recognized
+
+    Examples:
+        >>> loadings = np.array([[0.8, 0.1], [0.1, 0.8], [-0.7, 0.2]])
+        >>> eigenvalues = np.array([3.0, 1.0])
+        >>> selected = select_top_features_from_pca(
+        ...     loadings, eigenvalues, 3, 1, method="extreme", pc_indices=[0]
+        ... )
+        >>> # Returns indices of most positive (0) and most negative (2) on PC1
+    """
+    if pc_indices is None:
+        pc_indices = [0, 1]  # Default to first 2 PCs
+
+    # Ensure we don't exceed available dimensions
+    n_features = min(n_features_total, loadings.shape[0])
+    pc_indices = [idx for idx in pc_indices if idx < loadings.shape[1]]
+
+    if not pc_indices:
+        raise ValueError("No valid PC indices provided")
+
+    if method == "extreme":
+        # Get top N most positive and negative loadings for each PC
+        selected_indices = set()
+
+        for pc_idx in pc_indices:
+            loadings_pc = loadings[:n_features, pc_idx]
+            sorted_idx = np.argsort(loadings_pc)
+
+            # Most negative
+            selected_indices.update(sorted_idx[:n_features_to_select])
+            # Most positive
+            selected_indices.update(sorted_idx[-n_features_to_select:])
+
+        return list(selected_indices)
+
+    elif method == "top_absolute":
+        # Get features with highest absolute loading on specified PCs
+        abs_loadings = np.zeros(n_features)
+        for pc_idx in pc_indices:
+            abs_loadings += np.abs(loadings[:n_features, pc_idx])
+
+        return np.argsort(abs_loadings)[::-1][:n_features_to_select].tolist()
+
+    elif method == "top_contribution":
+        # Use sum of variance contributions for specified PCs
+        contributions = np.zeros(n_features)
+        for pc_idx in pc_indices:
+            if pc_idx < len(eigenvalues):
+                contributions += (
+                    eigenvalues[pc_idx] * loadings[:n_features, pc_idx] ** 2
+                )
+
+        return np.argsort(contributions)[::-1][:n_features_to_select].tolist()
+
+    elif method == "top_variance":
+        # Use total variance contribution across all available PCs
+        n_pcs = min(loadings.shape[1], len(eigenvalues))
+        contributions = np.zeros(n_features)
+
+        for i in range(n_pcs):
+            contributions += eigenvalues[i] * loadings[:n_features, i] ** 2
+
+        return np.argsort(contributions)[::-1][:n_features_to_select].tolist()
+
+    else:
+        raise ValueError(f"Unknown selection method: {method}")
 
 
 def select_n_components(
@@ -719,7 +813,39 @@ def perform_pca_analysis(
         }
     )
 
-    # Build feature metrics DataFrame if requested
+    # Build feature contributions DataFrame (always include for consistency)
+    # This replaces the old "feature_importance" key
+    loadings = result["loadings"]
+    eigenvalues = result["eigenvalues"]
+    n_components = result["n_components_selected"]
+
+    # Calculate per-feature total contributions
+    loadings_used = loadings[:, :n_components]
+    eigenvalues_used = eigenvalues[:n_components]
+    total_contributions = np.sum(loadings_used**2 * eigenvalues_used, axis=1)
+
+    # Normalize to get fractional contributions
+    fractional_contributions = total_contributions / np.sum(total_contributions)
+
+    # Create DataFrame with per-PC contributions
+    contrib_dict = {
+        "total_contribution": total_contributions,
+        "fractional_contribution": fractional_contributions,
+    }
+
+    # Add per-PC variance contributions
+    for i in range(n_components):
+        pc_contribution = eigenvalues[i] * loadings[:, i] ** 2
+        contrib_dict[f"PC{i+1}_variance_contrib"] = pc_contribution
+
+    feature_contributions = pd.DataFrame(contrib_dict, index=feature_names)
+    feature_contributions = feature_contributions.sort_values(
+        "total_contribution", ascending=False
+    )
+
+    result["feature_contributions"] = feature_contributions
+
+    # Build feature metrics DataFrame if requested (for backward compatibility)
     if include_feature_metrics:
         result["feature_metrics_df"] = build_feature_metrics_df(
             result,
