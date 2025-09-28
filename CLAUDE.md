@@ -181,15 +181,27 @@ The module integrates with the PCA module to:
 
 Key functions to maintain:
 - `perform_pca_analysis()` - Complete PCA pipeline with standardization
+- `select_top_features_from_pca()` - Select top features based on PCA loadings using various strategies
 - `calculate_mahalanobis_distances()` - Calculate distances with optional robust estimation
 - `calculate_pca_metrics()` - Comprehensive metrics including per-feature variance
 - `build_feature_metrics_df()` - Build DataFrame with per-feature PCA metrics
 
+### Additional Implemented Modules
+
+- `visualization.py` - Comprehensive plotting utilities for PCA, UMAP, and trait analysis
+- `cross_experiment_analysis.py` - Cross-experiment correlation and comparison tools
+- `outlier_visualization.py` - Specialized plots for outlier detection results
+- `umap.py` - UMAP dimensionality reduction
+- `data_utils.py` - Utility functions for data manipulation
+
 ### Future Modules
 
 Planned modules to develop:
-- `visualization.py` - Plotting utilities
-- `gwas_prep.py` - GWAS data preparation
+- Pipeline modules (currently in development):
+  - `pipeline_config.py` - Configuration management
+  - `pipeline_utils.py` - Pipeline utilities
+  - `visualization_pipeline.py` - Automated visualization pipeline
+  - `interactive_visualization.py` - Interactive plot generation
 
 ## Best Practices
 
