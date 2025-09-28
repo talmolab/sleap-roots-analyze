@@ -85,6 +85,20 @@ from sleap_roots_analyze.cross_experiment_analysis import (
     create_genotype_boxplots,
 )
 
+from sleap_roots_analyze.interactive_visualization import (
+    encode_image_to_base64,
+    create_interactive_scatter_with_images,
+    create_interactive_pca_with_images,
+    create_interactive_umap_with_images,
+    create_interactive_umap_with_hover_highlight,
+    create_trait_explorer_dashboard,
+    create_interactive_scatter_with_preview,
+    create_html_with_image_viewer,
+    create_interactive_image_gallery,
+    create_interactive_scatter_plot,
+    create_interactive_pca_plot,
+)
+
 __all__ = [
     # Data cleanup functions
     "load_trait_data",
