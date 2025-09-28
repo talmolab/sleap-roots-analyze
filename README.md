@@ -163,6 +163,47 @@ variance_df = results['variance_explained_df']
 contributions_df = results['trait_variance_contributions_df']
 ```
 
+### Interactive Visualization
+
+```python
+from sleap_roots_analyze.interactive_visualization import (
+    create_interactive_pca_with_images,
+    create_interactive_umap_with_hover_highlight,
+    create_trait_explorer_dashboard,
+    create_interactive_image_gallery
+)
+
+# Create interactive PCA with sample images
+fig = create_interactive_pca_with_images(
+    pca_result,
+    image_paths,  # Dict mapping sample IDs to image paths
+    show_images=True,
+    metadata_df=df_filtered[["Barcode", "geno"]]
+)
+
+# Interactive UMAP with hover highlights
+fig_umap = create_interactive_umap_with_hover_highlight(
+    umap_result,
+    highlight_on_hover=True,
+    size=8
+)
+
+# Create comprehensive trait explorer dashboard
+dashboard = create_trait_explorer_dashboard(
+    df_filtered,
+    trait_cols,
+    groupby_col="geno"
+)
+
+# Generate interactive HTML gallery with images
+html = create_interactive_image_gallery(
+    image_paths,
+    metadata_df=df_filtered[["Barcode", "geno", "trait1"]],
+    images_per_row=4,
+    image_width=200
+)
+```
+
 ## Features
 
 - **Data Cleaning**: Automatic metadata detection, NaN handling, zero-inflated trait removal
@@ -170,7 +211,9 @@ contributions_df = results['trait_variance_contributions_df']
 - **PCA Analysis**: Dimensionality reduction with automatic component selection, comprehensive export artifacts
 - **Outlier Detection**: Mahalanobis, PCA reconstruction, and Isolation Forest methods
 - **Visualization**: Publication-ready plots for heritability, PCA, outliers, and phenotype variation
+- **Interactive Visualization**: Plotly-based interactive plots with image integration and hover effects
 - **UMAP Analysis**: Non-linear dimensionality reduction for complex trait relationships
+- **Cross-Experiment Analysis**: Compare and correlate data across multiple experiments
 
 ## Data Format
 
@@ -208,14 +251,16 @@ uv run pytest --cov --cov-branch
 ```
 sleap-roots-analyze/
 ├── src/sleap_roots_analyze/
-│   ├── data_cleanup.py          # Data loading and cleaning
-│   ├── statistics.py            # Statistical analysis
-│   ├── pca.py                   # PCA analysis
-│   ├── outlier_detection.py     # Outlier detection
-│   ├── visualization.py         # Plotting and visualization
-│   ├── outlier_visualization.py # Outlier-specific plots
-│   ├── umap.py                  # UMAP dimensionality reduction
-│   └── data_utils.py            # Utility functions
+│   ├── data_cleanup.py               # Data loading and cleaning
+│   ├── statistics.py                 # Statistical analysis
+│   ├── pca.py                        # PCA analysis
+│   ├── outlier_detection.py          # Outlier detection
+│   ├── visualization.py              # Plotting and visualization
+│   ├── outlier_visualization.py      # Outlier-specific plots
+│   ├── interactive_visualization.py  # Interactive Plotly visualizations
+│   ├── cross_experiment_analysis.py  # Cross-experiment comparisons
+│   ├── umap.py                       # UMAP dimensionality reduction
+│   └── data_utils.py                 # Utility functions
 ├── tests/                       # Test suite (150+ tests)
 ├── docs/                        # Documentation
 └── pyproject.toml              # Project configuration
