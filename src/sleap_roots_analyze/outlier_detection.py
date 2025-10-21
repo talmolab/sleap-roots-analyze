@@ -122,9 +122,9 @@ def detect_outliers_mahalanobis(
         # Calculate goodness-of-fit test if using chi-squared threshold
         goodness_of_fit = None
         if use_chi_squared:
-            # Calculate chi-squared goodness-of-fit test
+            # Validate chi-squared distribution assumption
             distances_squared = distances**2
-            goodness_of_fit = calculate_chi_squared_goodness_of_fit(
+            goodness_of_fit = validate_chi_squared_distribution(
                 distances_squared, df=n_components
             )
 
@@ -266,15 +266,17 @@ def identify_outliers_from_distances(
     }
 
 
-def calculate_chi_squared_goodness_of_fit(
+def validate_chi_squared_distribution(
     distances_squared: np.ndarray,
     df: int,
 ) -> Dict[str, Union[str, float, bool]]:
-    """Perform Kolmogorov-Smirnov test to assess if Mahalanobis² distances follow χ²(df).
+    """Validate chi-squared distribution assumption using Kolmogorov-Smirnov test.
 
-    This test validates the assumption that data follows a single multivariate normal
-    distribution. If the p-value is low (< 0.05), it suggests the data may have
-    multi-cluster structure, violating the distributional assumption.
+    Performs a K-S test to assess whether squared Mahalanobis distances follow
+    the expected chi-squared(df) distribution. This validates the assumption that
+    data follows a single multivariate normal distribution. If the p-value is low
+    (< 0.05), it suggests the data may have multi-cluster structure, violating
+    the distributional assumption.
 
     Args:
         distances_squared: Squared Mahalanobis distances

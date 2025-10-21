@@ -470,13 +470,13 @@ class TestIdentifyOutliersFromDistances:
         assert len(result["outlier_mask"]) == 0
 
 
-class TestCalculateChiSquaredGoodnessOfFit:
-    """Test chi-squared goodness-of-fit calculation."""
+class TestValidateChiSquaredDistribution:
+    """Test chi-squared distribution validation."""
 
     def test_goodness_of_fit_with_chi_squared_data(self):
-        """Test GOF with data that follows chi-squared distribution."""
+        """Test validation with data that follows chi-squared distribution."""
         from sleap_roots_analyze.outlier_detection import (
-            calculate_chi_squared_goodness_of_fit,
+            validate_chi_squared_distribution,
         )
 
         # Generate data that follows chi-squared distribution
@@ -485,7 +485,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
         n_samples = 500
         distances_squared = stats.chi2.rvs(df, size=n_samples)
 
-        result = calculate_chi_squared_goodness_of_fit(distances_squared, df=df)
+        result = validate_chi_squared_distribution(distances_squared, df=df)
 
         # Check structure
         assert result["test_type"] == "Kolmogorov-Smirnov"
@@ -504,7 +504,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
     def test_goodness_of_fit_with_multimodal_data(self):
         """Test GOF with multi-modal data (should fail)."""
         from sleap_roots_analyze.outlier_detection import (
-            calculate_chi_squared_goodness_of_fit,
+            validate_chi_squared_distribution,
         )
 
         # Generate bimodal data (mixture of two chi-squared distributions)
@@ -517,7 +517,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
         cluster2 = stats.chi2.rvs(df, size=n_samples // 2) * 2.0
         distances_squared = np.concatenate([cluster1, cluster2])
 
-        result = calculate_chi_squared_goodness_of_fit(distances_squared, df=df)
+        result = validate_chi_squared_distribution(distances_squared, df=df)
 
         # Should have low p-value (poor fit) due to multi-modal structure
         assert result["p_value"] < 0.10, "Multi-modal data should not follow χ²"
@@ -532,7 +532,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
     def test_goodness_of_fit_classifications(self):
         """Test that fit quality classifications work correctly."""
         from sleap_roots_analyze.outlier_detection import (
-            calculate_chi_squared_goodness_of_fit,
+            validate_chi_squared_distribution,
         )
 
         np.random.seed(42)
@@ -551,7 +551,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
 
         for data_gen, expected_qualities, expected_valid in test_cases:
             distances_squared = data_gen()
-            result = calculate_chi_squared_goodness_of_fit(distances_squared, df=df)
+            result = validate_chi_squared_distribution(distances_squared, df=df)
 
             assert result["fit_quality"] in expected_qualities
             if expected_valid is not None:
@@ -560,10 +560,10 @@ class TestCalculateChiSquaredGoodnessOfFit:
     def test_goodness_of_fit_empty_data(self):
         """Test GOF with empty data."""
         from sleap_roots_analyze.outlier_detection import (
-            calculate_chi_squared_goodness_of_fit,
+            validate_chi_squared_distribution,
         )
 
-        result = calculate_chi_squared_goodness_of_fit(np.array([]), df=5)
+        result = validate_chi_squared_distribution(np.array([]), df=5)
 
         assert result["test_type"] == "Kolmogorov-Smirnov"
         assert np.isnan(result["test_statistic"])
@@ -575,7 +575,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
     def test_goodness_of_fit_invalid_df(self):
         """Test GOF with invalid degrees of freedom."""
         from sleap_roots_analyze.outlier_detection import (
-            calculate_chi_squared_goodness_of_fit,
+            validate_chi_squared_distribution,
         )
 
         np.random.seed(42)
@@ -583,22 +583,22 @@ class TestCalculateChiSquaredGoodnessOfFit:
 
         # Test with df <= 0
         with pytest.raises(ValueError, match="Degrees of freedom must be positive"):
-            calculate_chi_squared_goodness_of_fit(distances_squared, df=0)
+            validate_chi_squared_distribution(distances_squared, df=0)
 
         with pytest.raises(ValueError, match="Degrees of freedom must be positive"):
-            calculate_chi_squared_goodness_of_fit(distances_squared, df=-1)
+            validate_chi_squared_distribution(distances_squared, df=-1)
 
     def test_goodness_of_fit_interpretation_messages(self):
         """Test that interpretation messages are informative."""
         from sleap_roots_analyze.outlier_detection import (
-            calculate_chi_squared_goodness_of_fit,
+            validate_chi_squared_distribution,
         )
 
         np.random.seed(42)
         df = 5
         distances_squared = stats.chi2.rvs(df, size=100)
 
-        result = calculate_chi_squared_goodness_of_fit(distances_squared, df=df)
+        result = validate_chi_squared_distribution(distances_squared, df=df)
 
         # Check interpretation contains key information
         interp = result["interpretation"]
@@ -609,7 +609,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
     def test_goodness_of_fit_with_small_sample(self):
         """Test GOF with small sample size."""
         from sleap_roots_analyze.outlier_detection import (
-            calculate_chi_squared_goodness_of_fit,
+            validate_chi_squared_distribution,
         )
 
         np.random.seed(42)
@@ -617,7 +617,7 @@ class TestCalculateChiSquaredGoodnessOfFit:
         n_samples = 20  # Small sample
         distances_squared = stats.chi2.rvs(df, size=n_samples)
 
-        result = calculate_chi_squared_goodness_of_fit(distances_squared, df=df)
+        result = validate_chi_squared_distribution(distances_squared, df=df)
 
         # Should still return valid result structure
         assert "test_statistic" in result
