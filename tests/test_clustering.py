@@ -322,3 +322,343 @@ def test_perform_kmeans_clustering_auto_k_vs_manual():
     assert result_auto["n_clusters"] >= 2
     assert result_manual["n_clusters"] == 3
     assert result_auto["silhouette_score"] > 0  # Should have decent separation
+
+
+# ============================================================================
+# Edge Case and Error Handling Tests
+# ============================================================================
+
+
+class TestKMeansEdgeCases:
+    """Test edge cases and error handling for K-Means clustering."""
+
+    def test_kmeans_with_all_nan_data(self, edge_case_cluster_data):
+        """Test K-Means with all NaN data after dropna."""
+        with pytest.raises(ValueError, match="All rows contain NaN"):
+            perform_kmeans_clustering(edge_case_cluster_data["all_nan"], n_clusters=2)
+
+    def test_kmeans_error_handling(self):
+        """Test K-Means error handling for clustering failure."""
+        # Create data that might cause issues
+        invalid_data = pd.DataFrame({"x": [np.inf, -np.inf, 1, 2, 3]})
+
+        with pytest.raises(RuntimeError, match="K-Means clustering failed"):
+            perform_kmeans_clustering(invalid_data, n_clusters=2)
+
+
+class TestOptimalKEdgeCases:
+    """Test edge cases for optimal k calculation."""
+
+    def test_optimal_k_calinski_method(self, optimal_k_test_data):
+        """Test optimal k selection using Calinski-Harabasz method."""
+        from sleap_roots_analyze.clustering import calculate_optimal_k_kmeans
+
+        result = calculate_optimal_k_kmeans(
+            optimal_k_test_data["data"],
+            max_clusters=optimal_k_test_data["max_k"],
+            method="calinski",
+        )
+
+        assert result["method"] == "calinski"
+        assert "optimal_n_clusters" in result
+        assert result["optimal_n_clusters"] >= 2
+
+    def test_optimal_k_davies_bouldin_method(self, optimal_k_test_data):
+        """Test optimal k selection using Davies-Bouldin method."""
+        from sleap_roots_analyze.clustering import calculate_optimal_k_kmeans
+
+        result = calculate_optimal_k_kmeans(
+            optimal_k_test_data["data"],
+            max_clusters=optimal_k_test_data["max_k"],
+            method="davies_bouldin",
+        )
+
+        assert result["method"] == "davies_bouldin"
+        assert "optimal_n_clusters" in result
+        assert result["optimal_n_clusters"] >= 2
+
+    def test_optimal_k_invalid_method(self, simple_cluster_data):
+        """Test error handling for invalid optimization method."""
+        from sleap_roots_analyze.clustering import calculate_optimal_k_kmeans
+
+        with pytest.raises(ValueError, match="Unknown method"):
+            calculate_optimal_k_kmeans(
+                simple_cluster_data, max_clusters=5, method="invalid_method"
+            )
+
+    def test_optimal_k_error_handling(self):
+        """Test error handling in optimal k calculation."""
+        from sleap_roots_analyze.clustering import calculate_optimal_k_kmeans
+
+        # Create problematic data
+        bad_data = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+
+        with pytest.raises(RuntimeError, match="Failed to calculate optimal k"):
+            calculate_optimal_k_kmeans(bad_data, max_clusters=10, method="silhouette")
+
+    def test_optimal_k_max_clusters_adjustment(self):
+        """Test that max_clusters is adjusted based on sample size."""
+        from sleap_roots_analyze.clustering import calculate_optimal_k_kmeans
+
+        # Small dataset
+        small_data = pd.DataFrame(np.random.randn(15, 3))
+
+        result = calculate_optimal_k_kmeans(small_data, max_clusters=20)
+
+        # max_clusters should be limited
+        assert len(result["k_values"]) < 20
+
+
+class TestGMMEdgeCases:
+    """Test edge cases and error handling for GMM clustering."""
+
+    def test_gmm_auto_n_components(self, multimodal_data):
+        """Test GMM with automatic component selection."""
+        result = perform_gmm_clustering(
+            multimodal_data, n_components=None, max_components=5
+        )
+
+        assert result["method"] == "GMM"
+        assert result["n_components"] >= 2
+
+    def test_gmm_insufficient_samples(self, edge_case_cluster_data):
+        """Test GMM with insufficient samples."""
+        with pytest.raises(ValueError, match="Insufficient samples"):
+            perform_gmm_clustering(
+                edge_case_cluster_data["insufficient_samples"], n_components=2
+            )
+
+    def test_gmm_recommended_max_adjustment(self, gmm_convergence_data):
+        """Test that n_components is adjusted for small datasets."""
+        # Small dataset with requested large n_components
+        result = perform_gmm_clustering(gmm_convergence_data, n_components=8)
+
+        # Should be adjusted down
+        assert result["n_components"] < 8
+
+    def test_gmm_single_component(self, simple_cluster_data):
+        """Test GMM with n_components=1."""
+        result = perform_gmm_clustering(simple_cluster_data, n_components=1)
+
+        assert result["method"] == "GMM"
+        assert result["n_components"] == 1
+        # All samples in one cluster
+        assert len(np.unique(result["cluster_labels"])) == 1
+
+    def test_gmm_different_covariance_types(self, multimodal_data):
+        """Test GMM with different covariance types."""
+        for cov_type in ["full", "tied", "diag", "spherical"]:
+            result = perform_gmm_clustering(
+                multimodal_data, n_components=2, covariance_type=cov_type
+            )
+
+            assert result["method"] == "GMM"
+            assert "cluster_labels" in result
+
+    def test_gmm_error_handling(self):
+        """Test GMM error handling for clustering failure."""
+        # Create problematic data
+        bad_data = pd.DataFrame({"x": [np.inf] * 10, "y": [-np.inf] * 10})
+
+        with pytest.raises(RuntimeError, match="GMM clustering failed"):
+            perform_gmm_clustering(bad_data, n_components=2)
+
+
+class TestHierarchicalEdgeCases:
+    """Test edge cases and error handling for hierarchical clustering."""
+
+    def test_hierarchical_ward_non_euclidean_error(self, hierarchical_edge_cases):
+        """Test that ward linkage with non-euclidean metric raises error."""
+        from sleap_roots_analyze.clustering import perform_hierarchical_clustering
+
+        with pytest.raises(ValueError, match="Ward linkage requires euclidean metric"):
+            perform_hierarchical_clustering(
+                hierarchical_edge_cases["ward_manhattan"],
+                method="ward",
+                metric="manhattan",
+            )
+
+    def test_hierarchical_different_methods(self, hierarchical_edge_cases):
+        """Test hierarchical clustering with different linkage methods."""
+        from sleap_roots_analyze.clustering import perform_hierarchical_clustering
+
+        methods = ["complete", "average", "single"]
+
+        for method in methods:
+            result = perform_hierarchical_clustering(
+                hierarchical_edge_cases["complete_manhattan"],
+                method=method,
+                metric="euclidean",
+            )
+
+            assert result["method"] == "Hierarchical"
+            assert result["linkage_method"] == method
+
+    def test_hierarchical_different_metrics(self, hierarchical_edge_cases):
+        """Test hierarchical clustering with different distance metrics."""
+        from sleap_roots_analyze.clustering import perform_hierarchical_clustering
+
+        metrics = ["euclidean", "manhattan", "cosine"]
+
+        for metric in metrics:
+            method = "complete" if metric != "euclidean" else "ward"
+            result = perform_hierarchical_clustering(
+                hierarchical_edge_cases["complete_manhattan"],
+                method=method,
+                metric=metric,
+            )
+
+            assert result["method"] == "Hierarchical"
+            assert result["distance_metric"] == metric
+
+    def test_hierarchical_error_handling(self):
+        """Test hierarchical clustering error handling."""
+        from sleap_roots_analyze.clustering import perform_hierarchical_clustering
+
+        # Create problematic data
+        bad_data = pd.DataFrame({"x": [1, np.inf], "y": [2, -np.inf]})
+
+        with pytest.raises(RuntimeError, match="Hierarchical clustering failed"):
+            perform_hierarchical_clustering(bad_data, method="ward", metric="euclidean")
+
+
+class TestCutDendrogramEdgeCases:
+    """Test edge cases for dendrogram cutting."""
+
+    def test_cut_dendrogram_by_height(self, hierarchical_cluster_result):
+        """Test cutting dendrogram by height threshold."""
+        from sleap_roots_analyze.clustering import cut_dendrogram
+
+        result = cut_dendrogram(hierarchical_cluster_result, height_threshold=5.0)
+
+        assert "cluster_labels" in result
+        assert "n_clusters" in result
+        assert "cut_height" in result
+        assert result["cut_height"] == 5.0
+
+    def test_cut_dendrogram_single_cluster(self, hierarchical_cluster_result):
+        """Test cutting dendrogram to create single cluster."""
+        from sleap_roots_analyze.clustering import cut_dendrogram
+
+        result = cut_dendrogram(hierarchical_cluster_result, n_clusters=1)
+
+        assert result["n_clusters"] == 1
+        assert len(np.unique(result["cluster_labels"])) == 1
+        # Quality metrics should be 0 for single cluster
+        assert result["silhouette_score"] == 0.0
+        assert result["davies_bouldin_score"] == 0.0
+        assert result["calinski_harabasz_score"] == 0.0
+
+    def test_cut_dendrogram_neither_parameter_error(self, hierarchical_cluster_result):
+        """Test error when neither n_clusters nor height_threshold is provided."""
+        from sleap_roots_analyze.clustering import cut_dendrogram
+
+        with pytest.raises(ValueError, match="Must provide either"):
+            cut_dendrogram(hierarchical_cluster_result)
+
+    def test_cut_dendrogram_error_handling(self, hierarchical_cluster_result):
+        """Test error handling in dendrogram cutting."""
+        from sleap_roots_analyze.clustering import cut_dendrogram
+
+        # Try to create more clusters than samples
+        with pytest.raises(RuntimeError, match="Failed to cut dendrogram"):
+            cut_dendrogram(hierarchical_cluster_result, n_clusters=1000)
+
+
+class TestOptimalClustersHierarchical:
+    """Test optimal cluster calculation for hierarchical clustering."""
+
+    def test_optimal_hierarchical_davies_bouldin(self, hierarchical_cluster_result):
+        """Test optimal k with Davies-Bouldin method."""
+        from sleap_roots_analyze.clustering import (
+            calculate_optimal_clusters_hierarchical,
+        )
+
+        result = calculate_optimal_clusters_hierarchical(
+            hierarchical_cluster_result, max_clusters=8, method="davies_bouldin"
+        )
+
+        assert result["method"] == "davies_bouldin"
+        assert result["optimal_n_clusters"] >= 2
+
+    def test_optimal_hierarchical_calinski(self, hierarchical_cluster_result):
+        """Test optimal k with Calinski-Harabasz method."""
+        from sleap_roots_analyze.clustering import (
+            calculate_optimal_clusters_hierarchical,
+        )
+
+        result = calculate_optimal_clusters_hierarchical(
+            hierarchical_cluster_result, max_clusters=8, method="calinski"
+        )
+
+        assert result["method"] == "calinski"
+        assert result["optimal_n_clusters"] >= 2
+
+    def test_optimal_hierarchical_invalid_method(self, hierarchical_cluster_result):
+        """Test error for invalid optimization method."""
+        from sleap_roots_analyze.clustering import (
+            calculate_optimal_clusters_hierarchical,
+        )
+
+        with pytest.raises(ValueError, match="Unknown method"):
+            calculate_optimal_clusters_hierarchical(
+                hierarchical_cluster_result, max_clusters=5, method="invalid"
+            )
+
+    def test_optimal_hierarchical_insufficient_clusters(self):
+        """Test error when max_clusters < 2."""
+        from sleap_roots_analyze.clustering import (
+            perform_hierarchical_clustering,
+            calculate_optimal_clusters_hierarchical,
+        )
+
+        # Create minimal hierarchical result
+        small_data = pd.DataFrame(np.random.randn(3, 2))
+        hier_result = perform_hierarchical_clustering(small_data)
+
+        with pytest.raises(ValueError, match="Need at least 2 clusters"):
+            calculate_optimal_clusters_hierarchical(hier_result, max_clusters=1)
+
+    def test_optimal_hierarchical_error_handling(self):
+        """Test error handling in optimal cluster calculation."""
+        from sleap_roots_analyze.clustering import (
+            calculate_optimal_clusters_hierarchical,
+        )
+
+        # Create invalid hierarchical result
+        invalid_result = {
+            "linkage_matrix": np.array([[0, 1, 0.5, 2]]),  # Minimal linkage
+            "data_processed": np.random.randn(2, 2),
+        }
+
+        with pytest.raises(RuntimeError, match="Failed to calculate optimal clusters"):
+            calculate_optimal_clusters_hierarchical(invalid_result, max_clusters=10)
+
+
+class TestClusteringWithNaN:
+    """Test clustering with NaN handling."""
+
+    def test_kmeans_drops_nan_rows(self, cluster_result_with_nan):
+        """Test that K-Means correctly drops NaN rows."""
+        result = perform_kmeans_clustering(cluster_result_with_nan, n_clusters=2)
+
+        # Should have fewer samples than input (NaN rows dropped)
+        assert len(result["cluster_labels"]) < len(cluster_result_with_nan)
+        assert len(result["cluster_labels"]) == len(cluster_result_with_nan.dropna())
+
+    def test_gmm_drops_nan_rows(self, cluster_result_with_nan):
+        """Test that GMM correctly drops NaN rows."""
+        result = perform_gmm_clustering(cluster_result_with_nan, n_components=2)
+
+        # Should have fewer samples than input (NaN rows dropped)
+        assert len(result["cluster_labels"]) < len(cluster_result_with_nan)
+        assert len(result["cluster_labels"]) == len(cluster_result_with_nan.dropna())
+
+    def test_hierarchical_drops_nan_rows(self, cluster_result_with_nan):
+        """Test that hierarchical clustering correctly drops NaN rows."""
+        from sleap_roots_analyze.clustering import perform_hierarchical_clustering
+
+        result = perform_hierarchical_clustering(cluster_result_with_nan)
+
+        # Should have fewer samples than input
+        assert len(result["data_indices"]) < len(cluster_result_with_nan)

@@ -3186,3 +3186,248 @@ def multimodal_data():
     df = pd.DataFrame(data, columns=["x", "y", "z"])
 
     return df
+
+
+# ============================================================================
+# CLUSTERING AND VISUALIZATION FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def kmeans_cluster_result(simple_cluster_data):
+    """Create a sample K-Means clustering result for visualization testing.
+
+    Returns a dictionary matching the structure from perform_kmeans_clustering().
+    """
+    from sleap_roots_analyze.clustering import perform_kmeans_clustering
+
+    result = perform_kmeans_clustering(
+        simple_cluster_data, n_clusters=3, random_state=42
+    )
+    return result
+
+
+@pytest.fixture
+def gmm_cluster_result(multimodal_data):
+    """Create a sample GMM clustering result for visualization testing.
+
+    Returns a dictionary matching the structure from perform_gmm_clustering().
+    """
+    from sleap_roots_analyze.clustering import perform_gmm_clustering
+
+    result = perform_gmm_clustering(multimodal_data, n_components=2, random_state=42)
+    return result
+
+
+@pytest.fixture
+def hierarchical_cluster_result(simple_cluster_data):
+    """Create a sample hierarchical clustering result for dendrogram visualization.
+
+    Returns a dictionary matching the structure from perform_hierarchical_clustering().
+    """
+    from sleap_roots_analyze.clustering import perform_hierarchical_clustering
+
+    result = perform_hierarchical_clustering(
+        simple_cluster_data, method="ward", metric="euclidean"
+    )
+    return result
+
+
+@pytest.fixture
+def pca_result_for_clustering(simple_cluster_data):
+    """Create PCA result for cluster visualization testing.
+
+    Returns PCA results with enough components for 2D visualization.
+    """
+    from sleap_roots_analyze.pca import perform_pca_analysis
+
+    result = perform_pca_analysis(
+        simple_cluster_data, n_components=3, standardize=True, random_state=42
+    )
+    return result
+
+
+@pytest.fixture
+def minimal_pca_result():
+    """Create PCA result with only 1 component for edge case testing."""
+    np.random.seed(42)
+    data = pd.DataFrame({"x": np.random.randn(20), "y": np.random.randn(20)})
+
+    from sleap_roots_analyze.pca import perform_pca_analysis
+
+    result = perform_pca_analysis(
+        data, n_components=1, standardize=True, random_state=42
+    )
+    return result
+
+
+@pytest.fixture
+def distance_array():
+    """Create sample distance array for distance distribution plots."""
+    np.random.seed(42)
+    # Mix of normal and some outliers
+    distances = np.concatenate(
+        [
+            np.random.gamma(2, 2, 80),  # Normal distances
+            np.random.uniform(15, 20, 20),  # Outlier distances
+        ]
+    )
+    return distances
+
+
+@pytest.fixture
+def bic_aic_data():
+    """Create sample BIC/AIC data for model comparison plots."""
+    k_range = list(range(2, 11))
+    np.random.seed(42)
+
+    # BIC typically decreases then increases (elbow around k=4)
+    bic = [1000 - 50 * k + 5 * k**2 for k in k_range]
+    # AIC similar pattern but different scale
+    aic = [900 - 45 * k + 4.5 * k**2 for k in k_range]
+
+    return {"k_range": k_range, "bic": bic, "aic": aic, "optimal_k": 4}
+
+
+@pytest.fixture
+def silhouette_data(simple_cluster_data):
+    """Create silhouette coefficient data for silhouette plots."""
+    from sleap_roots_analyze.clustering import perform_kmeans_clustering
+    from sklearn.metrics import silhouette_samples
+
+    result = perform_kmeans_clustering(
+        simple_cluster_data, n_clusters=3, random_state=42
+    )
+
+    silhouette_vals = silhouette_samples(
+        result["data_processed"], result["cluster_labels"]
+    )
+
+    return {
+        "silhouette_values": silhouette_vals,
+        "cluster_labels": result["cluster_labels"],
+        "n_clusters": result["n_clusters"],
+        "silhouette_avg": result["silhouette_score"],
+    }
+
+
+@pytest.fixture
+def edge_case_cluster_data():
+    """Create edge case clustering data for error testing."""
+    np.random.seed(42)
+
+    return {
+        "empty": pd.DataFrame(),
+        "all_nan": pd.DataFrame({"x": [np.nan] * 10, "y": [np.nan] * 10}),
+        "insufficient_samples": pd.DataFrame({"x": [1], "y": [2]}),
+        "two_samples": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+        "single_feature": pd.DataFrame({"x": np.random.randn(50)}),
+        "identical_values": pd.DataFrame(
+            {"x": [1.0] * 20, "y": [2.0] * 20, "z": [3.0] * 20}
+        ),
+    }
+
+
+@pytest.fixture
+def linkage_matrix_small():
+    """Create a small linkage matrix for hierarchical clustering edge cases."""
+    from scipy.cluster.hierarchy import linkage
+
+    # Create minimal data (3 samples)
+    np.random.seed(42)
+    data = np.random.randn(3, 2)
+
+    matrix = linkage(data, method="ward")
+    return matrix
+
+
+@pytest.fixture
+def cluster_result_with_nan():
+    """Create clustering data with NaN values for robustness testing."""
+    np.random.seed(42)
+    df = pd.DataFrame(
+        {
+            "x": [1, 2, np.nan, 4, 5, 6, 7, 8, 9, 10],
+            "y": [2, 4, 6, np.nan, 10, 12, 14, 16, 18, 20],
+            "z": [1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
+        }
+    )
+    return df
+
+
+@pytest.fixture
+def gmm_convergence_data():
+    """Create data that might cause GMM convergence issues."""
+    np.random.seed(42)
+
+    # Create well-separated but small clusters
+    cluster1 = np.random.randn(5, 2) + np.array([0, 0])
+    cluster2 = np.random.randn(5, 2) + np.array([10, 10])
+
+    data = np.vstack([cluster1, cluster2])
+    df = pd.DataFrame(data, columns=["x", "y"])
+
+    return df
+
+
+@pytest.fixture
+def hierarchical_edge_cases():
+    """Create edge cases for hierarchical clustering method validation."""
+    np.random.seed(42)
+
+    return {
+        "ward_euclidean": pd.DataFrame(np.random.randn(20, 3)),  # Valid
+        "ward_manhattan": pd.DataFrame(np.random.randn(20, 3)),  # Invalid combo
+        "complete_manhattan": pd.DataFrame(np.random.randn(20, 3)),  # Valid
+        "single_cosine": pd.DataFrame(np.random.randn(20, 3)),  # Valid
+    }
+
+
+@pytest.fixture
+def optimal_k_test_data():
+    """Create data for testing optimal k selection algorithms."""
+    np.random.seed(42)
+
+    # Create data with obvious k=4 clusters
+    clusters = []
+    centers = [[0, 0], [10, 0], [0, 10], [10, 10]]
+
+    for center in centers:
+        cluster = np.random.randn(15, 2) * 0.5 + np.array(center)
+        clusters.append(cluster)
+
+    data = np.vstack(clusters)
+    df = pd.DataFrame(data, columns=["x", "y"])
+
+    return {"data": df, "true_k": 4, "min_k": 2, "max_k": 8}
+
+
+@pytest.fixture
+def cluster_sizes_data():
+    """Create cluster size data for bar plot testing."""
+    return {
+        "cluster_sizes": [45, 30, 15, 5, 3],
+        "n_clusters": 5,
+        "labels": ["Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4", "Cluster 5"],
+    }
+
+
+@pytest.fixture
+def highlight_indices_data(simple_cluster_data):
+    """Create sample indices to highlight in cluster scatter plots."""
+    # Select some samples from different clusters
+    np.random.seed(42)
+
+    total_samples = len(simple_cluster_data)
+    n_highlights = 10
+
+    highlight_idx = np.random.choice(
+        total_samples, n_highlights, replace=False
+    ).tolist()
+
+    return {
+        "indices": highlight_idx,
+        "empty": [],
+        "no_match": [999, 1000, 1001],  # Indices not in data
+        "all": list(range(total_samples)),
+    }
