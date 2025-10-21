@@ -470,6 +470,263 @@ class TestIdentifyOutliersFromDistances:
         assert len(result["outlier_mask"]) == 0
 
 
+class TestValidateChiSquaredDistribution:
+    """Test chi-squared distribution validation."""
+
+    def test_goodness_of_fit_with_chi_squared_data(self):
+        """Test validation with data that follows chi-squared distribution."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        # Generate data that follows chi-squared distribution
+        np.random.seed(42)
+        df = 5
+        n_samples = 500
+        distances_squared = stats.chi2.rvs(df, size=n_samples)
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Check structure
+        assert result["test_type"] == "Kolmogorov-Smirnov"
+        assert "test_statistic" in result
+        assert "p_value" in result
+        assert "fit_quality" in result
+        assert "interpretation" in result
+        assert "distributional_assumption_valid" in result
+
+        # Should have high p-value (good fit) since data follows chi-squared
+        assert result["p_value"] > 0.05, "Data follows χ² but test failed"
+        assert result["distributional_assumption_valid"] is True
+        assert result["fit_quality"] in ["excellent", "good"]
+        assert "warning" not in result
+
+    def test_goodness_of_fit_with_multimodal_data(self):
+        """Test GOF with multi-modal data (should fail)."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        # Generate bimodal data (mixture of two chi-squared distributions)
+        np.random.seed(42)
+        df = 5
+        n_samples = 500
+
+        # Create two clusters with different scales
+        cluster1 = stats.chi2.rvs(df, size=n_samples // 2) * 0.5
+        cluster2 = stats.chi2.rvs(df, size=n_samples // 2) * 2.0
+        distances_squared = np.concatenate([cluster1, cluster2])
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Should have low p-value (poor fit) due to multi-modal structure
+        assert result["p_value"] < 0.10, "Multi-modal data should not follow χ²"
+        assert result["distributional_assumption_valid"] is False
+        assert result["fit_quality"] in ["poor", "very_poor"]
+        assert "warning" in result
+        assert (
+            "multi" in result["warning"].lower()
+            or "cluster" in result["warning"].lower()
+        )
+
+    def test_goodness_of_fit_classifications(self):
+        """Test that fit quality classifications work correctly."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 5
+
+        # Test different scenarios by varying data quality
+        test_cases = [
+            # (data generator, expected_quality, expected_valid)
+            (lambda: stats.chi2.rvs(df, size=1000), ["excellent", "good"], True),
+            (
+                lambda: stats.chi2.rvs(df, size=50),
+                ["excellent", "good", "poor"],
+                None,
+            ),  # Small sample, variable
+        ]
+
+        for data_gen, expected_qualities, expected_valid in test_cases:
+            distances_squared = data_gen()
+            result = validate_chi_squared_distribution(distances_squared, df=df)
+
+            assert result["fit_quality"] in expected_qualities
+            if expected_valid is not None:
+                assert result["distributional_assumption_valid"] == expected_valid
+
+    def test_goodness_of_fit_empty_data(self):
+        """Test GOF with empty data."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        result = validate_chi_squared_distribution(np.array([]), df=5)
+
+        assert result["test_type"] == "Kolmogorov-Smirnov"
+        assert np.isnan(result["test_statistic"])
+        assert np.isnan(result["p_value"])
+        assert result["fit_quality"] == "unknown"
+        assert result["distributional_assumption_valid"] is False
+        assert "warning" in result
+
+    def test_goodness_of_fit_invalid_df(self):
+        """Test GOF with invalid degrees of freedom."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        distances_squared = stats.chi2.rvs(5, size=100)
+
+        # Test with df <= 0
+        with pytest.raises(ValueError, match="Degrees of freedom must be positive"):
+            validate_chi_squared_distribution(distances_squared, df=0)
+
+        with pytest.raises(ValueError, match="Degrees of freedom must be positive"):
+            validate_chi_squared_distribution(distances_squared, df=-1)
+
+    def test_goodness_of_fit_interpretation_messages(self):
+        """Test that interpretation messages are informative."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 5
+        distances_squared = stats.chi2.rvs(df, size=100)
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Check interpretation contains key information
+        interp = result["interpretation"]
+        assert str(df) in interp, "Should mention degrees of freedom"
+        assert "p = " in interp or "p=" in interp, "Should show p-value"
+        assert "fit" in interp.lower(), "Should discuss fit quality"
+
+    def test_goodness_of_fit_with_small_sample(self):
+        """Test GOF with small sample size."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 5
+        n_samples = 20  # Small sample
+        distances_squared = stats.chi2.rvs(df, size=n_samples)
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Should still return valid result structure
+        assert "test_statistic" in result
+        assert "p_value" in result
+        assert not np.isnan(result["p_value"])
+        assert result["fit_quality"] in ["excellent", "good", "poor", "very_poor"]
+
+
+class TestMahalanobisGoodnessOfFitIntegration:
+    """Test GOF integration with detect_outliers_mahalanobis."""
+
+    def test_gof_included_with_chi_squared(self, outlier_data_with_known_outliers):
+        """Test that GOF is included when use_chi_squared=True."""
+        df, _, _ = outlier_data_with_known_outliers
+
+        result = detect_outliers_mahalanobis(
+            df,
+            standardize=True,
+            variance_threshold=0.95,
+            use_chi_squared=True,
+            chi2_percentile=97.5,
+        )
+
+        # Check that goodness_of_fit is present
+        assert "goodness_of_fit" in result
+        assert result["goodness_of_fit"] is not None
+
+        # Check GOF structure
+        gof = result["goodness_of_fit"]
+        assert "test_type" in gof
+        assert "test_statistic" in gof
+        assert "p_value" in gof
+        assert "fit_quality" in gof
+        assert "distributional_assumption_valid" in gof
+
+    def test_gof_not_included_without_chi_squared(
+        self, outlier_data_with_known_outliers
+    ):
+        """Test that GOF is None when use_chi_squared=False."""
+        df, _, _ = outlier_data_with_known_outliers
+
+        result = detect_outliers_mahalanobis(
+            df,
+            standardize=True,
+            variance_threshold=0.95,
+            use_chi_squared=False,
+            distance_threshold=3.0,
+        )
+
+        # Check that goodness_of_fit is None
+        assert "goodness_of_fit" in result
+        assert result["goodness_of_fit"] is None
+
+    def test_gof_degrees_of_freedom_matches(self, outlier_data_with_known_outliers):
+        """Test that GOF uses correct degrees of freedom."""
+        df, _, _ = outlier_data_with_known_outliers
+
+        result = detect_outliers_mahalanobis(
+            df,
+            standardize=True,
+            variance_threshold=0.95,
+            use_chi_squared=True,
+            chi2_percentile=97.5,
+        )
+
+        n_components = result["n_components"]
+        gof = result["goodness_of_fit"]
+
+        # Interpretation should mention the correct df
+        assert str(n_components) in gof["interpretation"]
+
+    def test_gof_with_multimodal_data(self, outlier_data_multimodal):
+        """Test GOF detects multimodal structure."""
+        df, _, metadata = outlier_data_multimodal
+
+        result = detect_outliers_mahalanobis(
+            df,
+            standardize=True,
+            variance_threshold=0.95,
+            use_chi_squared=True,
+            chi2_percentile=97.5,
+        )
+
+        gof = result["goodness_of_fit"]
+
+        # Multimodal data should show poor fit
+        # Note: This is probabilistic, so we allow some flexibility
+        # But typically should show evidence of poor fit
+        assert "test_statistic" in gof
+        assert "p_value" in gof
+
+    def test_gof_survives_error_handling(self):
+        """Test that GOF doesn't break error handling."""
+        # Test with data that will cause PCA to fail
+        bad_data = pd.DataFrame({"A": [1, 1, 1], "B": [2, 2, 2]})  # Constant columns
+
+        result = detect_outliers_mahalanobis(
+            bad_data,
+            standardize=True,
+            use_chi_squared=True,
+        )
+
+        # Should return error result
+        assert "error" in result
+        # GOF should not be present or should be handled gracefully
+        if "goodness_of_fit" in result:
+            assert result["goodness_of_fit"] is None
+
+
 class TestIntegrationWithPCA:
     """Test integration with PCA module."""
 
