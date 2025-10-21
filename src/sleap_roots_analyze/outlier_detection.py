@@ -53,6 +53,7 @@ def detect_outliers_mahalanobis(
         - threshold_type: Type of threshold used
         - threshold_value: Threshold value used
         - feature_names: List of feature names
+        - goodness_of_fit: Dict with chi-squared GOF test results (if use_chi_squared=True)
         - error: Error message if detection failed
     """
     # Convert to DataFrame to handle indices consistently
@@ -118,6 +119,15 @@ def detect_outliers_mahalanobis(
             "explained_variance_ratio_per_feature", feature_var_explained
         )
 
+        # Calculate goodness-of-fit test if using chi-squared threshold
+        goodness_of_fit = None
+        if use_chi_squared:
+            # Calculate chi-squared goodness-of-fit test
+            distances_squared = distances**2
+            goodness_of_fit = calculate_chi_squared_goodness_of_fit(
+                distances_squared, df=n_components
+            )
+
         # Compile results
         result = {
             "method": "Mahalanobis",
@@ -143,6 +153,7 @@ def detect_outliers_mahalanobis(
             "feature_variance_explained": feature_var_explained.tolist(),
             "feature_fraction_explained": feature_fraction_explained.tolist(),
             "robust_covariance": robust_covariance,
+            "goodness_of_fit": goodness_of_fit,
         }
 
         return result
@@ -253,6 +264,114 @@ def identify_outliers_from_distances(
         "outlier_indices": outlier_indices,
         "n_outliers": int(np.sum(outlier_mask)),
     }
+
+
+def calculate_chi_squared_goodness_of_fit(
+    distances_squared: np.ndarray,
+    df: int,
+) -> Dict[str, Union[str, float, bool]]:
+    """Perform Kolmogorov-Smirnov test to assess if Mahalanobis² distances follow χ²(df).
+
+    This test validates the assumption that data follows a single multivariate normal
+    distribution. If the p-value is low (< 0.05), it suggests the data may have
+    multi-cluster structure, violating the distributional assumption.
+
+    Args:
+        distances_squared: Squared Mahalanobis distances
+        df: Degrees of freedom (number of PCA components)
+
+    Returns:
+        Dictionary containing:
+        - test_type: str - 'Kolmogorov-Smirnov'
+        - test_statistic: float - K-S test statistic
+        - p_value: float - P-value for the test
+        - fit_quality: str - 'excellent', 'good', 'poor', or 'very_poor'
+        - interpretation: str - Human-readable interpretation
+        - distributional_assumption_valid: bool - True if fit is acceptable
+        - warning: str (optional) - Warning message if assumption violated
+
+    Notes:
+        P-value interpretation:
+        - p > 0.10: Excellent fit ✓ (data follows χ²)
+        - 0.05 < p ≤ 0.10: Good fit ✓ (marginal but acceptable)
+        - 0.01 < p ≤ 0.05: Poor fit ⚠️ (evidence against χ²)
+        - p ≤ 0.01: Very poor fit ⚠️ (strong evidence of multi-cluster structure)
+    """
+    distances_squared = np.asarray(distances_squared)
+
+    # Validate inputs
+    if len(distances_squared) == 0:
+        return {
+            "test_type": "Kolmogorov-Smirnov",
+            "test_statistic": np.nan,
+            "p_value": np.nan,
+            "fit_quality": "unknown",
+            "interpretation": "No data provided for goodness-of-fit test",
+            "distributional_assumption_valid": False,
+            "warning": "Insufficient data for goodness-of-fit test",
+        }
+
+    if df <= 0:
+        raise ValueError(f"Degrees of freedom must be positive, got {df}")
+
+    # Perform Kolmogorov-Smirnov test
+    # Compare empirical CDF of squared distances to theoretical chi-squared CDF
+    ks_statistic, p_value = stats.kstest(distances_squared, stats.chi2(df).cdf)
+
+    # Classify fit quality based on p-value
+    if p_value > 0.10:
+        fit_quality = "excellent"
+        interpretation = (
+            f"Excellent fit: Data is consistent with χ²({df}) distribution "
+            f"(p = {p_value:.3f} > 0.10). Mahalanobis assumptions are valid."
+        )
+        assumption_valid = True
+        warning = None
+    elif p_value > 0.05:
+        fit_quality = "good"
+        interpretation = (
+            f"Good fit: Data is marginally consistent with χ²({df}) distribution "
+            f"(p = {p_value:.3f}). Mahalanobis assumptions are acceptable."
+        )
+        assumption_valid = True
+        warning = None
+    elif p_value > 0.01:
+        fit_quality = "poor"
+        interpretation = (
+            f"Poor fit: Data shows some deviation from χ²({df}) distribution "
+            f"(p = {p_value:.3f} < 0.05). Consider alternative outlier detection methods."
+        )
+        assumption_valid = False
+        warning = (
+            "Statistical assumption violated: Data may have multi-modal structure. "
+            "Consider using cluster-aware outlier detection methods (K-Means, GMM, Hierarchical)."
+        )
+    else:  # p_value <= 0.01
+        fit_quality = "very_poor"
+        interpretation = (
+            f"Very poor fit: Data strongly deviates from χ²({df}) distribution "
+            f"(p = {p_value:.3f} ≤ 0.01). Mahalanobis assumptions are violated."
+        )
+        assumption_valid = False
+        warning = (
+            "Statistical assumption strongly violated: Data likely has multi-cluster structure. "
+            "Strongly recommend using cluster-aware outlier detection methods instead "
+            "(K-Means, GMM, or Hierarchical clustering)."
+        )
+
+    result = {
+        "test_type": "Kolmogorov-Smirnov",
+        "test_statistic": float(ks_statistic),
+        "p_value": float(p_value),
+        "fit_quality": fit_quality,
+        "interpretation": interpretation,
+        "distributional_assumption_valid": assumption_valid,
+    }
+
+    if warning is not None:
+        result["warning"] = warning
+
+    return result
 
 
 def detect_outliers_pca(

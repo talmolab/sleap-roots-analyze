@@ -449,6 +449,156 @@ class TestCreateMahalanobisOutlierPlots:
 
         plt.close("all")
 
+    def test_gof_display_with_good_fit(self, outlier_viz_sample_data):
+        """Test GOF display when data follows chi-squared distribution."""
+        df, _ = outlier_viz_sample_data
+
+        # Create GOF result with good fit
+        gof_result = {
+            "test_type": "Kolmogorov-Smirnov",
+            "test_statistic": 0.05,
+            "p_value": 0.85,
+            "fit_quality": "excellent",
+            "interpretation": "Excellent fit: Data is consistent with χ²(3) distribution (p = 0.850 > 0.10). Mahalanobis assumptions are valid.",
+            "distributional_assumption_valid": True,
+        }
+
+        results = {
+            "method": "Mahalanobis",
+            "mahalanobis_distances": np.random.uniform(0, 3, 100).tolist(),
+            "outlier_indices": [5, 10, 15],
+            "n_components": 3,
+            "threshold_type": "chi_squared",
+            "threshold_value": 7.81,
+            "chi2_percentile": 95.0,
+            "n_outliers": 3,
+            "goodness_of_fit": gof_result,
+            "pca_components": np.random.randn(100, 3).tolist(),
+            "explained_variance_ratio": [0.4, 0.3, 0.2],
+            "feature_names": [f"trait_{i}" for i in range(10)],
+        }
+
+        figures = create_mahalanobis_outlier_plots(df, results)
+
+        assert "mahalanobis_outlier_detection" in figures
+
+        fig = figures["mahalanobis_outlier_detection"]
+        ax1 = fig.axes[0]  # Histogram with GOF
+
+        # Check that text box was added
+        assert len(ax1.texts) > 0
+
+        # Find the GOF text box
+        gof_text_found = False
+        for text in ax1.texts:
+            text_content = text.get_text()
+            if "Goodness-of-Fit" in text_content or "K-S statistic" in text_content:
+                gof_text_found = True
+                # Check that p-value and fit quality are displayed
+                assert "0.850" in text_content or "0.85" in text_content
+                assert "EXCELLENT" in text_content.upper()
+                break
+
+        assert gof_text_found, "GOF text box not found in plot"
+
+        plt.close("all")
+
+    def test_gof_display_with_poor_fit(self, outlier_viz_sample_data):
+        """Test GOF display when data does NOT follow chi-squared distribution."""
+        df, _ = outlier_viz_sample_data
+
+        # Create GOF result with poor fit (multi-modal data)
+        gof_result = {
+            "test_type": "Kolmogorov-Smirnov",
+            "test_statistic": 0.25,
+            "p_value": 0.003,
+            "fit_quality": "very_poor",
+            "interpretation": "Very poor fit: Data strongly deviates from χ²(3) distribution (p = 0.003 ≤ 0.01). Mahalanobis assumptions are violated.",
+            "distributional_assumption_valid": False,
+            "warning": "Statistical assumption strongly violated: Data likely has multi-cluster structure. Strongly recommend using cluster-aware outlier detection methods instead (K-Means, GMM, or Hierarchical clustering).",
+        }
+
+        results = {
+            "method": "Mahalanobis",
+            "mahalanobis_distances": np.random.uniform(0, 3, 100).tolist(),
+            "outlier_indices": [5, 10, 15],
+            "n_components": 3,
+            "threshold_type": "chi_squared",
+            "threshold_value": 7.81,
+            "chi2_percentile": 95.0,
+            "n_outliers": 3,
+            "goodness_of_fit": gof_result,
+            "pca_components": np.random.randn(100, 3).tolist(),
+            "explained_variance_ratio": [0.4, 0.3, 0.2],
+            "feature_names": [f"trait_{i}" for i in range(10)],
+        }
+
+        figures = create_mahalanobis_outlier_plots(df, results)
+
+        assert "mahalanobis_outlier_detection" in figures
+
+        fig = figures["mahalanobis_outlier_detection"]
+        ax1 = fig.axes[0]
+
+        # Check that text box was added
+        assert len(ax1.texts) > 0
+
+        # Find the GOF text box and check content
+        gof_text_found = False
+        for text in ax1.texts:
+            text_content = text.get_text()
+            if "Goodness-of-Fit" in text_content or "K-S statistic" in text_content:
+                gof_text_found = True
+                # Check that p-value and fit quality are displayed
+                assert "0.003" in text_content
+                assert "VERY_POOR" in text_content.upper()
+                # Check that warning is present
+                assert "⚠" in text_content
+                break
+
+        assert gof_text_found, "GOF text box not found in plot"
+
+        plt.close("all")
+
+    def test_gof_not_displayed_for_distance_threshold(self, outlier_viz_sample_data):
+        """Test that GOF is not displayed when using distance threshold."""
+        df, _ = outlier_viz_sample_data
+
+        results = {
+            "method": "Mahalanobis",
+            "mahalanobis_distances": np.random.uniform(0, 3, 100).tolist(),
+            "outlier_indices": [5, 10, 15],
+            "n_components": 3,
+            "threshold_type": "distance",  # Not chi_squared
+            "threshold_value": 2.5,
+            "n_outliers": 3,
+            "goodness_of_fit": None,  # GOF not calculated for distance threshold
+            "pca_components": np.random.randn(100, 3).tolist(),
+            "explained_variance_ratio": [0.4, 0.3, 0.2],
+            "feature_names": [f"trait_{i}" for i in range(10)],
+        }
+
+        figures = create_mahalanobis_outlier_plots(df, results)
+
+        assert "mahalanobis_outlier_detection" in figures
+
+        fig = figures["mahalanobis_outlier_detection"]
+        ax1 = fig.axes[0]
+
+        # Check that no GOF text box was added
+        gof_text_found = False
+        for text in ax1.texts:
+            text_content = text.get_text()
+            if "Goodness-of-Fit" in text_content or "K-S statistic" in text_content:
+                gof_text_found = True
+                break
+
+        assert (
+            not gof_text_found
+        ), "GOF text box should not be present for distance threshold"
+
+        plt.close("all")
+
 
 class TestCreatePcaOutlierPlot:
     """Test create_pca_outlier_plot function."""
