@@ -1,0 +1,53 @@
+# Example Pipeline Configuration
+# This file demonstrates all available configuration options
+
+pipeline_name: my_analysis
+version: 1.0
+enable_parallel: false  # Future feature
+
+# Data configuration
+data:
+  input_path: data.csv
+  output_dir: ./outputs
+  traits_to_include: null  # null = include all traits
+  traits_to_exclude: []    # List of trait names to exclude
+  min_heritability: 0.0    # Minimum heritability threshold (0.0 = no filtering)
+
+# Outlier detection configuration
+outlier_detection:
+  method: mahalanobis  # Options: mahalanobis, zscore, iqr
+  threshold: 0.01      # Chi-squared p-value for mahalanobis, or z-score/IQR threshold
+  use_pca: true        # Whether to use PCA before outlier detection
+  n_components: 0.95   # Number of PCA components (or variance ratio if < 1)
+  robust_covariance: false  # Use MinCovDet for robust covariance estimation
+
+# PCA configuration
+pca:
+  n_components: 0.95     # Number of components (or variance ratio if < 1)
+  standardize: true      # Standardize features before PCA
+  feature_selection_strategy: top_variance  # Options: extreme, top_absolute, top_contribution, top_variance
+  n_top_features: 10     # Number of top features to select per component
+
+# Clustering configuration
+clustering:
+  method: kmeans         # Options: kmeans, gmm, hierarchical
+  n_clusters: 3          # Number of clusters
+  auto_optimize: false   # Automatically optimize number of clusters
+  min_clusters: 2        # Minimum clusters for auto-optimization
+  max_clusters: 10       # Maximum clusters for auto-optimization
+
+# Visualization configuration
+visualization:
+  create_pca_plots: true       # Create PCA scatter plots
+  create_umap_plots: false     # Create UMAP plots
+  create_cluster_plots: false  # Create clustering visualizations
+  create_outlier_plots: true   # Create outlier detection plots
+  interactive: false           # Use Plotly for interactive plots
+  dpi: 300                     # DPI for static plots
+  figsize: [10, 8]             # Figure size (width, height) for static plots
+
+# Logging configuration
+logging:
+  level: INFO           # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_to_file: true     # Whether to save logs to file
+  log_file: pipeline.log  # Log file name (saved in run directory)
