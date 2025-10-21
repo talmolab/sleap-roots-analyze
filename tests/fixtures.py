@@ -3155,3 +3155,34 @@ def sample_trait_data():
     data["scan_date"] = "2024-01-01"
 
     return data
+
+
+@pytest.fixture
+def simple_cluster_data():
+    """Create simple synthetic data with clear clusters for clustering tests."""
+    np.random.seed(42)
+
+    # Create 3 well-separated clusters
+    cluster1 = np.random.randn(30, 5) + np.array([0, 0, 0, 0, 0])
+    cluster2 = np.random.randn(30, 5) + np.array([5, 5, 5, 5, 5])
+    cluster3 = np.random.randn(30, 5) + np.array([-5, -5, -5, -5, -5])
+
+    data = np.vstack([cluster1, cluster2, cluster3])
+    df = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(5)])
+
+    return df
+
+
+@pytest.fixture
+def multimodal_data():
+    """Create data with multiple modes for GMM testing."""
+    np.random.seed(42)
+
+    # Create 2 overlapping Gaussian distributions
+    mode1 = np.random.randn(50, 3) * 0.5 + np.array([0, 0, 0])
+    mode2 = np.random.randn(50, 3) * 0.5 + np.array([2, 2, 2])
+
+    data = np.vstack([mode1, mode2])
+    df = pd.DataFrame(data, columns=["x", "y", "z"])
+
+    return df

@@ -28,13 +28,14 @@ def select_top_features_from_pca(
         n_features_to_select: Number of features to select (per direction for "extreme")
         method: Selection method:
             - "extreme": Top N most positive and negative loadings for specified PCs
+              Returns features in order: PC1_neg, PC1_pos, PC2_neg, PC2_pos, ...
             - "top_absolute": Top N by absolute loading magnitude on specified PCs
             - "top_contribution": Top N by variance contribution to specified PCs
             - "top_variance": Top N by total variance contribution (all PCs)
         pc_indices: Which PCs to consider (0-based). If None, uses first 2 PCs.
 
     Returns:
-        List of selected feature indices
+        List of selected feature indices (order depends on method)
 
     Raises:
         ValueError: If method is not recognized
@@ -45,7 +46,7 @@ def select_top_features_from_pca(
         >>> selected = select_top_features_from_pca(
         ...     loadings, eigenvalues, 3, 1, method="extreme", pc_indices=[0]
         ... )
-        >>> # Returns indices of most positive (0) and most negative (2) on PC1
+        >>> # Returns indices of most negative and most positive on PC1
     """
     if pc_indices is None:
         pc_indices = [0, 1]  # Default to first 2 PCs
@@ -59,18 +60,27 @@ def select_top_features_from_pca(
 
     if method == "extreme":
         # Get top N most positive and negative loadings for each PC
-        selected_indices = set()
+        # Return in predictable order, avoiding duplicates
+        selected_indices = []
+        seen = set()
 
         for pc_idx in pc_indices:
             loadings_pc = loadings[:n_features, pc_idx]
             sorted_idx = np.argsort(loadings_pc)
 
-            # Most negative
-            selected_indices.update(sorted_idx[:n_features_to_select])
-            # Most positive
-            selected_indices.update(sorted_idx[-n_features_to_select:])
+            # Most negative (in order of most negative to less negative)
+            for idx in sorted_idx[:n_features_to_select]:
+                if idx not in seen:
+                    selected_indices.append(int(idx))
+                    seen.add(idx)
+            
+            # Most positive (in order of most positive to less positive)
+            for idx in sorted_idx[-n_features_to_select:][::-1]:
+                if idx not in seen:
+                    selected_indices.append(int(idx))
+                    seen.add(idx)
 
-        return list(selected_indices)
+        return selected_indices
 
     elif method == "top_absolute":
         # Get features with highest absolute loading on specified PCs

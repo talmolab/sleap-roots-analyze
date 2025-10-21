@@ -1012,7 +1012,7 @@ def create_pca_scree_plot(
     n_features = pca_results.get(
         "n_features", len(pca_results.get("feature_names", []))
     )
-    title = f"Enhanced PCA Variance Analysis"
+    title = f"PCA Scree Plot"
     if n_features:
         title += f" (Total features: {n_features})"
     plt.title(title, fontsize=14, pad=20)
@@ -1242,6 +1242,7 @@ def create_pca_biplot(
     figsize: Tuple[float, float] = (10, 8),
     alpha: float = 0.6,
     arrow_scale: Optional[float] = None,  # Auto-scale if None
+    genotypes_to_color: Optional[List[str]] = None,
 ) -> plt.Figure:
     """Create a PCA biplot showing samples and feature loadings.
 
@@ -1260,6 +1261,11 @@ def create_pca_biplot(
         figsize: Figure size.
         alpha: Transparency for scatter points.
         arrow_scale: Scaling factor for feature arrows (auto-calculated if None).
+        genotypes_to_color: Optional list of specific categories to color when using
+            categorical color_by. If provided, only these categories will be colored
+            with distinct colors and shown in the legend. All other categories will be
+            plotted in gray as "Other". If None (default), all categories are colored.
+            Only applies when color_by is categorical.
 
     Returns:
         PCA biplot figure.
@@ -1333,21 +1339,78 @@ def create_pca_biplot(
             df_pca[color_by].dtype, pd.CategoricalDtype
         ):
             # Get unique categories
-            categories = df_pca[color_by].unique()
-            colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+            all_categories = df_pca[color_by].unique()
 
-            # Plot each category separately
-            for i, cat in enumerate(categories):
-                mask = df_pca[color_by] == cat
-                ax.scatter(
-                    X_pca[mask, pc_x_idx],
-                    X_pca[mask, pc_y_idx],
-                    c=[colors[i]],
-                    label=cat,
-                    alpha=alpha,
-                    s=50,
-                    edgecolors="none",
-                )
+            # Filter categories if genotypes_to_color is provided
+            if genotypes_to_color is not None:
+                # Only color specified genotypes
+                categories_to_plot = [
+                    cat for cat in all_categories if cat in genotypes_to_color
+                ]
+                other_categories = [
+                    cat for cat in all_categories if cat not in genotypes_to_color
+                ]
+
+                # Generate colors for selected categories
+                # Use tab10 but exclude gray (index 7) which is RGB(0.5, 0.5, 0.5)
+                tab10_colors = plt.cm.tab10(range(10))
+                # Exclude index 7 (gray) from tab10
+                non_gray_colors = [
+                    tab10_colors[i] for i in range(10) if i != 7
+                ]  # Indices: 0-6, 8-9
+
+                # If we need more colors than available, cycle through the palette
+                if len(categories_to_plot) > len(non_gray_colors):
+                    colors = [
+                        non_gray_colors[i % len(non_gray_colors)]
+                        for i in range(len(categories_to_plot))
+                    ]
+                else:
+                    colors = non_gray_colors[: len(categories_to_plot)]
+
+                # Plot selected categories with distinct colors
+                for i, cat in enumerate(categories_to_plot):
+                    mask = df_pca[color_by] == cat
+                    ax.scatter(
+                        X_pca[mask, pc_x_idx],
+                        X_pca[mask, pc_y_idx],
+                        c=[colors[i]],
+                        label=cat,
+                        alpha=alpha,
+                        s=50,
+                        edgecolors="none",
+                    )
+
+                # Plot other categories in gray as "Other"
+                if len(other_categories) > 0:
+                    other_mask = df_pca[color_by].isin(other_categories)
+                    ax.scatter(
+                        X_pca[other_mask, pc_x_idx],
+                        X_pca[other_mask, pc_y_idx],
+                        c="gray",
+                        label="Other",
+                        alpha=alpha,
+                        s=50,
+                        edgecolors="none",
+                    )
+            else:
+                # Default behavior: color all categories
+                categories = all_categories
+                colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+
+                # Plot each category separately
+                for i, cat in enumerate(categories):
+                    mask = df_pca[color_by] == cat
+                    ax.scatter(
+                        X_pca[mask, pc_x_idx],
+                        X_pca[mask, pc_y_idx],
+                        c=[colors[i]],
+                        label=cat,
+                        alpha=alpha,
+                        s=50,
+                        edgecolors="none",
+                    )
+
             ax.legend(title=color_by, bbox_to_anchor=(1.05, 1), loc="upper left")
         else:
             # Numeric coloring
@@ -1429,7 +1492,7 @@ def create_pca_biplot(
             label_x,
             label_y,
             trait_names[idx],
-            fontsize=9,
+            fontsize=14,
             ha=ha,
             va=va,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7),
@@ -1438,9 +1501,7 @@ def create_pca_biplot(
     # Set axis labels and title
     ax.set_xlabel(f"PC{pc_x} ({explained_var[pc_x - 1] * 100:.1f}% variance)")
     ax.set_ylabel(f"PC{pc_y} ({explained_var[pc_y - 1] * 100:.1f}% variance)")
-    ax.set_title(
-        f"PCA Biplot - Top {top_n_features} Contributing Features", fontsize=14
-    )
+    ax.set_title(f"PCA Biplot", fontsize=14)
 
     # Add grid
     ax.grid(True, alpha=0.3)
@@ -1600,6 +1661,152 @@ def create_umap_colored_by_top_traits(
     fig.suptitle(title, fontsize=14)
     plt.tight_layout()
 
+    return fig
+
+
+def create_umap_single_trait(
+    umap_results: Union[np.ndarray, Dict],
+    df: pd.DataFrame,
+    trait_col: str,
+    trait_name: Optional[str] = None,
+    color_by: Optional[str] = None,
+    figsize: Tuple[float, float] = (8, 6),
+    cmap: str = "viridis",
+    point_size: int = 30,
+    alpha: float = 0.7,
+    title: Optional[str] = None,
+) -> plt.Figure:
+    """Create a single UMAP plot colored by a specific trait.
+
+    This is a simple helper function for plotting UMAP embeddings colored by
+    individual traits, useful for inspecting specific trait distributions.
+
+    Args:
+        umap_results: 2D UMAP embedding array or dictionary with 'embedding' key.
+        df: Original dataframe with trait values.
+        trait_col: Column name of the trait to color by.
+        trait_name: Display name of trait. If None, uses trait_col.
+        color_by: Optional column for categorical coloring (e.g., genotype).
+            If provided, creates two subplots: one colored by trait, one by category.
+        figsize: Figure size (width, height).
+        cmap: Colormap for continuous trait values.
+        point_size: Size of scatter plot points.
+        alpha: Transparency of points (0-1).
+        title: Optional custom title. If None, auto-generates title.
+
+    Returns:
+        Matplotlib figure with UMAP plot(s).
+
+    Raises:
+        ValueError: If trait_col not in df or if umap_results is invalid.
+
+    Examples:
+        >>> # Simple plot colored by single trait
+        >>> fig = create_umap_single_trait(umap_results, df, "primary_root_length")
+        >>>
+        >>> # Plot with genotype overlay
+        >>> fig = create_umap_single_trait(
+        ...     umap_results, df, "primary_root_length",
+        ...     color_by="geno", figsize=(14, 6)
+        ... )
+    """
+    # Extract embedding if umap_results is a dictionary
+    if isinstance(umap_results, dict):
+        umap_embedding = umap_results["embedding"]
+    else:
+        umap_embedding = umap_results
+
+    # Validate inputs
+    if trait_col not in df.columns:
+        raise ValueError(f"Trait column '{trait_col}' not found in dataframe")
+
+    if umap_embedding.shape[0] != len(df):
+        raise ValueError(
+            f"UMAP embedding has {umap_embedding.shape[0]} samples "
+            f"but dataframe has {len(df)} rows"
+        )
+
+    # Use trait_col as default display name
+    if trait_name is None:
+        trait_name = trait_col
+
+    # Determine subplot layout
+    if color_by is not None:
+        if color_by not in df.columns:
+            raise ValueError(f"color_by column '{color_by}' not found in dataframe")
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+    else:
+        fig, ax = plt.subplots(figsize=figsize)
+        axes = [ax]
+
+    # Plot 1: Colored by trait
+    ax = axes[0] if len(axes) > 1 else axes[0]
+    trait_values = df[trait_col].values
+
+    scatter = ax.scatter(
+        umap_embedding[:, 0],
+        umap_embedding[:, 1],
+        c=trait_values,
+        cmap=cmap,
+        s=point_size,
+        alpha=alpha,
+        edgecolors="none",
+    )
+
+    # Add colorbar
+    cbar = plt.colorbar(scatter, ax=ax)
+    cbar.set_label(trait_name, fontsize=10)
+
+    ax.set_xlabel("UMAP 1", fontsize=10)
+    ax.set_ylabel("UMAP 2", fontsize=10)
+
+    if title:
+        ax.set_title(title, fontsize=12)
+    else:
+        ax.set_title(f"UMAP colored by {trait_name}", fontsize=12)
+
+    # Plot 2: Colored by category (if requested)
+    if color_by is not None:
+        ax = axes[1]
+        category_values = df[color_by].values
+
+        # Use categorical colors
+        unique_cats = np.unique(category_values)
+        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_cats)))
+        cat_to_color = {cat: colors[i] for i, cat in enumerate(unique_cats)}
+        point_colors = [cat_to_color[cat] for cat in category_values]
+
+        ax.scatter(
+            umap_embedding[:, 0],
+            umap_embedding[:, 1],
+            c=point_colors,
+            s=point_size,
+            alpha=alpha,
+            edgecolors="none",
+        )
+
+        # Add legend
+        handles = [
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=cat_to_color[cat],
+                markersize=8,
+                label=cat,
+            )
+            for cat in unique_cats
+        ]
+        ax.legend(
+            handles=handles, title=color_by, bbox_to_anchor=(1.05, 1), loc="upper left"
+        )
+
+        ax.set_xlabel("UMAP 1", fontsize=10)
+        ax.set_ylabel("UMAP 2", fontsize=10)
+        ax.set_title(f"UMAP colored by {color_by}", fontsize=12)
+
+    plt.tight_layout()
     return fig
 
 
@@ -2296,3 +2503,226 @@ def create_phenotype_variation_plot(
         plot_df.to_csv(output_csv_path, index=False)
 
     return fig, plot_df
+
+
+def create_genotype_image_grid(
+    df: pd.DataFrame,
+    image_links: Dict[str, Dict[str, Path]],
+    genotype: str,
+    genotype_col: str = "geno",
+    barcode_col: str = "Barcode",
+    image_type: str = "features.png",
+    n_cols: int = 4,
+    figsize: Optional[Tuple[float, float]] = None,
+    show_labels: bool = True,
+    label_fontsize: int = 10,
+    title_fontsize: int = 14,
+    show_stats: bool = True,
+    trait_cols: Optional[List[str]] = None,
+    max_images: Optional[int] = None,
+) -> plt.Figure:
+    """Create a publication-ready grid of plant images for a specific genotype.
+
+    This function displays all plant images for samples matching a specified genotype
+    in a clean matplotlib grid layout, suitable for publications and presentations.
+
+    Args:
+        df: DataFrame with trait data and sample metadata.
+        image_links: Dictionary mapping barcode to image paths, typically from
+            link_rhizovision_images_to_samples().
+        genotype: Name of the genotype to display.
+        genotype_col: Column name containing genotype identifiers (default: "geno").
+        barcode_col: Column name containing sample barcodes (default: "Barcode").
+        image_type: Type of image to display (default: "features.png").
+            Options: "features.png", "seg.png", or other types in image_links.
+        n_cols: Number of columns in the grid (default: 4).
+        figsize: Figure size as (width, height). If None, calculated automatically.
+        show_labels: Whether to show barcode labels below images (default: True).
+        label_fontsize: Font size for image labels (default: 10).
+        title_fontsize: Font size for figure title (default: 14).
+        show_stats: Whether to show trait statistics in title (default: True).
+        trait_cols: List of trait columns to compute statistics for (default: None).
+            If None and show_stats=True, uses first 3 numeric columns.
+        max_images: Maximum number of images to display (default: None = all).
+
+    Returns:
+        matplotlib Figure object containing the image grid.
+
+    Raises:
+        ValueError: If genotype not found in dataframe or required columns missing.
+        FileNotFoundError: If no valid images found for the genotype.
+
+    Example:
+        >>> from sleap_roots_analyze.data_utils import link_rhizovision_images_to_samples
+        >>> image_links = link_rhizovision_images_to_samples(df, "path/to/images")
+        >>> fig = create_genotype_image_grid(
+        ...     df=df_traits,
+        ...     image_links=image_links,
+        ...     genotype="Genotype_A",
+        ...     n_cols=4,
+        ...     show_labels=True,
+        ...     trait_cols=["primary_root_length", "lateral_root_count"]
+        ... )
+        >>> fig.savefig("genotype_A_samples.pdf", dpi=300, bbox_inches='tight')
+    """
+    # Import PIL here to avoid requiring it as a hard dependency
+    try:
+        from PIL import Image
+    except ImportError:
+        raise ImportError(
+            "PIL (Pillow) is required for image display. "
+            "Install with: pip install Pillow"
+        )
+
+    # Validate required columns
+    if genotype_col not in df.columns:
+        raise ValueError(
+            f"Genotype column '{genotype_col}' not found. "
+            f"Available: {df.columns.tolist()}"
+        )
+    if barcode_col not in df.columns:
+        raise ValueError(
+            f"Barcode column '{barcode_col}' not found. "
+            f"Available: {df.columns.tolist()}"
+        )
+
+    # Filter dataframe for specified genotype
+    df_geno = df[df[genotype_col] == genotype].copy()
+
+    if len(df_geno) == 0:
+        raise ValueError(
+            f"No samples found for genotype '{genotype}'. "
+            f"Available genotypes: {df[genotype_col].unique().tolist()}"
+        )
+
+    # Collect valid image paths and corresponding barcodes
+    valid_images = []
+    valid_barcodes = []
+
+    for idx, row in df_geno.iterrows():
+        barcode = row[barcode_col]
+
+        # Check if barcode exists in image_links
+        if barcode not in image_links:
+            continue
+
+        # Check if image type exists for this barcode
+        if image_type not in image_links[barcode]:
+            continue
+
+        img_path = image_links[barcode][image_type]
+
+        # Check if path is valid and file exists
+        if img_path is not None and Path(img_path).exists():
+            valid_images.append(img_path)
+            valid_barcodes.append(barcode)
+
+            # Stop if we've reached max_images
+            if max_images is not None and len(valid_images) >= max_images:
+                break
+
+    if len(valid_images) == 0:
+        raise FileNotFoundError(
+            f"No valid images found for genotype '{genotype}'. "
+            f"Checked {len(df_geno)} samples for image type '{image_type}'."
+        )
+
+    # Limit to max_images if specified
+    n_images = len(valid_images)
+
+    # Calculate grid dimensions
+    n_rows = int(np.ceil(n_images / n_cols))
+
+    # Calculate figure size if not provided
+    if figsize is None:
+        # Base size per image (width, height) in inches
+        img_width = 2.5
+        img_height = 2.5
+        figsize = (n_cols * img_width, n_rows * img_height + 1)  # +1 for title
+
+    # Create figure and axes
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+
+    # Handle single row/col cases
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([[axes]])
+    elif n_rows == 1:
+        axes = axes.reshape(1, -1)
+    elif n_cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    # Flatten axes for easier iteration
+    axes_flat = axes.flatten()
+
+    # Load and display images
+    for i, (img_path, barcode) in enumerate(zip(valid_images, valid_barcodes)):
+        ax = axes_flat[i]
+
+        try:
+            # Load image
+            img = Image.open(img_path)
+
+            # Display image
+            ax.imshow(img)
+
+            # Add label if requested
+            if show_labels:
+                ax.set_xlabel(barcode, fontsize=label_fontsize)
+
+            # Remove ticks
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+            # Keep box for clean look
+            for spine in ax.spines.values():
+                spine.set_edgecolor("gray")
+                spine.set_linewidth(0.5)
+
+        except Exception as e:
+            # Handle image loading errors
+            ax.text(
+                0.5,
+                0.5,
+                f"Error loading\n{barcode}",
+                ha="center",
+                va="center",
+                fontsize=8,
+                color="red",
+            )
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+    # Hide unused subplots
+    for i in range(n_images, len(axes_flat)):
+        axes_flat[i].axis("off")
+
+    # Create title
+    title_parts = [f"Genotype: {genotype} (n={n_images})"]
+
+    # Add trait statistics if requested
+    if show_stats and len(df_geno) > 0:
+        # Determine which traits to show
+        if trait_cols is None:
+            # Use first 3 numeric columns (excluding barcode/genotype)
+            numeric_cols = df_geno.select_dtypes(include=[np.number]).columns
+            exclude_cols = [genotype_col, barcode_col, "rep", "replicate"]
+            trait_cols = [col for col in numeric_cols if col not in exclude_cols][:3]
+
+        if trait_cols:
+            stats_parts = []
+            for trait in trait_cols:
+                if trait in df_geno.columns:
+                    trait_vals = df_geno[trait].dropna()
+                    if len(trait_vals) > 0:
+                        mean_val = trait_vals.mean()
+                        std_val = trait_vals.std()
+                        stats_parts.append(f"{trait}: {mean_val:.2f} ± {std_val:.2f}")
+
+            if stats_parts:
+                title_parts.append(" | ".join(stats_parts))
+
+    fig.suptitle("\n".join(title_parts), fontsize=title_fontsize, y=0.98)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+    return fig

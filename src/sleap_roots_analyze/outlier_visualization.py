@@ -1256,3 +1256,431 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
 
     plt.tight_layout()
     return fig
+
+
+def create_kmeans_outlier_plots(
+    df: pd.DataFrame,
+    kmeans_results: Dict,
+    pca_result: Optional[Dict] = None,
+) -> Dict[str, plt.Figure]:
+    """Create K-Means clustering outlier detection plots.
+
+    Generates comprehensive visualizations for K-Means-based outlier detection:
+    1. PCA scatter with cluster coloring + highlighted outliers
+    2. Distance distribution with threshold
+    3. Cluster sizes bar chart
+    4. Silhouette plot
+
+    Args:
+        df: Original DataFrame with trait data
+        kmeans_results: Results from detect_outliers_kmeans()
+        pca_result: Optional PCA results from perform_pca_analysis().
+            If provided, reuses these PCA components for efficiency.
+
+    Returns:
+        Dictionary mapping plot names to matplotlib Figures
+
+    Examples:
+        >>> # Option 1: With existing PCA (efficient for notebooks)
+        >>> pca_result = perform_pca_analysis(numeric_traits)
+        >>> kmeans_results = detect_outliers_kmeans(numeric_traits)
+        >>> figs = create_kmeans_outlier_plots(df, kmeans_results, pca_result)
+        >>>
+        >>> # Option 2: Without PCA (computes for visualization)
+        >>> figs = create_kmeans_outlier_plots(df, kmeans_results)
+    """
+    from sleap_roots_analyze.cluster_visualization import (
+        create_cluster_scatter_pca,
+        create_distance_distribution_plot,
+        create_cluster_size_barplot,
+        create_silhouette_plot,
+    )
+
+    figures = {}
+
+    if "error" in kmeans_results:
+        return figures
+
+    # 1. PCA scatter with clusters and outliers highlighted
+    try:
+        fig_scatter = create_cluster_scatter_pca(
+            kmeans_results,
+            pca_result=pca_result,
+            highlight_indices=kmeans_results.get("outlier_indices", []),
+            title=f"K-Means Clustering (k={kmeans_results['n_clusters']})\n"
+            f"{kmeans_results['n_outliers']} outliers detected",
+        )
+        figures["kmeans_pca_scatter"] = fig_scatter
+    except Exception as e:
+        print(f"Warning: Could not create PCA scatter plot: {e}")
+
+    # 2. Distance distribution
+    if "min_distances_to_centers" in kmeans_results:
+        try:
+            distances = np.array(kmeans_results["min_distances_to_centers"])
+            threshold = kmeans_results["threshold_value"]
+
+            fig_dist = create_distance_distribution_plot(
+                distances, threshold, "K-Means"
+            )
+            figures["kmeans_distance_distribution"] = fig_dist
+        except Exception as e:
+            print(f"Warning: Could not create distance distribution plot: {e}")
+
+    # 3. Cluster sizes
+    if "cluster_labels" in kmeans_results:
+        try:
+            fig_sizes = create_cluster_size_barplot(
+                kmeans_results["cluster_labels"], kmeans_results["n_clusters"]
+            )
+            figures["kmeans_cluster_sizes"] = fig_sizes
+        except Exception as e:
+            print(f"Warning: Could not create cluster size plot: {e}")
+
+    # 4. Silhouette plot
+    if "silhouette_score" in kmeans_results:
+        try:
+            fig_silhouette = create_silhouette_plot(kmeans_results)
+            figures["kmeans_silhouette"] = fig_silhouette
+        except Exception as e:
+            print(f"Warning: Could not create silhouette plot: {e}")
+
+    return figures
+
+
+def create_gmm_outlier_plots(
+    df: pd.DataFrame,
+    gmm_results: Dict,
+    pca_result: Optional[Dict] = None,
+) -> Dict[str, plt.Figure]:
+    """Create GMM (Gaussian Mixture Model) outlier detection plots.
+
+    Generates comprehensive visualizations for GMM-based outlier detection:
+    1. PCA scatter with cluster coloring + highlighted outliers
+    2. Log-likelihood distribution with threshold
+    3. BIC/AIC scores for component selection (if auto-selection was used)
+    4. Cluster sizes bar chart
+    5. Silhouette plot
+    6. Probability heatmap showing soft cluster assignments
+
+    Args:
+        df: Original DataFrame with trait data
+        gmm_results: Results from detect_outliers_gmm()
+        pca_result: Optional PCA results from perform_pca_analysis().
+            If provided, reuses these PCA components for efficiency.
+
+    Returns:
+        Dictionary mapping plot names to matplotlib Figures
+
+    Examples:
+        >>> # Option 1: With existing PCA (efficient for notebooks)
+        >>> pca_result = perform_pca_analysis(numeric_traits)
+        >>> gmm_results = detect_outliers_gmm(numeric_traits, n_components=None)
+        >>> figs = create_gmm_outlier_plots(df, gmm_results, pca_result)
+        >>>
+        >>> # Option 2: Without PCA (computes for visualization)
+        >>> figs = create_gmm_outlier_plots(df, gmm_results)
+    """
+    from sleap_roots_analyze.cluster_visualization import (
+        create_cluster_scatter_pca,
+        create_distance_distribution_plot,
+        create_cluster_size_barplot,
+        create_bic_aic_comparison_plot,
+        create_silhouette_plot,
+    )
+
+    figures = {}
+
+    if "error" in gmm_results:
+        return figures
+
+    # 1. PCA scatter with clusters and outliers highlighted
+    try:
+        fig_scatter = create_cluster_scatter_pca(
+            gmm_results,
+            pca_result=pca_result,
+            highlight_indices=gmm_results.get("outlier_indices", []),
+            title=f"GMM Clustering (k={gmm_results['n_components']})\n"
+            f"{gmm_results['n_outliers']} outliers detected",
+        )
+        figures["gmm_pca_scatter"] = fig_scatter
+    except Exception as e:
+        print(f"Warning: Could not create PCA scatter plot: {e}")
+
+    # 2. Log-likelihood distribution
+    if "log_likelihoods" in gmm_results:
+        try:
+            log_likelihoods = np.array(gmm_results["log_likelihoods"])
+            threshold = gmm_results["threshold_value"]
+
+            # Note: For GMM, lower log-likelihood = more anomalous
+            # So we flip the comparison for visualization
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 6))
+
+            # Histogram with threshold line
+            ax1.hist(
+                log_likelihoods, bins=30, alpha=0.7, edgecolor="black", color="skyblue"
+            )
+            ax1.axvline(
+                threshold,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"Threshold: {threshold:.3f}",
+            )
+            ax1.set_xlabel("Log-Likelihood")
+            ax1.set_ylabel("Frequency")
+            ax1.set_title("GMM Log-Likelihood Distribution")
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+
+            # Sorted scatter plot
+            sorted_idx = np.argsort(log_likelihoods)
+            sorted_ll = log_likelihoods[sorted_idx]
+            colors = ["red" if ll < threshold else "blue" for ll in sorted_ll]
+
+            ax2.scatter(range(len(sorted_ll)), sorted_ll, c=colors, alpha=0.6, s=30)
+            ax2.axhline(
+                threshold,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"Threshold: {threshold:.3f}",
+            )
+            ax2.set_xlabel("Sample Index (sorted by log-likelihood)")
+            ax2.set_ylabel("Log-Likelihood")
+            ax2.set_title("GMM Log-Likelihoods (Sorted)")
+            ax2.grid(True, alpha=0.3)
+
+            # Add legend
+            legend_elements = [
+                Patch(facecolor="blue", alpha=0.6, label="Normal"),
+                Patch(facecolor="red", alpha=0.6, label="Below Threshold (Outlier)"),
+            ]
+            ax2.legend(handles=legend_elements)
+
+            plt.tight_layout()
+            figures["gmm_loglikelihood_distribution"] = fig
+        except Exception as e:
+            print(f"Warning: Could not create log-likelihood distribution plot: {e}")
+
+    # 3. BIC/AIC comparison (if auto-selection was used)
+    if len(gmm_results.get("bic_scores", [])) > 1:
+        try:
+            fig_bic_aic = create_bic_aic_comparison_plot(
+                gmm_results["bic_scores"], gmm_results["aic_scores"]
+            )
+            figures["gmm_bic_aic_comparison"] = fig_bic_aic
+        except Exception as e:
+            print(f"Warning: Could not create BIC/AIC comparison plot: {e}")
+
+    # 4. Cluster sizes
+    if "cluster_labels" in gmm_results:
+        try:
+            fig_sizes = create_cluster_size_barplot(
+                gmm_results["cluster_labels"], gmm_results["n_components"]
+            )
+            figures["gmm_cluster_sizes"] = fig_sizes
+        except Exception as e:
+            print(f"Warning: Could not create cluster size plot: {e}")
+
+    # 5. Silhouette plot
+    if "silhouette_score" in gmm_results:
+        try:
+            fig_silhouette = create_silhouette_plot(gmm_results)
+            figures["gmm_silhouette"] = fig_silhouette
+        except Exception as e:
+            print(f"Warning: Could not create silhouette plot: {e}")
+
+    # 6. Probability heatmap (soft assignments)
+    if "probabilities" in gmm_results:
+        try:
+            probabilities = np.array(gmm_results["probabilities"])
+            n_components = gmm_results["n_components"]
+
+            fig, ax = plt.subplots(figsize=(12, 8))
+
+            # Sort samples by their primary cluster for better visualization
+            cluster_labels = gmm_results["cluster_labels"]
+            sort_idx = np.lexsort((probabilities.max(axis=1), cluster_labels))
+
+            # Create heatmap
+            im = ax.imshow(
+                probabilities[sort_idx].T,
+                aspect="auto",
+                cmap="YlOrRd",
+                interpolation="nearest",
+            )
+
+            ax.set_xlabel("Sample Index (sorted by cluster)")
+            ax.set_ylabel("Component")
+            ax.set_title("GMM Soft Cluster Assignments\n(Probability Heatmap)")
+            ax.set_yticks(range(n_components))
+            ax.set_yticklabels([f"Component {i+1}" for i in range(n_components)])
+
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax)
+            cbar.set_label("Probability")
+
+            plt.tight_layout()
+            figures["gmm_probability_heatmap"] = fig
+        except Exception as e:
+            print(f"Warning: Could not create probability heatmap: {e}")
+
+    return figures
+
+
+def create_hierarchical_outlier_plots(
+    df: pd.DataFrame,
+    hierarchical_results: Dict,
+    pca_result: Optional[Dict] = None,
+) -> Dict[str, plt.Figure]:
+    """Create hierarchical clustering outlier detection plots.
+
+    Generates comprehensive visualizations for hierarchical clustering-based outlier detection:
+    1. Dendrogram with cut line
+    2. PCA scatter with cluster coloring + highlighted outliers
+    3. Distance distribution with threshold
+    4. Cluster sizes bar chart
+    5. Silhouette plot
+
+    Args:
+        df: Original DataFrame with trait data
+        hierarchical_results: Results from detect_outliers_hierarchical()
+        pca_result: Optional PCA results from perform_pca_analysis().
+            If provided, reuses these PCA components for efficiency.
+
+    Returns:
+        Dictionary mapping plot names to matplotlib Figures
+
+    Examples:
+        >>> # Option 1: With existing PCA (efficient for notebooks)
+        >>> pca_result = perform_pca_analysis(numeric_traits)
+        >>> hier_results = detect_outliers_hierarchical(numeric_traits)
+        >>> figs = create_hierarchical_outlier_plots(df, hier_results, pca_result)
+        >>>
+        >>> # Option 2: Without PCA (computes for visualization)
+        >>> figs = create_hierarchical_outlier_plots(df, hier_results)
+    """
+    from sleap_roots_analyze.cluster_visualization import (
+        create_dendrogram,
+        create_cluster_scatter_pca,
+        create_distance_distribution_plot,
+        create_cluster_size_barplot,
+        create_silhouette_plot,
+    )
+
+    figures = {}
+
+    if "error" in hierarchical_results:
+        return figures
+
+    # 1. Dendrogram with cut line
+    if "linkage_matrix" in hierarchical_results:
+        try:
+            n_clusters = hierarchical_results.get("n_clusters")
+            cut_height = hierarchical_results.get("cut_height")
+
+            fig_dendro = create_dendrogram(
+                hierarchical_results,
+                n_clusters=n_clusters,
+                cut_height=cut_height,
+                title=f"Hierarchical Clustering Dendrogram\n"
+                f"Cophenetic correlation: {hierarchical_results.get('cophenetic_correlation', 0):.3f}",
+            )
+            figures["hierarchical_dendrogram"] = fig_dendro
+        except Exception as e:
+            print(f"Warning: Could not create dendrogram: {e}")
+
+    # 2. PCA scatter with clusters and outliers highlighted
+    try:
+        fig_scatter = create_cluster_scatter_pca(
+            hierarchical_results,
+            pca_result=pca_result,
+            highlight_indices=hierarchical_results.get("outlier_indices", []),
+            title=f"Hierarchical Clustering (k={hierarchical_results.get('n_clusters', 'auto')})\n"
+            f"{hierarchical_results.get('n_outliers', 0)} outliers detected",
+        )
+        figures["hierarchical_pca_scatter"] = fig_scatter
+    except Exception as e:
+        print(f"Warning: Could not create PCA scatter plot: {e}")
+
+    # 3. Distance distribution
+    if "distances_to_centers" in hierarchical_results:
+        try:
+            distances = np.array(hierarchical_results["distances_to_centers"])
+            threshold = hierarchical_results["threshold_value"]
+
+            fig_dist = create_distance_distribution_plot(
+                distances, threshold, "Hierarchical"
+            )
+            figures["hierarchical_distance_distribution"] = fig_dist
+        except Exception as e:
+            print(f"Warning: Could not create distance distribution plot: {e}")
+
+    # 4. Cluster sizes
+    if "cluster_labels" in hierarchical_results:
+        try:
+            n_clusters = hierarchical_results.get(
+                "n_clusters", len(np.unique(hierarchical_results["cluster_labels"]))
+            )
+            fig_sizes = create_cluster_size_barplot(
+                hierarchical_results["cluster_labels"], n_clusters
+            )
+            figures["hierarchical_cluster_sizes"] = fig_sizes
+        except Exception as e:
+            print(f"Warning: Could not create cluster size plot: {e}")
+
+    # 5. Silhouette plot
+    if "silhouette_score" in hierarchical_results:
+        try:
+            fig_silhouette = create_silhouette_plot(hierarchical_results)
+            figures["hierarchical_silhouette"] = fig_silhouette
+        except Exception as e:
+            print(f"Warning: Could not create silhouette plot: {e}")
+
+    # 6. Optimal k analysis (if auto-optimization was performed)
+    if "optimal_k_analysis" in hierarchical_results:
+        try:
+            analysis = hierarchical_results["optimal_k_analysis"]
+            scores = analysis["scores"]
+            k_values = analysis["k_values"]
+            method = analysis["method"]
+            optimal_k = analysis["optimal_n_clusters"]
+
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            ax.plot(k_values, scores, marker="o", linewidth=2, markersize=8)
+            ax.axvline(
+                optimal_k,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"Optimal k={optimal_k}",
+            )
+            ax.scatter(
+                [optimal_k],
+                [scores[k_values.index(optimal_k)]],
+                s=200,
+                c="red",
+                marker="*",
+                zorder=5,
+                edgecolors="black",
+                linewidths=2,
+            )
+
+            ax.set_xlabel("Number of Clusters (k)")
+            ax.set_ylabel(f"{method.replace('_', ' ').title()} Score")
+            ax.set_title(
+                f"Optimal Cluster Selection\nMethod: {method.replace('_', ' ').title()}"
+            )
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.set_xticks(k_values)
+
+            plt.tight_layout()
+            figures["hierarchical_optimal_k"] = fig
+        except Exception as e:
+            print(f"Warning: Could not create optimal k plot: {e}")
+
+    return figures

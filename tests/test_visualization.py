@@ -1763,6 +1763,355 @@ class TestPCAVisualization:
 
         plt.close("all")
 
+    def test_create_pca_biplot_with_genotype_filtering(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test PCA biplot with genotype filtering."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # Get unique genotypes from the dataframe
+        unique_genos = pca_viz_dataframe["geno"].unique()
+        assert len(unique_genos) >= 2, "Need at least 2 genotypes for this test"
+
+        # Select first 2 genotypes to color
+        genos_to_color = list(unique_genos[:2])
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by="geno",
+            genotypes_to_color=genos_to_color,
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Check legend is present
+        legend = ax.get_legend()
+        assert legend is not None
+
+        # Check legend labels
+        legend_texts = [text.get_text() for text in legend.get_texts()]
+
+        # Should have selected genotypes + "Other"
+        for geno in genos_to_color:
+            assert geno in legend_texts
+
+        # Should have "Other" if there are more genotypes
+        if len(unique_genos) > len(genos_to_color):
+            assert "Other" in legend_texts
+
+        # Should NOT have unselected genotypes explicitly in legend
+        unselected_genos = set(unique_genos) - set(genos_to_color)
+        for geno in unselected_genos:
+            assert geno not in legend_texts
+
+        plt.close("all")
+
+    def test_create_pca_biplot_genotype_filtering_all_selected(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test biplot when all genotypes are selected."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # Select all genotypes
+        all_genos = list(pca_viz_dataframe["geno"].unique())
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by="geno",
+            genotypes_to_color=all_genos,
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Check legend
+        legend = ax.get_legend()
+        legend_texts = [text.get_text() for text in legend.get_texts()]
+
+        # Should NOT have "Other" since all genotypes are selected
+        assert "Other" not in legend_texts
+
+        # Should have all genotypes
+        for geno in all_genos:
+            assert geno in legend_texts
+
+        plt.close("all")
+
+    def test_create_pca_biplot_genotype_filtering_empty_list(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test biplot with empty genotypes list."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # Empty list should plot all as "Other"
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by="geno",
+            genotypes_to_color=[],
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Check legend
+        legend = ax.get_legend()
+        legend_texts = [text.get_text() for text in legend.get_texts()]
+
+        # Should only have "Other"
+        assert legend_texts == ["Other"]
+
+        plt.close("all")
+
+    def test_create_pca_biplot_genotype_filtering_nonexistent_genotype(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test biplot with non-existent genotypes in filter list."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # Include some non-existent genotypes
+        genos_to_color = ["NonExistent1", "NonExistent2"]
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by="geno",
+            genotypes_to_color=genos_to_color,
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Check legend
+        legend = ax.get_legend()
+        legend_texts = [text.get_text() for text in legend.get_texts()]
+
+        # Should only have "Other" since no genotypes match
+        assert legend_texts == ["Other"]
+
+        plt.close("all")
+
+    def test_create_pca_biplot_genotype_filtering_numeric_coloring(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test that genotype filtering doesn't affect numeric coloring."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # genotypes_to_color should have no effect with numeric coloring
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by="trait_0",  # Numeric column
+            genotypes_to_color=["should_be_ignored"],
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        # Should have colorbar for numeric coloring
+        assert len(fig.axes) > 1
+
+        plt.close("all")
+
+    def test_create_pca_biplot_genotype_filtering_without_color_by(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test that genotype filtering has no effect without color_by."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # genotypes_to_color should be ignored when color_by is None
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by=None,
+            genotypes_to_color=["should_be_ignored"],
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Should not have legend
+        assert ax.get_legend() is None
+
+        plt.close("all")
+
+    def test_create_pca_biplot_genotype_filtering_no_overlap(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test that colored genotypes are not also plotted as gray."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # Get unique genotypes
+        unique_genos = pca_viz_dataframe["geno"].unique()
+        assert len(unique_genos) >= 3, "Need at least 3 genotypes for this test"
+
+        # Select subset to color
+        genos_to_color = list(unique_genos[:2])
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by="geno",
+            genotypes_to_color=genos_to_color,
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Get all scatter collections
+        collections = ax.collections
+        assert len(collections) > 0
+
+        # Count points in each collection
+        colored_points = 0
+        gray_points = 0
+
+        for collection in collections:
+            # Get the facecolors
+            facecolors = collection.get_facecolors()
+            if len(facecolors) > 0:
+                # Check if this is the gray collection
+                # Gray in RGB is approximately (0.5, 0.5, 0.5)
+                first_color = facecolors[0]
+                is_gray = (
+                    abs(first_color[0] - 0.5019607843137255) < 0.01
+                    and abs(first_color[1] - 0.5019607843137255) < 0.01
+                    and abs(first_color[2] - 0.5019607843137255) < 0.01
+                )
+
+                n_points = len(collection.get_offsets())
+                if is_gray:
+                    gray_points += n_points
+                else:
+                    colored_points += n_points
+
+        # Verify counts
+        total_points = len(pca_viz_results["transformed_data"])
+        assert colored_points + gray_points == total_points, (
+            f"Point count mismatch: {colored_points} colored + {gray_points} gray "
+            f"!= {total_points} total"
+        )
+
+        # Verify that we have both colored and gray points
+        n_colored_samples = sum(pca_viz_dataframe["geno"].isin(genos_to_color))
+        n_other_samples = total_points - n_colored_samples
+
+        assert (
+            colored_points == n_colored_samples
+        ), f"Expected {n_colored_samples} colored points, got {colored_points}"
+        assert (
+            gray_points == n_other_samples
+        ), f"Expected {n_other_samples} gray points, got {gray_points}"
+
+        plt.close("all")
+
+    def test_create_pca_biplot_genotype_filtering_no_gray_colors(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Test that selected genotypes don't use gray-like colors."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        # Get unique genotypes
+        unique_genos = pca_viz_dataframe["geno"].unique()
+        assert len(unique_genos) >= 3, "Need at least 3 genotypes for this test"
+
+        # Select subset to color
+        genos_to_color = list(unique_genos[:3])
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            color_by="geno",
+            genotypes_to_color=genos_to_color,
+            pc_x=1,
+            pc_y=2,
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Get all scatter collections
+        collections = ax.collections
+        assert len(collections) > 0
+
+        # Check colors of non-"Other" collections
+        for collection in collections:
+            facecolors = collection.get_facecolors()
+            if len(facecolors) > 0:
+                first_color = facecolors[0]
+
+                # Check if this is the gray "Other" collection
+                is_gray = (
+                    abs(first_color[0] - 0.5019607843137255) < 0.01
+                    and abs(first_color[1] - 0.5019607843137255) < 0.01
+                    and abs(first_color[2] - 0.5019607843137255) < 0.01
+                )
+
+                # If it's not the gray collection, verify it's not gray-like
+                if not is_gray:
+                    # Check that RGB values are not all similar (within 0.1 of each other)
+                    # and not all close to 0.5 (neutral gray)
+                    r, g, b = first_color[0], first_color[1], first_color[2]
+
+                    # A color is gray-like if R, G, B are very similar
+                    max_diff = max(abs(r - g), abs(r - b), abs(g - b))
+
+                    # For colored genotypes, we expect distinct colors (not gray-like)
+                    # Allow some tolerance, but expect at least 0.1 difference in channels
+                    assert max_diff > 0.05, (
+                        f"Selected genotype color is too gray-like: "
+                        f"RGB=({r:.3f}, {g:.3f}, {b:.3f}), max_diff={max_diff:.3f}"
+                    )
+
+        plt.close("all")
+
     def test_create_umap_colored_by_top_traits(
         self, umap_viz_results, pca_viz_dataframe, pca_viz_results
     ):
@@ -1788,6 +2137,174 @@ class TestPCAVisualization:
         # Count actual plot axes (excluding colorbars)
         plot_axes = [ax for ax in axes if not hasattr(ax, "colorbar")]
         assert len(plot_axes) >= 6 or len(plot_axes) == len(trait_columns[:6])
+
+        plt.close("all")
+
+    def test_create_umap_single_trait_basic(self, umap_viz_results, pca_viz_dataframe):
+        """Test basic single trait UMAP plot."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        fig = create_umap_single_trait(
+            umap_viz_results,
+            pca_viz_dataframe,
+            trait_col="trait_0",
+            trait_name="Trait 0",
+        )
+
+        assert isinstance(fig, plt.Figure)
+
+        # Should have axes (main plot + colorbar)
+        assert len(fig.axes) >= 1
+
+        # Check labels on main plot
+        ax = fig.axes[0]
+        assert "UMAP 1" in ax.get_xlabel()
+        assert "UMAP 2" in ax.get_ylabel()
+        assert "Trait 0" in ax.get_title()
+
+        plt.close("all")
+
+    def test_create_umap_single_trait_with_category(
+        self, umap_viz_results, pca_viz_dataframe
+    ):
+        """Test single trait UMAP plot with category overlay."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        # Add a genotype column (ensure it matches length exactly)
+        n_samples = len(pca_viz_dataframe)
+        genotypes = ["A", "B", "C"] * (n_samples // 3 + 1)
+        pca_viz_dataframe["geno"] = genotypes[:n_samples]
+
+        fig = create_umap_single_trait(
+            umap_viz_results,
+            pca_viz_dataframe,
+            trait_col="trait_0",
+            trait_name="Trait 0",
+            color_by="geno",
+            figsize=(14, 6),
+        )
+
+        assert isinstance(fig, plt.Figure)
+
+        # Should have multiple axes (2 main plots + colorbar)
+        assert len(fig.axes) >= 2
+
+        # Check we have subplots
+        assert len(fig.axes) >= 2
+
+        # Check first subplot (colored by trait)
+        ax1 = fig.axes[0]
+        assert "UMAP 1" in ax1.get_xlabel()
+        assert "Trait 0" in ax1.get_title()
+
+        # Check second subplot (colored by genotype)
+        ax2 = fig.axes[1]
+        assert "UMAP 1" in ax2.get_xlabel()
+        assert "geno" in ax2.get_title()
+
+        plt.close("all")
+
+    def test_create_umap_single_trait_with_dict_input(
+        self, umap_viz_results, pca_viz_dataframe
+    ):
+        """Test single trait UMAP with dictionary input."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        # umap_viz_results is already a dict, just pass it directly
+        fig = create_umap_single_trait(
+            umap_viz_results,
+            pca_viz_dataframe,
+            trait_col="trait_0",
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close("all")
+
+    def test_create_umap_single_trait_custom_params(
+        self, umap_viz_results, pca_viz_dataframe
+    ):
+        """Test single trait UMAP with custom parameters."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        fig = create_umap_single_trait(
+            umap_viz_results,
+            pca_viz_dataframe,
+            trait_col="trait_0",
+            trait_name="Custom Trait Name",
+            cmap="plasma",
+            point_size=50,
+            alpha=0.5,
+            title="Custom Title",
+        )
+
+        assert isinstance(fig, plt.Figure)
+
+        ax = fig.axes[0]
+        assert "Custom Title" in ax.get_title()
+
+        plt.close("all")
+
+    def test_create_umap_single_trait_invalid_trait(
+        self, umap_viz_results, pca_viz_dataframe
+    ):
+        """Test single trait UMAP with invalid trait column."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        with pytest.raises(ValueError, match="Trait column.*not found"):
+            create_umap_single_trait(
+                umap_viz_results,
+                pca_viz_dataframe,
+                trait_col="nonexistent_trait",
+            )
+
+    def test_create_umap_single_trait_invalid_color_by(
+        self, umap_viz_results, pca_viz_dataframe
+    ):
+        """Test single trait UMAP with invalid color_by column."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        with pytest.raises(ValueError, match="color_by column.*not found"):
+            create_umap_single_trait(
+                umap_viz_results,
+                pca_viz_dataframe,
+                trait_col="trait_0",
+                color_by="nonexistent_column",
+            )
+
+    def test_create_umap_single_trait_mismatched_samples(
+        self, umap_viz_results, pca_viz_dataframe
+    ):
+        """Test single trait UMAP with mismatched sample counts."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        # Create dataframe with fewer samples
+        df_small = pca_viz_dataframe.iloc[:10].copy()
+
+        with pytest.raises(ValueError, match="UMAP embedding has.*samples"):
+            create_umap_single_trait(
+                umap_viz_results,
+                df_small,
+                trait_col="trait_0",
+            )
+
+    def test_create_umap_single_trait_default_name(
+        self, umap_viz_results, pca_viz_dataframe
+    ):
+        """Test single trait UMAP uses trait_col as default name."""
+        from sleap_roots_analyze.visualization import create_umap_single_trait
+
+        fig = create_umap_single_trait(
+            umap_viz_results,
+            pca_viz_dataframe,
+            trait_col="trait_0",
+            # Don't specify trait_name
+        )
+
+        assert isinstance(fig, plt.Figure)
+
+        # Should use trait_col in title
+        ax = fig.axes[0]
+        assert "trait_0" in ax.get_title()
 
         plt.close("all")
 

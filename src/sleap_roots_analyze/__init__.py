@@ -25,10 +25,22 @@ from sleap_roots_analyze.umap import (
     perform_umap_analysis,
 )
 
+from sleap_roots_analyze.clustering import (
+    perform_kmeans_clustering,
+    perform_gmm_clustering,
+    perform_hierarchical_clustering,
+    cut_dendrogram,
+    calculate_optimal_clusters_hierarchical,
+    calculate_cluster_quality_metrics,
+)
+
 from sleap_roots_analyze.outlier_detection import (
     detect_outliers_mahalanobis,
     detect_outliers_pca,
     detect_outliers_isolation_forest,
+    detect_outliers_kmeans,
+    detect_outliers_gmm,
+    detect_outliers_hierarchical,
     calculate_outlier_threshold,
     identify_outliers_from_distances,
     remove_outliers_from_data,
@@ -49,12 +61,23 @@ from sleap_roots_analyze.visualization import (
     create_feature_contribution_plot,
     create_pca_biplot,
     create_umap_colored_by_top_traits,
+    create_umap_single_trait,
     identify_extreme_genotypes_by_pc,
     create_pc_genotype_boxplots,
     create_feature_contribution_heatmap,
     create_publication_figure,
     identify_extreme_phenotypes,
     create_phenotype_variation_plot,
+    create_genotype_image_grid,
+)
+
+from sleap_roots_analyze.cluster_visualization import (
+    create_cluster_scatter_pca,
+    create_distance_distribution_plot,
+    create_cluster_size_barplot,
+    create_bic_aic_comparison_plot,
+    create_silhouette_plot,
+    create_dendrogram,
 )
 
 from sleap_roots_analyze.outlier_visualization import (
@@ -64,6 +87,9 @@ from sleap_roots_analyze.outlier_visualization import (
     create_mahalanobis_outlier_plots,
     create_pca_outlier_plot,
     create_comprehensive_outlier_comparison,
+    create_kmeans_outlier_plots,
+    create_gmm_outlier_plots,
+    create_hierarchical_outlier_plots,
 )
 
 from sleap_roots_analyze.cross_experiment_analysis import (
@@ -116,10 +142,20 @@ __all__ = [
     "run_pca_and_export_artifacts",
     # UMAP functions
     "perform_umap_analysis",
+    # Clustering functions
+    "perform_kmeans_clustering",
+    "perform_gmm_clustering",
+    "perform_hierarchical_clustering",
+    "cut_dendrogram",
+    "calculate_optimal_clusters_hierarchical",
+    "calculate_cluster_quality_metrics",
     # Outlier detection functions
     "detect_outliers_mahalanobis",
     "detect_outliers_pca",
     "detect_outliers_isolation_forest",
+    "detect_outliers_kmeans",
+    "detect_outliers_gmm",
+    "detect_outliers_hierarchical",
     "calculate_outlier_threshold",
     "identify_outliers_from_distances",
     "remove_outliers_from_data",
@@ -138,12 +174,21 @@ __all__ = [
     "create_feature_contribution_plot",
     "create_pca_biplot",
     "create_umap_colored_by_top_traits",
+    "create_umap_single_trait",
     "identify_extreme_genotypes_by_pc",
     "create_pc_genotype_boxplots",
     "create_feature_contribution_heatmap",
     "create_publication_figure",
     "identify_extreme_phenotypes",
     "create_phenotype_variation_plot",
+    "create_genotype_image_grid",
+    # Cluster visualization functions
+    "create_cluster_scatter_pca",
+    "create_distance_distribution_plot",
+    "create_cluster_size_barplot",
+    "create_bic_aic_comparison_plot",
+    "create_silhouette_plot",
+    "create_dendrogram",
     # Outlier visualization functions
     "create_isolation_forest_plots",
     "create_outlier_overlap_heatmap",
@@ -151,6 +196,9 @@ __all__ = [
     "create_mahalanobis_outlier_plots",
     "create_pca_outlier_plot",
     "create_comprehensive_outlier_comparison",
+    "create_kmeans_outlier_plots",
+    "create_gmm_outlier_plots",
+    "create_hierarchical_outlier_plots",
     # Cross-experiment analysis functions
     "load_and_align_experiments",
     "calculate_genotype_means",
