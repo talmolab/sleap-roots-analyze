@@ -469,6 +469,307 @@ def detect_outliers_isolation_forest(
         }
 
 
+def detect_outliers_kmeans(
+    data: Union[pd.DataFrame, np.ndarray],
+    n_clusters: Optional[int] = None,
+    max_clusters: int = 10,
+    distance_threshold: float = 2.0,
+    standardize: bool = True,
+    random_state: int = 42,
+) -> Dict:
+    """Detect outliers using K-Means clustering.
+
+    Performs K-Means clustering and identifies samples that are far from all
+    cluster centers as outliers. This method is useful for identifying samples
+    that don't fit well into any natural grouping in the data.
+
+    Outliers are defined as samples whose distance to the nearest cluster center
+    exceeds: mean_distance + distance_threshold * std_distance
+
+    Args:
+        data: Input data as DataFrame or array
+        n_clusters: Number of clusters (auto-selected via silhouette if None)
+        max_clusters: Maximum clusters to test for auto-selection (default 10)
+        distance_threshold: Threshold in standard deviations for outlier detection
+        standardize: Whether to standardize data before clustering
+        random_state: Random seed for reproducibility
+
+    Returns:
+        Dictionary with outlier detection results:
+        - method: 'KMeans'
+        - outlier_indices: List of outlier sample indices
+        - n_outliers: Number of outliers detected
+        - threshold_value: Distance threshold used
+        - distance_threshold: Input distance threshold parameter
+        - (plus all fields from perform_kmeans_clustering)
+
+    Examples:
+        >>> # With auto-optimization
+        >>> result = detect_outliers_kmeans(df, n_clusters=None)
+        >>> print(f"Found {result['n_outliers']} outliers in {result['n_clusters']} clusters")
+        >>> 
+        >>> # With specified k
+        >>> result = detect_outliers_kmeans(df, n_clusters=3, distance_threshold=2.0)
+        >>> print(f"Found {result['n_outliers']} outliers")
+        >>> cleaned_df = df.drop(index=result['outlier_indices'])
+    """
+    from sleap_roots_analyze.clustering import perform_kmeans_clustering
+
+    try:
+        # Perform core K-Means clustering
+        cluster_result = perform_kmeans_clustering(
+            data,
+            n_clusters=n_clusters,
+            max_clusters=max_clusters,
+            standardize=standardize,
+            random_state=random_state,
+        )
+
+        # Calculate outlier threshold based on distances
+        distances = cluster_result["min_distances_to_centers"]
+        mean_distance = np.mean(distances)
+        std_distance = np.std(distances)
+
+        if std_distance == 0:
+            # All samples have same distance - no outliers
+            outlier_indices = []
+            threshold_value = mean_distance
+        else:
+            threshold_value = mean_distance + distance_threshold * std_distance
+            outlier_mask = distances > threshold_value
+            # Get indices from original data
+            outlier_indices = [
+                cluster_result["data_indices"][i] for i in np.where(outlier_mask)[0]
+            ]
+
+        # Return combined result
+        return {
+            **cluster_result,
+            "outlier_indices": outlier_indices,
+            "n_outliers": len(outlier_indices),
+            "threshold_value": float(threshold_value),
+            "distance_threshold": distance_threshold,
+        }
+
+    except Exception as e:
+        return {
+            "method": "KMeans",
+            "outlier_indices": [],
+            "error": f"K-Means outlier detection failed: {str(e)}",
+        }
+
+
+def detect_outliers_gmm(
+    data: Union[pd.DataFrame, np.ndarray],
+    n_components: Optional[int] = None,
+    max_components: int = 5,
+    percentile_threshold: float = 99.0,
+    covariance_type: str = "full",
+    standardize: bool = True,
+    random_state: int = 42,
+) -> Dict:
+    """Detect outliers using Gaussian Mixture Model.
+
+    Fits a GMM to the data and identifies outliers as samples with low
+    log-likelihood (probability) under the fitted model. GMM can model
+    complex, multi-modal distributions better than single-distribution methods.
+
+    Outliers are defined as samples in the lowest percentile_threshold of
+    log-likelihood scores.
+
+    Args:
+        data: Input data as DataFrame or array
+        n_components: Number of mixture components (auto-selected via BIC if None)
+        max_components: Max components to test for auto-selection
+        percentile_threshold: Percentile for outlier cutoff (95-99.9)
+            - 99.0 means bottom 1% are outliers
+            - 95.0 means bottom 5% are outliers
+        covariance_type: Covariance structure ('full', 'tied', 'diag', 'spherical')
+        standardize: Whether to standardize data before clustering
+        random_state: Random seed for reproducibility
+
+    Returns:
+        Dictionary with outlier detection results:
+        - method: 'GMM'
+        - outlier_indices: List of outlier sample indices
+        - n_outliers: Number of outliers detected
+        - threshold_value: Log-likelihood threshold used
+        - percentile_threshold: Input percentile threshold parameter
+        - (plus all fields from perform_gmm_clustering)
+
+    Examples:
+        >>> result = detect_outliers_gmm(
+        ...     df,
+        ...     n_components=None,  # Auto-select
+        ...     percentile_threshold=99.0
+        ... )
+        >>> print(f"Selected {result['n_components']} components")
+        >>> print(f"Found {result['n_outliers']} outliers")
+    """
+    from sleap_roots_analyze.clustering import perform_gmm_clustering
+
+    try:
+        # Perform core GMM clustering
+        gmm_result = perform_gmm_clustering(
+            data,
+            n_components=n_components,
+            max_components=max_components,
+            covariance_type=covariance_type,
+            standardize=standardize,
+            random_state=random_state,
+        )
+
+        # Identify outliers based on log-likelihood
+        log_likelihoods = gmm_result["log_likelihoods"]
+
+        # Lower log-likelihood = lower probability = more anomalous
+        # Use percentile to find threshold
+        threshold = np.percentile(log_likelihoods, 100 - percentile_threshold)
+        outlier_mask = log_likelihoods < threshold
+
+        # Get indices from original data
+        outlier_indices = [
+            gmm_result["data_indices"][i] for i in np.where(outlier_mask)[0]
+        ]
+
+        # Return combined result
+        return {
+            **gmm_result,
+            "outlier_indices": outlier_indices,
+            "n_outliers": len(outlier_indices),
+            "threshold_value": float(threshold),
+            "percentile_threshold": percentile_threshold,
+        }
+
+    except Exception as e:
+        return {
+            "method": "GMM",
+            "outlier_indices": [],
+            "error": f"GMM outlier detection failed: {str(e)}",
+        }
+
+
+
+def detect_outliers_hierarchical(
+    data: Union[pd.DataFrame, np.ndarray],
+    n_clusters: Optional[int] = None,
+    distance_threshold: float = 2.0,
+    linkage_method: str = "ward",
+    distance_metric: str = "euclidean",
+    standardize: bool = True,
+) -> Dict:
+    """Detect outliers using hierarchical clustering.
+
+    Performs hierarchical clustering, cuts dendrogram to get clusters (with optional
+    automatic k optimization), then identifies samples far from their cluster centers
+    as outliers. Unlike K-Means/GMM, hierarchical clustering provides a dendrogram
+    showing the full hierarchy of relationships.
+
+    Args:
+        data: Input data as DataFrame or array
+        n_clusters: Number of clusters (auto-optimized if None)
+        distance_threshold: Threshold in standard deviations for outlier detection
+        linkage_method: Hierarchical linkage method ('ward', 'complete', 'average', 'single')
+        distance_metric: Distance metric for hierarchical clustering ('euclidean', etc.)
+        standardize: Whether to standardize data before clustering
+
+    Returns:
+        Dictionary with outlier detection results:
+        - method: 'Hierarchical'
+        - outlier_indices: List of outlier sample indices
+        - n_outliers: Number of outliers detected
+        - threshold_value: Distance threshold used
+        - distance_threshold: Input distance threshold parameter
+        - linkage_matrix: Full hierarchical structure (for dendrograms)
+        - cluster_labels: Labels after cutting dendrogram
+        - n_clusters: Number of clusters
+        - cluster_sizes: Number of samples per cluster
+        - cut_height: Height where dendrogram was cut
+        - cophenetic_correlation: Quality of hierarchical structure
+        - distances_to_centers: Distance of each sample to its cluster center
+        - (plus quality metrics from cut_dendrogram)
+
+    Examples:
+        >>> # With auto-optimization of k
+        >>> result = detect_outliers_hierarchical(df, n_clusters=None)
+        >>> print(f"Optimal k: {result['n_clusters']}")
+        >>>
+        >>> # With specified k
+        >>> result = detect_outliers_hierarchical(df, n_clusters=3)
+    """
+    from sleap_roots_analyze.clustering import (
+        perform_hierarchical_clustering,
+        cut_dendrogram,
+        calculate_optimal_clusters_hierarchical,
+    )
+
+    try:
+        # 1. Perform hierarchical clustering
+        hier_result = perform_hierarchical_clustering(
+            data,
+            method=linkage_method,
+            metric=distance_metric,
+            standardize=standardize,
+        )
+
+        # 2. Determine optimal k if not specified
+        if n_clusters is None:
+            optimal_result = calculate_optimal_clusters_hierarchical(
+                hier_result, max_clusters=min(10, len(hier_result["data_indices"]) // 2)
+            )
+            n_clusters = optimal_result["optimal_n_clusters"]
+
+        # 3. Cut dendrogram to get clusters
+        cut_result = cut_dendrogram(hier_result, n_clusters=n_clusters)
+
+        # 4. Calculate cluster centers and distances (for outlier detection)
+        cluster_labels = cut_result["cluster_labels"]
+        X_processed = hier_result["data_processed"]
+        data_indices = hier_result["data_indices"]
+
+        # Calculate centers for each cluster
+        centers = np.array([
+            X_processed[cluster_labels == i].mean(axis=0) for i in range(n_clusters)
+        ])
+
+        # Calculate distance from each sample to its cluster center
+        distances_to_centers = np.array([
+            np.linalg.norm(X_processed[i] - centers[cluster_labels[i]])
+            for i in range(len(X_processed))
+        ])
+
+        # 5. Identify outliers based on distances
+        mean_distance = np.mean(distances_to_centers)
+        std_distance = np.std(distances_to_centers)
+
+        if std_distance == 0:
+            # All samples have same distance - no outliers
+            outlier_indices = []
+            threshold_value = mean_distance
+        else:
+            threshold_value = mean_distance + distance_threshold * std_distance
+            outlier_mask = distances_to_centers > threshold_value
+            outlier_indices = [data_indices[i] for i in np.where(outlier_mask)[0]]
+
+        # 6. Return combined result
+        return {
+            **hier_result,
+            **cut_result,
+            "outlier_indices": outlier_indices,
+            "n_outliers": len(outlier_indices),
+            "threshold_value": float(threshold_value),
+            "distance_threshold": distance_threshold,
+            "distances_to_centers": distances_to_centers.tolist(),
+        }
+
+    except Exception as e:
+        return {
+            "method": "Hierarchical",
+            "outlier_indices": [],
+            "error": f"Hierarchical outlier detection failed: {str(e)}",
+        }
+
+
 def remove_outliers_from_data(
     df: pd.DataFrame,
     outlier_indices: Union[List, np.ndarray, pd.Index],
@@ -550,9 +851,12 @@ def remove_outliers_from_data(
 
 
 def combine_outlier_methods(
-    pca_results: Dict,
-    isolation_results: Dict,
+    pca_results: Optional[Dict] = None,
+    isolation_results: Optional[Dict] = None,
     mahalanobis_results: Optional[Dict] = None,
+    kmeans_results: Optional[Dict] = None,
+    gmm_results: Optional[Dict] = None,
+    hierarchical_results: Optional[Dict] = None,
     consensus_threshold: float = 0.5,
 ) -> Dict:
     """Combine results from multiple outlier detection methods.
@@ -561,22 +865,59 @@ def combine_outlier_methods(
         pca_results: Results from PCA-based detection
         isolation_results: Results from Isolation Forest detection
         mahalanobis_results: Results from Mahalanobis distance detection
+        kmeans_results: Results from K-Means clustering detection
+        gmm_results: Results from GMM clustering detection
+        hierarchical_results: Results from hierarchical clustering detection
         consensus_threshold: Minimum fraction of methods that must agree
 
     Returns:
         Dictionary with combined outlier detection results
+
+    Examples:
+        >>> combined = combine_outlier_methods(
+        ...     pca_results=pca_results,
+        ...     isolation_results=iso_results,
+        ...     mahalanobis_results=mahal_results,
+        ...     kmeans_results=kmeans_results,
+        ...     gmm_results=gmm_results,
+        ...     hierarchical_results=hier_results,
+        ...     consensus_threshold=0.5  # 50% agreement
+        ... )
+        >>> print(f"Consensus outliers: {combined['n_consensus_outliers']}")
     """
     # Collect outlier indices from all methods
     method_outliers = {}
-    method_outliers["pca"] = set(pca_results.get("outlier_indices", []))
-    method_outliers["isolation_forest"] = set(
-        isolation_results.get("outlier_indices", [])
-    )
+    
+    if pca_results and "error" not in pca_results:
+        method_outliers["pca"] = set(pca_results.get("outlier_indices", []))
+    
+    if isolation_results and "error" not in isolation_results:
+        method_outliers["isolation_forest"] = set(
+            isolation_results.get("outlier_indices", [])
+        )
 
     if mahalanobis_results and "error" not in mahalanobis_results:
         method_outliers["mahalanobis"] = set(
             mahalanobis_results.get("outlier_indices", [])
         )
+
+    if kmeans_results and "error" not in kmeans_results:
+        method_outliers["kmeans"] = set(kmeans_results.get("outlier_indices", []))
+
+    if gmm_results and "error" not in gmm_results:
+        method_outliers["gmm"] = set(gmm_results.get("outlier_indices", []))
+
+    if hierarchical_results and "error" not in hierarchical_results:
+        method_outliers["hierarchical"] = set(hierarchical_results.get("outlier_indices", []))
+
+    # Check that we have at least one method
+    if not method_outliers:
+        return {
+            "method": "Combined",
+            "error": "No valid outlier detection results provided",
+            "consensus_outliers": [],
+            "n_consensus_outliers": 0,
+        }
 
     # Find all unique outliers
     all_outliers = set()
