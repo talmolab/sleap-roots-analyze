@@ -507,7 +507,7 @@ def detect_outliers_kmeans(
         >>> # With auto-optimization
         >>> result = detect_outliers_kmeans(df, n_clusters=None)
         >>> print(f"Found {result['n_outliers']} outliers in {result['n_clusters']} clusters")
-        >>> 
+        >>>
         >>> # With specified k
         >>> result = detect_outliers_kmeans(df, n_clusters=3, distance_threshold=2.0)
         >>> print(f"Found {result['n_outliers']} outliers")
@@ -649,7 +649,6 @@ def detect_outliers_gmm(
         }
 
 
-
 def detect_outliers_hierarchical(
     data: Union[pd.DataFrame, np.ndarray],
     n_clusters: Optional[int] = None,
@@ -728,15 +727,17 @@ def detect_outliers_hierarchical(
         data_indices = hier_result["data_indices"]
 
         # Calculate centers for each cluster
-        centers = np.array([
-            X_processed[cluster_labels == i].mean(axis=0) for i in range(n_clusters)
-        ])
+        centers = np.array(
+            [X_processed[cluster_labels == i].mean(axis=0) for i in range(n_clusters)]
+        )
 
         # Calculate distance from each sample to its cluster center
-        distances_to_centers = np.array([
-            np.linalg.norm(X_processed[i] - centers[cluster_labels[i]])
-            for i in range(len(X_processed))
-        ])
+        distances_to_centers = np.array(
+            [
+                np.linalg.norm(X_processed[i] - centers[cluster_labels[i]])
+                for i in range(len(X_processed))
+            ]
+        )
 
         # 5. Identify outliers based on distances
         mean_distance = np.mean(distances_to_centers)
@@ -887,10 +888,10 @@ def combine_outlier_methods(
     """
     # Collect outlier indices from all methods
     method_outliers = {}
-    
+
     if pca_results and "error" not in pca_results:
         method_outliers["pca"] = set(pca_results.get("outlier_indices", []))
-    
+
     if isolation_results and "error" not in isolation_results:
         method_outliers["isolation_forest"] = set(
             isolation_results.get("outlier_indices", [])
@@ -908,7 +909,9 @@ def combine_outlier_methods(
         method_outliers["gmm"] = set(gmm_results.get("outlier_indices", []))
 
     if hierarchical_results and "error" not in hierarchical_results:
-        method_outliers["hierarchical"] = set(hierarchical_results.get("outlier_indices", []))
+        method_outliers["hierarchical"] = set(
+            hierarchical_results.get("outlier_indices", [])
+        )
 
     # Check that we have at least one method
     if not method_outliers:

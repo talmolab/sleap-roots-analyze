@@ -13,7 +13,11 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
-from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+from sklearn.metrics import (
+    silhouette_score,
+    davies_bouldin_score,
+    calinski_harabasz_score,
+)
 
 from sleap_roots_analyze.pca import standardize_data
 
@@ -185,7 +189,7 @@ def calculate_optimal_k_kmeans(
         >>> # Auto-select optimal k
         >>> result = calculate_optimal_k_kmeans(df, max_clusters=10)
         >>> print(f"Optimal k: {result['optimal_n_clusters']}")
-        >>> 
+        >>>
         >>> # Use different metric
         >>> result = calculate_optimal_k_kmeans(df, method='calinski')
 
@@ -409,9 +413,7 @@ def perform_gmm_clustering(
             aic_scores = [float(gmm.aic(X_processed))]
 
         # Calculate cluster sizes (based on hard assignments)
-        cluster_sizes = [
-            int(np.sum(cluster_labels == i)) for i in range(n_components)
-        ]
+        cluster_sizes = [int(np.sum(cluster_labels == i)) for i in range(n_components)]
 
         # Calculate quality metrics (using hard assignments)
         silhouette = silhouette_score(X_processed, cluster_labels)
@@ -651,7 +653,9 @@ def cut_dendrogram(
                 cut_height = linkage_matrix[-(n_clusters - 1), 2]
         else:
             # Cut by height threshold
-            cluster_labels = fcluster(linkage_matrix, height_threshold, criterion="distance")
+            cluster_labels = fcluster(
+                linkage_matrix, height_threshold, criterion="distance"
+            )
             cut_height = height_threshold
             n_clusters = len(np.unique(cluster_labels))
 
@@ -663,7 +667,9 @@ def cut_dendrogram(
 
         # Calculate quality metrics
         if n_clusters > 1:
-            quality_metrics = calculate_cluster_quality_metrics(X_processed, cluster_labels)
+            quality_metrics = calculate_cluster_quality_metrics(
+                X_processed, cluster_labels
+            )
         else:
             quality_metrics = {
                 "silhouette_score": 0.0,

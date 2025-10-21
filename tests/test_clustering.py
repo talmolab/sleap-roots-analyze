@@ -77,10 +77,12 @@ def test_perform_kmeans_clustering_insufficient_samples():
 
 def test_perform_kmeans_clustering_with_nan():
     """Test K-Means handles NaN by dropping rows."""
-    df = pd.DataFrame({
-        "a": [1, 2, np.nan, 4, 5, 6, 7, 8, 9, 10],
-        "b": [1, 2, 3, np.nan, 5, 6, 7, 8, 9, 10],
-    })
+    df = pd.DataFrame(
+        {
+            "a": [1, 2, np.nan, 4, 5, 6, 7, 8, 9, 10],
+            "b": [1, 2, 3, np.nan, 5, 6, 7, 8, 9, 10],
+        }
+    )
 
     result = perform_kmeans_clustering(df, n_clusters=2)
 
@@ -105,7 +107,9 @@ def test_perform_gmm_clustering_basic(multimodal_data):
 
 def test_perform_gmm_clustering_auto_select(multimodal_data):
     """Test GMM with automatic component selection."""
-    result = perform_gmm_clustering(multimodal_data, n_components=None, max_components=5)
+    result = perform_gmm_clustering(
+        multimodal_data, n_components=None, max_components=5
+    )
 
     assert result["method"] == "GMM"
     assert 1 <= result["n_components"] <= 5
@@ -146,10 +150,7 @@ def test_calculate_cluster_quality_metrics():
     np.random.seed(42)
 
     # Create simple clustered data
-    data = np.vstack([
-        np.random.randn(30, 3),
-        np.random.randn(30, 3) + 5
-    ])
+    data = np.vstack([np.random.randn(30, 3), np.random.randn(30, 3) + 5])
     labels = np.array([0] * 30 + [1] * 30)
 
     metrics = calculate_cluster_quality_metrics(data, labels)
@@ -173,11 +174,17 @@ def test_calculate_cluster_quality_metrics_invalid_input():
 
 def test_kmeans_results_consistency(simple_cluster_data):
     """Test that K-Means results are consistent across runs."""
-    result1 = perform_kmeans_clustering(simple_cluster_data, n_clusters=3, random_state=42)
-    result2 = perform_kmeans_clustering(simple_cluster_data, n_clusters=3, random_state=42)
+    result1 = perform_kmeans_clustering(
+        simple_cluster_data, n_clusters=3, random_state=42
+    )
+    result2 = perform_kmeans_clustering(
+        simple_cluster_data, n_clusters=3, random_state=42
+    )
 
     np.testing.assert_array_equal(result1["cluster_labels"], result2["cluster_labels"])
-    np.testing.assert_array_almost_equal(result1["cluster_centers"], result2["cluster_centers"])
+    np.testing.assert_array_almost_equal(
+        result1["cluster_centers"], result2["cluster_centers"]
+    )
 
 
 def test_gmm_results_consistency(multimodal_data):
@@ -217,7 +224,6 @@ def test_kmeans_cluster_sizes_match_labels(simple_cluster_data):
     for i, size in enumerate(result["cluster_sizes"]):
         actual_size = np.sum(result["cluster_labels"] == i)
         assert size == actual_size
-
 
 
 def test_calculate_optimal_k_kmeans_basic(simple_cluster_data):
@@ -299,7 +305,7 @@ def test_perform_kmeans_clustering_with_auto_k(simple_cluster_data):
 def test_perform_kmeans_clustering_auto_k_vs_manual():
     """Test that auto-k produces valid clustering compared to manual k."""
     np.random.seed(42)
-    
+
     # Create data with 3 clear clusters
     cluster1 = np.random.randn(30, 4) + [0, 0, 0, 0]
     cluster2 = np.random.randn(30, 4) + [5, 5, 5, 5]
@@ -308,7 +314,7 @@ def test_perform_kmeans_clustering_auto_k_vs_manual():
 
     # Test auto-k
     result_auto = perform_kmeans_clustering(data, n_clusters=None, max_clusters=5)
-    
+
     # Test manual k=3
     result_manual = perform_kmeans_clustering(data, n_clusters=3)
 

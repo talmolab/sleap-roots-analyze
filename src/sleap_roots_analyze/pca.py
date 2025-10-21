@@ -73,7 +73,7 @@ def select_top_features_from_pca(
                 if idx not in seen:
                     selected_indices.append(int(idx))
                     seen.add(idx)
-            
+
             # Most positive (in order of most positive to less positive)
             for idx in sorted_idx[-n_features_to_select:][::-1]:
                 if idx not in seen:
