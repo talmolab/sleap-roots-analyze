@@ -17,6 +17,7 @@ from sleap_roots_analyze.pca import (
     perform_pca_analysis,
     perform_pca_with_variance_threshold,
     select_n_components,
+    select_top_features_from_pca,
     standardize_data,
 )
 
@@ -2318,3 +2319,210 @@ class TestVisualizationDataConsistency:
                 rtol=1e-6,
                 err_msg="Trace not preserved: sum of per-feature variance != sum of eigenvalues",
             )
+
+
+class TestFeatureSelection:
+    """Test suite for PCA-based feature selection."""
+
+    @pytest.fixture
+    def sample_pca_data(self):
+        """Create sample PCA data for testing."""
+        np.random.seed(42)
+        n_features = 20
+        n_components = 5
+
+        # Create mock loadings with some structure
+        loadings = np.random.randn(n_features, n_components) * 0.3
+
+        # Make some features have strong loadings on specific PCs
+        loadings[0:3, 0] = np.array([0.8, 0.7, 0.6])  # Strong positive on PC1
+        loadings[3:6, 0] = np.array([-0.8, -0.7, -0.6])  # Strong negative on PC1
+        loadings[6:9, 1] = np.array([0.75, 0.65, 0.55])  # Strong positive on PC2
+        loadings[9:12, 1] = np.array([-0.75, -0.65, -0.55])  # Strong negative on PC2
+
+        # Create eigenvalues (decreasing importance)
+        eigenvalues = np.array([5.0, 3.0, 2.0, 1.0, 0.5])
+
+        return {
+            "loadings": loadings,
+            "eigenvalues": eigenvalues,
+            "n_features": n_features,
+            "n_components": n_components,
+        }
+
+    def test_extreme_selection(self, sample_pca_data):
+        """Test extreme selection method (top positive and negative)."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=2,
+            method="extreme",
+            pc_indices=[0, 1],
+        )
+
+        # Should get 2 most positive and 2 most negative from each PC
+        # For PC1: indices 0,1 (most positive) and 3,4 (most negative)
+        # For PC2: indices 6,7 (most positive) and 9,10 (most negative)
+        assert len(selected) <= 8  # May have overlap
+        assert 0 in selected  # Strongest positive PC1
+        assert 3 in selected  # Strongest negative PC1
+        assert 6 in selected  # Strongest positive PC2
+        assert 9 in selected  # Strongest negative PC2
+
+    def test_top_absolute_selection(self, sample_pca_data):
+        """Test selection by absolute loading magnitude."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=4,
+            method="top_absolute",
+            pc_indices=[0, 1],
+        )
+
+        assert len(selected) == 4
+        # Should include features with highest absolute loadings on PC1 or PC2
+        # Features 0, 3 have |0.8| on PC1, features 6, 9 have |0.75| on PC2
+        assert 0 in selected or 3 in selected
+        assert 6 in selected or 9 in selected
+
+    def test_top_contribution_selection(self, sample_pca_data):
+        """Test selection by variance contribution to specific PCs."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=4,
+            method="top_contribution",
+            pc_indices=[0, 1],
+        )
+
+        assert len(selected) == 4
+        # Features with highest variance contributions considering eigenvalues
+        # PC1 has eigenvalue 5.0, PC2 has 3.0
+        # So PC1 loadings are weighted more heavily
+
+    def test_top_variance_selection(self, sample_pca_data):
+        """Test selection by total variance contribution across all PCs."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=5,
+            method="top_variance",
+            pc_indices=None,  # Should use all PCs
+        )
+
+        assert len(selected) == 5
+        # Should select features with highest total variance contribution
+        # Features 0, 3 (strong on PC1 with high eigenvalue) should be included
+        assert 0 in selected or 3 in selected
+
+    def test_default_pc_indices(self, sample_pca_data):
+        """Test that default pc_indices is [0, 1]."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=3,
+            method="top_absolute",
+            pc_indices=None,
+        )
+
+        assert len(selected) == 3
+
+    def test_edge_case_more_features_requested(self, sample_pca_data):
+        """Test when more features are requested than available."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=5,  # Limit to 5 features
+            n_features_to_select=10,  # Request 10
+            method="top_variance",
+        )
+
+        assert len(selected) <= 5
+
+    def test_edge_case_single_pc(self, sample_pca_data):
+        """Test with only one PC specified."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=2,
+            method="extreme",
+            pc_indices=[0],  # Only PC1
+        )
+
+        # Should get 2 most positive and 2 most negative from PC1 only
+        assert len(selected) == 4
+        assert 0 in selected  # Most positive
+        assert 3 in selected  # Most negative
+
+    def test_invalid_method(self, sample_pca_data):
+        """Test that invalid method raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown selection method"):
+            select_top_features_from_pca(
+                loadings=sample_pca_data["loadings"],
+                eigenvalues=sample_pca_data["eigenvalues"],
+                n_features_total=sample_pca_data["n_features"],
+                n_features_to_select=5,
+                method="invalid_method",
+            )
+
+    def test_pc_indices_out_of_bounds(self, sample_pca_data):
+        """Test handling of PC indices that exceed available components."""
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=3,
+            method="top_contribution",
+            pc_indices=[0, 1, 10],  # PC 10 doesn't exist
+        )
+
+        # Should only use PC 0 and 1, ignoring PC 10
+        assert len(selected) == 3
+
+    def test_extreme_selection_no_duplicates(self):
+        """Test that extreme selection doesn't duplicate features."""
+        # Create loadings where same feature is extreme on multiple PCs
+        n_features = 10
+        loadings = np.random.randn(n_features, 3) * 0.1
+        loadings[0, 0] = 0.9  # Feature 0 is most positive on PC1
+        loadings[0, 1] = 0.9  # Feature 0 is also most positive on PC2
+
+        eigenvalues = np.array([3.0, 2.0, 1.0])
+
+        selected = select_top_features_from_pca(
+            loadings=loadings,
+            eigenvalues=eigenvalues,
+            n_features_total=n_features,
+            n_features_to_select=1,
+            method="extreme",
+            pc_indices=[0, 1],
+        )
+
+        # Feature 0 should only appear once
+        assert selected.count(0) == 1
+
+    def test_variance_contribution_calculation(self, sample_pca_data):
+        """Test that variance contributions are calculated correctly."""
+        # Use top_variance method which should weight by eigenvalues
+        loadings = np.array([[0.8, 0.1], [0.1, 0.8], [0.5, 0.5]])
+        eigenvalues = np.array([2.0, 1.0])
+
+        selected = select_top_features_from_pca(
+            loadings=loadings,
+            eigenvalues=eigenvalues,
+            n_features_total=3,
+            n_features_to_select=1,
+            method="top_variance",
+        )
+
+        # Feature 0: 2.0 * 0.8^2 + 1.0 * 0.1^2 = 1.28 + 0.01 = 1.29
+        # Feature 1: 2.0 * 0.1^2 + 1.0 * 0.8^2 = 0.02 + 0.64 = 0.66
+        # Feature 2: 2.0 * 0.5^2 + 1.0 * 0.5^2 = 0.50 + 0.25 = 0.75
+        # Feature 0 has highest contribution
+        assert selected[0] == 0

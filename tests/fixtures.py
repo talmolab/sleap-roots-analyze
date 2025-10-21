@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 from scipy import stats
+from omegaconf import OmegaConf, DictConfig
 
 
 # ============================================================================
@@ -956,6 +957,100 @@ def pca_standardized_data():
     )
 
     return df, scaler
+
+
+# ============================================================================
+# CROSS-EXPERIMENT ANALYSIS FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def cross_experiment_data_fixture():
+    """Create sample data for cross-experiment analysis testing.
+
+    Returns:
+        tuple: (exp1_df, exp2_df) with common and unique genotypes
+    """
+    np.random.seed(42)
+
+    # Common genotypes
+    common_genotypes = ["Col-0", "Ler", "C24", "Ws", "Bay-0"]
+    # Unique to exp1
+    exp1_unique = ["Cvi", "Nd"]
+    # Unique to exp2
+    exp2_unique = ["Po", "Rld"]
+
+    # Create experiment 1 data (e.g., cylinder experiment)
+    exp1_genotypes = common_genotypes + exp1_unique
+    exp1_data = []
+    for geno in exp1_genotypes:
+        for rep in range(1, 4):  # 3 replicates
+            exp1_data.append(
+                {
+                    "Geno": geno,
+                    "Rep": rep,
+                    "primary_length_mm": np.random.normal(100, 20),
+                    "lateral_length_mm": np.random.normal(50, 10),
+                    "total_length_mm": np.random.normal(150, 25),
+                    "root_depth_mm": np.random.normal(80, 15),
+                }
+            )
+    exp1_df = pd.DataFrame(exp1_data)
+
+    # Create experiment 2 data (e.g., turface experiment)
+    exp2_genotypes = common_genotypes + exp2_unique
+    exp2_data = []
+    for geno in exp2_genotypes:
+        for rep in range(1, 4):  # 3 replicates
+            exp2_data.append(
+                {
+                    "geno": geno,
+                    "rep": rep,
+                    "network_length_mean": np.random.normal(120, 30),
+                    "stem_length_mm": np.random.normal(60, 12),
+                    "chull_area_mean": np.random.normal(200, 40),
+                    "crown_lengths_mean_mean": np.random.normal(70, 15),
+                }
+            )
+    exp2_df = pd.DataFrame(exp2_data)
+
+    return exp1_df, exp2_df
+
+
+@pytest.fixture
+def cross_experiment_means_fixture():
+    """Create genotype means DataFrames for cross-experiment testing.
+
+    Returns:
+        tuple: (exp1_means, exp2_means) DataFrames with genotype means
+    """
+    np.random.seed(42)
+
+    genotypes = ["G1", "G2", "G3", "G4", "G5"]
+
+    # Experiment 1 means
+    exp1_means = pd.DataFrame(
+        {
+            "trait1": np.random.normal(100, 20, size=len(genotypes)),
+            "trait2": np.random.normal(50, 10, size=len(genotypes)),
+            "n_samples": [3, 3, 2, 3, 3],
+        },
+        index=genotypes,
+    )
+
+    # Experiment 2 means - correlated with exp1
+    exp2_means = pd.DataFrame(
+        {
+            "trait3": exp1_means["trait1"] * 1.2
+            + np.random.normal(0, 10, size=len(genotypes)),
+            "trait4": exp1_means["trait2"] * 0.8
+            + np.random.normal(0, 5, size=len(genotypes)),
+            "n_samples": [3, 2, 3, 3, 2],
+        },
+        index=genotypes,
+    )
+
+    return exp1_means, exp2_means
 
 
 @pytest.fixture
@@ -2622,21 +2717,38 @@ def pca_viz_results():
 
     # Calculate explained variance
     total_var = np.sum(eigenvalues)
-    explained_variance = eigenvalues / total_var
-    cumulative_variance = np.cumsum(explained_variance)
+    explained_variance_ratio = eigenvalues / total_var
+    cumulative_variance = np.cumsum(explained_variance_ratio)
 
     # Feature names
     feature_names = [f"trait_{i}" for i in range(n_features)]
+
+    # Create feature contributions DataFrame with feature names as index
+    # This matches the new standard key name
+    total_contributions = np.sum(loadings**2 * eigenvalues, axis=1)
+    fractional_contributions = total_contributions / np.sum(total_contributions)
+
+    feature_contributions = pd.DataFrame(
+        {
+            "total_contribution": total_contributions,
+            "fractional_contribution": fractional_contributions,
+        },
+        index=feature_names,
+    )
+    feature_contributions = feature_contributions.sort_values(
+        "total_contribution", ascending=False
+    )
 
     return {
         "transformed_data": X_transformed,
         "loadings": loadings,
         "eigenvalues": eigenvalues,
-        "explained_variance_ratio": explained_variance,
+        "explained_variance_ratio": explained_variance_ratio,
         "cumulative_variance_ratio": cumulative_variance,
         "n_components_selected": n_components,
         "feature_names": feature_names,
         "n_features": n_features,
+        "feature_contributions": feature_contributions,  # Standard key for feature contributions
     }
 
 
@@ -2676,7 +2788,14 @@ def umap_viz_results():
         center = cluster_centers[labels[i]]
         umap_embedding[i] = center + np.random.randn(2) * 0.5
 
-    return umap_embedding
+    # Return in the format expected from perform_umap_analysis
+    return {
+        "embedding": umap_embedding,
+        "n_neighbors": 15,
+        "min_dist": 0.1,
+        "reducer": None,  # Would be the UMAP object in real usage
+        "scaler": None,  # Would be StandardScaler in real usage
+    }
 
 
 @pytest.fixture
@@ -2786,17 +2905,22 @@ def pca_results_with_feature_importance():
     # Add total contribution
     feature_importance["total_contribution"] = np.abs(feature_importance).sum(axis=1)
 
+    # Calculate eigenvalues (explained variance)
+    # For a dataset with total variance of 30 (30 features with variance 1 each if standardized)
+    explained_variance_ratio = np.array(
+        [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
+    )
+    eigenvalues = explained_variance_ratio * n_features  # Scale by total variance
+
     pca_results = {
         "loadings": loadings,
+        "eigenvalues": eigenvalues,
         "feature_importance": feature_importance,
+        "feature_contributions": feature_importance,  # Add alias for new code
         "n_components_selected": 5,
         "feature_names": feature_names,
-        "explained_variance_ratio": np.array(
-            [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
-        ),
-        "cumulative_variance_ratio": np.cumsum(
-            [0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01]
-        ),
+        "explained_variance_ratio": explained_variance_ratio,
+        "cumulative_variance_ratio": np.cumsum(explained_variance_ratio),
     }
 
     return pca_results
@@ -2892,3 +3016,418 @@ def pca_export_data():
     df = df[["Barcode", "geno", "rep"] + trait_cols]
 
     return df, trait_cols
+
+
+# ============================================================================
+# CONFIGURATION FIXTURES - Pipeline configuration objects
+# ============================================================================
+
+
+@pytest.fixture
+def sample_config_dict():
+    """Sample configuration dictionary for pipeline testing."""
+    return {
+        "data": {
+            "cleaned_data_path": "test_data.csv",
+            "image_dir": "test_images/",
+            "barcode_col": "Barcode",
+            "genotype_col": "geno",
+            "replicate_col": "rep",
+        },
+        "output": {
+            "base_dir": "./test_runs",
+            "subdirs": [
+                "figures",
+                "publication_figures",
+                "interactive_plots",
+                "analysis_outputs",
+            ],
+            "figure_format": "png",
+            "figure_dpi": 150,
+            "save_publication": True,
+        },
+        "analysis": {
+            "pca": {
+                "variance_threshold": 0.95,
+                "n_components": None,
+                "standardize": True,
+                "n_features_show": 15,
+            },
+            "umap": {"n_neighbors": 8, "min_dist": 0.1, "n_components": 2},
+            "heritability": {"threshold": 0.6, "min_samples_per_genotype": 3},
+            "outliers": {
+                "phenotype_n_std": 2.0,
+                "pc_space_n_std": 2.5,
+                "n_pcs_check": 3,
+            },
+        },
+        "visualization": {
+            "interactive": True,
+            "figsize": {
+                "standard": [10, 8],
+                "correlation": [12, 10],
+                "scree": [12, 5],
+                "biplot": [10, 8],
+            },
+            "colors": {"scheme": "tab20"},
+            "scatter": {"point_size": 50, "alpha": 0.7},
+        },
+        "logging": {
+            "level": "INFO",
+            "file": "pipeline.log",
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        },
+    }
+
+
+@pytest.fixture
+def sample_omegaconf_config(sample_config_dict):
+    """OmegaConf configuration object for pipeline testing."""
+    return OmegaConf.create(sample_config_dict)
+
+
+@pytest.fixture
+def minimal_config_dict():
+    """Minimal configuration with only required fields."""
+    return {
+        "data": {
+            "cleaned_data_path": "data.csv",
+            "genotype_col": "geno",
+            "replicate_col": "rep",
+        },
+        "output": {"base_dir": "./runs"},
+    }
+
+
+@pytest.fixture
+def minimal_omegaconf_config(minimal_config_dict):
+    """Minimal OmegaConf configuration object."""
+    return OmegaConf.create(minimal_config_dict)
+
+
+@pytest.fixture
+def invalid_config_dict():
+    """Invalid configuration missing required fields."""
+    return {
+        "output": {"base_dir": "./runs"}
+        # Missing data section
+    }
+
+
+@pytest.fixture
+def config_with_env_vars():
+    """Configuration with environment variable interpolation."""
+    return OmegaConf.create(
+        {
+            "data": {
+                "cleaned_data_path": "${oc.env:DATA_PATH,default_data.csv}",
+                "image_dir": "${oc.env:IMAGE_DIR,./images}",
+                "genotype_col": "geno",
+                "replicate_col": "rep",
+            },
+            "output": {"base_dir": "${oc.env:OUTPUT_DIR,./runs}"},
+        }
+    )
+
+
+@pytest.fixture
+def sample_trait_data():
+    """Create sample trait data for testing."""
+    np.random.seed(42)
+    n_samples = 50
+    n_traits = 10
+
+    # Create sample data
+    data = pd.DataFrame(
+        {
+            "geno": np.random.choice(["Geno_A", "Geno_B", "Geno_C"], n_samples),
+            "rep": np.random.choice([1, 2, 3], n_samples),
+            "Barcode": [f"BC{i:04d}" for i in range(n_samples)],
+        }
+    )
+
+    # Add trait columns
+    for i in range(n_traits):
+        data[f"trait_{i+1}"] = np.random.normal(100 + i * 10, 10, n_samples)
+
+    # Add some metadata columns
+    data["QC_status"] = "pass"
+    data["scan_date"] = "2024-01-01"
+
+    return data
+
+
+@pytest.fixture
+def simple_cluster_data():
+    """Create simple synthetic data with clear clusters for clustering tests."""
+    np.random.seed(42)
+
+    # Create 3 well-separated clusters
+    cluster1 = np.random.randn(30, 5) + np.array([0, 0, 0, 0, 0])
+    cluster2 = np.random.randn(30, 5) + np.array([5, 5, 5, 5, 5])
+    cluster3 = np.random.randn(30, 5) + np.array([-5, -5, -5, -5, -5])
+
+    data = np.vstack([cluster1, cluster2, cluster3])
+    df = pd.DataFrame(data, columns=[f"feature_{i}" for i in range(5)])
+
+    return df
+
+
+@pytest.fixture
+def multimodal_data():
+    """Create data with multiple modes for GMM testing."""
+    np.random.seed(42)
+
+    # Create 2 overlapping Gaussian distributions
+    mode1 = np.random.randn(50, 3) * 0.5 + np.array([0, 0, 0])
+    mode2 = np.random.randn(50, 3) * 0.5 + np.array([2, 2, 2])
+
+    data = np.vstack([mode1, mode2])
+    df = pd.DataFrame(data, columns=["x", "y", "z"])
+
+    return df
+
+
+# ============================================================================
+# CLUSTERING AND VISUALIZATION FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def kmeans_cluster_result(simple_cluster_data):
+    """Create a sample K-Means clustering result for visualization testing.
+
+    Returns a dictionary matching the structure from perform_kmeans_clustering().
+    """
+    from sleap_roots_analyze.clustering import perform_kmeans_clustering
+
+    result = perform_kmeans_clustering(
+        simple_cluster_data, n_clusters=3, random_state=42
+    )
+    return result
+
+
+@pytest.fixture
+def gmm_cluster_result(multimodal_data):
+    """Create a sample GMM clustering result for visualization testing.
+
+    Returns a dictionary matching the structure from perform_gmm_clustering().
+    """
+    from sleap_roots_analyze.clustering import perform_gmm_clustering
+
+    result = perform_gmm_clustering(multimodal_data, n_components=2, random_state=42)
+    return result
+
+
+@pytest.fixture
+def hierarchical_cluster_result(simple_cluster_data):
+    """Create a sample hierarchical clustering result for dendrogram visualization.
+
+    Returns a dictionary matching the structure from perform_hierarchical_clustering().
+    """
+    from sleap_roots_analyze.clustering import perform_hierarchical_clustering
+
+    result = perform_hierarchical_clustering(
+        simple_cluster_data, method="ward", metric="euclidean"
+    )
+    return result
+
+
+@pytest.fixture
+def pca_result_for_clustering(simple_cluster_data):
+    """Create PCA result for cluster visualization testing.
+
+    Returns PCA results with enough components for 2D visualization.
+    """
+    from sleap_roots_analyze.pca import perform_pca_analysis
+
+    result = perform_pca_analysis(
+        simple_cluster_data, n_components=3, standardize=True, random_state=42
+    )
+    return result
+
+
+@pytest.fixture
+def minimal_pca_result():
+    """Create PCA result with only 1 component for edge case testing."""
+    np.random.seed(42)
+    data = pd.DataFrame({"x": np.random.randn(20), "y": np.random.randn(20)})
+
+    from sleap_roots_analyze.pca import perform_pca_analysis
+
+    result = perform_pca_analysis(
+        data, n_components=1, standardize=True, random_state=42
+    )
+    return result
+
+
+@pytest.fixture
+def distance_array():
+    """Create sample distance array for distance distribution plots."""
+    np.random.seed(42)
+    # Mix of normal and some outliers
+    distances = np.concatenate(
+        [
+            np.random.gamma(2, 2, 80),  # Normal distances
+            np.random.uniform(15, 20, 20),  # Outlier distances
+        ]
+    )
+    return distances
+
+
+@pytest.fixture
+def bic_aic_data():
+    """Create sample BIC/AIC data for model comparison plots."""
+    k_range = list(range(2, 11))
+    np.random.seed(42)
+
+    # BIC typically decreases then increases (elbow around k=4)
+    bic = [1000 - 50 * k + 5 * k**2 for k in k_range]
+    # AIC similar pattern but different scale
+    aic = [900 - 45 * k + 4.5 * k**2 for k in k_range]
+
+    return {"k_range": k_range, "bic": bic, "aic": aic, "optimal_k": 4}
+
+
+@pytest.fixture
+def silhouette_data(simple_cluster_data):
+    """Create silhouette coefficient data for silhouette plots."""
+    from sleap_roots_analyze.clustering import perform_kmeans_clustering
+    from sklearn.metrics import silhouette_samples
+
+    result = perform_kmeans_clustering(
+        simple_cluster_data, n_clusters=3, random_state=42
+    )
+
+    silhouette_vals = silhouette_samples(
+        result["data_processed"], result["cluster_labels"]
+    )
+
+    return {
+        "silhouette_values": silhouette_vals,
+        "cluster_labels": result["cluster_labels"],
+        "n_clusters": result["n_clusters"],
+        "silhouette_avg": result["silhouette_score"],
+    }
+
+
+@pytest.fixture
+def edge_case_cluster_data():
+    """Create edge case clustering data for error testing."""
+    np.random.seed(42)
+
+    return {
+        "empty": pd.DataFrame(),
+        "all_nan": pd.DataFrame({"x": [np.nan] * 10, "y": [np.nan] * 10}),
+        "insufficient_samples": pd.DataFrame({"x": [1], "y": [2]}),
+        "two_samples": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+        "single_feature": pd.DataFrame({"x": np.random.randn(50)}),
+        "identical_values": pd.DataFrame(
+            {"x": [1.0] * 20, "y": [2.0] * 20, "z": [3.0] * 20}
+        ),
+    }
+
+
+@pytest.fixture
+def linkage_matrix_small():
+    """Create a small linkage matrix for hierarchical clustering edge cases."""
+    from scipy.cluster.hierarchy import linkage
+
+    # Create minimal data (3 samples)
+    np.random.seed(42)
+    data = np.random.randn(3, 2)
+
+    matrix = linkage(data, method="ward")
+    return matrix
+
+
+@pytest.fixture
+def cluster_result_with_nan():
+    """Create clustering data with NaN values for robustness testing."""
+    np.random.seed(42)
+    df = pd.DataFrame(
+        {
+            "x": [1, 2, np.nan, 4, 5, 6, 7, 8, 9, 10],
+            "y": [2, 4, 6, np.nan, 10, 12, 14, 16, 18, 20],
+            "z": [1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
+        }
+    )
+    return df
+
+
+@pytest.fixture
+def gmm_convergence_data():
+    """Create data that might cause GMM convergence issues."""
+    np.random.seed(42)
+
+    # Create well-separated but small clusters
+    cluster1 = np.random.randn(5, 2) + np.array([0, 0])
+    cluster2 = np.random.randn(5, 2) + np.array([10, 10])
+
+    data = np.vstack([cluster1, cluster2])
+    df = pd.DataFrame(data, columns=["x", "y"])
+
+    return df
+
+
+@pytest.fixture
+def hierarchical_edge_cases():
+    """Create edge cases for hierarchical clustering method validation."""
+    np.random.seed(42)
+
+    return {
+        "ward_euclidean": pd.DataFrame(np.random.randn(20, 3)),  # Valid
+        "ward_manhattan": pd.DataFrame(np.random.randn(20, 3)),  # Invalid combo
+        "complete_manhattan": pd.DataFrame(np.random.randn(20, 3)),  # Valid
+        "single_cosine": pd.DataFrame(np.random.randn(20, 3)),  # Valid
+    }
+
+
+@pytest.fixture
+def optimal_k_test_data():
+    """Create data for testing optimal k selection algorithms."""
+    np.random.seed(42)
+
+    # Create data with obvious k=4 clusters
+    clusters = []
+    centers = [[0, 0], [10, 0], [0, 10], [10, 10]]
+
+    for center in centers:
+        cluster = np.random.randn(15, 2) * 0.5 + np.array(center)
+        clusters.append(cluster)
+
+    data = np.vstack(clusters)
+    df = pd.DataFrame(data, columns=["x", "y"])
+
+    return {"data": df, "true_k": 4, "min_k": 2, "max_k": 8}
+
+
+@pytest.fixture
+def cluster_sizes_data():
+    """Create cluster size data for bar plot testing."""
+    return {
+        "cluster_sizes": [45, 30, 15, 5, 3],
+        "n_clusters": 5,
+        "labels": ["Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4", "Cluster 5"],
+    }
+
+
+@pytest.fixture
+def highlight_indices_data(simple_cluster_data):
+    """Create sample indices to highlight in cluster scatter plots."""
+    # Select some samples from different clusters
+    np.random.seed(42)
+
+    total_samples = len(simple_cluster_data)
+    n_highlights = 10
+
+    highlight_idx = np.random.choice(
+        total_samples, n_highlights, replace=False
+    ).tolist()
+
+    return {
+        "indices": highlight_idx,
+        "empty": [],
+        "no_match": [999, 1000, 1001],  # Indices not in data
+        "all": list(range(total_samples)),
+    }

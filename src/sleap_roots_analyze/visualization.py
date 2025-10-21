@@ -22,6 +22,9 @@ import seaborn as sns
 from datetime import datetime
 import logging
 
+# Import PCA functions
+from sleap_roots_analyze.pca import select_top_features_from_pca
+
 try:
     import plotly.graph_objects as go
 except ImportError:
@@ -1009,7 +1012,7 @@ def create_pca_scree_plot(
     n_features = pca_results.get(
         "n_features", len(pca_results.get("feature_names", []))
     )
-    title = f"Enhanced PCA Variance Analysis"
+    title = f"PCA Scree Plot"
     if n_features:
         title += f" (Total features: {n_features})"
     plt.title(title, fontsize=14, pad=20)
@@ -1024,6 +1027,7 @@ def create_feature_contribution_plot(
     n_components: Optional[int] = None,
     variance_threshold: float = 0.95,
     top_n: int = 20,
+    feature_selection: str = "top_variance",  # New parameter
     figsize: Tuple[float, float] = (12, 8),
 ) -> plt.Figure:
     """Create a plot showing feature contributions across selected PCs.
@@ -1038,19 +1042,21 @@ def create_feature_contribution_plot(
         n_components: Number of PCs to consider. If None, use variance threshold.
         variance_threshold: Cumulative variance threshold for PC selection.
         top_n: Number of top contributing features to show.
+        feature_selection: Method for selecting features:
+            - "top_variance": Top N by total variance contribution (default)
+            - "extreme": Top N most positive and negative for displayed PCs
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by contribution to displayed PCs
         figsize: Figure size.
 
     Returns:
         Feature contribution plot.
     """
     # Check if pre-calculated contributions are available
-    if (
-        "trait_contrib_df" in pca_results
-        or "feature_importance_consistent" in pca_results
-    ):
+    if "feature_contributions" in pca_results or "trait_contrib_df" in pca_results:
         # Use pre-calculated contributions
         trait_contrib_df = pca_results.get(
-            "trait_contrib_df", pca_results.get("feature_importance_consistent")
+            "feature_contributions", pca_results.get("trait_contrib_df")
         )
 
         # Determine number of components
@@ -1058,24 +1064,78 @@ def create_feature_contribution_plot(
             cumulative_var = pca_results["cumulative_variance_ratio"]
             n_components = np.argmax(cumulative_var >= variance_threshold) + 1
 
-        # Get available PC columns from the DataFrame
+        # Check what type of contribution data we have
         pc_contrib_cols = [
             col
             for col in trait_contrib_df.columns
             if col.startswith("PC") and col.endswith("_variance_contrib")
         ]
-        available_pcs = min(len(pc_contrib_cols), n_components)
 
-        # Use the first n_components PCs
-        pc_cols_to_use = [f"PC{i+1}_variance_contrib" for i in range(available_pcs)]
+        if pc_contrib_cols:
+            # We have per-PC contributions (from run_pca_and_export_artifacts)
+            available_pcs = min(len(pc_contrib_cols), n_components)
+            pc_cols_to_use = [f"PC{i+1}_variance_contrib" for i in range(available_pcs)]
 
-        # Get top contributors (already sorted in trait_contrib_df)
-        top_features_df = trait_contrib_df.head(min(top_n, len(trait_contrib_df)))
+            # Get top contributors
+            top_features_df = trait_contrib_df.head(min(top_n, len(trait_contrib_df)))
 
-        # Extract data for plotting
-        top_traits = top_features_df["trait"].tolist()
-        contributions = top_features_df[pc_cols_to_use].values
-        total_contributions = top_features_df["trait_total_variance_contrib"].values
+            # Extract traits
+            if "trait" in top_features_df.columns:
+                top_traits = top_features_df["trait"].tolist()
+            else:
+                top_traits = top_features_df.index.tolist()
+
+            # Get contributions per PC
+            contributions = top_features_df[pc_cols_to_use].values
+
+            # Get total contributions
+            if "trait_total_variance_contrib" in top_features_df.columns:
+                total_contributions = top_features_df[
+                    "trait_total_variance_contrib"
+                ].values
+            else:
+                total_contributions = contributions.sum(axis=1)
+
+        else:
+            # We only have total contributions (from perform_pca_analysis)
+            # Need to calculate per-PC contributions
+            n_components = min(
+                n_components,
+                pca_results.get(
+                    "n_components_selected",
+                    len(pca_results["explained_variance_ratio"]),
+                ),
+            )
+
+            # Get top features
+            top_features_df = trait_contrib_df.head(min(top_n, len(trait_contrib_df)))
+
+            # Extract trait names from index
+            top_traits = top_features_df.index.tolist()
+
+            # Get total contributions
+            if "total_contribution" in top_features_df.columns:
+                total_contributions = top_features_df["total_contribution"].values
+            else:
+                total_contributions = top_features_df[
+                    "trait_total_variance_contrib"
+                ].values
+
+            # Calculate per-PC contributions for these features
+            loadings = pca_results["loadings"][:, :n_components]
+            eigenvalues = pca_results["eigenvalues"][:n_components]
+            feature_names = pca_results["feature_names"]
+
+            # Find indices of top features
+            top_indices = [feature_names.index(trait) for trait in top_traits]
+
+            # Calculate contributions
+            contributions = np.zeros((len(top_traits), n_components))
+            for i in range(n_components):
+                for j, idx in enumerate(top_indices):
+                    contributions[j, i] = eigenvalues[i] * loadings[idx, i] ** 2
+
+            available_pcs = n_components
 
     else:
         # Calculate contributions on the fly (backward compatibility)
@@ -1178,11 +1238,13 @@ def create_pca_biplot(
     pc_x: int = 1,
     pc_y: int = 2,
     top_n_features: int = 10,
+    feature_selection: str = "extreme",  # "extreme", "top_absolute", or "top_contribution"
     figsize: Tuple[float, float] = (10, 8),
     alpha: float = 0.6,
-    arrow_scale: float = 4.0,
+    arrow_scale: Optional[float] = None,  # Auto-scale if None
+    genotypes_to_color: Optional[List[str]] = None,
 ) -> plt.Figure:
-    """Create a decluttered PCA biplot showing only top contributing features.
+    """Create a PCA biplot showing samples and feature loadings.
 
     Args:
         pca_results: Results from perform_pca_analysis.
@@ -1191,13 +1253,22 @@ def create_pca_biplot(
         color_by: Column name to color points by.
         pc_x: PC for x-axis (1-indexed).
         pc_y: PC for y-axis (1-indexed).
-        top_n_features: Number of top contributing features to show.
+        top_n_features: Number of features to show per direction (if extreme) or total.
+        feature_selection: Method for selecting features to display:
+            - "extreme": Top N most positive and negative for each PC
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by contribution to displayed PCs
         figsize: Figure size.
         alpha: Transparency for scatter points.
-        arrow_scale: Scaling factor for feature arrows.
+        arrow_scale: Scaling factor for feature arrows (auto-calculated if None).
+        genotypes_to_color: Optional list of specific categories to color when using
+            categorical color_by. If provided, only these categories will be colored
+            with distinct colors and shown in the legend. All other categories will be
+            plotted in gray as "Other". If None (default), all categories are colored.
+            Only applies when color_by is categorical.
 
     Returns:
-        Decluttered biplot.
+        PCA biplot figure.
     """
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -1205,49 +1276,148 @@ def create_pca_biplot(
     loadings = pca_results["loadings"]
     explained_var = pca_results["explained_variance_ratio"]
 
-    # Calculate variance-weighted contributions for feature selection
-    eigenvalues = pca_results["eigenvalues"]
-    pc_indices = [pc_x - 1, pc_y - 1]
+    # Get PC indices (0-based)
+    pc_x_idx = pc_x - 1
+    pc_y_idx = pc_y - 1
 
     # Ensure we handle the correct number of features
     n_features = min(len(trait_names), loadings.shape[0])
-    contributions = np.zeros(n_features)
 
-    for pc_idx in pc_indices:
-        contributions += eigenvalues[pc_idx] * loadings[:n_features, pc_idx] ** 2
+    # Get eigenvalues if available for variance-based selection
+    eigenvalues = pca_results.get("eigenvalues", np.ones(loadings.shape[1]))
 
-    # Get top contributing features
-    top_indices = np.argsort(contributions)[::-1][:top_n_features]
+    # Map feature_selection parameter to method
+    if feature_selection == "extreme":
+        method = "extreme"
+    elif feature_selection == "top_absolute":
+        method = "top_absolute"
+    elif feature_selection == "top_contribution":
+        method = "top_contribution"
+    else:
+        method = "top_contribution"  # Default
+
+    # Select features using modular function
+    top_indices = select_top_features_from_pca(
+        loadings=loadings,
+        eigenvalues=eigenvalues,
+        n_features_total=n_features,
+        n_features_to_select=top_n_features,
+        method=method,
+        pc_indices=[pc_x_idx, pc_y_idx],
+    )
 
     # Plot samples
     if color_by and color_by in df.columns:
+        # Handle data indices if PCA removed NaN samples
+        if "data_indices" in pca_results:
+            # PCA was run on a subset of samples
+            data_indices = pca_results["data_indices"]
+            df_pca = (
+                df.iloc[data_indices]
+                if isinstance(data_indices[0], int)
+                else df.loc[data_indices]
+            )
+        else:
+            # Assume PCA was run on all samples in df order
+            # But check if sizes match
+            if len(X_pca) != len(df):
+                # Try to match by dropping NaN rows
+                numeric_cols = (
+                    df[trait_names].select_dtypes(include=[np.number]).columns
+                )
+                mask_complete = ~df[numeric_cols].isna().any(axis=1)
+                df_pca = df[mask_complete]
+                if len(df_pca) != len(X_pca):
+                    raise ValueError(
+                        f"Cannot match PCA samples ({len(X_pca)}) to dataframe ({len(df)})"
+                    )
+            else:
+                df_pca = df
+
         # Handle categorical coloring
-        if df[color_by].dtype == "object" or isinstance(
-            df[color_by].dtype, pd.CategoricalDtype
+        if df_pca[color_by].dtype == "object" or isinstance(
+            df_pca[color_by].dtype, pd.CategoricalDtype
         ):
             # Get unique categories
-            categories = df[color_by].unique()
-            colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+            all_categories = df_pca[color_by].unique()
 
-            # Plot each category separately
-            for i, cat in enumerate(categories):
-                mask = df[color_by] == cat
-                ax.scatter(
-                    X_pca[mask, pc_x - 1],
-                    X_pca[mask, pc_y - 1],
-                    c=[colors[i]],
-                    label=cat,
-                    alpha=alpha,
-                    s=50,
-                    edgecolors="none",
-                )
+            # Filter categories if genotypes_to_color is provided
+            if genotypes_to_color is not None:
+                # Only color specified genotypes
+                categories_to_plot = [
+                    cat for cat in all_categories if cat in genotypes_to_color
+                ]
+                other_categories = [
+                    cat for cat in all_categories if cat not in genotypes_to_color
+                ]
+
+                # Generate colors for selected categories
+                # Use tab10 but exclude gray (index 7) which is RGB(0.5, 0.5, 0.5)
+                tab10_colors = plt.cm.tab10(range(10))
+                # Exclude index 7 (gray) from tab10
+                non_gray_colors = [
+                    tab10_colors[i] for i in range(10) if i != 7
+                ]  # Indices: 0-6, 8-9
+
+                # If we need more colors than available, cycle through the palette
+                if len(categories_to_plot) > len(non_gray_colors):
+                    colors = [
+                        non_gray_colors[i % len(non_gray_colors)]
+                        for i in range(len(categories_to_plot))
+                    ]
+                else:
+                    colors = non_gray_colors[: len(categories_to_plot)]
+
+                # Plot selected categories with distinct colors
+                for i, cat in enumerate(categories_to_plot):
+                    mask = df_pca[color_by] == cat
+                    ax.scatter(
+                        X_pca[mask, pc_x_idx],
+                        X_pca[mask, pc_y_idx],
+                        c=[colors[i]],
+                        label=cat,
+                        alpha=alpha,
+                        s=50,
+                        edgecolors="none",
+                    )
+
+                # Plot other categories in gray as "Other"
+                if len(other_categories) > 0:
+                    other_mask = df_pca[color_by].isin(other_categories)
+                    ax.scatter(
+                        X_pca[other_mask, pc_x_idx],
+                        X_pca[other_mask, pc_y_idx],
+                        c="gray",
+                        label="Other",
+                        alpha=alpha,
+                        s=50,
+                        edgecolors="none",
+                    )
+            else:
+                # Default behavior: color all categories
+                categories = all_categories
+                colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+
+                # Plot each category separately
+                for i, cat in enumerate(categories):
+                    mask = df_pca[color_by] == cat
+                    ax.scatter(
+                        X_pca[mask, pc_x_idx],
+                        X_pca[mask, pc_y_idx],
+                        c=[colors[i]],
+                        label=cat,
+                        alpha=alpha,
+                        s=50,
+                        edgecolors="none",
+                    )
+
             ax.legend(title=color_by, bbox_to_anchor=(1.05, 1), loc="upper left")
         else:
             # Numeric coloring
             scatter = ax.scatter(
-                X_pca[:, pc_x - 1],
-                X_pca[:, pc_y - 1],
-                c=df[color_by],
+                X_pca[:, pc_x_idx],
+                X_pca[:, pc_y_idx],
+                c=df_pca[color_by],
                 alpha=alpha,
                 s=50,
                 edgecolors="none",
@@ -1257,22 +1427,33 @@ def create_pca_biplot(
     else:
         # No coloring
         ax.scatter(
-            X_pca[:, pc_x - 1],
-            X_pca[:, pc_y - 1],
+            X_pca[:, pc_x_idx],
+            X_pca[:, pc_y_idx],
             c="blue",
             alpha=alpha,
             s=50,
             edgecolors="none",
         )
 
-    # Plot feature vectors (only top contributors)
+    # Auto-scale arrows if not specified
+    if arrow_scale is None:
+        # Scale arrows to be visible relative to the data spread
+        data_range_x = np.ptp(X_pca[:, pc_x_idx])
+        data_range_y = np.ptp(X_pca[:, pc_y_idx])
+        max_loading = np.max(np.abs(loadings[:, [pc_x_idx, pc_y_idx]]))
+        if max_loading > 0:
+            arrow_scale = min(data_range_x, data_range_y) / (4 * max_loading)
+        else:
+            arrow_scale = 1.0
+
+    # Plot feature vectors (only selected features)
     for idx in top_indices:
         # Skip if index is out of bounds for trait_names
         if idx >= len(trait_names):
             continue
-        # Scale loadings by explained variance for visibility
-        x_load = loadings[idx, pc_x - 1] * arrow_scale
-        y_load = loadings[idx, pc_y - 1] * arrow_scale
+        # Use raw loadings (these are the eigenvector components)
+        x_load = loadings[idx, pc_x_idx] * arrow_scale
+        y_load = loadings[idx, pc_y_idx] * arrow_scale
 
         # Draw arrow
         ax.arrow(
@@ -1311,7 +1492,7 @@ def create_pca_biplot(
             label_x,
             label_y,
             trait_names[idx],
-            fontsize=9,
+            fontsize=14,
             ha=ha,
             va=va,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7),
@@ -1320,9 +1501,7 @@ def create_pca_biplot(
     # Set axis labels and title
     ax.set_xlabel(f"PC{pc_x} ({explained_var[pc_x - 1] * 100:.1f}% variance)")
     ax.set_ylabel(f"PC{pc_y} ({explained_var[pc_y - 1] * 100:.1f}% variance)")
-    ax.set_title(
-        f"PCA Biplot - Top {top_n_features} Contributing Features", fontsize=14
-    )
+    ax.set_title(f"PCA Biplot", fontsize=14)
 
     # Add grid
     ax.grid(True, alpha=0.3)
@@ -1337,24 +1516,30 @@ def create_pca_biplot(
 
 
 def create_umap_colored_by_top_traits(
-    umap_results: np.ndarray,
+    umap_results: Union[np.ndarray, Dict],
     df: pd.DataFrame,
     trait_columns: List[str],
     trait_names: List[str],
     pca_results: Dict,
     n_traits: int = 6,
+    feature_selection: str = "top_variance",  # New parameter
     variance_threshold: Optional[float] = None,
     figsize: Tuple[float, float] = (15, 10),
 ) -> plt.Figure:
     """Create UMAP plots colored by top contributing traits.
 
     Args:
-        umap_results: 2D UMAP embedding.
+        umap_results: 2D UMAP embedding array or dictionary with 'embedding' key.
         df: Original dataframe with trait values.
         trait_columns: Column names of traits.
         trait_names: Display names of traits.
         pca_results: PCA results for determining trait importance.
         n_traits: Number of top traits to plot.
+        feature_selection: Method for selecting features:
+            - "top_variance": Top N by total variance contribution (default)
+            - "extreme": Top N most positive and negative for first 2 PCs
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by contribution to first 2 PCs
         variance_threshold: Cumulative variance threshold for PC selection.
             If None, use the same threshold as perform_pca_analysis.
         figsize: Figure size.
@@ -1362,34 +1547,55 @@ def create_umap_colored_by_top_traits(
     Returns:
         UMAP plots colored by traits.
     """
-    # Calculate trait contributions
+    # Extract embedding if umap_results is a dictionary
+    if isinstance(umap_results, dict):
+        umap_embedding = umap_results["embedding"]
+    else:
+        umap_embedding = umap_results
+
+    # Get necessary data from PCA results
     loadings = pca_results["loadings"]
     eigenvalues = pca_results["eigenvalues"]
 
-    # Use the same PCA threshold/components as perform_pca_analysis by default
-    cumulative_var = pca_results["cumulative_variance_ratio"]
+    # Determine which PCs to use for variance calculation
+    if feature_selection == "top_variance":
+        # Use the same PCA threshold/components as perform_pca_analysis by default
+        cumulative_var = pca_results["cumulative_variance_ratio"]
 
-    # Check if pca_results has the selected components info
-    if "n_components_selected" in pca_results:
-        n_pcs = pca_results["n_components_selected"]
-    elif variance_threshold is not None:
-        # Use provided threshold
-        n_pcs = np.argmax(cumulative_var >= variance_threshold) + 1
+        # Check if pca_results has the selected components info
+        if "n_components_selected" in pca_results:
+            n_pcs = pca_results["n_components_selected"]
+        elif variance_threshold is not None:
+            # Use provided threshold
+            n_pcs = np.argmax(cumulative_var >= variance_threshold) + 1
+        else:
+            # Default to 95% variance if not specified
+            n_pcs = np.argmax(cumulative_var >= 0.95) + 1
+
+        # Clamp n_pcs to available data
+        n_pcs = min(n_pcs, loadings.shape[1], len(eigenvalues))
+        pc_indices = list(range(n_pcs))
     else:
-        # Default to 95% variance if not specified
-        n_pcs = np.argmax(cumulative_var >= 0.95) + 1
-
-    # Clamp n_pcs to available data
-    n_pcs = min(n_pcs, loadings.shape[1], len(eigenvalues))
+        # For other methods, use first 2 PCs by default
+        pc_indices = [0, 1]
 
     # Ensure we handle the correct number of features
     n_features = min(len(trait_columns), loadings.shape[0])
-    contributions = np.zeros(n_features)
-    for i in range(n_pcs):
-        contributions += eigenvalues[i] * loadings[:n_features, i] ** 2
 
-    # Get top contributing traits
-    top_indices = np.argsort(contributions)[::-1][:n_traits]
+    # Select top features using modular function
+    top_indices = select_top_features_from_pca(
+        loadings=loadings,
+        eigenvalues=eigenvalues,
+        n_features_total=n_features,
+        n_features_to_select=n_traits,
+        method=feature_selection,
+        pc_indices=pc_indices if feature_selection != "top_variance" else None,
+    )
+
+    # Calculate contributions for display (always use variance contribution for labels)
+    contributions = np.zeros(n_features)
+    for i in range(min(loadings.shape[1], len(eigenvalues))):
+        contributions += eigenvalues[i] * loadings[:n_features, i] ** 2
 
     # Create subplots
     n_cols = 3
@@ -1397,7 +1603,7 @@ def create_umap_colored_by_top_traits(
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
     axes = axes.flatten() if n_rows > 1 else axes
 
-    for i, trait_idx in enumerate(top_indices):
+    for i, trait_idx in enumerate(top_indices[:n_traits]):
         ax = axes[i]
         # Skip if index is out of bounds
         if trait_idx >= len(trait_columns) or trait_idx >= len(trait_names):
@@ -1408,8 +1614,8 @@ def create_umap_colored_by_top_traits(
 
         # Create scatter plot
         scatter = ax.scatter(
-            umap_results[:, 0],
-            umap_results[:, 1],
+            umap_embedding[:, 0],
+            umap_embedding[:, 1],
             c=trait_values,
             cmap="viridis",
             s=30,
@@ -1425,19 +1631,182 @@ def create_umap_colored_by_top_traits(
         # Set labels and title
         ax.set_xlabel("UMAP 1", fontsize=9)
         ax.set_ylabel("UMAP 2", fontsize=9)
+
+        # Add selection method to subtitle if not default
+        subtitle = f"(Contribution: {contributions[trait_idx]:.3f})"
+        if feature_selection == "extreme":
+            # Check if this was positive or negative loading
+            pc1_loading = loadings[trait_idx, 0] if loadings.shape[1] > 0 else 0
+            direction = "+" if pc1_loading > 0 else "-"
+            subtitle = f"(PC1{direction}, Contrib: {contributions[trait_idx]:.3f})"
+
         ax.set_title(
-            f"{trait_name}\n(Contribution: {contributions[trait_idx]:.3f})",
+            f"{trait_name}\n{subtitle}",
             fontsize=10,
         )
         ax.tick_params(labelsize=8)
 
     # Remove empty subplots
-    for i in range(n_traits, len(axes)):
+    for i in range(len(top_indices), len(axes)):
         fig.delaxes(axes[i])
 
-    fig.suptitle(f"UMAP Colored by Top {n_traits} Contributing Traits", fontsize=14)
+    # Update title based on selection method
+    method_desc = {
+        "top_variance": "Contributing",
+        "extreme": "Extreme Loading",
+        "top_absolute": "Highest Absolute Loading",
+        "top_contribution": "Contributing to PC1-PC2",
+    }
+    title = f"UMAP Colored by Top {n_traits} {method_desc.get(feature_selection, 'Contributing')} Traits"
+    fig.suptitle(title, fontsize=14)
     plt.tight_layout()
 
+    return fig
+
+
+def create_umap_single_trait(
+    umap_results: Union[np.ndarray, Dict],
+    df: pd.DataFrame,
+    trait_col: str,
+    trait_name: Optional[str] = None,
+    color_by: Optional[str] = None,
+    figsize: Tuple[float, float] = (8, 6),
+    cmap: str = "viridis",
+    point_size: int = 30,
+    alpha: float = 0.7,
+    title: Optional[str] = None,
+) -> plt.Figure:
+    """Create a single UMAP plot colored by a specific trait.
+
+    This is a simple helper function for plotting UMAP embeddings colored by
+    individual traits, useful for inspecting specific trait distributions.
+
+    Args:
+        umap_results: 2D UMAP embedding array or dictionary with 'embedding' key.
+        df: Original dataframe with trait values.
+        trait_col: Column name of the trait to color by.
+        trait_name: Display name of trait. If None, uses trait_col.
+        color_by: Optional column for categorical coloring (e.g., genotype).
+            If provided, creates two subplots: one colored by trait, one by category.
+        figsize: Figure size (width, height).
+        cmap: Colormap for continuous trait values.
+        point_size: Size of scatter plot points.
+        alpha: Transparency of points (0-1).
+        title: Optional custom title. If None, auto-generates title.
+
+    Returns:
+        Matplotlib figure with UMAP plot(s).
+
+    Raises:
+        ValueError: If trait_col not in df or if umap_results is invalid.
+
+    Examples:
+        >>> # Simple plot colored by single trait
+        >>> fig = create_umap_single_trait(umap_results, df, "primary_root_length")
+        >>>
+        >>> # Plot with genotype overlay
+        >>> fig = create_umap_single_trait(
+        ...     umap_results, df, "primary_root_length",
+        ...     color_by="geno", figsize=(14, 6)
+        ... )
+    """
+    # Extract embedding if umap_results is a dictionary
+    if isinstance(umap_results, dict):
+        umap_embedding = umap_results["embedding"]
+    else:
+        umap_embedding = umap_results
+
+    # Validate inputs
+    if trait_col not in df.columns:
+        raise ValueError(f"Trait column '{trait_col}' not found in dataframe")
+
+    if umap_embedding.shape[0] != len(df):
+        raise ValueError(
+            f"UMAP embedding has {umap_embedding.shape[0]} samples "
+            f"but dataframe has {len(df)} rows"
+        )
+
+    # Use trait_col as default display name
+    if trait_name is None:
+        trait_name = trait_col
+
+    # Determine subplot layout
+    if color_by is not None:
+        if color_by not in df.columns:
+            raise ValueError(f"color_by column '{color_by}' not found in dataframe")
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+    else:
+        fig, ax = plt.subplots(figsize=figsize)
+        axes = [ax]
+
+    # Plot 1: Colored by trait
+    ax = axes[0] if len(axes) > 1 else axes[0]
+    trait_values = df[trait_col].values
+
+    scatter = ax.scatter(
+        umap_embedding[:, 0],
+        umap_embedding[:, 1],
+        c=trait_values,
+        cmap=cmap,
+        s=point_size,
+        alpha=alpha,
+        edgecolors="none",
+    )
+
+    # Add colorbar
+    cbar = plt.colorbar(scatter, ax=ax)
+    cbar.set_label(trait_name, fontsize=10)
+
+    ax.set_xlabel("UMAP 1", fontsize=10)
+    ax.set_ylabel("UMAP 2", fontsize=10)
+
+    if title:
+        ax.set_title(title, fontsize=12)
+    else:
+        ax.set_title(f"UMAP colored by {trait_name}", fontsize=12)
+
+    # Plot 2: Colored by category (if requested)
+    if color_by is not None:
+        ax = axes[1]
+        category_values = df[color_by].values
+
+        # Use categorical colors
+        unique_cats = np.unique(category_values)
+        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_cats)))
+        cat_to_color = {cat: colors[i] for i, cat in enumerate(unique_cats)}
+        point_colors = [cat_to_color[cat] for cat in category_values]
+
+        ax.scatter(
+            umap_embedding[:, 0],
+            umap_embedding[:, 1],
+            c=point_colors,
+            s=point_size,
+            alpha=alpha,
+            edgecolors="none",
+        )
+
+        # Add legend
+        handles = [
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=cat_to_color[cat],
+                markersize=8,
+                label=cat,
+            )
+            for cat in unique_cats
+        ]
+        ax.legend(
+            handles=handles, title=color_by, bbox_to_anchor=(1.05, 1), loc="upper left"
+        )
+
+        ax.set_xlabel("UMAP 1", fontsize=10)
+        ax.set_ylabel("UMAP 2", fontsize=10)
+        ax.set_title(f"UMAP colored by {color_by}", fontsize=12)
+
+    plt.tight_layout()
     return fig
 
 
@@ -1684,121 +2053,110 @@ def create_feature_contribution_heatmap(
     n_components: int = 5,
     n_features: int = 20,
     figsize: Tuple[float, float] = (10, 8),
-) -> plt.Figure:
-    """Create a heatmap showing feature contributions to principal components.
+    plot_type: str = "both",  # "variance", "loadings", or "both"
+) -> Union[plt.Figure, Tuple[plt.Figure, plt.Figure]]:
+    """Create heatmaps showing feature loadings and/or variance contributions to PCs.
 
     Args:
-        pca_results: Results from perform_pca_analysis containing 'feature_importance'
-            DataFrame.
+        pca_results: Results from perform_pca_analysis containing loadings and eigenvalues.
         n_components: Number of components to show.
         n_features: Number of top features to show.
-        figsize: Figure size.
+        figsize: Figure size for each plot.
+        plot_type: Type of plot to create:
+            - "variance": Only variance contribution heatmap
+            - "loadings": Only raw loadings heatmap
+            - "both": Return tuple of (variance_fig, loadings_fig)
 
     Returns:
-        The generated figure.
+        Single figure if plot_type is "variance" or "loadings",
+        tuple of (variance_fig, loadings_fig) if plot_type is "both".
     """
-    # Get feature importance - check multiple possible keys
-    feature_importance = None
-    for key in [
-        "feature_importance",
-        "feature_importance_consistent",
-        "trait_ev_df",
-        "trait_contrib_df",
-    ]:
-        if key in pca_results:
-            feature_importance = pca_results[key]
-            break
+    # Get necessary data from pca_results
+    if "loadings" not in pca_results or "eigenvalues" not in pca_results:
+        raise ValueError("pca_results must contain 'loadings' and 'eigenvalues' keys")
 
-    if feature_importance is None:
-        raise ValueError(
-            "pca_results must contain feature importance data. "
-            "Expected one of: 'feature_importance', 'feature_importance_consistent', "
-            "'trait_ev_df', or 'trait_contrib_df'"
-        )
-
-    # Get top features by total contribution
-    # Check for different column naming conventions
-    if "total_contribution" in feature_importance.columns:
-        sort_col = "total_contribution"
-    elif "trait_total_variance_contrib" in feature_importance.columns:
-        sort_col = "trait_total_variance_contrib"
-    else:
-        # Calculate total contribution if not present
-        pc_cols = [col for col in feature_importance.columns if col.startswith("PC")]
-        top_features = feature_importance.copy()
-        top_features["total_contribution"] = np.abs(top_features[pc_cols]).sum(axis=1)
-        sort_col = "total_contribution"
-
-    # Sort by total contribution (already sorted if from run_pca_and_export_artifacts)
-    if sort_col in feature_importance.columns:
-        top_features = feature_importance.nlargest(n_features, sort_col)
-    else:
-        top_features = feature_importance.head(n_features)
+    loadings = pca_results["loadings"]
+    eigenvalues = pca_results["eigenvalues"]
+    feature_names = pca_results.get(
+        "feature_names", [f"Feature_{i}" for i in range(loadings.shape[0])]
+    )
 
     # Determine number of components to show
-    n_comp_available = pca_results.get(
-        "n_components_selected",
-        len([c for c in feature_importance.columns if c.startswith("PC")]),
-    )
+    n_comp_available = min(loadings.shape[1], len(eigenvalues))
     n_comp_to_show = min(n_components, n_comp_available)
 
-    # Select PC columns for heatmap
-    # First try standard PC column names
-    pc_cols = [f"PC{i+1}" for i in range(n_comp_to_show)]
-    available_pc_cols = [col for col in pc_cols if col in top_features.columns]
+    # Calculate total variance contributions for feature selection
+    variance_contributions = np.zeros(loadings.shape[0])
+    for i in range(n_comp_to_show):
+        variance_contributions += eigenvalues[i] * loadings[:, i] ** 2
 
-    if not available_pc_cols:
-        # Try variance contribution column names (from run_pca_and_export_artifacts)
-        pc_cols = [f"PC{i+1}_variance_contrib" for i in range(n_comp_to_show)]
-        available_pc_cols = [col for col in pc_cols if col in top_features.columns]
+    # Get top features by total variance contribution
+    top_indices = np.argsort(variance_contributions)[::-1][:n_features]
+    top_feature_names = [feature_names[i] for i in top_indices]
 
-    if not available_pc_cols:
-        # Fall back to any PC-prefixed columns
-        available_pc_cols = [
-            col for col in top_features.columns if col.startswith("PC")
-        ][:n_comp_to_show]
+    # Helper function to create a heatmap
+    def create_heatmap(data, title, cbar_label):
+        fig, ax = plt.subplots(figsize=figsize)
 
-    heatmap_data = top_features[available_pc_cols]
+        sns.heatmap(
+            data,
+            cmap="RdBu_r",
+            center=0,
+            fmt=".3f",
+            cbar_kws={"label": cbar_label},
+            ax=ax,
+            annot=True,
+            annot_kws={"size": 8},
+        )
 
-    # Set row labels to trait names if available
-    if "trait" in top_features.columns:
-        heatmap_data.index = top_features["trait"].values
-    elif top_features.index.name == "trait":
-        # Index might already be trait names
-        pass
-    else:
-        # Use existing index
-        pass
+        ax.set_title(title)
+        ax.set_xlabel("Principal Component")
+        ax.set_ylabel("Feature")
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+        plt.tight_layout()
+        return fig
 
-    # Create heatmap
-    # Determine appropriate label based on column names
-    if available_pc_cols and "variance_contrib" in available_pc_cols[0]:
-        cbar_label = "Variance Contribution"
-    else:
-        cbar_label = "Loading"
+    # Create variance contribution heatmap
+    if plot_type in ["variance", "both"]:
+        # Calculate variance contributions for selected features
+        variance_data = {}
+        for i in range(n_comp_to_show):
+            contributions = [
+                eigenvalues[i] * loadings[idx, i] ** 2 for idx in top_indices
+            ]
+            variance_data[f"PC{i+1}"] = contributions
 
-    sns.heatmap(
-        heatmap_data,
-        cmap="RdBu_r",
-        center=0,
-        fmt=".3f",
-        cbar_kws={"label": cbar_label},
-        ax=ax,
-        annot=True,
-        annot_kws={"size": 8},
-    )
+        variance_df = pd.DataFrame(variance_data, index=top_feature_names)
 
-    ax.set_title(
-        f"Top {n_features} Feature Contributions to First {n_comp_to_show} PCs"
-    )
-    ax.set_xlabel("Principal Component")
-    ax.set_ylabel("Feature")
+        variance_fig = create_heatmap(
+            variance_df,
+            f"Top {n_features} Feature Variance Contributions to First {n_comp_to_show} PCs",
+            "Variance Contribution",
+        )
 
-    plt.tight_layout()
-    return fig
+    # Create raw loadings heatmap
+    if plot_type in ["loadings", "both"]:
+        # Extract raw loadings for selected features
+        loadings_data = {}
+        for i in range(n_comp_to_show):
+            # Use raw loadings (eigenvectors) - these show correlations
+            loadings_data[f"PC{i+1}"] = [loadings[idx, i] for idx in top_indices]
+
+        loadings_df = pd.DataFrame(loadings_data, index=top_feature_names)
+
+        loadings_fig = create_heatmap(
+            loadings_df,
+            f"Top {n_features} Feature Loadings (Correlations) for First {n_comp_to_show} PCs",
+            "Loading (Correlation)",
+        )
+
+    # Return appropriate figure(s)
+    if plot_type == "variance":
+        return variance_fig
+    elif plot_type == "loadings":
+        return loadings_fig
+    else:  # both
+        return variance_fig, loadings_fig
 
 
 def create_publication_figure(
@@ -2145,3 +2503,226 @@ def create_phenotype_variation_plot(
         plot_df.to_csv(output_csv_path, index=False)
 
     return fig, plot_df
+
+
+def create_genotype_image_grid(
+    df: pd.DataFrame,
+    image_links: Dict[str, Dict[str, Path]],
+    genotype: str,
+    genotype_col: str = "geno",
+    barcode_col: str = "Barcode",
+    image_type: str = "features.png",
+    n_cols: int = 4,
+    figsize: Optional[Tuple[float, float]] = None,
+    show_labels: bool = True,
+    label_fontsize: int = 10,
+    title_fontsize: int = 14,
+    show_stats: bool = True,
+    trait_cols: Optional[List[str]] = None,
+    max_images: Optional[int] = None,
+) -> plt.Figure:
+    """Create a publication-ready grid of plant images for a specific genotype.
+
+    This function displays all plant images for samples matching a specified genotype
+    in a clean matplotlib grid layout, suitable for publications and presentations.
+
+    Args:
+        df: DataFrame with trait data and sample metadata.
+        image_links: Dictionary mapping barcode to image paths, typically from
+            link_rhizovision_images_to_samples().
+        genotype: Name of the genotype to display.
+        genotype_col: Column name containing genotype identifiers (default: "geno").
+        barcode_col: Column name containing sample barcodes (default: "Barcode").
+        image_type: Type of image to display (default: "features.png").
+            Options: "features.png", "seg.png", or other types in image_links.
+        n_cols: Number of columns in the grid (default: 4).
+        figsize: Figure size as (width, height). If None, calculated automatically.
+        show_labels: Whether to show barcode labels below images (default: True).
+        label_fontsize: Font size for image labels (default: 10).
+        title_fontsize: Font size for figure title (default: 14).
+        show_stats: Whether to show trait statistics in title (default: True).
+        trait_cols: List of trait columns to compute statistics for (default: None).
+            If None and show_stats=True, uses first 3 numeric columns.
+        max_images: Maximum number of images to display (default: None = all).
+
+    Returns:
+        matplotlib Figure object containing the image grid.
+
+    Raises:
+        ValueError: If genotype not found in dataframe or required columns missing.
+        FileNotFoundError: If no valid images found for the genotype.
+
+    Example:
+        >>> from sleap_roots_analyze.data_utils import link_rhizovision_images_to_samples
+        >>> image_links = link_rhizovision_images_to_samples(df, "path/to/images")
+        >>> fig = create_genotype_image_grid(
+        ...     df=df_traits,
+        ...     image_links=image_links,
+        ...     genotype="Genotype_A",
+        ...     n_cols=4,
+        ...     show_labels=True,
+        ...     trait_cols=["primary_root_length", "lateral_root_count"]
+        ... )
+        >>> fig.savefig("genotype_A_samples.pdf", dpi=300, bbox_inches='tight')
+    """
+    # Import PIL here to avoid requiring it as a hard dependency
+    try:
+        from PIL import Image
+    except ImportError:
+        raise ImportError(
+            "PIL (Pillow) is required for image display. "
+            "Install with: pip install Pillow"
+        )
+
+    # Validate required columns
+    if genotype_col not in df.columns:
+        raise ValueError(
+            f"Genotype column '{genotype_col}' not found. "
+            f"Available: {df.columns.tolist()}"
+        )
+    if barcode_col not in df.columns:
+        raise ValueError(
+            f"Barcode column '{barcode_col}' not found. "
+            f"Available: {df.columns.tolist()}"
+        )
+
+    # Filter dataframe for specified genotype
+    df_geno = df[df[genotype_col] == genotype].copy()
+
+    if len(df_geno) == 0:
+        raise ValueError(
+            f"No samples found for genotype '{genotype}'. "
+            f"Available genotypes: {df[genotype_col].unique().tolist()}"
+        )
+
+    # Collect valid image paths and corresponding barcodes
+    valid_images = []
+    valid_barcodes = []
+
+    for idx, row in df_geno.iterrows():
+        barcode = row[barcode_col]
+
+        # Check if barcode exists in image_links
+        if barcode not in image_links:
+            continue
+
+        # Check if image type exists for this barcode
+        if image_type not in image_links[barcode]:
+            continue
+
+        img_path = image_links[barcode][image_type]
+
+        # Check if path is valid and file exists
+        if img_path is not None and Path(img_path).exists():
+            valid_images.append(img_path)
+            valid_barcodes.append(barcode)
+
+            # Stop if we've reached max_images
+            if max_images is not None and len(valid_images) >= max_images:
+                break
+
+    if len(valid_images) == 0:
+        raise FileNotFoundError(
+            f"No valid images found for genotype '{genotype}'. "
+            f"Checked {len(df_geno)} samples for image type '{image_type}'."
+        )
+
+    # Limit to max_images if specified
+    n_images = len(valid_images)
+
+    # Calculate grid dimensions
+    n_rows = int(np.ceil(n_images / n_cols))
+
+    # Calculate figure size if not provided
+    if figsize is None:
+        # Base size per image (width, height) in inches
+        img_width = 2.5
+        img_height = 2.5
+        figsize = (n_cols * img_width, n_rows * img_height + 1)  # +1 for title
+
+    # Create figure and axes
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+
+    # Handle single row/col cases
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([[axes]])
+    elif n_rows == 1:
+        axes = axes.reshape(1, -1)
+    elif n_cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    # Flatten axes for easier iteration
+    axes_flat = axes.flatten()
+
+    # Load and display images
+    for i, (img_path, barcode) in enumerate(zip(valid_images, valid_barcodes)):
+        ax = axes_flat[i]
+
+        try:
+            # Load image
+            img = Image.open(img_path)
+
+            # Display image
+            ax.imshow(img)
+
+            # Add label if requested
+            if show_labels:
+                ax.set_xlabel(barcode, fontsize=label_fontsize)
+
+            # Remove ticks
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+            # Keep box for clean look
+            for spine in ax.spines.values():
+                spine.set_edgecolor("gray")
+                spine.set_linewidth(0.5)
+
+        except Exception as e:
+            # Handle image loading errors
+            ax.text(
+                0.5,
+                0.5,
+                f"Error loading\n{barcode}",
+                ha="center",
+                va="center",
+                fontsize=8,
+                color="red",
+            )
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+    # Hide unused subplots
+    for i in range(n_images, len(axes_flat)):
+        axes_flat[i].axis("off")
+
+    # Create title
+    title_parts = [f"Genotype: {genotype} (n={n_images})"]
+
+    # Add trait statistics if requested
+    if show_stats and len(df_geno) > 0:
+        # Determine which traits to show
+        if trait_cols is None:
+            # Use first 3 numeric columns (excluding barcode/genotype)
+            numeric_cols = df_geno.select_dtypes(include=[np.number]).columns
+            exclude_cols = [genotype_col, barcode_col, "rep", "replicate"]
+            trait_cols = [col for col in numeric_cols if col not in exclude_cols][:3]
+
+        if trait_cols:
+            stats_parts = []
+            for trait in trait_cols:
+                if trait in df_geno.columns:
+                    trait_vals = df_geno[trait].dropna()
+                    if len(trait_vals) > 0:
+                        mean_val = trait_vals.mean()
+                        std_val = trait_vals.std()
+                        stats_parts.append(f"{trait}: {mean_val:.2f} ± {std_val:.2f}")
+
+            if stats_parts:
+                title_parts.append(" | ".join(stats_parts))
+
+    fig.suptitle("\n".join(title_parts), fontsize=title_fontsize, y=0.98)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+    return fig
