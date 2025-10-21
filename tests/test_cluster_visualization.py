@@ -467,7 +467,7 @@ class TestVisualizationIntegration:
 
         # Perform PCA
         pca_result = perform_pca_analysis(
-            simple_cluster_data, n_clusters=3, standardize=True, random_state=42
+            simple_cluster_data, n_components=3, standardize=True, random_state=42
         )
 
         # Create visualizations

@@ -416,9 +416,16 @@ def perform_gmm_clustering(
         cluster_sizes = [int(np.sum(cluster_labels == i)) for i in range(n_components)]
 
         # Calculate quality metrics (using hard assignments)
-        silhouette = silhouette_score(X_processed, cluster_labels)
-        davies_bouldin = davies_bouldin_score(X_processed, cluster_labels)
-        calinski_harabasz = calinski_harabasz_score(X_processed, cluster_labels)
+        # Note: silhouette requires 2+ clusters
+        if n_components > 1:
+            silhouette = silhouette_score(X_processed, cluster_labels)
+            davies_bouldin = davies_bouldin_score(X_processed, cluster_labels)
+            calinski_harabasz = calinski_harabasz_score(X_processed, cluster_labels)
+        else:
+            # Single component - quality metrics not meaningful
+            silhouette = 0.0
+            davies_bouldin = 0.0
+            calinski_harabasz = 0.0
 
         return {
             "method": "GMM",

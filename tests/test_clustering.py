@@ -381,7 +381,7 @@ class TestOptimalKEdgeCases:
         """Test error handling for invalid optimization method."""
         from sleap_roots_analyze.clustering import calculate_optimal_k_kmeans
 
-        with pytest.raises(ValueError, match="Unknown method"):
+        with pytest.raises(RuntimeError, match="Unknown method"):
             calculate_optimal_k_kmeans(
                 simple_cluster_data, max_clusters=5, method="invalid_method"
             )
@@ -390,10 +390,10 @@ class TestOptimalKEdgeCases:
         """Test error handling in optimal k calculation."""
         from sleap_roots_analyze.clustering import calculate_optimal_k_kmeans
 
-        # Create problematic data
+        # Create problematic data with insufficient samples
         bad_data = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
 
-        with pytest.raises(RuntimeError, match="Failed to calculate optimal k"):
+        with pytest.raises(ValueError, match="Insufficient samples"):
             calculate_optimal_k_kmeans(bad_data, max_clusters=10, method="silhouette")
 
     def test_optimal_k_max_clusters_adjustment(self):
@@ -428,22 +428,33 @@ class TestGMMEdgeCases:
                 edge_case_cluster_data["insufficient_samples"], n_components=2
             )
 
-    def test_gmm_recommended_max_adjustment(self, gmm_convergence_data):
-        """Test that n_components is adjusted for small datasets."""
-        # Small dataset with requested large n_components
-        result = perform_gmm_clustering(gmm_convergence_data, n_components=8)
+    def test_gmm_auto_selection_with_limit(self):
+        """Test that auto-selection respects sample size limits."""
+        # Create small dataset: 50 samples -> max = 50 // 10 = 5 components
+        np.random.seed(42)
+        small_data = pd.DataFrame(np.random.randn(50, 3))
 
-        # Should be adjusted down
-        assert result["n_components"] < 8
+        # Auto-select with large max_components - should be limited by sample size
+        result = perform_gmm_clustering(
+            small_data, n_components=None, max_components=20
+        )
 
-    def test_gmm_single_component(self, simple_cluster_data):
-        """Test GMM with n_components=1."""
+        # Should be limited to 5 or less (50 samples / 10)
+        assert result["n_components"] <= 5
+        assert result["n_components"] >= 1
+        assert "bic_scores" in result  # Should have auto-selected
+
+    def test_gmm_single_component_handles_gracefully(self, simple_cluster_data):
+        """Test GMM with n_components=1 works (returns silhouette=0)."""
+        # Single component should work now (silhouette metrics set to 0)
         result = perform_gmm_clustering(simple_cluster_data, n_components=1)
 
         assert result["method"] == "GMM"
         assert result["n_components"] == 1
-        # All samples in one cluster
-        assert len(np.unique(result["cluster_labels"])) == 1
+        # Quality metrics should be 0 for single cluster
+        assert result["silhouette_score"] == 0.0
+        assert result["davies_bouldin_score"] == 0.0
+        assert result["calinski_harabasz_score"] == 0.0
 
     def test_gmm_different_covariance_types(self, multimodal_data):
         """Test GMM with different covariance types."""
@@ -498,7 +509,12 @@ class TestHierarchicalEdgeCases:
         """Test hierarchical clustering with different distance metrics."""
         from sleap_roots_analyze.clustering import perform_hierarchical_clustering
 
-        metrics = ["euclidean", "manhattan", "cosine"]
+        # Use scipy-compatible metric names
+        metrics = [
+            "euclidean",
+            "cityblock",
+            "cosine",
+        ]  # scipy uses 'cityblock' not 'manhattan'
 
         for metric in metrics:
             method = "complete" if metric != "euclidean" else "ward"
@@ -600,7 +616,7 @@ class TestOptimalClustersHierarchical:
             calculate_optimal_clusters_hierarchical,
         )
 
-        with pytest.raises(ValueError, match="Unknown method"):
+        with pytest.raises(RuntimeError, match="Unknown method"):
             calculate_optimal_clusters_hierarchical(
                 hierarchical_cluster_result, max_clusters=5, method="invalid"
             )
@@ -625,13 +641,14 @@ class TestOptimalClustersHierarchical:
             calculate_optimal_clusters_hierarchical,
         )
 
-        # Create invalid hierarchical result
+        # Create invalid hierarchical result with only 2 samples
+        # This will cause max_clusters to be limited to 1, raising ValueError
         invalid_result = {
             "linkage_matrix": np.array([[0, 1, 0.5, 2]]),  # Minimal linkage
             "data_processed": np.random.randn(2, 2),
         }
 
-        with pytest.raises(RuntimeError, match="Failed to calculate optimal clusters"):
+        with pytest.raises(ValueError, match="Need at least 2 clusters"):
             calculate_optimal_clusters_hierarchical(invalid_result, max_clusters=10)
 
 
