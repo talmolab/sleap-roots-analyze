@@ -82,22 +82,134 @@ class DataConfig:
 
 
 @dataclass
+class PCAOutlierConfig:
+    """Configuration for PCA-based outlier detection."""
+
+    explained_variance: float = 0.95
+    threshold: float = 2.5
+
+
+@dataclass
+class IsolationForestConfig:
+    """Configuration for Isolation Forest outlier detection."""
+
+    contamination: float = 0.1
+
+
+@dataclass
+class MahalanobisConfig:
+    """Configuration for Mahalanobis distance outlier detection."""
+
+    variance_threshold: float = 0.95
+    use_chi_squared: bool = True
+    chi2_percentile: float = 99.0
+
+
+@dataclass
+class KMeansOutlierConfig:
+    """Configuration for K-Means clustering outlier detection."""
+
+    n_clusters: Optional[int] = None  # None = auto-optimize
+    max_clusters: int = 10
+    distance_threshold: float = 2.0
+
+
+@dataclass
+class GMMOutlierConfig:
+    """Configuration for GMM clustering outlier detection."""
+
+    n_components: Optional[int] = None  # None = auto-select via BIC
+    max_components: int = 5
+    percentile_threshold: float = 99.0
+
+
+@dataclass
+class HierarchicalOutlierConfig:
+    """Configuration for Hierarchical clustering outlier detection."""
+
+    n_clusters: Optional[int] = None  # None = auto-optimize
+    linkage_method: str = "ward"
+    distance_threshold: float = 2.0
+
+
+@dataclass
+class PCAOutlierConfig:
+    """Configuration for PCA-based outlier detection."""
+
+    explained_variance: float = 0.95
+    threshold: float = 2.5
+
+
+@dataclass
+class IsolationForestConfig:
+    """Configuration for Isolation Forest outlier detection."""
+
+    contamination: float = 0.1
+
+
+@dataclass
+class MahalanobisConfig:
+    """Configuration for Mahalanobis distance outlier detection."""
+
+    variance_threshold: float = 0.95
+    use_chi_squared: bool = True
+    chi2_percentile: float = 99.0
+
+
+@dataclass
+class KMeansOutlierConfig:
+    """Configuration for K-Means clustering outlier detection."""
+
+    n_clusters: Optional[int] = None  # None = auto-optimize
+    max_clusters: int = 10
+    distance_threshold: float = 2.0
+
+
+@dataclass
+class GMMOutlierConfig:
+    """Configuration for GMM clustering outlier detection."""
+
+    n_components: Optional[int] = None  # None = auto-select via BIC
+    max_components: int = 5
+    percentile_threshold: float = 99.0
+
+
+@dataclass
+class HierarchicalOutlierConfig:
+    """Configuration for Hierarchical clustering outlier detection."""
+
+    n_clusters: Optional[int] = None  # None = auto-optimize
+    linkage_method: str = "ward"
+    distance_threshold: float = 2.0
+
+
+@dataclass
 class OutlierDetectionConfig:
     """Configuration for outlier detection.
 
     Attributes:
-        method: Outlier detection method (mahalanobis, zscore, iqr).
-        threshold: Threshold for outlier detection (method-specific).
-        use_pca: Whether to use PCA before outlier detection.
-        n_components: Number of PCA components (or variance ratio if < 1).
-        robust_covariance: Whether to use robust covariance estimation.
+        traditional_methods: List of traditional methods to run (pca, isolation_forest, mahalanobis).
+        clustering_methods: List of clustering methods to run (kmeans, gmm, hierarchical).
+        pca: PCA method parameters.
+        isolation_forest: Isolation Forest parameters.
+        mahalanobis: Mahalanobis distance parameters.
+        kmeans: K-Means clustering parameters.
+        gmm: GMM clustering parameters.
+        hierarchical: Hierarchical clustering parameters.
     """
 
-    method: str = "mahalanobis"
-    threshold: float = 0.01
-    use_pca: bool = True
-    n_components: float = 0.95
-    robust_covariance: bool = False
+    traditional_methods: List[str] = field(default_factory=list)
+    clustering_methods: List[str] = field(default_factory=list)
+    pca: PCAOutlierConfig = field(default_factory=PCAOutlierConfig)
+    isolation_forest: IsolationForestConfig = field(
+        default_factory=IsolationForestConfig
+    )
+    mahalanobis: MahalanobisConfig = field(default_factory=MahalanobisConfig)
+    kmeans: KMeansOutlierConfig = field(default_factory=KMeansOutlierConfig)
+    gmm: GMMOutlierConfig = field(default_factory=GMMOutlierConfig)
+    hierarchical: HierarchicalOutlierConfig = field(
+        default_factory=HierarchicalOutlierConfig
+    )
 
 
 @dataclass
