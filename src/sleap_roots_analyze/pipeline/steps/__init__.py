@@ -10,6 +10,7 @@ from sleap_roots_analyze.pipeline.steps.exploratory_analysis import (
 )
 from sleap_roots_analyze.pipeline.steps.load_data import LoadDataStep
 from sleap_roots_analyze.pipeline.steps.validate_clean import ValidateCleanStep
+from sleap_roots_analyze.pipeline.steps.visualize_outliers import VisualizeOutliersStep
 
 __all__ = [
     "LoadDataStep",
@@ -17,4 +18,5 @@ __all__ = [
     "ValidateCleanStep",
     "ExploratoryAnalysisStep",
     "DetectOutliersStep",
+    "VisualizeOutliersStep",
 ]

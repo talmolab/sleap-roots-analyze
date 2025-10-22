@@ -425,15 +425,26 @@ def validate_config(config: PipelineConfig) -> None:
         raise ValueError("pipeline_name is required")
 
     # Validate data config
-    if config.data.input_path == MISSING:
-        raise ValueError("data.input_path is required")
+    if config.data.csv_path == MISSING:
+        raise ValueError("data.csv_path is required")
 
     # Validate outlier detection config
-    valid_outlier_methods = ["mahalanobis", "zscore", "iqr"]
-    if config.outlier_detection.method not in valid_outlier_methods:
-        raise ValueError(
-            f"outlier_detection.method must be one of {valid_outlier_methods}"
-        )
+    valid_traditional_methods = ["pca", "isolation_forest", "mahalanobis"]
+    valid_clustering_methods = ["kmeans", "gmm", "hierarchical"]
+
+    for method in config.outlier_detection.traditional_methods:
+        if method not in valid_traditional_methods:
+            raise ValueError(
+                f"outlier_detection.traditional_methods contains invalid method '{method}'. "
+                f"Valid methods: {valid_traditional_methods}"
+            )
+
+    for method in config.outlier_detection.clustering_methods:
+        if method not in valid_clustering_methods:
+            raise ValueError(
+                f"outlier_detection.clustering_methods contains invalid method '{method}'. "
+                f"Valid methods: {valid_clustering_methods}"
+            )
 
     # Validate PCA config
     if config.pca.n_components <= 0:
