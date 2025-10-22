@@ -210,6 +210,9 @@ def test_validate_config_valid():
         pipeline_name="test",
     )
     config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    # since outlier_removal.method defaults to "mahalanobis"
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     # Should not raise
     validate_config(config)
@@ -263,6 +266,7 @@ def test_validate_config_valid_outlier_methods():
     # Test clustering methods
     config.outlier_detection.traditional_methods = []
     config.outlier_detection.clustering_methods = ["kmeans", "gmm", "hierarchical"]
+    config.outlier_removal.method = "kmeans"  # Update to match clustering methods
     validate_config(config)  # Should not raise
 
 
@@ -290,6 +294,8 @@ def test_validate_config_valid_pca_strategies():
     """Test validation passes for all valid PCA strategies."""
     config = PipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for strategy in [
         "extreme",
@@ -315,6 +321,8 @@ def test_validate_config_valid_clustering_methods():
     """Test validation passes for all valid clustering methods."""
     config = PipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for method in ["kmeans", "gmm", "hierarchical"]:
         config.clustering.method = method
@@ -335,6 +343,8 @@ def test_validate_config_invalid_logging_level():
     """Test validation fails for invalid logging level."""
     config = PipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
     config.logging.level = "INVALID"
 
     with pytest.raises(ValueError, match="logging.level"):
@@ -345,6 +355,8 @@ def test_validate_config_valid_logging_levels():
     """Test validation passes for all valid logging levels."""
     config = PipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
         config.logging.level = level

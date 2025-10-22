@@ -486,6 +486,46 @@ def validate_config(config: PipelineConfig) -> None:
     if config.clustering.n_clusters < 2:
         raise ValueError("clustering.n_clusters must be at least 2")
 
+    # Validate outlier removal config
+    valid_removal_strategies = ["single", "consensus", "subset"]
+    if config.outlier_removal.strategy not in valid_removal_strategies:
+        raise ValueError(
+            f"outlier_removal.strategy must be one of {valid_removal_strategies}"
+        )
+
+    # For "single" strategy, validate the method is configured
+    if config.outlier_removal.strategy == "single":
+        all_configured_methods = (
+            config.outlier_detection.traditional_methods
+            + config.outlier_detection.clustering_methods
+        )
+        if config.outlier_removal.method not in all_configured_methods:
+            if not all_configured_methods:
+                raise ValueError(
+                    f"outlier_removal.method '{config.outlier_removal.method}' "
+                    f"specified, but no outlier detection methods are configured. "
+                    f"Add methods to outlier_detection.traditional_methods or clustering_methods."
+                )
+            else:
+                raise ValueError(
+                    f"outlier_removal.method '{config.outlier_removal.method}' "
+                    f"not in configured detection methods: {all_configured_methods}"
+                )
+
+    # For "subset" strategy, validate min_methods is reasonable
+    if config.outlier_removal.strategy == "subset":
+        all_configured_methods = (
+            config.outlier_detection.traditional_methods
+            + config.outlier_detection.clustering_methods
+        )
+        if config.outlier_removal.min_methods < 1:
+            raise ValueError("outlier_removal.min_methods must be at least 1")
+        if config.outlier_removal.min_methods > len(all_configured_methods):
+            raise ValueError(
+                f"outlier_removal.min_methods ({config.outlier_removal.min_methods}) "
+                f"cannot exceed number of configured methods ({len(all_configured_methods)})"
+            )
+
     # Validate logging config
     valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     if config.logging.level not in valid_log_levels:

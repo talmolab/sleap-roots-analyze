@@ -161,11 +161,17 @@ class VisualizeOutliersStep(BaseStep):
             plt.close(fig)
             files.append(fig_path)
 
-        # Create metadata
+        # Create metadata (pass through outlier_results for next step)
         metadata = {
             "methods_visualized": methods_run,
             "figures_generated": len(files),
             "comparison_plots": len(methods_run) > 1,
+            "outlier_results": outlier_results,  # Pass through for RemoveOutliersStep
+            "methods_run": methods_run,  # Pass through for RemoveOutliersStep
+            "trait_names": prev_result.metadata.get("trait_names", []),  # Pass through
+            "valid_trait_names": prev_result.metadata.get(
+                "valid_trait_names", []
+            ),  # Pass through
         }
 
         return StepResult(data=df, metadata=metadata, files_generated=files)

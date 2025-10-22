@@ -115,6 +115,8 @@ class ExploratoryAnalysisStep(BaseStep):
             "figures_generated": len(all_figures),
             "figure_names": list(all_figures.keys()),
             "statistics": stats,
+            "trait_names": trait_cols,  # Primary key (standardized)
+            "valid_trait_names": trait_cols,  # For consistency
         }
 
         return StepResult(data=df, metadata=metadata, files_generated=files)

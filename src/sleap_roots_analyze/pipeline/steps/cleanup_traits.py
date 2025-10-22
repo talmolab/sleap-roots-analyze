@@ -182,7 +182,8 @@ class CleanupTraitsStep(BaseStep):
             "traits_original": cleanup_log["original_traits"],
             "traits_removed": len(cleanup_log["removed_traits"]),
             "traits_final": cleanup_log["final_traits"],
-            "valid_trait_names": traits_after_cleanup,
+            "trait_names": traits_after_cleanup,  # Primary key (standardized)
+            "valid_trait_names": traits_after_cleanup,  # For consistency
             "cleanup_log": cleanup_log,
             "nan_validation_passed": True,
         }

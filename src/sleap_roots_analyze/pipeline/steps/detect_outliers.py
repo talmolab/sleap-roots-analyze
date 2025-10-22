@@ -143,6 +143,8 @@ class DetectOutliersStep(BaseStep):
             "outlier_results": outlier_results,
             "outlier_counts": outlier_counts,
             "total_methods": len(outlier_results),
+            "trait_names": trait_cols,  # Primary key (standardized)
+            "valid_trait_names": trait_cols,  # For consistency
         }
 
         return StepResult(data=df, metadata=metadata, files_generated=[])

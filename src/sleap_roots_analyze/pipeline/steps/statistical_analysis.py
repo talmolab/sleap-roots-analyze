@@ -234,7 +234,8 @@ class StatisticalAnalysisStep(BaseStep):
             "anova_results": anova_results,
             "heritability_results": heritability_results,
             "summary": summary,
-            "trait_names": trait_cols,
+            "trait_names": trait_cols,  # Primary key (standardized)
+            "valid_trait_names": trait_cols,  # For consistency
         }
 
         return StepResult(data=df, metadata=metadata, files_generated=files)

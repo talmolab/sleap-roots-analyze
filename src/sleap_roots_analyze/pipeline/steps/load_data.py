@@ -101,7 +101,9 @@ class LoadDataStep(BaseStep):
             "samples": len(df),
             "total_columns": len(df.columns),
             "trait_columns": len(trait_cols),
-            "trait_column_names": trait_cols,
+            "trait_column_names": trait_cols,  # Legacy
+            "trait_names": trait_cols,  # Primary key (standardized)
+            "valid_trait_names": trait_cols,  # For consistency
             "metadata_columns": len(metadata_cols),
             "metadata_column_names": metadata_cols,
             "csv_path": Path(config.data.csv_path).as_posix(),

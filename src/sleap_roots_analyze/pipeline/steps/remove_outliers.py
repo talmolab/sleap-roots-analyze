@@ -59,6 +59,11 @@ class RemoveOutliersStep(BaseStep):
         outlier_results = prev_result.metadata["outlier_results"]
         methods_run = prev_result.metadata["methods_run"]
 
+        # Get trait columns from previous step (try multiple keys for robustness)
+        trait_cols = prev_result.metadata.get("valid_trait_names")
+        if trait_cols is None:
+            trait_cols = prev_result.metadata.get("trait_names", [])
+
         # Get removal strategy
         strategy = config.outlier_removal.strategy
         barcode_col = config.columns.barcode
@@ -179,6 +184,8 @@ class RemoveOutliersStep(BaseStep):
             "samples_final": len(df_clean),
             "removal_strategy": strategy,
             "removal_log": removal_log,
+            "trait_names": trait_cols,  # Pass through for next step
+            "valid_trait_names": trait_cols,  # For consistency with other steps
         }
 
         return StepResult(data=df_clean, metadata=metadata, files_generated=files)

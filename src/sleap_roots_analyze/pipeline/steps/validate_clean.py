@@ -98,6 +98,8 @@ class ValidateCleanStep(BaseStep):
             "total_nans_in_metadata": int(total_metadata_nans),
             "samples": len(df),
             "trait_columns": len(trait_cols),
+            "trait_names": trait_cols,  # Primary key (standardized)
+            "valid_trait_names": trait_cols,  # For consistency
         }
 
         return StepResult(data=df, metadata=metadata, files_generated=files)
