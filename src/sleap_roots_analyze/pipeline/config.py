@@ -213,6 +213,21 @@ class OutlierDetectionConfig:
 
 
 @dataclass
+class OutlierRemovalConfig:
+    """Configuration for outlier removal.
+
+    Attributes:
+        strategy: Removal strategy ("single", "consensus", "subset").
+        method: Method name (required for "single" strategy).
+        min_methods: Minimum methods required (required for "subset" strategy).
+    """
+
+    strategy: str = "single"
+    method: str = "mahalanobis"
+    min_methods: int = 2
+
+
+@dataclass
 class PCAConfig:
     """Configuration for PCA analysis.
 
@@ -299,6 +314,7 @@ class PipelineConfig:
         data: Data configuration.
         cleanup: Data cleanup configuration.
         outlier_detection: Outlier detection configuration.
+        outlier_removal: Outlier removal configuration.
         heritability: Heritability filtering configuration.
         pca: PCA configuration.
         clustering: Clustering configuration.
@@ -315,6 +331,7 @@ class PipelineConfig:
     outlier_detection: OutlierDetectionConfig = field(
         default_factory=OutlierDetectionConfig
     )
+    outlier_removal: OutlierRemovalConfig = field(default_factory=OutlierRemovalConfig)
     heritability: HeritabilityConfig = field(default_factory=HeritabilityConfig)
     pca: PCAConfig = field(default_factory=PCAConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
