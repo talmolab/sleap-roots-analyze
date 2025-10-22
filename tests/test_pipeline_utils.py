@@ -124,3 +124,84 @@ def test_get_environment_info():
     # Verify package versions are strings
     assert isinstance(env_info["pandas"], str)
     assert isinstance(env_info["numpy"], str)
+
+
+def test_get_git_remote_url():
+    """Test getting git remote URL."""
+    from sleap_roots_analyze.pipeline.utils import get_git_remote_url
+
+    url = get_git_remote_url()
+
+    # Should either return a valid URL or None
+    if url is not None:
+        assert isinstance(url, str)
+        assert len(url) > 0
+
+
+def test_is_git_dirty():
+    """Test checking if git repo is dirty."""
+    from sleap_roots_analyze.pipeline.utils import is_git_dirty
+
+    is_dirty = is_git_dirty()
+
+    assert isinstance(is_dirty, bool)
+
+
+def test_create_code_archive(tmp_path):
+    """Test creating a code archive."""
+    from sleap_roots_analyze.pipeline.utils import create_code_archive
+
+    archive_path = tmp_path / "code_snapshot.tar.gz"
+    result = create_code_archive(archive_path)
+
+    assert result == archive_path
+    assert archive_path.exists()
+    assert archive_path.stat().st_size > 0
+
+    # Verify it's a valid tar.gz
+    import tarfile
+
+    with tarfile.open(archive_path, "r:gz") as tar:
+        members = tar.getnames()
+        # Should contain sleap_roots_analyze directory
+        assert any("sleap_roots_analyze" in name for name in members)
+
+
+def test_get_code_snapshot_with_git(tmp_path):
+    """Test getting code snapshot when git is available."""
+    from sleap_roots_analyze.pipeline.utils import get_code_snapshot
+
+    snapshot = get_code_snapshot(tmp_path, create_archive_if_dirty=False)
+
+    assert "package_version" in snapshot
+    assert "python_version" in snapshot
+    assert "git_commit" in snapshot
+    assert "git_branch" in snapshot
+    assert "git_remote" in snapshot
+    assert "git_is_dirty" in snapshot
+    assert "code_archive" in snapshot
+
+    # Verify types
+    assert isinstance(snapshot["python_version"], str)
+    assert isinstance(snapshot["git_is_dirty"], bool)
+
+
+def test_get_code_snapshot_creates_archive_if_dirty(tmp_path):
+    """Test that code snapshot creates archive when git is dirty."""
+    from sleap_roots_analyze.pipeline.utils import get_code_snapshot, is_git_dirty
+
+    # Only test archive creation if git is actually dirty
+    if is_git_dirty():
+        snapshot = get_code_snapshot(tmp_path, create_archive_if_dirty=True)
+        assert snapshot["code_archive"] is not None
+        assert Path(snapshot["code_archive"]).exists()
+
+
+def test_get_code_snapshot_no_archive_if_clean(tmp_path):
+    """Test that code snapshot doesn't create archive when git is clean."""
+    from sleap_roots_analyze.pipeline.utils import get_code_snapshot, is_git_dirty
+
+    # Only test if git is clean
+    if not is_git_dirty():
+        snapshot = get_code_snapshot(tmp_path, create_archive_if_dirty=True)
+        assert snapshot["code_archive"] is None

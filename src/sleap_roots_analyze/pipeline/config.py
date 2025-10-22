@@ -14,22 +14,71 @@ from omegaconf import MISSING, OmegaConf
 
 
 @dataclass
+class ColumnConfig:
+    """Configuration for column names in the trait data.
+
+    Attributes:
+        barcode: Name of the barcode/plant ID column.
+        genotype: Name of the genotype column.
+        replicate: Name of the replicate column (None if not present).
+    """
+
+    barcode: str = "Barcode"
+    genotype: str = "geno"
+    replicate: Optional[str] = "rep"
+
+
+@dataclass
+class CleanupConfig:
+    """Configuration for data cleanup filters.
+
+    Attributes:
+        max_nan_fraction: Maximum fraction of NaN values allowed per sample (0.0 = any NaN removes sample).
+        max_zeros_per_trait: Maximum fraction of zero values allowed per trait.
+        max_nans_per_trait: Maximum fraction of NaN values allowed per trait.
+        min_samples_per_trait: Minimum number of valid samples required per trait.
+    """
+
+    max_nan_fraction: float = 0.0
+    max_zeros_per_trait: float = 0.5
+    max_nans_per_trait: float = 0.2
+    min_samples_per_trait: int = 10
+
+
+@dataclass
+class HeritabilityConfig:
+    """Configuration for heritability filtering.
+
+    Attributes:
+        enabled: Whether to filter traits by heritability.
+        threshold: Minimum heritability (H²) threshold.
+    """
+
+    enabled: bool = True
+    threshold: float = 0.60
+
+
+@dataclass
 class DataConfig:
     """Configuration for data loading and processing.
 
     Attributes:
-        input_path: Path to input data file.
+        csv_path: Path to trait CSV file.
+        image_dir: Directory containing images (optional, for QC linking).
         output_dir: Directory for output files.
+        additional_exclude_cols: Additional columns to exclude from trait analysis.
         traits_to_include: List of trait names to include. If None, includes all.
         traits_to_exclude: List of trait names to exclude.
-        min_heritability: Minimum heritability threshold for trait filtering.
     """
 
-    input_path: str = MISSING
+    csv_path: str = MISSING
+    image_dir: Optional[str] = None
     output_dir: str = "./outputs"
+    additional_exclude_cols: Optional[List[str]] = None
     traits_to_include: Optional[List[str]] = None
-    traits_to_exclude: List[str] = field(default_factory=list)
-    min_heritability: float = 0.0
+    traits_to_exclude: List[str] = field(
+        default_factory=list
+    )  # Deprecated, use heritability.threshold
 
 
 @dataclass
@@ -134,8 +183,11 @@ class PipelineConfig:
         pipeline_name: Name of the pipeline.
         version: Pipeline version.
         enable_parallel: Whether to enable parallel task execution (future).
+        columns: Column name configuration.
         data: Data configuration.
+        cleanup: Data cleanup configuration.
         outlier_detection: Outlier detection configuration.
+        heritability: Heritability filtering configuration.
         pca: PCA configuration.
         clustering: Clustering configuration.
         visualization: Visualization configuration.
@@ -145,10 +197,13 @@ class PipelineConfig:
     pipeline_name: str = MISSING
     version: str = "1.0"
     enable_parallel: bool = False
+    columns: ColumnConfig = field(default_factory=ColumnConfig)
     data: DataConfig = field(default_factory=DataConfig)
+    cleanup: CleanupConfig = field(default_factory=CleanupConfig)
     outlier_detection: OutlierDetectionConfig = field(
         default_factory=OutlierDetectionConfig
     )
+    heritability: HeritabilityConfig = field(default_factory=HeritabilityConfig)
     pca: PCAConfig = field(default_factory=PCAConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)

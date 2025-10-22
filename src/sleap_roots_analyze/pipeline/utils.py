@@ -88,6 +88,137 @@ def get_git_branch() -> Optional[str]:
         return None
 
 
+def get_git_remote_url() -> Optional[str]:
+    """Get the git remote origin URL.
+
+    Returns:
+        The remote URL, or None if not in a git repo or git is not available.
+
+    Example:
+        >>> url = get_git_remote_url()
+        >>> # Returns: 'https://github.com/user/repo.git' or None
+    """
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def is_git_dirty() -> bool:
+    """Check if the git repository has uncommitted changes.
+
+    Returns:
+        True if there are uncommitted changes, False otherwise.
+        Returns False if not in a git repo or git is not available.
+
+    Example:
+        >>> dirty = is_git_dirty()
+        >>> # Returns: True or False
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--quiet"], capture_output=True, check=False
+        )
+        return result.returncode != 0
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def create_code_archive(output_path: str | Path) -> Path:
+    """Create a tar.gz archive of the sleap_roots_analyze package source.
+
+    Args:
+        output_path: Path where the archive should be saved.
+
+    Returns:
+        Path to the created archive.
+
+    Example:
+        >>> archive = create_code_archive("./code_snapshot.tar.gz")
+        >>> # Creates archive at ./code_snapshot.tar.gz
+    """
+    import tarfile
+
+    import sleap_roots_analyze
+
+    output_path = Path(output_path)
+    package_path = Path(sleap_roots_analyze.__file__).parent
+
+    with tarfile.open(output_path, "w:gz") as tar:
+        tar.add(package_path, arcname="sleap_roots_analyze")
+
+    return output_path
+
+
+def get_code_snapshot(
+    run_dir: Path, create_archive_if_dirty: bool = True
+) -> Dict[str, any]:
+    """Get a complete code snapshot for reproducibility.
+
+    Strategy:
+    1. Try to get git information
+    2. If git is dirty or unavailable, optionally create code archive
+    3. Always capture package version and Python version
+
+    Args:
+        run_dir: Directory to save code archive if needed.
+        create_archive_if_dirty: Whether to create archive if git is dirty or unavailable.
+
+    Returns:
+        Dictionary with code snapshot information:
+            - package_version: Version of sleap_roots_analyze
+            - git_commit: Git commit hash (if available)
+            - git_branch: Git branch name (if available)
+            - git_remote: Git remote URL (if available)
+            - git_is_dirty: Whether there are uncommitted changes
+            - code_archive: Path to code archive (if created)
+            - python_version: Python version string
+
+    Example:
+        >>> snapshot = get_code_snapshot(Path("./run_20241021"))
+        >>> # Returns: {
+        >>> #     'package_version': '0.1.0',
+        >>> #     'git_commit': 'abc123...',
+        >>> #     'git_branch': 'main',
+        >>> #     'git_remote': 'https://github.com/...',
+        >>> #     'git_is_dirty': False,
+        >>> #     'code_archive': None,
+        >>> #     'python_version': '3.11.0 ...'
+        >>> # }
+    """
+    import sys
+
+    snapshot = {
+        "package_version": get_package_version("sleap-roots-analyze") or "unknown",
+        "python_version": sys.version,
+        "git_commit": get_git_commit_hash(),
+        "git_branch": get_git_branch(),
+        "git_remote": get_git_remote_url(),
+        "git_is_dirty": is_git_dirty(),
+        "code_archive": None,
+    }
+
+    # Create archive if git is dirty or unavailable
+    should_archive = False
+    if snapshot["git_commit"] is None:
+        should_archive = True  # No git available
+    elif snapshot["git_is_dirty"]:
+        should_archive = True  # Uncommitted changes
+
+    if should_archive and create_archive_if_dirty:
+        archive_path = run_dir / "code_snapshot.tar.gz"
+        create_code_archive(archive_path)
+        snapshot["code_archive"] = str(archive_path)
+
+    return snapshot
+
+
 def get_package_version(package_name: str) -> Optional[str]:
     """Get the installed version of a package.
 
