@@ -328,6 +328,28 @@ class TestQCPipelineIntegration:
             f"OK Step 4: Created {eda_result.metadata['figures_generated']} EDA figures"
         )
 
+        # Verify batched trait visualizations generated (Issue #27)
+        # Turface has 35 traits, so should generate batched plots (>16 threshold)
+        figures_dir = pipeline.run_dir / "figures"
+
+        # Check for batched histograms (should have 3 batches: 16+16+3=35)
+        batch_hist_1 = figures_dir / "04_trait_histograms_batch_1.png"
+        batch_hist_2 = figures_dir / "04_trait_histograms_batch_2.png"
+        batch_hist_3 = figures_dir / "04_trait_histograms_batch_3.png"
+        assert batch_hist_1.exists(), "Batched histogram batch 1 not generated"
+        assert batch_hist_2.exists(), "Batched histogram batch 2 not generated"
+        assert batch_hist_3.exists(), "Batched histogram batch 3 not generated"
+
+        # Check for batched boxplots (should have 3 batches)
+        batch_box_1 = figures_dir / "04_trait_boxplots_batch_1.png"
+        batch_box_2 = figures_dir / "04_trait_boxplots_batch_2.png"
+        batch_box_3 = figures_dir / "04_trait_boxplots_batch_3.png"
+        assert batch_box_1.exists(), "Batched boxplot batch 1 not generated"
+        assert batch_box_2.exists(), "Batched boxplot batch 2 not generated"
+        assert batch_box_3.exists(), "Batched boxplot batch 3 not generated"
+
+        print("OK Step 4: Batched trait visualizations generated (3 batches each)")
+
         # Step 5: Detect Outliers
         detect_result = results["05_detect_outliers"].data
         assert "outlier_results" in detect_result.metadata
@@ -393,6 +415,15 @@ class TestQCPipelineIntegration:
         print(
             f"OK Step 9: {len(final_traits)} traits after heritability filtering (23 removed)"
         )
+
+        # Verify heritability threshold analysis plot was generated (Issue #26)
+        threshold_plot = (
+            pipeline.run_dir / "figures" / "09_heritability_threshold_analysis.png"
+        )
+        assert (
+            threshold_plot.exists()
+        ), f"Heritability threshold plot not found: {threshold_plot}"
+        print("OK Step 9: Heritability threshold analysis plot generated")
 
         # Step 10: Generate Summary
         summary_result = results["10_generate_summary"].data
