@@ -156,15 +156,12 @@ class TestQCPipelineIntegration:
         df.to_csv(csv_path, index=False)
         return csv_path
 
-    @pytest.mark.skip(
-        reason="Integration test needs robust error handling in RemoveOutliersStep - see Issue #20"
-    )
     def test_qc_pipeline_full_run(self, test_data, tmp_path):
-        """Test full QC pipeline execution end-to-end.
+        """Test full QC pipeline execution end-to-end with synthetic data.
 
-        TODO: This test is currently skipped because RemoveOutliersStep doesn't handle
-        detection errors gracefully (when outlier_mask is missing from results).
-        This will be fixed as part of Issue #20 (comprehensive test coverage for Steps 3-10).
+        This test uses synthetic data to verify the pipeline runs correctly
+        with a simple dataset. For real-world data testing, see
+        test_qc_pipeline_turface_integration.
         """
         config = get_default_config()
         config.data.csv_path = str(test_data)
