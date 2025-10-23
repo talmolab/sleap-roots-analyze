@@ -234,7 +234,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 2: Cleanup Traits."""
         logger.info("Step 2/10: Cleaning up traits...")
         prev_task_result = kwargs.get("01_load_data")
-        # Extract StepResult from TaskResult.data
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_2_cleanup_traits.execute(
             data=prev_step_result.data,  # DataFrame
@@ -248,6 +248,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 3: Validate Clean."""
         logger.info("Step 3/10: Validating cleaned data...")
         prev_task_result = kwargs.get("02_cleanup_traits")
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_3_validate_clean.execute(
             data=prev_step_result.data,
@@ -261,6 +262,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 4: Exploratory Analysis."""
         logger.info("Step 4/10: Generating exploratory analysis...")
         prev_task_result = kwargs.get("03_validate_clean")
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_4_exploratory_analysis.execute(
             data=prev_step_result.data,
@@ -287,6 +289,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 6: Visualize Outliers."""
         logger.info("Step 6/10: Visualizing outliers...")
         prev_task_result = kwargs.get("05_detect_outliers")
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_6_visualize_outliers.execute(
             data=prev_step_result.data,
@@ -300,6 +303,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 7: Remove Outliers."""
         logger.info("Step 7/10: Removing outliers...")
         prev_task_result = kwargs.get("06_visualize_outliers")
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_7_remove_outliers.execute(
             data=prev_step_result.data,
@@ -313,6 +317,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 8: Statistical Analysis."""
         logger.info("Step 8/10: Running statistical analysis...")
         prev_task_result = kwargs.get("07_remove_outliers")
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_8_statistical_analysis.execute(
             data=prev_step_result.data,
@@ -326,6 +331,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 9: Filter Heritability."""
         logger.info("Step 9/10: Filtering by heritability...")
         prev_task_result = kwargs.get("08_statistical_analysis")
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_9_filter_heritability.execute(
             data=prev_step_result.data,
@@ -339,6 +345,7 @@ class QCPipeline(BasePipeline):
         """Execute Step 10: Generate Summary."""
         logger.info("Step 10/10: Generating pipeline summary...")
         prev_task_result = kwargs.get("09_filter_heritability")
+        # TaskResult.data contains the StepResult
         prev_step_result = prev_task_result.data
         result = self.step_10_generate_summary.execute(
             data=prev_step_result.data,

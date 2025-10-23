@@ -286,7 +286,9 @@ class TestQCPipelineIntegration:
 
         for step_name in step_names:
             assert step_name in results, f"Missing step: {step_name}"
-            step_result = results[step_name].data  # Extract StepResult from TaskResult
+            step_result = results[
+                step_name
+            ].data  # TaskResult.data contains the StepResult
             assert step_result.data is not None, f"{step_name} has no data"
 
         # Step 1: Load Data
