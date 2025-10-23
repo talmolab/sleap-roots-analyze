@@ -154,7 +154,9 @@ class VisualizeOutliersStep(BaseStep):
         # Per-genotype outlier counts (if genotype column exists)
         if config.columns.genotype in df.columns:
             fig = create_outliers_per_genotype_plot(
-                outlier_results, df, genotype_col=config.columns.genotype
+                df=df,
+                all_outlier_results=outlier_results,
+                genotype_col=config.columns.genotype,
             )
             fig_path = figures_dir / "outliers_per_genotype.png"
             fig.savefig(fig_path, dpi=config.visualization.dpi, bbox_inches="tight")

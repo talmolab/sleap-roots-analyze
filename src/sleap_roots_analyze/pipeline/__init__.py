@@ -24,6 +24,7 @@ from sleap_roots_analyze.pipeline.config import (
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.pipeline.dag import DAGExecutor, DAGValidationError
 from sleap_roots_analyze.pipeline.pipeline import BasePipeline
+from sleap_roots_analyze.pipeline.qc_pipeline import QCPipeline
 from sleap_roots_analyze.pipeline.summary import PipelineSummary, StepSummary
 from sleap_roots_analyze.pipeline.task import Task, TaskResult
 from sleap_roots_analyze.pipeline.utils import (
@@ -47,6 +48,7 @@ __all__ = [
     "DAGValidationError",
     # Pipeline and summary
     "BasePipeline",
+    "QCPipeline",
     "PipelineSummary",
     "StepSummary",
     # Core step abstractions
