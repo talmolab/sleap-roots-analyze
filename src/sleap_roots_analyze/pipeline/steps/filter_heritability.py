@@ -165,10 +165,13 @@ class FilterHeritabilityStep(BaseStep):
         fig = create_heritability_threshold_plot(
             threshold_analysis, current_threshold=threshold
         )
-        threshold_plot_path = run_dir / "figures" / "09_heritability_threshold_analysis.png"
+        threshold_plot_path = (
+            run_dir / "figures" / "09_heritability_threshold_analysis.png"
+        )
         threshold_plot_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(threshold_plot_path, dpi=300, bbox_inches="tight")
         import matplotlib.pyplot as plt
+
         plt.close(fig)
 
         # Save outputs
