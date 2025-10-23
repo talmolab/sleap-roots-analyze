@@ -1,0 +1,125 @@
+{
+  "description": "Expected values from trait_qc_turface_20251010.ipynb notebook run",
+  "dataset": "Turface_all_traits_2024_RSR.csv",
+  "config": {
+    "max_nan_fraction_sample": 0.0,
+    "max_zeros_per_trait": 0.5,
+    "max_nans_per_trait": 0.2,
+    "outlier_method": "mahalanobis",
+    "mahalanobis_variance_threshold": 0.95,
+    "mahalanobis_chi2_percentile": 99,
+    "heritability_threshold": 0.62,
+    "heritability_method": "mixed_model"
+  },
+  "step_01_load_data": {
+    "n_samples": 187,
+    "n_traits": 35,
+    "n_genotypes": 19,
+    "trait_names": [
+      "Shoot_Biomass_mg",
+      "Root_Biomass_mg",
+      "Root_Shoot_Ratio",
+      "Median.Number.of.Roots",
+      "Maximum.Number.of.Roots",
+      "Number.of.Root.Tips",
+      "Total.Root.Length.mm",
+      "Depth.mm",
+      "Network.Area.mm2",
+      "Convex.Area.mm2",
+      "Lower.Root.Area.mm2",
+      "Average.Diameter.mm",
+      "Median.Diameter.mm",
+      "Maximum.Diameter.mm",
+      "Perimeter.mm",
+      "Volume.mm3",
+      "Surface.Area.mm2",
+      "Holes",
+      "Average.Hole.Size.mm2",
+      "Average.Root.Orientation.deg",
+      "Shallow.Angle.Frequency",
+      "Medium.Angle.Frequency",
+      "Steep.Angle.Frequency",
+      "Root.Length.Diameter.Range.1.mm",
+      "Root.Length.Diameter.Range.2.mm",
+      "Root.Length.Diameter.Range.3.mm",
+      "Projected.Area.Diameter.Range.1.mm2",
+      "Projected.Area.Diameter.Range.2.mm2",
+      "Projected.Area.Diameter.Range.3.mm2",
+      "Surface.Area.Diameter.Range.1.mm2",
+      "Surface.Area.Diameter.Range.2.mm2",
+      "Surface.Area.Diameter.Range.3.mm2",
+      "Volume.Diameter.Range.1.mm3",
+      "Volume.Diameter.Range.2.mm3",
+      "Volume.Diameter.Range.3.mm3"
+    ]
+  },
+  "step_02_cleanup_traits": {
+    "n_samples": 158,
+    "n_traits": 35,
+    "samples_removed": 29,
+    "traits_removed": 0,
+    "removal_reason": "nan_fraction_exceeded"
+  },
+  "step_05_detect_outliers": {
+    "mahalanobis": {
+      "n_outliers": 6,
+      "n_components": 11,
+      "cumulative_variance_explained_min": 0.95,
+      "threshold_type": "chi_squared"
+    }
+  },
+  "step_07_remove_outliers": {
+    "n_samples": 152,
+    "outliers_removed": 6,
+    "removal_strategy": "single",
+    "removal_method": "mahalanobis"
+  },
+  "step_08_statistical_analysis": {
+    "n_significant_traits_min": 20,
+    "n_significant_traits_max": 30,
+    "expected_significant_count": 26
+  },
+  "step_09_filter_heritability": {
+    "n_samples": 152,
+    "n_traits": 12,
+    "traits_removed": 23,
+    "final_trait_names": [
+      "Shoot_Biomass_mg",
+      "Root_Biomass_mg",
+      "Total.Root.Length.mm",
+      "Network.Area.mm2",
+      "Perimeter.mm",
+      "Volume.mm3",
+      "Surface.Area.mm2",
+      "Root.Length.Diameter.Range.2.mm",
+      "Projected.Area.Diameter.Range.2.mm2",
+      "Surface.Area.Diameter.Range.2.mm2",
+      "Volume.Diameter.Range.2.mm3",
+      "Volume.Diameter.Range.3.mm3"
+    ],
+    "heritability_estimates": {
+      "Shoot_Biomass_mg": {"min": 0.62, "max": 1.0},
+      "Root_Biomass_mg": {"min": 0.62, "max": 1.0},
+      "Total.Root.Length.mm": {"min": 0.62, "max": 1.0}
+    }
+  },
+  "step_10_generate_summary": {
+    "final_n_samples": 152,
+    "final_n_traits": 12,
+    "final_n_genotypes": 19,
+    "samples_removed_total": 35,
+    "traits_removed_total": 23
+  },
+  "output_files": {
+    "required_csvs": [
+      "cleaned_traits.csv"
+    ],
+    "required_jsons": [
+      "pipeline_summary.json"
+    ],
+    "required_dirs": [
+      "figures"
+    ],
+    "expected_figures_min": 8
+  }
+}
