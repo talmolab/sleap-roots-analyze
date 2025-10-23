@@ -244,6 +244,7 @@ class ComplexPipeline(BasePipeline):
 
     def create_tasks(self):
         """Create tasks with parallel branches."""
+
         def task1(config, run_dir, logger):
             return TaskResult(data=1)
 

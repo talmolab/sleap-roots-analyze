@@ -26,14 +26,14 @@ from sleap_roots_analyze.pipeline.config import (
 def test_data_config_creation():
     """Test creating a DataConfig."""
     config = DataConfig(
-        input_path="data.csv",
-        output_dir="./outputs",
-        min_heritability=0.3,
+        csv_path="data.csv",
+        image_dir="./images",
+        additional_exclude_cols=["QC_flag"],
     )
 
-    assert config.input_path == "data.csv"
-    assert config.output_dir == "./outputs"
-    assert config.min_heritability == 0.3
+    assert config.csv_path == "data.csv"
+    assert config.image_dir == "./images"
+    assert config.additional_exclude_cols == ["QC_flag"]
     assert config.traits_to_include is None
     assert config.traits_to_exclude == []
 
@@ -42,11 +42,13 @@ def test_outlier_detection_config_defaults():
     """Test OutlierDetectionConfig defaults."""
     config = OutlierDetectionConfig()
 
-    assert config.method == "mahalanobis"
-    assert config.threshold == 0.01
-    assert config.use_pca is True
-    assert config.n_components == 0.95
-    assert config.robust_covariance is False
+    assert config.traditional_methods == []
+    assert config.clustering_methods == []
+    # Check nested configs have defaults
+    assert config.pca.explained_variance == 0.95
+    assert config.isolation_forest.contamination == 0.1
+    assert config.mahalanobis.variance_threshold == 0.95
+    assert config.mahalanobis.use_chi_squared is True
 
 
 def test_pca_config_defaults():
@@ -129,8 +131,8 @@ def test_save_and_load_config(tmp_path):
         pipeline_name="test",
         version="1.5",
     )
-    original.data.input_path = "test_data.csv"
-    original.data.min_heritability = 0.5
+    original.data.csv_path = "test_data.csv"
+    original.data.additional_exclude_cols = ["QC_flag"]
     original.pca.n_components = 0.9
 
     # Save
@@ -144,15 +146,15 @@ def test_save_and_load_config(tmp_path):
 
     assert loaded.pipeline_name == "test"
     assert loaded.version == "1.5"
-    assert loaded.data.input_path == "test_data.csv"
-    assert loaded.data.min_heritability == 0.5
+    assert loaded.data.csv_path == "test_data.csv"
+    assert loaded.data.additional_exclude_cols == ["QC_flag"]
     assert loaded.pca.n_components == 0.9
 
 
 def test_save_config_creates_directory(tmp_path):
     """Test that save_config creates parent directories."""
     config = get_default_config("test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
 
     config_path = tmp_path / "nested" / "dir" / "config.yaml"
     save_config(config, config_path)
@@ -163,19 +165,19 @@ def test_save_config_creates_directory(tmp_path):
 def test_merge_configs():
     """Test merging configurations."""
     base = get_default_config("base")
-    base.data.input_path = "base.csv"
+    base.data.csv_path = "base.csv"
     base.pca.n_components = 0.95
 
     overrides = {
-        "data": {"input_path": "override.csv", "min_heritability": 0.3},
+        "data": {"csv_path": "override.csv", "additional_exclude_cols": ["QC_flag"]},
         "pca": {"n_components": 0.8},
     }
 
     merged = merge_configs(base, overrides)
 
     # Overridden values
-    assert merged.data.input_path == "override.csv"
-    assert merged.data.min_heritability == 0.3
+    assert merged.data.csv_path == "override.csv"
+    assert merged.data.additional_exclude_cols == ["QC_flag"]
     assert merged.pca.n_components == 0.8
 
     # Non-overridden values should be preserved
@@ -185,16 +187,21 @@ def test_merge_configs():
 def test_merge_configs_nested():
     """Test merging with nested overrides."""
     base = get_default_config("test")
-    base.data.input_path = "base.csv"
+    base.data.csv_path = "base.csv"
 
-    overrides = {"outlier_detection": {"method": "zscore", "threshold": 3.0}}
+    overrides = {
+        "outlier_detection": {
+            "traditional_methods": ["pca", "mahalanobis"],
+            "pca": {"explained_variance": 0.90},
+        }
+    }
 
     merged = merge_configs(base, overrides)
 
-    assert merged.outlier_detection.method == "zscore"
-    assert merged.outlier_detection.threshold == 3.0
+    assert merged.outlier_detection.traditional_methods == ["pca", "mahalanobis"]
+    assert merged.outlier_detection.pca.explained_variance == 0.90
     # Other outlier_detection fields should be preserved
-    assert merged.outlier_detection.use_pca is True
+    assert merged.outlier_detection.clustering_methods == []
 
 
 def test_validate_config_valid():
@@ -202,7 +209,10 @@ def test_validate_config_valid():
     config = PipelineConfig(
         pipeline_name="test",
     )
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    # since outlier_removal.method defaults to "mahalanobis"
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     # Should not raise
     validate_config(config)
@@ -213,47 +223,57 @@ def test_validate_config_missing_pipeline_name():
     config = PipelineConfig(
         pipeline_name=MISSING,
     )
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
 
     with pytest.raises(ValueError, match="pipeline_name is required"):
         validate_config(config)
 
 
-def test_validate_config_missing_input_path():
-    """Test validation fails for missing input_path."""
+def test_validate_config_missing_csv_path():
+    """Test validation fails for missing csv_path."""
     config = PipelineConfig(
         pipeline_name="test",
     )
-    # data.input_path is MISSING by default
+    # data.csv_path is MISSING by default
 
-    with pytest.raises(ValueError, match="data.input_path is required"):
+    with pytest.raises(ValueError, match="data.csv_path is required"):
         validate_config(config)
 
 
-def test_validate_config_invalid_outlier_method():
-    """Test validation fails for invalid outlier detection method."""
+def test_validate_config_invalid_traditional_outlier_method():
+    """Test validation fails for invalid traditional outlier detection method."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
-    config.outlier_detection.method = "invalid"
+    config.data.csv_path = "data.csv"
+    config.outlier_detection.traditional_methods = ["invalid"]
 
-    with pytest.raises(ValueError, match="outlier_detection.method"):
+    with pytest.raises(ValueError, match="traditional_methods contains invalid method"):
         validate_config(config)
 
 
 def test_validate_config_valid_outlier_methods():
     """Test validation passes for all valid outlier methods."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
 
-    for method in ["mahalanobis", "zscore", "iqr"]:
-        config.outlier_detection.method = method
-        validate_config(config)  # Should not raise
+    # Test traditional methods
+    config.outlier_detection.traditional_methods = [
+        "pca",
+        "isolation_forest",
+        "mahalanobis",
+    ]
+    validate_config(config)  # Should not raise
+
+    # Test clustering methods
+    config.outlier_detection.traditional_methods = []
+    config.outlier_detection.clustering_methods = ["kmeans", "gmm", "hierarchical"]
+    config.outlier_removal.method = "kmeans"  # Update to match clustering methods
+    validate_config(config)  # Should not raise
 
 
 def test_validate_config_invalid_pca_components():
     """Test validation fails for invalid PCA components."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
     config.pca.n_components = -1
 
     with pytest.raises(ValueError, match="pca.n_components must be positive"):
@@ -263,7 +283,7 @@ def test_validate_config_invalid_pca_components():
 def test_validate_config_invalid_pca_strategy():
     """Test validation fails for invalid PCA feature selection strategy."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
     config.pca.feature_selection_strategy = "invalid"
 
     with pytest.raises(ValueError, match="pca.feature_selection_strategy"):
@@ -273,7 +293,9 @@ def test_validate_config_invalid_pca_strategy():
 def test_validate_config_valid_pca_strategies():
     """Test validation passes for all valid PCA strategies."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for strategy in [
         "extreme",
@@ -288,7 +310,7 @@ def test_validate_config_valid_pca_strategies():
 def test_validate_config_invalid_clustering_method():
     """Test validation fails for invalid clustering method."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
     config.clustering.method = "invalid"
 
     with pytest.raises(ValueError, match="clustering.method"):
@@ -298,7 +320,9 @@ def test_validate_config_invalid_clustering_method():
 def test_validate_config_valid_clustering_methods():
     """Test validation passes for all valid clustering methods."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for method in ["kmeans", "gmm", "hierarchical"]:
         config.clustering.method = method
@@ -308,7 +332,7 @@ def test_validate_config_valid_clustering_methods():
 def test_validate_config_invalid_n_clusters():
     """Test validation fails for invalid number of clusters."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
     config.clustering.n_clusters = 1
 
     with pytest.raises(ValueError, match="clustering.n_clusters"):
@@ -318,7 +342,9 @@ def test_validate_config_invalid_n_clusters():
 def test_validate_config_invalid_logging_level():
     """Test validation fails for invalid logging level."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
     config.logging.level = "INVALID"
 
     with pytest.raises(ValueError, match="logging.level"):
@@ -328,7 +354,9 @@ def test_validate_config_invalid_logging_level():
 def test_validate_config_valid_logging_levels():
     """Test validation passes for all valid logging levels."""
     config = PipelineConfig(pipeline_name="test")
-    config.data.input_path = "data.csv"
+    config.data.csv_path = "data.csv"
+    # Need to configure at least one outlier detection method
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
         config.logging.level = level

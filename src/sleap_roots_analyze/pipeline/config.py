@@ -14,22 +14,122 @@ from omegaconf import MISSING, OmegaConf
 
 
 @dataclass
+class ColumnConfig:
+    """Configuration for column names in the trait data.
+
+    Attributes:
+        barcode: Name of the barcode/plant ID column.
+        genotype: Name of the genotype column.
+        replicate: Name of the replicate column (None if not present).
+    """
+
+    barcode: str = "Barcode"
+    genotype: str = "geno"
+    replicate: Optional[str] = "rep"
+
+
+@dataclass
+class CleanupConfig:
+    """Configuration for data cleanup filters.
+
+    Attributes:
+        max_nan_fraction: Maximum fraction of NaN values allowed per sample (0.0 = any NaN removes sample).
+        max_zeros_per_trait: Maximum fraction of zero values allowed per trait.
+        max_nans_per_trait: Maximum fraction of NaN values allowed per trait.
+        min_samples_per_trait: Minimum number of valid samples required per trait.
+    """
+
+    max_nan_fraction: float = 0.0
+    max_zeros_per_trait: float = 0.5
+    max_nans_per_trait: float = 0.2
+    min_samples_per_trait: int = 10
+
+
+@dataclass
+class HeritabilityConfig:
+    """Configuration for heritability filtering.
+
+    Attributes:
+        enabled: Whether to filter traits by heritability.
+        threshold: Minimum heritability (H²) threshold.
+    """
+
+    enabled: bool = True
+    threshold: float = 0.60
+
+
+@dataclass
 class DataConfig:
     """Configuration for data loading and processing.
 
     Attributes:
-        input_path: Path to input data file.
+        csv_path: Path to trait CSV file.
+        image_dir: Directory containing images (optional, for QC linking).
         output_dir: Directory for output files.
+        additional_exclude_cols: Additional columns to exclude from trait analysis.
         traits_to_include: List of trait names to include. If None, includes all.
         traits_to_exclude: List of trait names to exclude.
-        min_heritability: Minimum heritability threshold for trait filtering.
     """
 
-    input_path: str = MISSING
+    csv_path: str = MISSING
+    image_dir: Optional[str] = None
     output_dir: str = "./outputs"
+    additional_exclude_cols: Optional[List[str]] = None
     traits_to_include: Optional[List[str]] = None
-    traits_to_exclude: List[str] = field(default_factory=list)
-    min_heritability: float = 0.0
+    traits_to_exclude: List[str] = field(
+        default_factory=list
+    )  # Deprecated, use heritability.threshold
+
+
+@dataclass
+class PCAOutlierConfig:
+    """Configuration for PCA-based outlier detection."""
+
+    explained_variance: float = 0.95
+    threshold: float = 2.5
+
+
+@dataclass
+class IsolationForestConfig:
+    """Configuration for Isolation Forest outlier detection."""
+
+    contamination: float = 0.1
+
+
+@dataclass
+class MahalanobisConfig:
+    """Configuration for Mahalanobis distance outlier detection."""
+
+    variance_threshold: float = 0.95
+    use_chi_squared: bool = True
+    chi2_percentile: float = 99.0
+
+
+@dataclass
+class KMeansOutlierConfig:
+    """Configuration for K-Means clustering outlier detection."""
+
+    n_clusters: Optional[int] = None  # None = auto-optimize
+    max_clusters: int = 10
+    distance_threshold: float = 2.0
+
+
+@dataclass
+class GMMOutlierConfig:
+    """Configuration for GMM clustering outlier detection."""
+
+    n_components: Optional[int] = None  # None = auto-select via BIC
+    max_components: int = 5
+    percentile_threshold: float = 99.0
+
+
+@dataclass
+class HierarchicalOutlierConfig:
+    """Configuration for Hierarchical clustering outlier detection."""
+
+    n_clusters: Optional[int] = None  # None = auto-optimize
+    linkage_method: str = "ward"
+    distance_threshold: float = 2.0
 
 
 @dataclass
@@ -37,18 +137,43 @@ class OutlierDetectionConfig:
     """Configuration for outlier detection.
 
     Attributes:
-        method: Outlier detection method (mahalanobis, zscore, iqr).
-        threshold: Threshold for outlier detection (method-specific).
-        use_pca: Whether to use PCA before outlier detection.
-        n_components: Number of PCA components (or variance ratio if < 1).
-        robust_covariance: Whether to use robust covariance estimation.
+        traditional_methods: List of traditional methods to run (pca, isolation_forest, mahalanobis).
+        clustering_methods: List of clustering methods to run (kmeans, gmm, hierarchical).
+        pca: PCA method parameters.
+        isolation_forest: Isolation Forest parameters.
+        mahalanobis: Mahalanobis distance parameters.
+        kmeans: K-Means clustering parameters.
+        gmm: GMM clustering parameters.
+        hierarchical: Hierarchical clustering parameters.
     """
 
+    traditional_methods: List[str] = field(default_factory=list)
+    clustering_methods: List[str] = field(default_factory=list)
+    pca: PCAOutlierConfig = field(default_factory=PCAOutlierConfig)
+    isolation_forest: IsolationForestConfig = field(
+        default_factory=IsolationForestConfig
+    )
+    mahalanobis: MahalanobisConfig = field(default_factory=MahalanobisConfig)
+    kmeans: KMeansOutlierConfig = field(default_factory=KMeansOutlierConfig)
+    gmm: GMMOutlierConfig = field(default_factory=GMMOutlierConfig)
+    hierarchical: HierarchicalOutlierConfig = field(
+        default_factory=HierarchicalOutlierConfig
+    )
+
+
+@dataclass
+class OutlierRemovalConfig:
+    """Configuration for outlier removal.
+
+    Attributes:
+        strategy: Removal strategy ("single", "consensus", "subset").
+        method: Method name (required for "single" strategy).
+        min_methods: Minimum methods required (required for "subset" strategy).
+    """
+
+    strategy: str = "single"
     method: str = "mahalanobis"
-    threshold: float = 0.01
-    use_pca: bool = True
-    n_components: float = 0.95
-    robust_covariance: bool = False
+    min_methods: int = 2
 
 
 @dataclass
@@ -134,8 +259,12 @@ class PipelineConfig:
         pipeline_name: Name of the pipeline.
         version: Pipeline version.
         enable_parallel: Whether to enable parallel task execution (future).
+        columns: Column name configuration.
         data: Data configuration.
+        cleanup: Data cleanup configuration.
         outlier_detection: Outlier detection configuration.
+        outlier_removal: Outlier removal configuration.
+        heritability: Heritability filtering configuration.
         pca: PCA configuration.
         clustering: Clustering configuration.
         visualization: Visualization configuration.
@@ -145,10 +274,14 @@ class PipelineConfig:
     pipeline_name: str = MISSING
     version: str = "1.0"
     enable_parallel: bool = False
+    columns: ColumnConfig = field(default_factory=ColumnConfig)
     data: DataConfig = field(default_factory=DataConfig)
+    cleanup: CleanupConfig = field(default_factory=CleanupConfig)
     outlier_detection: OutlierDetectionConfig = field(
         default_factory=OutlierDetectionConfig
     )
+    outlier_removal: OutlierRemovalConfig = field(default_factory=OutlierRemovalConfig)
+    heritability: HeritabilityConfig = field(default_factory=HeritabilityConfig)
     pca: PCAConfig = field(default_factory=PCAConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
@@ -258,15 +391,26 @@ def validate_config(config: PipelineConfig) -> None:
         raise ValueError("pipeline_name is required")
 
     # Validate data config
-    if config.data.input_path == MISSING:
-        raise ValueError("data.input_path is required")
+    if config.data.csv_path == MISSING:
+        raise ValueError("data.csv_path is required")
 
     # Validate outlier detection config
-    valid_outlier_methods = ["mahalanobis", "zscore", "iqr"]
-    if config.outlier_detection.method not in valid_outlier_methods:
-        raise ValueError(
-            f"outlier_detection.method must be one of {valid_outlier_methods}"
-        )
+    valid_traditional_methods = ["pca", "isolation_forest", "mahalanobis"]
+    valid_clustering_methods = ["kmeans", "gmm", "hierarchical"]
+
+    for method in config.outlier_detection.traditional_methods:
+        if method not in valid_traditional_methods:
+            raise ValueError(
+                f"outlier_detection.traditional_methods contains invalid method '{method}'. "
+                f"Valid methods: {valid_traditional_methods}"
+            )
+
+    for method in config.outlier_detection.clustering_methods:
+        if method not in valid_clustering_methods:
+            raise ValueError(
+                f"outlier_detection.clustering_methods contains invalid method '{method}'. "
+                f"Valid methods: {valid_clustering_methods}"
+            )
 
     # Validate PCA config
     if config.pca.n_components <= 0:
@@ -290,6 +434,46 @@ def validate_config(config: PipelineConfig) -> None:
 
     if config.clustering.n_clusters < 2:
         raise ValueError("clustering.n_clusters must be at least 2")
+
+    # Validate outlier removal config
+    valid_removal_strategies = ["single", "consensus", "subset"]
+    if config.outlier_removal.strategy not in valid_removal_strategies:
+        raise ValueError(
+            f"outlier_removal.strategy must be one of {valid_removal_strategies}"
+        )
+
+    # For "single" strategy, validate the method is configured
+    if config.outlier_removal.strategy == "single":
+        all_configured_methods = (
+            config.outlier_detection.traditional_methods
+            + config.outlier_detection.clustering_methods
+        )
+        if config.outlier_removal.method not in all_configured_methods:
+            if not all_configured_methods:
+                raise ValueError(
+                    f"outlier_removal.method '{config.outlier_removal.method}' "
+                    f"specified, but no outlier detection methods are configured. "
+                    f"Add methods to outlier_detection.traditional_methods or clustering_methods."
+                )
+            else:
+                raise ValueError(
+                    f"outlier_removal.method '{config.outlier_removal.method}' "
+                    f"not in configured detection methods: {all_configured_methods}"
+                )
+
+    # For "subset" strategy, validate min_methods is reasonable
+    if config.outlier_removal.strategy == "subset":
+        all_configured_methods = (
+            config.outlier_detection.traditional_methods
+            + config.outlier_detection.clustering_methods
+        )
+        if config.outlier_removal.min_methods < 1:
+            raise ValueError("outlier_removal.min_methods must be at least 1")
+        if config.outlier_removal.min_methods > len(all_configured_methods):
+            raise ValueError(
+                f"outlier_removal.min_methods ({config.outlier_removal.min_methods}) "
+                f"cannot exceed number of configured methods ({len(all_configured_methods)})"
+            )
 
     # Validate logging config
     valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
