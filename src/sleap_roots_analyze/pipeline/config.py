@@ -133,57 +133,6 @@ class HierarchicalOutlierConfig:
 
 
 @dataclass
-class PCAOutlierConfig:
-    """Configuration for PCA-based outlier detection."""
-
-    explained_variance: float = 0.95
-    threshold: float = 2.5
-
-
-@dataclass
-class IsolationForestConfig:
-    """Configuration for Isolation Forest outlier detection."""
-
-    contamination: float = 0.1
-
-
-@dataclass
-class MahalanobisConfig:
-    """Configuration for Mahalanobis distance outlier detection."""
-
-    variance_threshold: float = 0.95
-    use_chi_squared: bool = True
-    chi2_percentile: float = 99.0
-
-
-@dataclass
-class KMeansOutlierConfig:
-    """Configuration for K-Means clustering outlier detection."""
-
-    n_clusters: Optional[int] = None  # None = auto-optimize
-    max_clusters: int = 10
-    distance_threshold: float = 2.0
-
-
-@dataclass
-class GMMOutlierConfig:
-    """Configuration for GMM clustering outlier detection."""
-
-    n_components: Optional[int] = None  # None = auto-select via BIC
-    max_components: int = 5
-    percentile_threshold: float = 99.0
-
-
-@dataclass
-class HierarchicalOutlierConfig:
-    """Configuration for Hierarchical clustering outlier detection."""
-
-    n_clusters: Optional[int] = None  # None = auto-optimize
-    linkage_method: str = "ward"
-    distance_threshold: float = 2.0
-
-
-@dataclass
 class OutlierDetectionConfig:
     """Configuration for outlier detection.
 

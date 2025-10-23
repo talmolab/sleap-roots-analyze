@@ -225,24 +225,24 @@ class TestQCPipelineIntegration:
         config = get_default_config()
         config.pipeline_name = "turface_integration_test"
         config.data.csv_path = str(test_csv)
-        config.data.barcode_col = "Barcode"
+        config.columns.barcode = "Barcode"
         config.columns.genotype = "geno"
         config.columns.replicate = "rep"
 
         # Match notebook parameters
-        config.cleanup.max_nan_fraction_sample = 0.0  # Strict NaN removal
+        config.cleanup.max_nan_fraction = (
+            0.0  # Strict NaN removal (0.0 = any NaN removes sample)
+        )
         config.cleanup.max_zeros_per_trait = 0.5
         config.cleanup.max_nans_per_trait = 0.2
-        config.cleanup.max_nans_per_sample = 0.2
         config.cleanup.min_samples_per_trait = 10
 
         # Outlier detection - use only Mahalanobis like notebook
         config.outlier_detection.traditional_methods = ["mahalanobis"]
         config.outlier_detection.clustering_methods = []
-        config.outlier_detection.pca_variance_threshold = 0.95
         config.outlier_detection.mahalanobis.variance_threshold = 0.95
         config.outlier_detection.mahalanobis.use_chi_squared = True
-        config.outlier_detection.mahalanobis.chi2_percentile = 99
+        config.outlier_detection.mahalanobis.chi2_percentile = 99.0
 
         # Outlier removal - single method
         config.outlier_removal.strategy = "single"
@@ -251,11 +251,10 @@ class TestQCPipelineIntegration:
         # Heritability filtering
         config.heritability.enabled = True
         config.heritability.threshold = 0.62
-        config.heritability.method = "mixed_model"
 
         # Visualization
         config.visualization.dpi = 100
-        config.visualization.figsize = [10, 8]
+        config.visualization.figsize = (10, 8)
 
         # Logging
         config.logging.level = "INFO"
