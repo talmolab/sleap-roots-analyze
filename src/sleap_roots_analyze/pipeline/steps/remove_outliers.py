@@ -78,7 +78,11 @@ class RemoveOutliersStep(BaseStep):
                     f"Available methods: {list(outlier_results.keys())}"
                 )
 
-            outlier_mask = outlier_results[method]["outlier_mask"]
+            # Get outlier indices and convert to mask
+            outlier_indices = outlier_results[method].get("outlier_indices", [])
+            outlier_mask = pd.Series(False, index=df.index)
+            outlier_mask.loc[outlier_indices] = True
+
             samples_to_remove = df.index[outlier_mask].tolist()
             removal_reason = f"flagged_by_{method}"
 
@@ -87,7 +91,11 @@ class RemoveOutliersStep(BaseStep):
             # Start with all True, then AND with each method's mask
             consensus_mask = pd.Series(True, index=df.index)
             for method in methods_run:
-                consensus_mask &= outlier_results[method]["outlier_mask"]
+                # Convert indices to mask for this method
+                outlier_indices = outlier_results[method].get("outlier_indices", [])
+                method_mask = pd.Series(False, index=df.index)
+                method_mask.loc[outlier_indices] = True
+                consensus_mask &= method_mask
 
             samples_to_remove = df.index[consensus_mask].tolist()
             removal_reason = f"consensus_{len(methods_run)}methods"
@@ -99,7 +107,11 @@ class RemoveOutliersStep(BaseStep):
             # Count how many methods flagged each sample
             flag_counts = pd.Series(0, index=df.index)
             for method in methods_run:
-                flag_counts += outlier_results[method]["outlier_mask"].astype(int)
+                # Convert indices to mask for this method
+                outlier_indices = outlier_results[method].get("outlier_indices", [])
+                method_mask = pd.Series(False, index=df.index)
+                method_mask.loc[outlier_indices] = True
+                flag_counts += method_mask.astype(int)
 
             # Remove samples flagged by at least min_methods
             subset_mask = flag_counts >= min_methods
@@ -119,9 +131,9 @@ class RemoveOutliersStep(BaseStep):
 
             # Add per-method flags
             for method in methods_run:
-                removed_df[f"{method}_outlier"] = outlier_results[method][
-                    "outlier_mask"
-                ][samples_to_remove].values
+                # Check if each removed sample was flagged by this method
+                outlier_indices = outlier_results[method].get("outlier_indices", [])
+                removed_df[f"{method}_outlier"] = removed_df.index.isin(outlier_indices)
 
             # Remove outliers from main DataFrame
             df_clean = df.drop(samples_to_remove)
