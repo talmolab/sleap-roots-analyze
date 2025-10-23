@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt
 from sleap_roots_analyze.statistics import calculate_trait_statistics
 from sleap_roots_analyze.visualization import (
     create_exploratory_summary_plots,
+    create_trait_boxplots_by_genotype_batched,
     create_trait_eda_plots,
+    create_trait_histograms_batched,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
@@ -25,9 +27,12 @@ class ExploratoryAnalysisStep(BaseStep):
     4. Sample counts per genotype
     5. Trait correlation heatmap
     6. Detailed EDA plots (NaN/zero/outlier fractions, variance)
+    7. Batched trait visualizations (auto-generated for >16 traits)
 
     Outputs:
         - figures/*.png: All generated visualizations
+        - figures/04_trait_histograms_batch_*.png: Batched histograms (if >16 traits)
+        - figures/04_trait_boxplots_batch_*.png: Batched boxplots (if >16 traits)
         - trait_statistics.json: Comprehensive trait statistics
     """
 
@@ -95,6 +100,21 @@ class ExploratoryAnalysisStep(BaseStep):
 
         # Combine all figures
         all_figures = {**summary_figures, **eda_figures}
+
+        # 4. Add batched trait visualizations if comprehensive mode or many traits
+        # Generate batched plots if we have more than 16 traits
+        if len(trait_cols) > 16:
+            # Batched histograms
+            hist_figs = create_trait_histograms_batched(df, trait_cols, batch_size=16)
+            for i, fig in enumerate(hist_figs):
+                all_figures[f"04_trait_histograms_batch_{i+1}"] = fig
+
+            # Batched boxplots by genotype
+            box_figs = create_trait_boxplots_by_genotype_batched(
+                df, trait_cols, genotype_col=config.columns.genotype, batch_size=16
+            )
+            for i, fig in enumerate(box_figs):
+                all_figures[f"04_trait_boxplots_batch_{i+1}"] = fig
 
         # Save all figures
         files = []
