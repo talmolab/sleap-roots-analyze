@@ -204,11 +204,11 @@ class TestQCPipelineIntegration:
 
     def test_qc_pipeline_turface_integration(self, tmp_path):
         """Integration test using real Turface wheat data.
-        
+
         This test uses the actual Turface_all_traits_2024_RSR.csv dataset
         and verifies the pipeline produces expected results matching the
         trait_qc_turface_20251010.ipynb notebook workflow.
-        
+
         Expected results from notebook:
         - Start: 187 samples, 35 traits, 19 genotypes
         - After NaN removal: 158 samples (29 removed)
@@ -216,11 +216,11 @@ class TestQCPipelineIntegration:
         - After heritability filtering (H²≥0.62): 12 traits (23 removed)
         """
         from sleap_roots_analyze.pipeline import load_config
-        
+
         # Use test data path
         test_csv = Path(__file__).parent / "data" / "Turface_all_traits_2024_RSR.csv"
         assert test_csv.exists(), f"Test data not found: {test_csv}"
-        
+
         # Load qc_mahalanobis preset and configure for Turface data
         config = get_default_config()
         config.pipeline_name = "turface_integration_test"
@@ -228,14 +228,14 @@ class TestQCPipelineIntegration:
         config.data.barcode_col = "Barcode"
         config.columns.genotype = "geno"
         config.columns.replicate = "rep"
-        
+
         # Match notebook parameters
         config.cleanup.max_nan_fraction_sample = 0.0  # Strict NaN removal
         config.cleanup.max_zeros_per_trait = 0.5
         config.cleanup.max_nans_per_trait = 0.2
         config.cleanup.max_nans_per_sample = 0.2
         config.cleanup.min_samples_per_trait = 10
-        
+
         # Outlier detection - use only Mahalanobis like notebook
         config.outlier_detection.traditional_methods = ["mahalanobis"]
         config.outlier_detection.clustering_methods = []
@@ -243,38 +243,38 @@ class TestQCPipelineIntegration:
         config.outlier_detection.mahalanobis.variance_threshold = 0.95
         config.outlier_detection.mahalanobis.use_chi_squared = True
         config.outlier_detection.mahalanobis.chi2_percentile = 99
-        
+
         # Outlier removal - single method
         config.outlier_removal.strategy = "single"
         config.outlier_removal.method = "mahalanobis"
-        
+
         # Heritability filtering
         config.heritability.enabled = True
         config.heritability.threshold = 0.62
         config.heritability.method = "mixed_model"
-        
+
         # Visualization
         config.visualization.dpi = 100
         config.visualization.figsize = [10, 8]
-        
+
         # Logging
         config.logging.level = "INFO"
         config.logging.log_to_file = True
-        
+
         # Create pipeline
         pipeline = QCPipeline(config, output_dir=tmp_path / "turface_test")
-        
+
         # Run the pipeline
         print("\nRunning Turface integration test...")
         results = pipeline.run()
-        
+
         # Verify all 10 steps completed
         assert len(results) == 10, f"Expected 10 steps, got {len(results)}"
-        
+
         # Verify each step returned results
         step_names = [
             "01_load_data",
-            "02_cleanup_traits", 
+            "02_cleanup_traits",
             "03_validate_clean",
             "04_exploratory_analysis",
             "05_detect_outliers",
@@ -284,39 +284,49 @@ class TestQCPipelineIntegration:
             "09_filter_heritability",
             "10_generate_summary",
         ]
-        
+
         for step_name in step_names:
             assert step_name in results, f"Missing step: {step_name}"
             step_result = results[step_name].data  # Extract StepResult from TaskResult
             assert step_result.data is not None, f"{step_name} has no data"
-        
+
         # Step 1: Load Data
         load_result = results["01_load_data"].data
         df_loaded = load_result.data
-        assert len(df_loaded) == 187, f"Expected 187 samples loaded, got {len(df_loaded)}"
+        assert (
+            len(df_loaded) == 187
+        ), f"Expected 187 samples loaded, got {len(df_loaded)}"
         assert len(load_result.metadata["trait_names"]) == 35, f"Expected 35 traits"
-        print(f"OK Step 1: Loaded {len(df_loaded)} samples, {len(load_result.metadata['trait_names'])} traits")
-        
+        print(
+            f"OK Step 1: Loaded {len(df_loaded)} samples, {len(load_result.metadata['trait_names'])} traits"
+        )
+
         # Step 2: Cleanup Traits (removes NaN samples)
         cleanup_result = results["02_cleanup_traits"].data
         df_cleaned = cleanup_result.data
         # Notebook: 158 samples after NaN removal (MAX_NAN_FRACTION=0.0 removes 29 samples)
-        assert len(df_cleaned) == 158, f"Expected 158 samples after cleanup, got {len(df_cleaned)}"
-        assert len(cleanup_result.metadata["trait_names"]) == 35, f"Expected 35 traits retained"
+        assert (
+            len(df_cleaned) == 158
+        ), f"Expected 158 samples after cleanup, got {len(df_cleaned)}"
+        assert (
+            len(cleanup_result.metadata["trait_names"]) == 35
+        ), f"Expected 35 traits retained"
         print(f"OK Step 2: {len(df_cleaned)} samples after NaN removal (29 removed)")
-        
+
         # Step 3: Validate Clean
         validate_result = results["03_validate_clean"].data
         assert validate_result.data is not None
         assert validate_result.metadata["validation_passed"] == True
         print(f"OK Step 3: Data validation passed")
-        
+
         # Step 4: Exploratory Analysis
         eda_result = results["04_exploratory_analysis"].data
         assert "figures_generated" in eda_result.metadata
         assert eda_result.metadata["figures_generated"] > 0, "No EDA figures created"
-        print(f"OK Step 4: Created {eda_result.metadata['figures_generated']} EDA figures")
-        
+        print(
+            f"OK Step 4: Created {eda_result.metadata['figures_generated']} EDA figures"
+        )
+
         # Step 5: Detect Outliers
         detect_result = results["05_detect_outliers"].data
         assert "outlier_results" in detect_result.metadata
@@ -324,23 +334,33 @@ class TestQCPipelineIntegration:
         assert "mahalanobis" in outlier_results, "Mahalanobis results missing"
         mahal_outliers = outlier_results["mahalanobis"]["outlier_indices"]
         # Notebook: 6 outliers detected by Mahalanobis
-        assert len(mahal_outliers) == 6, f"Expected 6 Mahalanobis outliers, got {len(mahal_outliers)}"
+        assert (
+            len(mahal_outliers) == 6
+        ), f"Expected 6 Mahalanobis outliers, got {len(mahal_outliers)}"
         print(f"OK Step 5: Detected {len(mahal_outliers)} outliers (Mahalanobis)")
-        
+
         # Step 6: Visualize Outliers
         viz_result = results["06_visualize_outliers"].data
         assert "figures_generated" in viz_result.metadata
-        assert viz_result.metadata["figures_generated"] > 0, "No outlier figures created"
-        print(f"OK Step 6: Created {viz_result.metadata['figures_generated']} outlier visualizations")
-        
+        assert (
+            viz_result.metadata["figures_generated"] > 0
+        ), "No outlier figures created"
+        print(
+            f"OK Step 6: Created {viz_result.metadata['figures_generated']} outlier visualizations"
+        )
+
         # Step 7: Remove Outliers
         remove_result = results["07_remove_outliers"].data
         df_outliers_removed = remove_result.data
         # Notebook: 152 samples after removing 6 outliers
-        assert len(df_outliers_removed) == 152, f"Expected 152 samples after outlier removal, got {len(df_outliers_removed)}"
+        assert (
+            len(df_outliers_removed) == 152
+        ), f"Expected 152 samples after outlier removal, got {len(df_outliers_removed)}"
         assert remove_result.metadata["outliers_removed"] == 6
-        print(f"OK Step 7: {len(df_outliers_removed)} samples after outlier removal (6 removed)")
-        
+        print(
+            f"OK Step 7: {len(df_outliers_removed)} samples after outlier removal (6 removed)"
+        )
+
         # Step 8: Statistical Analysis
         stats_result = results["08_statistical_analysis"].data
         assert "anova_results" in stats_result.metadata
@@ -348,20 +368,31 @@ class TestQCPipelineIntegration:
         anova_results = stats_result.metadata["anova_results"]
         h2_results = stats_result.metadata["heritability_results"]
         # Notebook: 26/35 traits with significant genotype effects
-        n_significant = sum(1 for r in anova_results.values() 
-                          if isinstance(r, dict) and r.get("significant", False))
-        assert n_significant >= 20, f"Expected ~26 significant traits, got {n_significant}"
+        n_significant = sum(
+            1
+            for r in anova_results.values()
+            if isinstance(r, dict) and r.get("significant", False)
+        )
+        assert (
+            n_significant >= 20
+        ), f"Expected ~26 significant traits, got {n_significant}"
         print(f"OK Step 8: {n_significant} traits with significant genotype effects")
-        
+
         # Step 9: Filter Heritability
         h2_filter_result = results["09_filter_heritability"].data
         df_h2_filtered = h2_filter_result.data
         final_traits = h2_filter_result.metadata["trait_names"]
         # Notebook: 12 traits after H²≥0.62 filtering (23 removed)
-        assert len(final_traits) == 12, f"Expected 12 traits after H² filtering, got {len(final_traits)}"
-        assert len(df_h2_filtered) == 152, "Sample count should not change in heritability filtering"
-        print(f"OK Step 9: {len(final_traits)} traits after heritability filtering (23 removed)")
-        
+        assert (
+            len(final_traits) == 12
+        ), f"Expected 12 traits after H² filtering, got {len(final_traits)}"
+        assert (
+            len(df_h2_filtered) == 152
+        ), "Sample count should not change in heritability filtering"
+        print(
+            f"OK Step 9: {len(final_traits)} traits after heritability filtering (23 removed)"
+        )
+
         # Step 10: Generate Summary
         summary_result = results["10_generate_summary"].data
         assert summary_result.metadata is not None, "No metadata in summary"
@@ -369,17 +400,17 @@ class TestQCPipelineIntegration:
         assert summary_result.metadata.get("final_n_samples") == 152
         assert summary_result.metadata.get("final_n_traits") == 12
         print(f"OK Step 10: Generated summary report")
-        
+
         # Verify run directory structure
         assert pipeline.run_dir.exists()
         assert (pipeline.run_dir / "pipeline_summary.json").exists()
         assert (pipeline.run_dir / "figures").exists()
         print(f"OK Run directory created: {pipeline.run_dir}")
-        
+
         # Verify pipeline status
         summary = pipeline.get_summary()
         assert summary.status == "success"
         assert len(summary.steps) == 10
-        
+
         print(f"\nPASSED Turface integration test passed!")
         print(f"   Final: 152 samples, 12 traits (from 187 samples, 35 traits)")
