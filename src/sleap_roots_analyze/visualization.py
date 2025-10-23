@@ -177,6 +177,90 @@ def create_trait_boxplots_by_genotype(
     return fig
 
 
+def create_trait_histograms_batched(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    batch_size: int = 16,
+    n_cols: int = 4,
+    figsize: Tuple[int, int] = (16, 16),
+) -> List[plt.Figure]:
+    """Create batched histogram plots for traits (multiple figures for many traits).
+
+    Args:
+        df: DataFrame with trait data
+        trait_cols: List of trait column names
+        batch_size: Number of traits per figure (default: 16)
+        n_cols: Number of columns in subplot grid
+        figsize: Figure size for each batch
+
+    Returns:
+        List of matplotlib figure objects (one per batch)
+    """
+    n_traits = len(trait_cols)
+    if n_traits == 0:
+        return []
+
+    figures = []
+    for batch_start in range(0, n_traits, batch_size):
+        batch_end = min(batch_start + batch_size, n_traits)
+        batch_traits = trait_cols[batch_start:batch_end]
+
+        # Create figure for this batch
+        fig = create_trait_histograms(df, batch_traits, n_cols=n_cols, figsize=figsize)
+        fig.suptitle(
+            f"Trait Histograms (Traits {batch_start+1}-{batch_end} of {n_traits})",
+            fontsize=14,
+            y=0.995,
+        )
+        figures.append(fig)
+
+    return figures
+
+
+def create_trait_boxplots_by_genotype_batched(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    genotype_col: str = "geno",
+    batch_size: int = 16,
+    n_cols: int = 4,
+    figsize: Tuple[int, int] = (16, 16),
+) -> List[plt.Figure]:
+    """Create batched boxplot plots by genotype (multiple figures for many traits).
+
+    Args:
+        df: DataFrame with trait data
+        trait_cols: List of trait column names
+        genotype_col: Column name for genotype grouping
+        batch_size: Number of traits per figure (default: 16)
+        n_cols: Number of columns in subplot grid
+        figsize: Figure size for each batch
+
+    Returns:
+        List of matplotlib figure objects (one per batch)
+    """
+    n_traits = len(trait_cols)
+    if n_traits == 0:
+        return []
+
+    figures = []
+    for batch_start in range(0, n_traits, batch_size):
+        batch_end = min(batch_start + batch_size, n_traits)
+        batch_traits = trait_cols[batch_start:batch_end]
+
+        # Create figure for this batch
+        fig = create_trait_boxplots_by_genotype(
+            df, batch_traits, genotype_col=genotype_col, n_cols=n_cols, figsize=figsize
+        )
+        fig.suptitle(
+            f"Trait Boxplots by Genotype (Traits {batch_start+1}-{batch_end} of {n_traits})",
+            fontsize=14,
+            y=0.995,
+        )
+        figures.append(fig)
+
+    return figures
+
+
 def create_correlation_heatmap(
     df: pd.DataFrame, trait_cols: List[str], figsize: Tuple[int, int] = (12, 10)
 ) -> plt.Figure:
