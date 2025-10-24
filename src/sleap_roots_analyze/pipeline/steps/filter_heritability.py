@@ -5,11 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from sleap_roots_analyze.data_cleanup import get_trait_columns
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
-from sleap_roots_analyze.statistics import identify_high_heritability_traits
+from sleap_roots_analyze.statistics import (
+    analyze_heritability_thresholds,
+    identify_high_heritability_traits,
+)
+from sleap_roots_analyze.visualization import create_heritability_threshold_plot
 
 
 class FilterHeritabilityStep(BaseStep):
@@ -22,6 +27,7 @@ class FilterHeritabilityStep(BaseStep):
         - 09_data_high_heritability.csv: Data with only high heritability traits
         - 09_removed_traits.json: List of removed low heritability traits
         - 09_heritability_filter_summary.json: Summary of filtering
+        - figures/09_heritability_threshold_analysis.png: Threshold analysis plot
     """
 
     def __init__(self):
@@ -155,6 +161,18 @@ class FilterHeritabilityStep(BaseStep):
             ),
         }
 
+        # Generate heritability threshold analysis plot
+        threshold_analysis = analyze_heritability_thresholds(heritability_results)
+        fig = create_heritability_threshold_plot(
+            threshold_analysis, current_threshold=threshold
+        )
+        threshold_plot_path = (
+            run_dir / "figures" / "09_heritability_threshold_analysis.png"
+        )
+        threshold_plot_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(threshold_plot_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
         # Save outputs
         files = []
         files.append(
@@ -164,6 +182,7 @@ class FilterHeritabilityStep(BaseStep):
         files.append(
             self.save_json(summary, "09_heritability_filter_summary.json", run_dir)
         )
+        files.append(threshold_plot_path)
 
         # Create metadata
         metadata = {
