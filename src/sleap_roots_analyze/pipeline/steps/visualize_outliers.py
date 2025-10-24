@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any, Optional
 
@@ -67,6 +68,25 @@ class VisualizeOutliersStep(BaseStep):
         # Get outlier results from previous step
         outlier_results = prev_result.metadata["outlier_results"]
         methods_run = prev_result.metadata["methods_run"]
+
+        # Validate that outlier detection was performed
+        if not methods_run:
+            warnings.warn(
+                "No outlier detection methods were run. Skipping outlier visualization. "
+                "Configure outlier_detection.traditional_methods or clustering_methods to enable.",
+                UserWarning,
+                stacklevel=2,
+            )
+            # Return early with no files generated, but pass through outlier_results
+            metadata = {
+                "figures_generated": 0,
+                "methods_visualized": [],
+                "outlier_results": outlier_results,  # Pass through for next step
+                "methods_run": methods_run,  # Pass through for next step
+                "trait_names": prev_result.metadata.get("trait_names", []),
+                "valid_trait_names": prev_result.metadata.get("valid_trait_names", []),
+            }
+            return StepResult(data=df, metadata=metadata, files_generated=[])
 
         # Create figures directory
         figures_dir = run_dir / "figures"

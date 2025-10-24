@@ -59,6 +59,20 @@ class RemoveOutliersStep(BaseStep):
         outlier_results = prev_result.metadata["outlier_results"]
         methods_run = prev_result.metadata["methods_run"]
 
+        # If no methods were run, skip outlier removal
+        if not methods_run:
+            # No outliers to remove, return data as-is
+            metadata = {
+                "samples_before": len(df),
+                "samples_after": len(df),
+                "outliers_removed": 0,
+                "removal_strategy": config.outlier_removal.strategy,
+                "samples_removed": [],
+                "trait_names": prev_result.metadata.get("trait_names", []),
+                "valid_trait_names": prev_result.metadata.get("valid_trait_names", []),
+            }
+            return StepResult(data=df, metadata=metadata, files_generated=[])
+
         # Get trait columns from previous step (try multiple keys for robustness)
         trait_cols = prev_result.metadata.get("valid_trait_names")
         if trait_cols is None:
