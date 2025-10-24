@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from sleap_roots_analyze.data_cleanup import get_trait_columns
@@ -170,8 +171,6 @@ class FilterHeritabilityStep(BaseStep):
         )
         threshold_plot_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(threshold_plot_path, dpi=300, bbox_inches="tight")
-        import matplotlib.pyplot as plt
-
         plt.close(fig)
 
         # Save outputs
