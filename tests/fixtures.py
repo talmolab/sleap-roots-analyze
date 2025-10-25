@@ -50,6 +50,12 @@ def turface_traits_csv_path(test_data_dir):
 
 
 @pytest.fixture(scope="session")
+def turface_rsr_csv_path(test_data_dir):
+    """Return the path to Turface_all_traits_2024_RSR.csv file."""
+    return test_data_dir / "Turface_all_traits_2024_RSR.csv"
+
+
+@pytest.fixture(scope="session")
 def wheat_edpie_excel_path(test_data_dir):
     """Return the path to Wheat_EDPIE_cylinder_master_data.xlsx file."""
     return test_data_dir / "Wheat_EDPIE_cylinder_master_data.xlsx"

@@ -202,7 +202,7 @@ class TestQCPipelineIntegration:
         assert summary.status == "success"
         assert len(summary.steps) == 10
 
-    def test_qc_pipeline_turface_integration(self, tmp_path):
+    def test_qc_pipeline_turface_integration(self, turface_rsr_csv_path, tmp_path):
         """Integration test using real Turface wheat data.
 
         This test uses the actual Turface_all_traits_2024_RSR.csv dataset
@@ -218,13 +218,12 @@ class TestQCPipelineIntegration:
         from sleap_roots_analyze.pipeline import load_config
 
         # Use test data path
-        test_csv = Path(__file__).parent / "data" / "Turface_all_traits_2024_RSR.csv"
-        assert test_csv.exists(), f"Test data not found: {test_csv}"
+        assert turface_rsr_csv_path.exists(), f"Test data not found: {turface_rsr_csv_path}"
 
         # Load qc_mahalanobis preset and configure for Turface data
         config = get_default_config()
         config.pipeline_name = "turface_integration_test"
-        config.data.csv_path = str(test_csv)
+        config.data.csv_path = str(turface_rsr_csv_path)
         config.columns.barcode = "Barcode"
         config.columns.genotype = "geno"
         config.columns.replicate = "rep"
@@ -447,18 +446,17 @@ class TestQCPipelineIntegration:
         print(f"\nPASSED Turface integration test passed!")
         print(f"   Final: 152 samples, 12 traits (from 187 samples, 35 traits)")
 
-    def test_qc_pipeline_no_outlier_methods_warning(self, tmp_path):
+    def test_qc_pipeline_no_outlier_methods_warning(self, turface_rsr_csv_path, tmp_path):
         """Test that warning is raised when no outlier detection methods are configured."""
         import warnings
 
         # Use test data path
-        test_csv = Path(__file__).parent / "data" / "Turface_all_traits_2024_RSR.csv"
-        assert test_csv.exists(), f"Test data not found: {test_csv}"
+        assert turface_rsr_csv_path.exists(), f"Test data not found: {turface_rsr_csv_path}"
 
         # Configure pipeline with NO outlier detection methods
         config = get_default_config()
         config.pipeline_name = "no_outliers_test"
-        config.data.csv_path = str(test_csv)
+        config.data.csv_path = str(turface_rsr_csv_path)
         config.columns.barcode = "Barcode"
         config.columns.genotype = "geno"
         config.columns.replicate = "rep"
