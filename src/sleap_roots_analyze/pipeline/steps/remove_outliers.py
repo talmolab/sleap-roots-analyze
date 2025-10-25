@@ -61,7 +61,7 @@ class RemoveOutliersStep(BaseStep):
 
         # If no methods were run, skip outlier removal
         # methods_run is guaranteed to be a list (empty list [] if no methods)
-        if not methods_run:
+        if len(methods_run) == 0:
             # No outliers to remove, return data as-is
             metadata = {
                 "samples_before": len(df),

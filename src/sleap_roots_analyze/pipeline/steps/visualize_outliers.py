@@ -71,7 +71,7 @@ class VisualizeOutliersStep(BaseStep):
 
         # Validate that outlier detection was performed
         # methods_run is guaranteed to be a list (empty list [] if no methods)
-        if not methods_run:
+        if len(methods_run) == 0:
             warnings.warn(
                 "No outlier detection methods were run. Skipping outlier visualization. "
                 "Configure outlier_detection.traditional_methods or clustering_methods to enable.",

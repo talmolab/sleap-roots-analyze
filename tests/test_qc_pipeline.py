@@ -500,7 +500,7 @@ class TestQCPipelineIntegration:
             ), f"Expected warning about no methods run. Got warnings: {warning_messages}"
 
         # Verify pipeline still completes successfully
-        assert len(results) == 10
+        assert len(results) == 10  # QC pipeline has 10 steps
         assert results["05_detect_outliers"].data.metadata["total_methods"] == 0
         assert results["06_visualize_outliers"].data.metadata["figures_generated"] == 0
 
