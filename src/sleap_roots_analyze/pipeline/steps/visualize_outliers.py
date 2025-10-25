@@ -70,6 +70,7 @@ class VisualizeOutliersStep(BaseStep):
         methods_run = prev_result.metadata["methods_run"]
 
         # Validate that outlier detection was performed
+        # methods_run is guaranteed to be a list (empty list [] if no methods)
         if not methods_run:
             warnings.warn(
                 "No outlier detection methods were run. Skipping outlier visualization. "

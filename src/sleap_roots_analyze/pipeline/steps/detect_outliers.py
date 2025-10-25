@@ -86,7 +86,8 @@ class DetectOutliersStep(BaseStep):
         clustering_methods = config.outlier_detection.clustering_methods
 
         # Validate that at least one method is configured
-        if not traditional_methods and not clustering_methods:
+        # Both are guaranteed to be lists by dataclass definition
+        if len(traditional_methods) == 0 and len(clustering_methods) == 0:
             warnings.warn(
                 "No outlier detection methods configured. Pipeline will skip outlier detection. "
                 "Set outlier_detection.traditional_methods or clustering_methods to enable outlier detection.",

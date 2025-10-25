@@ -60,6 +60,7 @@ class RemoveOutliersStep(BaseStep):
         methods_run = prev_result.metadata["methods_run"]
 
         # If no methods were run, skip outlier removal
+        # methods_run is guaranteed to be a list (empty list [] if no methods)
         if not methods_run:
             # No outliers to remove, return data as-is
             metadata = {
