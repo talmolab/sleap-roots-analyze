@@ -269,14 +269,14 @@ def identify_outliers_from_distances(
 def validate_chi_squared_distribution(
     distances_squared: np.ndarray,
     df: int,
-) -> Dict[str, Union[str, float, bool]]:
-    """Validate chi-squared distribution assumption using Kolmogorov-Smirnov test.
+) -> Dict[str, Union[str, float, bool, int]]:
+    """Validate chi-squared distribution assumption using multiple metrics.
 
-    Performs a K-S test to assess whether squared Mahalanobis distances follow
-    the expected chi-squared(df) distribution. This validates the assumption that
-    data follows a single multivariate normal distribution. If the p-value is low
-    (< 0.05), it suggests the data may have multi-cluster structure, violating
-    the distributional assumption.
+    Performs both hypothesis testing (K-S test) and effect size analysis to assess
+    whether squared Mahalanobis distances follow the expected chi-squared(df)
+    distribution. For large samples (n > 500), the K-S test becomes hypersensitive
+    and will reject even when the fit is practically excellent. Therefore, we use
+    effect size metrics (K-S statistic magnitude) for large samples instead of p-values.
 
     Args:
         distances_squared: Squared Mahalanobis distances
@@ -285,32 +285,53 @@ def validate_chi_squared_distribution(
     Returns:
         Dictionary containing:
         - test_type: str - 'Kolmogorov-Smirnov'
-        - test_statistic: float - K-S test statistic
+        - test_statistic: float - K-S test statistic (effect size, 0-1)
         - p_value: float - P-value for the test
-        - fit_quality: str - 'excellent', 'good', 'poor', or 'very_poor'
+        - n_samples: int - Sample size
+        - fit_quality: str - 'excellent', 'good', 'acceptable', 'poor', or 'very_poor'
         - interpretation: str - Human-readable interpretation
         - distributional_assumption_valid: bool - True if fit is acceptable
         - warning: str (optional) - Warning message if assumption violated
+        - effect_size_interpretation: str - Interpretation of K-S statistic magnitude
+        - evaluation_strategy: str - 'p_value' or 'effect_size'
 
     Notes:
-        P-value interpretation:
-        - p > 0.10: Excellent fit ✓ (data follows χ²)
-        - 0.05 < p ≤ 0.10: Good fit ✓ (marginal but acceptable)
-        - 0.01 < p ≤ 0.05: Poor fit ⚠️ (evidence against χ²)
-        - p ≤ 0.01: Very poor fit ⚠️ (strong evidence of multi-cluster structure)
+        **Large Sample Strategy (n > 500)**:
+        Uses K-S statistic (effect size) as primary metric:
+        - K-S < 0.05: Excellent fit (practically indistinguishable from χ²)
+        - K-S < 0.10: Good fit (minor deviations, acceptable for outlier detection)
+        - K-S < 0.15: Acceptable fit (noticeable but not severe deviations)
+        - K-S < 0.20: Poor fit (consider alternative methods)
+        - K-S ≥ 0.20: Very poor fit (strongly recommend alternative methods)
+
+        **Small Sample Strategy (n ≤ 500)**:
+        Uses traditional p-value thresholds:
+        - p > 0.10: Excellent fit
+        - 0.05 < p ≤ 0.10: Good fit
+        - 0.01 < p ≤ 0.05: Poor fit
+        - p ≤ 0.01: Very poor fit
+
+    References:
+        - Massey, F.J. (1951). "The Kolmogorov-Smirnov test for goodness of fit". JASA.
+        - Sullivan & Feinn (2012). "Using effect size—or why the P value is not enough".
+          J Grad Med Educ.
     """
     distances_squared = np.asarray(distances_squared)
+    n_samples = len(distances_squared)
 
     # Validate inputs
-    if len(distances_squared) == 0:
+    if n_samples == 0:
         return {
             "test_type": "Kolmogorov-Smirnov",
             "test_statistic": np.nan,
             "p_value": np.nan,
+            "n_samples": 0,
             "fit_quality": "unknown",
             "interpretation": "No data provided for goodness-of-fit test",
             "distributional_assumption_valid": False,
             "warning": "Insufficient data for goodness-of-fit test",
+            "effect_size_interpretation": "No data",
+            "evaluation_strategy": "none",
         }
 
     if df <= 0:
@@ -320,60 +341,280 @@ def validate_chi_squared_distribution(
     # Compare empirical CDF of squared distances to theoretical chi-squared CDF
     ks_statistic, p_value = stats.kstest(distances_squared, stats.chi2(df).cdf)
 
-    # Classify fit quality based on p-value
-    if p_value > 0.10:
-        fit_quality = "excellent"
-        interpretation = (
-            f"Excellent fit: Data is consistent with χ²({df}) distribution "
-            f"(p = {p_value:.3f} > 0.10). Mahalanobis assumptions are valid."
-        )
-        assumption_valid = True
-        warning = None
-    elif p_value > 0.05:
-        fit_quality = "good"
-        interpretation = (
-            f"Good fit: Data is marginally consistent with χ²({df}) distribution "
-            f"(p = {p_value:.3f}). Mahalanobis assumptions are acceptable."
-        )
-        assumption_valid = True
-        warning = None
-    elif p_value > 0.01:
-        fit_quality = "poor"
-        interpretation = (
-            f"Poor fit: Data shows some deviation from χ²({df}) distribution "
-            f"(p = {p_value:.3f} < 0.05). Consider alternative outlier detection methods."
-        )
-        assumption_valid = False
-        warning = (
-            "Statistical assumption violated: Data may have multi-modal structure. "
-            "Consider using cluster-aware outlier detection methods (K-Means, GMM, Hierarchical)."
-        )
-    else:  # p_value <= 0.01
-        fit_quality = "very_poor"
-        interpretation = (
-            f"Very poor fit: Data strongly deviates from χ²({df}) distribution "
-            f"(p = {p_value:.3f} ≤ 0.01). Mahalanobis assumptions are violated."
-        )
-        assumption_valid = False
-        warning = (
-            "Statistical assumption strongly violated: Data likely has multi-cluster structure. "
-            "Strongly recommend using cluster-aware outlier detection methods instead "
-            "(K-Means, GMM, or Hierarchical clustering)."
-        )
+    # Determine evaluation strategy based on sample size
+    use_effect_size = n_samples > 500
+    eval_strategy = "effect_size" if use_effect_size else "p_value"
+
+    if use_effect_size:
+        # Large sample strategy: Use K-S statistic (effect size) as primary metric
+        # K-S statistic represents maximum deviation between empirical and theoretical CDF
+        if ks_statistic < 0.05:
+            fit_quality = "excellent"
+            interpretation = (
+                f"Excellent fit: K-S statistic = {ks_statistic:.4f} < 0.05. "
+                f"Empirical distribution is practically indistinguishable from χ²({df}). "
+                f"[n = {n_samples}; p = {p_value:.4g} not reliable due to large sample size]"
+            )
+            assumption_valid = True
+            warning = None
+            effect_size_interp = (
+                f"Effect size is very small (K-S = {ks_statistic:.4f}), "
+                "indicating excellent practical fit"
+            )
+        elif ks_statistic < 0.10:
+            fit_quality = "good"
+            interpretation = (
+                f"Good fit: K-S statistic = {ks_statistic:.4f} < 0.10. "
+                f"Minor deviations from χ²({df}) are present but acceptable for outlier detection. "
+                f"[n = {n_samples}; p = {p_value:.4g} not reliable due to large sample size]"
+            )
+            assumption_valid = True
+            warning = None
+            effect_size_interp = (
+                f"Effect size is small (K-S = {ks_statistic:.4f}), "
+                "indicating good practical fit"
+            )
+        elif ks_statistic < 0.15:
+            fit_quality = "acceptable"
+            interpretation = (
+                f"Acceptable fit: K-S statistic = {ks_statistic:.4f} < 0.15. "
+                f"Noticeable deviations from χ²({df}) but not severe. "
+                f"Mahalanobis outlier detection is still reasonable. "
+                f"[n = {n_samples}; p = {p_value:.4g} not reliable due to large sample size]"
+            )
+            assumption_valid = True
+            warning = (
+                f"Note: With large sample size (n = {n_samples}), K-S test p-value is unreliable. "
+                f"Assessment based on effect size (K-S statistic = {ks_statistic:.4f}) "
+                "indicates acceptable fit despite low p-value."
+            )
+            effect_size_interp = (
+                f"Effect size is moderate (K-S = {ks_statistic:.4f}), "
+                "indicating acceptable practical fit despite low p-value"
+            )
+        elif ks_statistic < 0.20:
+            fit_quality = "poor"
+            interpretation = (
+                f"Poor fit: K-S statistic = {ks_statistic:.4f} ≥ 0.15. "
+                f"Substantial deviations from χ²({df}) distribution detected. "
+                f"Consider alternative outlier detection methods. "
+                f"[n = {n_samples}; p = {p_value:.4g}]"
+            )
+            assumption_valid = False
+            warning = (
+                "Effect size suggests meaningful deviation from χ² distribution. "
+                "Data may have multi-modal structure. Consider cluster-aware methods "
+                "(K-Means, GMM, or Hierarchical clustering)."
+            )
+            effect_size_interp = (
+                f"Effect size is large (K-S = {ks_statistic:.4f}), "
+                "indicating poor practical fit"
+            )
+        else:  # ks_statistic >= 0.20
+            fit_quality = "very_poor"
+            interpretation = (
+                f"Very poor fit: K-S statistic = {ks_statistic:.4f} ≥ 0.20. "
+                f"Large deviations from χ²({df}) distribution. "
+                f"Mahalanobis assumptions are violated. "
+                f"[n = {n_samples}; p = {p_value:.4g}]"
+            )
+            assumption_valid = False
+            warning = (
+                "Effect size indicates strong deviation from χ² distribution. "
+                "Data likely has multi-cluster structure. Strongly recommend "
+                "using cluster-aware outlier detection methods (K-Means, GMM, or Hierarchical)."
+            )
+            effect_size_interp = (
+                f"Effect size is very large (K-S = {ks_statistic:.4f}), "
+                "indicating very poor practical fit"
+            )
+    else:
+        # Small sample strategy: Use traditional p-value thresholds
+        if p_value > 0.10:
+            fit_quality = "excellent"
+            interpretation = (
+                f"Excellent fit: Data is consistent with χ²({df}) distribution "
+                f"(p = {p_value:.3f} > 0.10, K-S = {ks_statistic:.4f}). "
+                f"Mahalanobis assumptions are valid. [n = {n_samples}]"
+            )
+            assumption_valid = True
+            warning = None
+            effect_size_interp = (
+                f"K-S statistic = {ks_statistic:.4f} (small effect size)"
+            )
+        elif p_value > 0.05:
+            fit_quality = "good"
+            interpretation = (
+                f"Good fit: Data is marginally consistent with χ²({df}) distribution "
+                f"(p = {p_value:.3f}, K-S = {ks_statistic:.4f}). "
+                f"Mahalanobis assumptions are acceptable. [n = {n_samples}]"
+            )
+            assumption_valid = True
+            warning = None
+            effect_size_interp = (
+                f"K-S statistic = {ks_statistic:.4f} (small effect size)"
+            )
+        elif p_value > 0.01:
+            fit_quality = "poor"
+            interpretation = (
+                f"Poor fit: Data shows deviation from χ²({df}) distribution "
+                f"(p = {p_value:.3f} < 0.05, K-S = {ks_statistic:.4f}). "
+                f"Consider alternative outlier detection methods. [n = {n_samples}]"
+            )
+            assumption_valid = False
+            warning = (
+                "Statistical assumption violated: Data may have multi-modal structure. "
+                "Consider using cluster-aware outlier detection methods (K-Means, GMM, Hierarchical)."
+            )
+            effect_size_interp = (
+                f"K-S statistic = {ks_statistic:.4f} (moderate effect size)"
+            )
+        else:  # p_value <= 0.01
+            fit_quality = "very_poor"
+            interpretation = (
+                f"Very poor fit: Data strongly deviates from χ²({df}) distribution "
+                f"(p = {p_value:.3f} ≤ 0.01, K-S = {ks_statistic:.4f}). "
+                f"Mahalanobis assumptions are violated. [n = {n_samples}]"
+            )
+            assumption_valid = False
+            warning = (
+                "Statistical assumption strongly violated: Data likely has multi-cluster structure. "
+                "Strongly recommend using cluster-aware outlier detection methods "
+                "(K-Means, GMM, or Hierarchical clustering)."
+            )
+            effect_size_interp = (
+                f"K-S statistic = {ks_statistic:.4f} (large effect size)"
+            )
 
     result = {
         "test_type": "Kolmogorov-Smirnov",
         "test_statistic": float(ks_statistic),
         "p_value": float(p_value),
+        "n_samples": int(n_samples),
         "fit_quality": fit_quality,
         "interpretation": interpretation,
         "distributional_assumption_valid": assumption_valid,
+        "effect_size_interpretation": effect_size_interp,
+        "evaluation_strategy": eval_strategy,
     }
 
     if warning is not None:
         result["warning"] = warning
 
     return result
+
+
+def print_goodness_of_fit_summary(
+    gof_results: Dict[str, Union[str, float, bool, int]],
+    df_value: Optional[int] = None,
+) -> None:
+    """Print a formatted goodness-of-fit summary to console.
+
+    Args:
+        gof_results: Dictionary from validate_chi_squared_distribution()
+        df_value: Degrees of freedom (PCA components), extracted from gof_results if not provided
+    """
+    # Extract values
+    n_samples = gof_results.get("n_samples", "Unknown")
+    eval_strategy = gof_results.get("evaluation_strategy", "unknown")
+    ks_stat = gof_results.get("test_statistic", float("nan"))
+    p_value = gof_results.get("p_value", float("nan"))
+    fit_quality = gof_results.get("fit_quality", "unknown")
+    valid = gof_results.get("distributional_assumption_valid", False)
+    interpretation = gof_results.get("interpretation", "")
+    warning = gof_results.get("warning", None)
+
+    # Get df from results if not provided
+    if df_value is None:
+        # Try to extract from interpretation string
+        import re
+
+        match = re.search(r"χ²\((\d+)\)", interpretation)
+        if match:
+            df_value = int(match.group(1))
+        else:
+            df_value = "?"
+
+    # Format strategy name
+    if eval_strategy == "effect_size":
+        strategy_name = "Effect Size (large sample)"
+    elif eval_strategy == "p_value":
+        strategy_name = "P-value (small sample)"
+    else:
+        strategy_name = eval_strategy.title()
+
+    # Format p-value
+    if np.isnan(p_value):
+        p_val_str = "N/A"
+    elif p_value < 0.001:
+        p_val_str = "< 0.001"
+        if eval_strategy == "effect_size":
+            p_val_str += " (unreliable)"
+    else:
+        p_val_str = f"{p_value:.4f}"
+        if eval_strategy == "effect_size" and p_value < 0.05:
+            p_val_str += " (unreliable)"
+
+    # Format fit quality with symbol
+    if fit_quality in ["excellent", "good"]:
+        quality_str = f"{fit_quality.upper()} ✓"
+        quality_color = "green"
+    elif fit_quality == "acceptable":
+        quality_str = f"{fit_quality.upper()} ⚠"
+        quality_color = "orange"
+    else:
+        quality_str = f"{fit_quality.upper()} ✗"
+        quality_color = "red"
+
+    # Format valid status
+    valid_str = "Yes ✓" if valid else "No ✗"
+
+    # Print formatted box
+    box_width = 60
+    print("╔" + "═" * (box_width - 2) + "╗")
+    print("║" + "Mahalanobis Chi-Squared Goodness-of-Fit".center(box_width - 2) + "║")
+    print("╠" + "═" * (box_width - 2) + "╣")
+
+    # Basic info
+    print(f"║ {'Sample Size:':<20} {str(n_samples) + ' samples':<{box_width-23}} ║")
+    print(
+        f"║ {'PCA Components:':<20} {str(df_value) + ' components':<{box_width-23}} ║"
+    )
+    print(f"║ {'Evaluation Method:':<20} {strategy_name:<{box_width-23}} ║")
+
+    print("╠" + "═" * (box_width - 2) + "╣")
+
+    # Test results
+    print(f"║ {'K-S Statistic:':<20} {ks_stat:.4f}{'':<{box_width-28}} ║")
+    print(f"║ {'P-value:':<20} {p_val_str:<{box_width-23}} ║")
+
+    print("╠" + "═" * (box_width - 2) + "╣")
+
+    # Fit assessment
+    print(f"║ {'Fit Quality:':<20} {quality_str:<{box_width-23}} ║")
+    print(f"║ {'Assumptions Valid:':<20} {valid_str:<{box_width-23}} ║")
+
+    # Add warning or note if present
+    if warning:
+        print("╠" + "═" * (box_width - 2) + "╣")
+        # Wrap warning text
+        import textwrap
+
+        wrapped_lines = textwrap.wrap(warning, width=box_width - 4)
+        for line in wrapped_lines:
+            print(f"║ {line:<{box_width-3}} ║")
+    elif eval_strategy == "effect_size" and p_value < 0.05:
+        # Add automatic note for large samples with low p-value
+        print("╠" + "═" * (box_width - 2) + "╣")
+        note = (
+            f"Note: With large sample size (n={n_samples}), p-value is "
+            "unreliable. Assessment based on effect size (K-S statistic)."
+        )
+        wrapped_lines = textwrap.wrap(note, width=box_width - 4)
+        for line in wrapped_lines:
+            print(f"║ {line:<{box_width-3}} ║")
+
+    print("╚" + "═" * (box_width - 2) + "╝")
 
 
 def detect_outliers_pca(

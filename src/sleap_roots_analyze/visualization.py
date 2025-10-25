@@ -1993,7 +1993,7 @@ def create_pc_genotype_boxplots(
     n_components: Optional[int] = None,
     variance_threshold: float = 0.95,
     highlight_extreme: int = 3,
-    figsize: Tuple[float, float] = (16, 10),
+    figsize: Tuple[float, float] = (20, 6),
 ) -> plt.Figure:
     """Create boxplots showing PC score distributions by genotype.
 
@@ -2030,9 +2030,9 @@ def create_pc_genotype_boxplots(
     for i in range(n_components):
         pc_df[f"PC{i+1}"] = X_pca[:, i]
 
-    # Create subplots
-    n_cols = min(3, n_components)
-    n_rows = (n_components + n_cols - 1) // n_cols
+    # Create subplots - stack vertically
+    n_cols = 1
+    n_rows = n_components
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
     if n_components == 1:
@@ -2123,7 +2123,7 @@ def create_pc_genotype_boxplots(
 
     # Main title
     fig.suptitle(
-        f"PC Score Distributions by Genotype\n"
+        f"PC Score Distributions by Genotype "
         + f"(Using {n_components} PCs explaining {pca_results['cumulative_variance_ratio'][n_components-1]:.1%} variance)",
         fontsize=14,
     )

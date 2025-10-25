@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Effect size-based goodness-of-fit evaluation** for large samples (n > 500) in Mahalanobis outlier detection
+  - K-S test becomes hypersensitive with large n, now uses K-S statistic magnitude instead of p-values
+  - New thresholds: excellent (<0.05), good (<0.10), acceptable (<0.15), poor (<0.20), very poor (≥0.20)
+  - `print_goodness_of_fit_summary()` function for formatted console output with interpretation
+  - References to Massey (1951) and Sullivan & Feinn (2012) for statistical methodology
+- **Configurable ID column** in interactive visualization functions
+  - Added `id_col` parameter to `create_interactive_scatter_with_images()`, `create_interactive_pca_with_images()`, and `create_interactive_umap_with_images()`
+  - Fixes hardcoded "Barcode" column assumption, now supports lowercase or custom column names
+- **Pipeline validation warnings** for outlier detection configuration (Issue #20)
+  - Early detection when no outlier detection methods are configured
+  - Clear, actionable warning messages in pipeline output
+  - Graceful handling with pipeline continuing successfully
+
+### Changed
+- **PC boxplot layout** now stacks vertically (1 column) instead of grid layout for better display with many genotypes
+  - Default figsize updated from (16, 10) to (20, 6) for wider genotype labels
+- **Goodness-of-fit display** removed from outlier detection plots (too crowded)
+  - Results still available in JSON output and via `print_goodness_of_fit_summary()`
+  - Cleaner, more focused visualization
+
+### Fixed
+- **TypeError in interactive image gallery** when image paths are None
+  - Added null check before Path conversion in `create_interactive_image_gallery()`
+- **ipykernel hanging bug** in VS Code Jupyter notebooks
+  - Pinned ipykernel to <7.0.0 (ipykernel 7.x has known kernel hanging issues)
+
+### Added
 - Comprehensive test suite with 150+ tests achieving 97%+ coverage across all modules
 - Complete PCA module with mathematical validation (88 tests)
   - Per-feature variance explained calculations with configurable ddof

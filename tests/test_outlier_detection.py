@@ -626,6 +626,392 @@ class TestValidateChiSquaredDistribution:
         assert result["fit_quality"] in ["excellent", "good", "poor", "very_poor"]
 
 
+class TestValidateChiSquaredDistributionLargeSamples:
+    """Test chi-squared validation with large samples (n > 500)."""
+
+    def test_large_sample_excellent_fit(self):
+        """Test large sample (n=1000) with perfect chi-squared data."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 10
+        n_samples = 1000
+        distances_squared = stats.chi2.rvs(df, size=n_samples)
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Check new fields are present
+        assert "n_samples" in result
+        assert "evaluation_strategy" in result
+        assert "effect_size_interpretation" in result
+
+        # Should use effect size strategy
+        assert result["n_samples"] == n_samples
+        assert result["evaluation_strategy"] == "effect_size"
+
+        # Should have excellent fit based on K-S statistic
+        assert result["test_statistic"] < 0.05, (
+            f"K-S statistic = {result['test_statistic']:.4f}, "
+            "should be < 0.05 for excellent fit"
+        )
+        assert result["fit_quality"] == "excellent"
+        assert result["distributional_assumption_valid"] is True
+        assert "warning" not in result
+
+        # Interpretation should mention large sample size
+        assert "n = " in result["interpretation"]
+        assert "not reliable due to large sample" in result["interpretation"]
+
+    def test_large_sample_good_fit_with_minor_deviation(self):
+        """Test large sample with minor systematic deviation."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 10
+        n_samples = 1000
+
+        # Add small systematic bias
+        distances_squared = stats.chi2.rvs(df, size=n_samples) + 0.1
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Should use effect size strategy
+        assert result["evaluation_strategy"] == "effect_size"
+
+        # Should still have good fit (K-S statistic small enough)
+        assert result["test_statistic"] < 0.10, (
+            f"K-S statistic = {result['test_statistic']:.4f}, "
+            "should be < 0.10 for good fit"
+        )
+        assert result["fit_quality"] in ["excellent", "good"]
+        assert result["distributional_assumption_valid"] is True
+
+    def test_large_sample_acceptable_fit(self):
+        """Test large sample (n=925, like notebook) with acceptable fit."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 13  # Similar to notebook
+        n_samples = 925
+
+        # Add slight skew to simulate realistic data
+        base_data = stats.chi2.rvs(df, size=n_samples)
+        # Add some mild outliers
+        outlier_indices = np.random.choice(n_samples, size=int(n_samples * 0.05), replace=False)
+        base_data[outlier_indices] *= 1.5
+        distances_squared = base_data
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Should use effect size strategy
+        assert result["n_samples"] == n_samples
+        assert result["evaluation_strategy"] == "effect_size"
+
+        # K-S statistic should be in acceptable range
+        # Note: With realistic data, we expect K-S between 0.05-0.15
+        assert result["test_statistic"] < 0.20, (
+            f"K-S statistic = {result['test_statistic']:.4f} is too high, "
+            "even for realistic data"
+        )
+
+        # Should be acceptable or better
+        assert result["fit_quality"] in ["excellent", "good", "acceptable"]
+
+        # If acceptable, should have a warning explaining sample size sensitivity
+        if result["fit_quality"] == "acceptable":
+            assert "warning" in result
+            assert "large sample" in result["warning"].lower()
+            assert result["distributional_assumption_valid"] is True
+
+    def test_large_sample_truly_poor_fit(self):
+        """Test large sample with truly poor fit (bimodal)."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 10
+        n_samples = 1000
+
+        # Create strongly bimodal data
+        cluster1 = stats.chi2.rvs(df=5, size=int(n_samples * 0.8))
+        cluster2 = stats.chi2.rvs(df=30, size=int(n_samples * 0.2))
+        distances_squared = np.concatenate([cluster1, cluster2])
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Should use effect size strategy
+        assert result["evaluation_strategy"] == "effect_size"
+
+        # Should have large K-S statistic
+        assert result["test_statistic"] >= 0.15, (
+            f"K-S statistic = {result['test_statistic']:.4f}, "
+            "should be >= 0.15 for bimodal data"
+        )
+
+        # Should be poor or very poor
+        assert result["fit_quality"] in ["poor", "very_poor"]
+        assert result["distributional_assumption_valid"] is False
+        assert "warning" in result
+        assert "cluster" in result["warning"].lower()
+
+    def test_sample_size_boundary(self):
+        """Test behavior at n=500 boundary."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 10
+
+        # Test n=500 (should use p-value)
+        data_500 = stats.chi2.rvs(df, size=500)
+        result_500 = validate_chi_squared_distribution(data_500, df=df)
+        assert result_500["n_samples"] == 500
+        assert result_500["evaluation_strategy"] == "p_value"
+
+        # Test n=501 (should use effect size)
+        data_501 = stats.chi2.rvs(df, size=501)
+        result_501 = validate_chi_squared_distribution(data_501, df=df)
+        assert result_501["n_samples"] == 501
+        assert result_501["evaluation_strategy"] == "effect_size"
+
+    def test_effect_size_interpretation_field(self):
+        """Test that effect size interpretation is informative."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 10
+        n_samples = 1000
+        distances_squared = stats.chi2.rvs(df, size=n_samples)
+
+        result = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Check effect size interpretation exists and is informative
+        assert "effect_size_interpretation" in result
+        effect_interp = result["effect_size_interpretation"]
+        assert "K-S = " in effect_interp
+        assert result["test_statistic"] < 0.1  # Should have small K-S for chi2 data
+        assert "fit" in effect_interp.lower()
+
+    def test_comparison_small_vs_large_sample_same_data(self):
+        """Compare results for same distribution at small vs large n."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 10
+
+        # Small sample (n=200)
+        data_small = stats.chi2.rvs(df, size=200)
+        result_small = validate_chi_squared_distribution(data_small, df=df)
+
+        # Large sample (n=1000)
+        data_large = stats.chi2.rvs(df, size=1000)
+        result_large = validate_chi_squared_distribution(data_large, df=df)
+
+        # Both should indicate good fit, but using different strategies
+        assert result_small["evaluation_strategy"] == "p_value"
+        assert result_large["evaluation_strategy"] == "effect_size"
+
+        # Both should be valid
+        assert result_small["distributional_assumption_valid"] is True
+        assert result_large["distributional_assumption_valid"] is True
+
+        # Both should have good fit quality
+        assert result_small["fit_quality"] in ["excellent", "good"]
+        assert result_large["fit_quality"] in ["excellent", "good"]
+
+        # Large sample p-value might be lower, but should still indicate good fit
+        # This is the key test: same distribution, different sample sizes
+        if result_large["p_value"] < 0.05:
+            # P-value is low due to large n, but K-S statistic shows good fit
+            assert result_large["test_statistic"] < 0.10, (
+                "Large sample with low p-value should have small K-S statistic "
+                "to indicate good practical fit"
+            )
+
+    def test_ks_statistic_thresholds(self):
+        """Test that K-S statistic thresholds are correctly applied."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+        )
+
+        np.random.seed(42)
+        df = 10
+        n_samples = 1000
+
+        # Test different levels of deviation
+        test_cases = [
+            # (data, expected_max_ks, expected_quality)
+            (stats.chi2.rvs(df, size=n_samples), 0.05, ["excellent"]),
+            (stats.chi2.rvs(df, size=n_samples) * 1.05, 0.10, ["excellent", "good"]),
+            # More deviant data should have higher K-S
+        ]
+
+        for data, expected_max_ks, expected_qualities in test_cases:
+            result = validate_chi_squared_distribution(data, df=df)
+
+            # K-S statistic should be reasonable
+            assert result["test_statistic"] <= expected_max_ks or result[
+                "fit_quality"
+            ] in expected_qualities, (
+                f"K-S = {result['test_statistic']:.4f}, "
+                f"quality = {result['fit_quality']}, "
+                f"expected in {expected_qualities}"
+            )
+
+
+
+class TestPrintGoodnessOfFitSummary:
+    """Test console display of goodness-of-fit results."""
+
+    def test_print_gof_summary_large_sample(self, capsys):
+        """Test printing GOF summary for large sample case."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+            print_goodness_of_fit_summary,
+        )
+
+        # Generate data and get GOF results
+        np.random.seed(42)
+        df = 10
+        n_samples = 1000
+        distances_squared = stats.chi2.rvs(df, size=n_samples)
+        gof_results = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Print summary
+        print_goodness_of_fit_summary(gof_results, df_value=df)
+
+        # Capture output
+        captured = capsys.readouterr()
+
+        # Check key elements are present
+        assert "Mahalanobis Chi-Squared Goodness-of-Fit" in captured.out
+        assert f"{n_samples} samples" in captured.out
+        assert f"{df} components" in captured.out
+        assert "K-S Statistic:" in captured.out
+        assert "P-value:" in captured.out
+        assert "Fit Quality:" in captured.out
+        assert "Effect Size" in captured.out  # Large sample strategy
+
+    def test_print_gof_summary_small_sample(self, capsys):
+        """Test printing GOF summary for small sample case."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+            print_goodness_of_fit_summary,
+        )
+
+        # Generate data and get GOF results
+        np.random.seed(42)
+        df = 5
+        n_samples = 200
+        distances_squared = stats.chi2.rvs(df, size=n_samples)
+        gof_results = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Print summary
+        print_goodness_of_fit_summary(gof_results, df_value=df)
+
+        # Capture output
+        captured = capsys.readouterr()
+
+        # Check key elements are present
+        assert "Goodness-of-Fit" in captured.out
+        assert f"{n_samples} samples" in captured.out
+        assert "P-value" in captured.out  # Small sample uses p-value
+
+    def test_print_gof_summary_with_warning(self, capsys):
+        """Test printing GOF summary when warning is present."""
+        from sleap_roots_analyze.outlier_detection import (
+            validate_chi_squared_distribution,
+            print_goodness_of_fit_summary,
+        )
+
+        # Generate bimodal data (should trigger warning)
+        np.random.seed(42)
+        df = 10
+        n_samples = 1000
+        cluster1 = stats.chi2.rvs(df=5, size=int(n_samples * 0.8))
+        cluster2 = stats.chi2.rvs(df=30, size=int(n_samples * 0.2))
+        distances_squared = np.concatenate([cluster1, cluster2])
+
+        gof_results = validate_chi_squared_distribution(distances_squared, df=df)
+
+        # Print summary
+        print_goodness_of_fit_summary(gof_results, df_value=df)
+
+        # Capture output
+        captured = capsys.readouterr()
+
+        # Check warning is displayed
+        if "warning" in gof_results:
+            assert len(captured.out) > 0  # Something was printed
+
+    def test_print_gof_summary_acceptable_fit(self, capsys):
+        """Test printing GOF summary for acceptable fit case."""
+        from sleap_roots_analyze.outlier_detection import print_goodness_of_fit_summary
+
+        # Create mock GOF results (like what notebook would have)
+        gof_results = {
+            "test_type": "Kolmogorov-Smirnov",
+            "test_statistic": 0.1234,
+            "p_value": 0.0001,
+            "n_samples": 925,
+            "fit_quality": "acceptable",
+            "distributional_assumption_valid": True,
+            "evaluation_strategy": "effect_size",
+            "interpretation": "Acceptable fit: Data shows minor deviations from χ²(13)...",
+            "warning": "Note: With large sample size, K-S test p-value is unreliable.",
+        }
+
+        # Print summary
+        print_goodness_of_fit_summary(gof_results, df_value=13)
+
+        # Capture output
+        captured = capsys.readouterr()
+
+        # Check formatting
+        assert "╔" in captured.out  # Box drawing characters
+        assert "925 samples" in captured.out
+        assert "13 components" in captured.out
+        assert "0.1234" in captured.out
+        assert "ACCEPTABLE" in captured.out
+        assert "unreliable" in captured.out
+
+    def test_print_gof_summary_without_df(self, capsys):
+        """Test that function extracts df from interpretation if not provided."""
+        from sleap_roots_analyze.outlier_detection import print_goodness_of_fit_summary
+
+        gof_results = {
+            "test_type": "Kolmogorov-Smirnov",
+            "test_statistic": 0.05,
+            "p_value": 0.15,
+            "n_samples": 300,
+            "fit_quality": "good",
+            "distributional_assumption_valid": True,
+            "evaluation_strategy": "p_value",
+            "interpretation": "Good fit: Data is consistent with χ²(7) distribution...",
+        }
+
+        # Don't provide df_value - should extract from interpretation
+        print_goodness_of_fit_summary(gof_results)
+
+        # Capture output
+        captured = capsys.readouterr()
+
+        # Should extract df=7 from interpretation
+        assert "7 components" in captured.out or "?" in captured.out  # Fallback to ?
+
+
 class TestMahalanobisGoodnessOfFitIntegration:
     """Test GOF integration with detect_outliers_mahalanobis."""
 

@@ -356,65 +356,14 @@ def create_mahalanobis_outlier_plots(
         ax1.legend(loc="upper right")
         ax1.grid(True, alpha=0.3)
 
-        # Add goodness-of-fit test results if available
-        if threshold_type == "chi_squared" and "goodness_of_fit" in mahal_results:
-            gof = mahal_results["goodness_of_fit"]
-            if gof is not None:
-                # Determine text color based on p-value
-                p_value = gof["p_value"]
-                if np.isnan(p_value):
-                    text_color = "gray"
-                elif p_value >= 0.05:
-                    text_color = "green"
-                else:
-                    text_color = "red"
+        # NOTE: Goodness-of-fit display removed from figure (too crowded)
+        # Use print_goodness_of_fit_summary() in console instead
+        # See: sleap_roots_analyze.outlier_detection.print_goodness_of_fit_summary()
 
-                # Create text box content
-                gof_text = "χ² Goodness-of-Fit Test:\n"
-                gof_text += "─" * 25 + "\n"
-                gof_text += f"K-S statistic = {gof['test_statistic']:.3f}\n"
-
-                if not np.isnan(p_value):
-                    if p_value >= 0.05:
-                        gof_text += f"p-value = {p_value:.3f} ✓\n"
-                    else:
-                        gof_text += f"p-value = {p_value:.3f} ⚠\n"
-                else:
-                    gof_text += f"p-value = {p_value}\n"
-
-                gof_text += f"\nStatus: {gof['fit_quality'].upper()}\n"
-
-                if gof["distributional_assumption_valid"]:
-                    gof_text += f"Data follows χ²({n_components})"
-                else:
-                    gof_text += f"Data does NOT follow χ²({n_components})"
-
-                if "warning" in gof:
-                    # Add warning on a new line (truncated if too long)
-                    warning = gof["warning"]
-                    if len(warning) > 80:
-                        warning = warning[:77] + "..."
-                    gof_text += f"\n\n⚠ {warning}"
-
-                # Add text box to the plot
-                ax1.text(
-                    0.98,
-                    0.98,
-                    gof_text,
-                    transform=ax1.transAxes,
-                    fontsize=8,
-                    verticalalignment="top",
-                    horizontalalignment="right",
-                    bbox=dict(
-                        boxstyle="round,pad=0.5",
-                        facecolor="white",
-                        edgecolor=text_color,
-                        linewidth=2,
-                        alpha=0.9,
-                    ),
-                    family="monospace",
-                    color=text_color,
-                )
+        # Goodness-of-fit results are still available in:
+        # - mahal_results['goodness_of_fit'] dictionary
+        # - Saved in 03_outlier_detection_results.json
+        pass  # Placeholder to maintain code structure
 
         # Plot 2: Outlier detection plot (sorted distances)
         sorted_indices = np.argsort(plot_distances)
