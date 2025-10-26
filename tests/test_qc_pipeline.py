@@ -218,7 +218,9 @@ class TestQCPipelineIntegration:
         from sleap_roots_analyze.pipeline import load_config
 
         # Use test data path
-        assert turface_rsr_csv_path.exists(), f"Test data not found: {turface_rsr_csv_path}"
+        assert (
+            turface_rsr_csv_path.exists()
+        ), f"Test data not found: {turface_rsr_csv_path}"
 
         # Load qc_mahalanobis preset and configure for Turface data
         config = get_default_config()
@@ -446,12 +448,16 @@ class TestQCPipelineIntegration:
         print(f"\nPASSED Turface integration test passed!")
         print(f"   Final: 152 samples, 12 traits (from 187 samples, 35 traits)")
 
-    def test_qc_pipeline_no_outlier_methods_warning(self, turface_rsr_csv_path, tmp_path):
+    def test_qc_pipeline_no_outlier_methods_warning(
+        self, turface_rsr_csv_path, tmp_path
+    ):
         """Test that warning is raised when no outlier detection methods are configured."""
         import warnings
 
         # Use test data path
-        assert turface_rsr_csv_path.exists(), f"Test data not found: {turface_rsr_csv_path}"
+        assert (
+            turface_rsr_csv_path.exists()
+        ), f"Test data not found: {turface_rsr_csv_path}"
 
         # Configure pipeline with NO outlier detection methods
         config = get_default_config()

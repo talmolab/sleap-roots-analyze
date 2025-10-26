@@ -703,7 +703,9 @@ class TestValidateChiSquaredDistributionLargeSamples:
         # Add slight skew to simulate realistic data
         base_data = stats.chi2.rvs(df, size=n_samples)
         # Add some mild outliers
-        outlier_indices = np.random.choice(n_samples, size=int(n_samples * 0.05), replace=False)
+        outlier_indices = np.random.choice(
+            n_samples, size=int(n_samples * 0.05), replace=False
+        )
         base_data[outlier_indices] *= 1.5
         distances_squared = base_data
 
@@ -862,14 +864,14 @@ class TestValidateChiSquaredDistributionLargeSamples:
             result = validate_chi_squared_distribution(data, df=df)
 
             # K-S statistic should be reasonable
-            assert result["test_statistic"] <= expected_max_ks or result[
-                "fit_quality"
-            ] in expected_qualities, (
+            assert (
+                result["test_statistic"] <= expected_max_ks
+                or result["fit_quality"] in expected_qualities
+            ), (
                 f"K-S = {result['test_statistic']:.4f}, "
                 f"quality = {result['fit_quality']}, "
                 f"expected in {expected_qualities}"
             )
-
 
 
 class TestPrintGoodnessOfFitSummary:
