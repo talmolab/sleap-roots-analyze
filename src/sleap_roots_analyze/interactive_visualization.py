@@ -66,6 +66,7 @@ def create_interactive_scatter_with_images(
     height: int = 800,
     marker_size: int = 10,
     show_images_on_hover: bool = True,
+    id_col: str = "Barcode",
 ) -> go.Figure:
     """Create an interactive scatter plot with image hover capabilities.
 
@@ -83,6 +84,7 @@ def create_interactive_scatter_with_images(
         height: Plot height.
         marker_size: Base marker size.
         show_images_on_hover: Whether to show images on hover.
+        id_col: Column containing sample IDs for image linking (default: "Barcode").
 
     Returns:
         Plotly figure object with interactive hover.
@@ -92,7 +94,9 @@ def create_interactive_scatter_with_images(
         hover_data = []
 
     # Ensure we have the ID column for image linking
-    id_col = "Barcode" if "Barcode" in df.columns else df.index.name
+    # Use provided id_col parameter, fallback to index if not in df
+    if id_col not in df.columns:
+        id_col = df.index.name if df.index.name else "index"
     if id_col not in hover_data and id_col in df.columns:
         hover_data = [id_col] + hover_data
 
@@ -264,6 +268,7 @@ def create_interactive_pca_with_images(
     height: int = 800,
     show_loadings: bool = False,
     n_loadings: int = 10,
+    id_col: str = "Barcode",
 ) -> go.Figure:
     """Create an interactive PCA plot with image hover.
 
@@ -279,6 +284,7 @@ def create_interactive_pca_with_images(
         height: Plot height.
         show_loadings: Whether to show feature loadings as arrows.
         n_loadings: Number of top loadings to show.
+        id_col: Column containing sample IDs (default: "Barcode").
 
     Returns:
         Interactive PCA plot with images.
@@ -309,6 +315,7 @@ def create_interactive_pca_with_images(
         title=title,
         width=width,
         height=height,
+        id_col=id_col,
     )
 
     # Add loadings if requested
@@ -414,6 +421,7 @@ def create_interactive_umap_with_images(
     title: str = "UMAP Visualization",
     width: int = 1000,
     height: int = 800,
+    id_col: str = "Barcode",
 ) -> go.Figure:
     """Create an interactive UMAP plot with image hover.
 
@@ -426,6 +434,7 @@ def create_interactive_umap_with_images(
         title: Plot title.
         width: Plot width.
         height: Plot height.
+        id_col: Column containing sample IDs (default: "Barcode").
 
     Returns:
         Interactive UMAP plot with images.
@@ -452,6 +461,7 @@ def create_interactive_umap_with_images(
         title=title,
         width=width,
         height=height,
+        id_col=id_col,
     )
 
     return fig
@@ -1131,11 +1141,13 @@ def create_interactive_image_gallery(
         # Get image if available
         img_src = ""
         if sample_id in image_links and "features.png" in image_links[sample_id]:
-            img_path = Path(image_links[sample_id]["features.png"])
-            if img_path.exists():
-                with open(img_path, "rb") as f:
-                    encoded = base64.b64encode(f.read()).decode()
-                    img_src = f"data:image/png;base64,{encoded}"
+            img_path = image_links[sample_id]["features.png"]
+            if img_path is not None:  # Check if path exists (not None)
+                img_path = Path(img_path)
+                if img_path.exists():
+                    with open(img_path, "rb") as f:
+                        encoded = base64.b64encode(f.read()).decode()
+                        img_src = f"data:image/png;base64,{encoded}"
 
         if img_src:
             # Create trait tooltip content

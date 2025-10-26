@@ -202,7 +202,7 @@ class TestQCPipelineIntegration:
         assert summary.status == "success"
         assert len(summary.steps) == 10
 
-    def test_qc_pipeline_turface_integration(self, tmp_path):
+    def test_qc_pipeline_turface_integration(self, turface_rsr_csv_path, tmp_path):
         """Integration test using real Turface wheat data.
 
         This test uses the actual Turface_all_traits_2024_RSR.csv dataset
@@ -218,13 +218,14 @@ class TestQCPipelineIntegration:
         from sleap_roots_analyze.pipeline import load_config
 
         # Use test data path
-        test_csv = Path(__file__).parent / "data" / "Turface_all_traits_2024_RSR.csv"
-        assert test_csv.exists(), f"Test data not found: {test_csv}"
+        assert (
+            turface_rsr_csv_path.exists()
+        ), f"Test data not found: {turface_rsr_csv_path}"
 
         # Load qc_mahalanobis preset and configure for Turface data
         config = get_default_config()
         config.pipeline_name = "turface_integration_test"
-        config.data.csv_path = str(test_csv)
+        config.data.csv_path = str(turface_rsr_csv_path)
         config.columns.barcode = "Barcode"
         config.columns.genotype = "geno"
         config.columns.replicate = "rep"
@@ -446,3 +447,65 @@ class TestQCPipelineIntegration:
 
         print(f"\nPASSED Turface integration test passed!")
         print(f"   Final: 152 samples, 12 traits (from 187 samples, 35 traits)")
+
+    def test_qc_pipeline_no_outlier_methods_warning(
+        self, turface_rsr_csv_path, tmp_path
+    ):
+        """Test that warning is raised when no outlier detection methods are configured."""
+        import warnings
+
+        # Use test data path
+        assert (
+            turface_rsr_csv_path.exists()
+        ), f"Test data not found: {turface_rsr_csv_path}"
+
+        # Configure pipeline with NO outlier detection methods
+        config = get_default_config()
+        config.pipeline_name = "no_outliers_test"
+        config.data.csv_path = str(turface_rsr_csv_path)
+        config.columns.barcode = "Barcode"
+        config.columns.genotype = "geno"
+        config.columns.replicate = "rep"
+
+        # Disable all outlier detection methods
+        config.outlier_detection.traditional_methods = []
+        config.outlier_detection.clustering_methods = []
+
+        # Since no methods configured, don't try to use a removal strategy
+        # Skip config validation to test runtime warning behavior
+        config.outlier_removal.method = None  # Won't be used anyway
+
+        # Disable heritability filtering to speed up test
+        config.heritability.enabled = False
+
+        # Create pipeline (skip validation to test runtime warnings)
+        pipeline = QCPipeline(
+            config, output_dir=tmp_path / "no_outliers_test", validate=False
+        )
+
+        # Run pipeline and capture warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            results = pipeline.run()
+
+            # Check that warnings were issued
+            warning_messages = [str(warning.message) for warning in w]
+
+            # Should have warning from DetectOutliersStep
+            assert any(
+                "No outlier detection methods configured" in msg
+                for msg in warning_messages
+            ), f"Expected warning about no outlier methods. Got warnings: {warning_messages}"
+
+            # Should have warning from VisualizeOutliersStep
+            assert any(
+                "No outlier detection methods were run" in msg
+                for msg in warning_messages
+            ), f"Expected warning about no methods run. Got warnings: {warning_messages}"
+
+        # Verify pipeline still completes successfully
+        assert len(results) == 10  # QC pipeline has 10 steps
+        assert results["05_detect_outliers"].data.metadata["total_methods"] == 0
+        assert results["06_visualize_outliers"].data.metadata["figures_generated"] == 0
+
+        print("\nPASSED No outlier methods warning test!")

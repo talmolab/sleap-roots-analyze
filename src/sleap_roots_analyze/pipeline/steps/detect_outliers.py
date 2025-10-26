@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -83,6 +84,27 @@ class DetectOutliersStep(BaseStep):
         # Get configured methods
         traditional_methods = config.outlier_detection.traditional_methods
         clustering_methods = config.outlier_detection.clustering_methods
+
+        # Validate that at least one method is configured
+        # Both are guaranteed to be lists by dataclass definition
+        if len(traditional_methods) == 0 and len(clustering_methods) == 0:
+            warnings.warn(
+                "No outlier detection methods configured. Pipeline will skip outlier detection. "
+                "Set outlier_detection.traditional_methods or clustering_methods to enable outlier detection.",
+                UserWarning,
+                stacklevel=2,
+            )
+            # Return early with empty results
+            metadata = {
+                "samples": len(df),
+                "methods_run": [],
+                "outlier_results": {},
+                "outlier_counts": {},
+                "total_methods": 0,
+                "trait_names": trait_cols,
+                "valid_trait_names": trait_cols,
+            }
+            return StepResult(data=df, metadata=metadata, files_generated=[])
 
         # Run traditional methods
         if "pca" in traditional_methods:
