@@ -483,23 +483,13 @@ class TestCreateMahalanobisOutlierPlots:
         assert "mahalanobis_outlier_detection" in figures
 
         fig = figures["mahalanobis_outlier_detection"]
-        ax1 = fig.axes[0]  # Histogram with GOF
+        ax1 = fig.axes[0]  # Histogram
 
-        # Check that text box was added
-        assert len(ax1.texts) > 0
-
-        # Find the GOF text box
-        gof_text_found = False
-        for text in ax1.texts:
-            text_content = text.get_text()
-            if "Goodness-of-Fit" in text_content or "K-S statistic" in text_content:
-                gof_text_found = True
-                # Check that p-value and fit quality are displayed
-                assert "0.850" in text_content or "0.85" in text_content
-                assert "EXCELLENT" in text_content.upper()
-                break
-
-        assert gof_text_found, "GOF text box not found in plot"
+        # NOTE: GOF display was removed from the figure (too crowded)
+        # GOF results are still available in the results dict for console/JSON output
+        # This test now just verifies the plot is created successfully
+        assert fig is not None
+        assert len(fig.axes) >= 2  # Should have at least 2 subplots
 
         plt.close("all")
 
@@ -540,23 +530,11 @@ class TestCreateMahalanobisOutlierPlots:
         fig = figures["mahalanobis_outlier_detection"]
         ax1 = fig.axes[0]
 
-        # Check that text box was added
-        assert len(ax1.texts) > 0
-
-        # Find the GOF text box and check content
-        gof_text_found = False
-        for text in ax1.texts:
-            text_content = text.get_text()
-            if "Goodness-of-Fit" in text_content or "K-S statistic" in text_content:
-                gof_text_found = True
-                # Check that p-value and fit quality are displayed
-                assert "0.003" in text_content
-                assert "VERY_POOR" in text_content.upper()
-                # Check that warning is present
-                assert "⚠" in text_content
-                break
-
-        assert gof_text_found, "GOF text box not found in plot"
+        # NOTE: GOF display was removed from the figure (too crowded)
+        # GOF results are still available in the results dict for console/JSON output
+        # This test now just verifies the plot is created successfully
+        assert fig is not None
+        assert len(fig.axes) >= 2  # Should have at least 2 subplots
 
         plt.close("all")
 
