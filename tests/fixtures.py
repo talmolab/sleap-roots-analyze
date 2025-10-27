@@ -3437,3 +3437,65 @@ def highlight_indices_data(simple_cluster_data):
         "no_match": [999, 1000, 1001],  # Indices not in data
         "all": list(range(total_samples)),
     }
+
+
+# ============================================================================
+# VISUALIZATION PIPELINE FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def viz_config_minimal():
+    """Minimal VizPipelineConfig for testing."""
+    from sleap_roots_analyze.viz_pipeline.config import VizPipelineConfig
+    
+    config = VizPipelineConfig(pipeline_name="test_viz_minimal")
+    config.data.csv_path = "dummy.csv"
+    config.statistics.calculate_anova = False
+    config.statistics.calculate_heritability = False
+    config.umap.enabled = False
+    config.clustering.enabled = False
+    config.heritability.filter_enabled = False
+    config.interesting_genotypes.enabled = False
+    config.static_viz.enabled = False
+    config.interactive_viz.enabled = False
+    config.dashboard.enabled = False
+    return config
+
+
+@pytest.fixture
+def viz_config_with_stats():
+    """VizPipelineConfig with statistics enabled."""
+    from sleap_roots_analyze.viz_pipeline.config import VizPipelineConfig
+    
+    config = VizPipelineConfig(pipeline_name="test_viz_stats")
+    config.data.csv_path = "dummy.csv"
+    config.statistics.calculate_anova = True
+    config.statistics.calculate_heritability = True
+    # Disable optional features
+    config.umap.enabled = False
+    config.clustering.enabled = False
+    config.heritability.filter_enabled = False
+    config.interesting_genotypes.enabled = False
+    config.static_viz.enabled = False
+    config.interactive_viz.enabled = False
+    config.dashboard.enabled = False
+    return config
+
+
+@pytest.fixture
+def adaptive_sizing_config():
+    """Default AdaptiveSizingConfig for testing."""
+    from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+    
+    return AdaptiveSizingConfig()
+
+
+@pytest.fixture
+def adaptive_sizing_config_disabled():
+    """AdaptiveSizingConfig with sizing disabled."""
+    from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+    
+    config = AdaptiveSizingConfig()
+    config.enabled = False
+    return config
