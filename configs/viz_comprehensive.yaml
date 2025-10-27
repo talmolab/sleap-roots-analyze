@@ -1,0 +1,138 @@
+# Visualization Pipeline Configuration: Comprehensive
+#
+# This preset includes ALL visualization features:
+# - Full statistical analysis
+# - PCA and UMAP dimensionality reduction
+# - Clustering analysis (K-means, GMM, Hierarchical)
+# - Static plots (PNG/PDF/SVG) with adaptive sizing
+# - Interactive plots for PCA, UMAP, and clusters
+# - Interesting genotype identification
+# - Comprehensive dashboards
+#
+# Best for: In-depth exploratory analysis, method comparison, presentations
+# Output formats: PNG, PDF, SVG, HTML (interactive + dashboards), Markdown + JSON
+# Note: Longer runtime due to UMAP and clustering
+
+# Pipeline metadata
+pipeline_name: "viz_comprehensive"
+version: "1.0"
+
+# Data configuration
+data:
+  csv_path: ???  # REQUIRED: Path to your trait CSV file
+  image_dir: null  # Optional: Directory containing root images
+
+# Column names
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+  image_path: "image_path"
+
+# Statistics configuration
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 15  # More features for comprehensive analysis
+
+# UMAP configuration (ENABLED)
+umap:
+  enabled: true
+  n_neighbors: 15
+  min_dist: 0.1
+  metric: "euclidean"
+  random_state: 42
+
+# Clustering configuration (ENABLED with all methods)
+clustering:
+  enabled: true
+  methods:
+    - kmeans
+    - gmm
+    - hierarchical
+  n_clusters: null  # Auto-optimize
+  auto_optimize: true
+  min_clusters: 2
+  max_clusters: 10
+
+# Heritability filtering
+heritability:
+  filter_enabled: false
+  threshold: 0.60
+
+# Interesting genotypes identification
+interesting_genotypes:
+  enabled: true
+  methods:
+    - pc_extreme
+    - trait_extreme
+    - heritable_extreme
+  pc_threshold: 2.0
+  trait_percentile: 95.0
+  min_heritability: 0.60
+  max_genotypes: 15  # More genotypes for comprehensive view
+  generate_image_grids: true
+  images_per_genotype: 12  # More images per genotype
+
+# Adaptive figure sizing
+adaptive_sizing:
+  enabled: true
+  base_width: 10.0   # Larger base for comprehensive plots
+  base_height: 8.0
+  width_per_item: 2.5
+  height_per_item: 2.5
+  min_width: 8.0
+  max_width: 24.0
+  min_height: 6.0
+  max_height: 20.0
+
+# Static visualization settings (ALL ENABLED)
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+    - svg  # Vector format for presentations
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: true
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+
+# Interactive visualization settings (ALL ENABLED)
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: true
+  show_images_on_hover: true
+
+# Dashboard generation (ENABLED)
+dashboard:
+  enabled: true
+  create_summary_dashboard: true
+  create_trait_dashboard: true
+
+# Summary report
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - html  # HTML summary in addition to markdown
+    - json
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"
