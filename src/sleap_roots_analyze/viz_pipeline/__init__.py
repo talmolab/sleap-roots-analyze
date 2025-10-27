@@ -14,11 +14,10 @@ from sleap_roots_analyze.viz_pipeline.config import (
     validate_viz_config,
 )
 
-# VizPipeline will be added in Phase 2
-# from sleap_roots_analyze.viz_pipeline.viz_pipeline import VizPipeline
+from sleap_roots_analyze.viz_pipeline.viz_pipeline import VizPipeline
 
 __all__ = [
-    # "VizPipeline",  # Phase 2
+    "VizPipeline",
     "VizPipelineConfig",
     "load_viz_config",
     "save_viz_config",
