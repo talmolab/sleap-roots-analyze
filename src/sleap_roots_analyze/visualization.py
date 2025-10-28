@@ -1327,6 +1327,7 @@ def create_pca_biplot(
     alpha: float = 0.6,
     arrow_scale: Optional[float] = None,  # Auto-scale if None
     genotypes_to_color: Optional[List[str]] = None,
+    highlight_genotypes: Optional[List[str]] = None,
 ) -> plt.Figure:
     """Create a PCA biplot showing samples and feature loadings.
 
@@ -1350,6 +1351,8 @@ def create_pca_biplot(
             with distinct colors and shown in the legend. All other categories will be
             plotted in gray as "Other". If None (default), all categories are colored.
             Only applies when color_by is categorical.
+        highlight_genotypes: Optional list of specific genotypes to highlight with
+            larger points and edge colors. Works independently of genotypes_to_color.
 
     Returns:
         PCA biplot figure.
@@ -1443,57 +1446,241 @@ def create_pca_biplot(
                     tab10_colors[i] for i in range(10) if i != 7
                 ]  # Indices: 0-6, 8-9
 
-                # If we need more colors than available, cycle through the palette
-                if len(categories_to_plot) > len(non_gray_colors):
-                    colors = [
-                        non_gray_colors[i % len(non_gray_colors)]
-                        for i in range(len(categories_to_plot))
+                # Smart color assignment: highlighted genotypes get maximally distinct colors
+                color_map = {}  # Map genotype -> color
+
+                if highlight_genotypes:
+                    # Separate highlighted and non-highlighted genotypes
+                    highlighted_in_plot = [
+                        cat for cat in categories_to_plot if cat in highlight_genotypes
                     ]
+                    non_highlighted_in_plot = [
+                        cat
+                        for cat in categories_to_plot
+                        if cat not in highlight_genotypes
+                    ]
+
+                    # Assign evenly-spaced colors to highlighted genotypes
+                    n_highlighted = len(highlighted_in_plot)
+                    if n_highlighted > 0:
+                        # Calculate evenly-spaced indices
+                        step = len(non_gray_colors) / n_highlighted
+                        highlight_indices = [
+                            int(i * step) for i in range(n_highlighted)
+                        ]
+
+                        for cat, idx in zip(highlighted_in_plot, highlight_indices):
+                            color_map[cat] = non_gray_colors[idx]
+
+                    # Assign remaining colors to non-highlighted genotypes
+                    used_indices = (
+                        set(highlight_indices) if n_highlighted > 0 else set()
+                    )
+                    remaining_colors = [
+                        non_gray_colors[i]
+                        for i in range(len(non_gray_colors))
+                        if i not in used_indices
+                    ]
+
+                    # Cycle through remaining colors for non-highlighted
+                    for i, cat in enumerate(non_highlighted_in_plot):
+                        color_map[cat] = (
+                            remaining_colors[i % len(remaining_colors)]
+                            if remaining_colors
+                            else non_gray_colors[i % len(non_gray_colors)]
+                        )
                 else:
-                    colors = non_gray_colors[: len(categories_to_plot)]
+                    # Default: assign colors sequentially
+                    if len(categories_to_plot) > len(non_gray_colors):
+                        colors = [
+                            non_gray_colors[i % len(non_gray_colors)]
+                            for i in range(len(categories_to_plot))
+                        ]
+                    else:
+                        colors = non_gray_colors[: len(categories_to_plot)]
+
+                    color_map = {
+                        cat: colors[i] for i, cat in enumerate(categories_to_plot)
+                    }
 
                 # Plot selected categories with distinct colors
-                for i, cat in enumerate(categories_to_plot):
+                # Plot in two passes: non-highlighted first, then highlighted on top
+
+                # Pass 1: Plot non-highlighted genotypes
+                for cat in categories_to_plot:
+                    if highlight_genotypes and cat in highlight_genotypes:
+                        continue  # Skip highlighted ones for now
+
                     mask = df_pca[color_by] == cat
                     ax.scatter(
                         X_pca[mask, pc_x_idx],
                         X_pca[mask, pc_y_idx],
-                        c=[colors[i]],
+                        c=[color_map[cat]],
                         label=cat,
                         alpha=alpha,
                         s=50,
                         edgecolors="none",
                     )
+
+                # Pass 2: Plot highlighted genotypes on top
+                if highlight_genotypes:
+                    for cat in categories_to_plot:
+                        if cat not in highlight_genotypes:
+                            continue  # Only plot highlighted ones
+
+                        mask = df_pca[color_by] == cat
+                        ax.scatter(
+                            X_pca[mask, pc_x_idx],
+                            X_pca[mask, pc_y_idx],
+                            c=[color_map[cat]],
+                            label=cat,
+                            alpha=alpha,
+                            s=150,
+                            edgecolors="black",
+                            linewidths=1.5,
+                            zorder=10,  # Higher zorder = on top
+                        )
 
                 # Plot other categories in gray as "Other"
                 if len(other_categories) > 0:
-                    other_mask = df_pca[color_by].isin(other_categories)
-                    ax.scatter(
-                        X_pca[other_mask, pc_x_idx],
-                        X_pca[other_mask, pc_y_idx],
-                        c="gray",
-                        label="Other",
-                        alpha=alpha,
-                        s=50,
-                        edgecolors="none",
-                    )
+                    # Check if any "other" categories should be highlighted
+                    if highlight_genotypes:
+                        highlighted_others = [
+                            cat
+                            for cat in other_categories
+                            if cat in highlight_genotypes
+                        ]
+                        non_highlighted_others = [
+                            cat
+                            for cat in other_categories
+                            if cat not in highlight_genotypes
+                        ]
+
+                        # Plot non-highlighted others first (below)
+                        if non_highlighted_others:
+                            other_mask = df_pca[color_by].isin(non_highlighted_others)
+                            ax.scatter(
+                                X_pca[other_mask, pc_x_idx],
+                                X_pca[other_mask, pc_y_idx],
+                                c="gray",
+                                label="Other",
+                                alpha=alpha,
+                                s=50,
+                                edgecolors="none",
+                            )
+
+                        # Plot highlighted "others" on top
+                        if highlighted_others:
+                            highlight_mask = df_pca[color_by].isin(highlighted_others)
+                            ax.scatter(
+                                X_pca[highlight_mask, pc_x_idx],
+                                X_pca[highlight_mask, pc_y_idx],
+                                c="gray",
+                                label="Other (highlighted)",
+                                alpha=alpha,
+                                s=150,
+                                edgecolors="black",
+                                linewidths=1.5,
+                                zorder=10,  # Higher zorder = on top
+                            )
+                    else:
+                        other_mask = df_pca[color_by].isin(other_categories)
+                        ax.scatter(
+                            X_pca[other_mask, pc_x_idx],
+                            X_pca[other_mask, pc_y_idx],
+                            c="gray",
+                            label="Other",
+                            alpha=alpha,
+                            s=50,
+                            edgecolors="none",
+                        )
             else:
                 # Default behavior: color all categories
                 categories = all_categories
-                colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+                tab10_colors_default = plt.cm.tab10(range(10))
 
-                # Plot each category separately
-                for i, cat in enumerate(categories):
+                # Smart color assignment for default case too
+                color_map_default = {}
+
+                if highlight_genotypes:
+                    # Separate highlighted and non-highlighted genotypes
+                    highlighted_cats = [
+                        cat for cat in categories if cat in highlight_genotypes
+                    ]
+                    non_highlighted_cats = [
+                        cat for cat in categories if cat not in highlight_genotypes
+                    ]
+
+                    # Assign evenly-spaced colors to highlighted genotypes
+                    n_highlighted = len(highlighted_cats)
+                    if n_highlighted > 0:
+                        step = 10 / n_highlighted
+                        highlight_indices = [
+                            int(i * step) for i in range(n_highlighted)
+                        ]
+
+                        for cat, idx in zip(highlighted_cats, highlight_indices):
+                            color_map_default[cat] = tab10_colors_default[idx]
+
+                    # Assign remaining colors to non-highlighted
+                    used_indices = (
+                        set(highlight_indices) if n_highlighted > 0 else set()
+                    )
+                    remaining_colors = [
+                        tab10_colors_default[i]
+                        for i in range(10)
+                        if i not in used_indices
+                    ]
+
+                    for i, cat in enumerate(non_highlighted_cats):
+                        color_map_default[cat] = (
+                            remaining_colors[i % len(remaining_colors)]
+                            if remaining_colors
+                            else tab10_colors_default[i % 10]
+                        )
+                else:
+                    # Sequential assignment
+                    colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+                    color_map_default = {
+                        cat: colors[i] for i, cat in enumerate(categories)
+                    }
+
+                # Plot in two passes: non-highlighted first, then highlighted on top
+
+                # Pass 1: Plot non-highlighted genotypes
+                for cat in categories:
+                    if highlight_genotypes and cat in highlight_genotypes:
+                        continue  # Skip highlighted ones for now
+
                     mask = df_pca[color_by] == cat
                     ax.scatter(
                         X_pca[mask, pc_x_idx],
                         X_pca[mask, pc_y_idx],
-                        c=[colors[i]],
+                        c=[color_map_default[cat]],
                         label=cat,
                         alpha=alpha,
                         s=50,
                         edgecolors="none",
                     )
+
+                # Pass 2: Plot highlighted genotypes on top
+                if highlight_genotypes:
+                    for cat in categories:
+                        if cat not in highlight_genotypes:
+                            continue  # Only plot highlighted ones
+
+                        mask = df_pca[color_by] == cat
+                        ax.scatter(
+                            X_pca[mask, pc_x_idx],
+                            X_pca[mask, pc_y_idx],
+                            c=[color_map_default[cat]],
+                            label=cat,
+                            alpha=alpha,
+                            s=150,
+                            edgecolors="black",
+                            linewidths=1.5,
+                            zorder=10,  # Higher zorder = on top
+                        )
 
             ax.legend(title=color_by, bbox_to_anchor=(1.05, 1), loc="upper left")
         else:
@@ -1994,6 +2181,8 @@ def create_pc_genotype_boxplots(
     variance_threshold: float = 0.95,
     highlight_extreme: int = 3,
     figsize: Tuple[float, float] = (20, 6),
+    title_fontsize: int = 14,
+    highlight_genotypes: Optional[list] = None,
 ) -> plt.Figure:
     """Create boxplots showing PC score distributions by genotype.
 
@@ -2005,6 +2194,8 @@ def create_pc_genotype_boxplots(
         variance_threshold: Cumulative variance threshold for PC selection.
         highlight_extreme: Number of extreme genotypes to highlight per PC.
         figsize: Figure size.
+        title_fontsize: Font size for the main title.
+        highlight_genotypes: Optional list of genotype names to highlight in gold.
 
     Returns:
         Boxplot figure.
@@ -2076,11 +2267,14 @@ def create_pc_genotype_boxplots(
             pc_data.append(geno_data)
             labels.append(geno)
 
-            # Color extreme genotypes
+            # Color extreme genotypes (takes priority)
             if geno in extreme_genos_high:
                 colors.append("darkred")
             elif geno in extreme_genos_low:
                 colors.append("darkblue")
+            # Color highlighted genotypes
+            elif highlight_genotypes and geno in highlight_genotypes:
+                colors.append("gold")
             else:
                 colors.append("gray")
 
@@ -2106,16 +2300,12 @@ def create_pc_genotype_boxplots(
         ax.tick_params(axis="x", rotation=90)
         ax.grid(axis="y", alpha=0.3)
 
-        # Add legend for first subplot
-        if i == 0:
-            legend_elements = [
-                Patch(facecolor="darkred", alpha=0.6, label=f"Top {highlight_extreme}"),
-                Patch(
-                    facecolor="darkblue", alpha=0.6, label=f"Bottom {highlight_extreme}"
-                ),
-                Patch(facecolor="gray", alpha=0.6, label="Other"),
-            ]
-            ax.legend(handles=legend_elements, loc="upper right")
+        # Make highlighted genotype labels bold and colored
+        if highlight_genotypes:
+            for tick_label, geno in zip(ax.get_xticklabels(), labels):
+                if geno in highlight_genotypes:
+                    tick_label.set_fontweight("bold")
+                    tick_label.set_color("darkgoldenrod")
 
     # Remove empty subplots
     for i in range(n_components, len(axes)):
@@ -2125,10 +2315,31 @@ def create_pc_genotype_boxplots(
     fig.suptitle(
         f"PC Score Distributions by Genotype "
         + f"(Using {n_components} PCs explaining {pca_results['cumulative_variance_ratio'][n_components-1]:.1%} variance)",
-        fontsize=14,
+        fontsize=title_fontsize,
     )
 
-    plt.tight_layout()
+    # Add legend at figure level, positioned at top right
+    legend_elements = [
+        Patch(facecolor="darkred", alpha=0.6, label=f"Top {highlight_extreme}"),
+        Patch(facecolor="darkblue", alpha=0.6, label=f"Bottom {highlight_extreme}"),
+        Patch(facecolor="gray", alpha=0.6, label="Other"),
+    ]
+    if highlight_genotypes:
+        legend_elements.insert(
+            2, Patch(facecolor="gold", alpha=0.6, label="Highlighted")
+        )
+
+    fig.legend(
+        handles=legend_elements,
+        loc="upper right",
+        ncol=1,
+        bbox_to_anchor=(0.98, 0.98),
+        frameon=True,
+        fancybox=False,
+        shadow=False,
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Reduced whitespace at top
     return fig
 
 
@@ -2807,6 +3018,6 @@ def create_genotype_image_grid(
 
     fig.suptitle("\n".join(title_parts), fontsize=title_fontsize, y=0.98)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout(rect=[0, 0, 1, 0.98])
 
     return fig
