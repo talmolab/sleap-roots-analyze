@@ -73,7 +73,9 @@ class TestCalculateFigureSize:
 
     def test_single_layout(self, adaptive_sizing_config):
         """Test single item layout."""
-        width, height = calculate_figure_size(1, adaptive_sizing_config, layout="single")
+        width, height = calculate_figure_size(
+            1, adaptive_sizing_config, layout="single"
+        )
         assert width == adaptive_sizing_config.base_width
         assert height == adaptive_sizing_config.base_height
 
@@ -181,7 +183,11 @@ class TestCalculateSubplotGridSize:
     def test_custom_subplot_dimensions(self, adaptive_sizing_config):
         """Test with custom subplot dimensions."""
         width, height = calculate_subplot_grid_size(
-            6, adaptive_sizing_config, max_cols=3, width_per_subplot=5.0, height_per_subplot=4.0
+            6,
+            adaptive_sizing_config,
+            max_cols=3,
+            width_per_subplot=5.0,
+            height_per_subplot=4.0,
         )
         # 6 traits = 2 rows x 3 cols
         assert width == 15.0  # 3 * 5.0

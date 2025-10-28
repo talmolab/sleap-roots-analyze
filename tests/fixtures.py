@@ -3448,7 +3448,7 @@ def highlight_indices_data(simple_cluster_data):
 def viz_config_minimal():
     """Minimal VizPipelineConfig for testing."""
     from sleap_roots_analyze.viz_pipeline.config import VizPipelineConfig
-    
+
     config = VizPipelineConfig(pipeline_name="test_viz_minimal")
     config.data.csv_path = "dummy.csv"
     config.statistics.calculate_anova = False
@@ -3467,7 +3467,7 @@ def viz_config_minimal():
 def viz_config_with_stats():
     """VizPipelineConfig with statistics enabled."""
     from sleap_roots_analyze.viz_pipeline.config import VizPipelineConfig
-    
+
     config = VizPipelineConfig(pipeline_name="test_viz_stats")
     config.data.csv_path = "dummy.csv"
     config.statistics.calculate_anova = True
@@ -3487,7 +3487,7 @@ def viz_config_with_stats():
 def adaptive_sizing_config():
     """Default AdaptiveSizingConfig for testing."""
     from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
-    
+
     return AdaptiveSizingConfig()
 
 
@@ -3495,7 +3495,7 @@ def adaptive_sizing_config():
 def adaptive_sizing_config_disabled():
     """AdaptiveSizingConfig with sizing disabled."""
     from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
-    
+
     config = AdaptiveSizingConfig()
     config.enabled = False
     return config

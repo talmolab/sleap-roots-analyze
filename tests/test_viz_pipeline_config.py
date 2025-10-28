@@ -188,7 +188,9 @@ class TestValidateVizConfig:
         config = VizPipelineConfig(pipeline_name="test")
         config.data.csv_path = "test.csv"
         config.pca.feature_selection_strategy = "invalid_strategy"
-        with pytest.raises(ValueError, match="feature_selection_strategy must be one of"):
+        with pytest.raises(
+            ValueError, match="feature_selection_strategy must be one of"
+        ):
             validate_viz_config(config)
 
     def test_invalid_clustering_method_raises(self):
