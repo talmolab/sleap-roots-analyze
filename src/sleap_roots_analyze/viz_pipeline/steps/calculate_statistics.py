@@ -126,5 +126,4 @@ class CalculateStatisticsStep(BaseStep):
         return StepResult(
             data=data,
             metadata=metadata,
-            message=f"Calculated statistics for {len(trait_cols)} traits",
         )

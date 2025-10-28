@@ -49,7 +49,6 @@ class HeritabilityAnalysisStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="Heritability filtering disabled",
             )
 
         # Check if heritability was calculated
@@ -61,7 +60,6 @@ class HeritabilityAnalysisStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="Heritability results not available for filtering",
             )
 
         heritability_df = prev_result.metadata["heritability_results"]
@@ -111,5 +109,4 @@ class HeritabilityAnalysisStep(BaseStep):
         return StepResult(
             data=data,
             metadata=metadata,
-            message=f"Filtered to {len(filtered_trait_cols)} high heritability traits",
         )

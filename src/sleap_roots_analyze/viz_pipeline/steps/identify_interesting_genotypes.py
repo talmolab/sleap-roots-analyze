@@ -29,7 +29,6 @@ class IdentifyInterestingGenotypesStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="Interesting genotypes disabled",
             )
 
         # TODO: Implement in Phase 2C
@@ -39,5 +38,4 @@ class IdentifyInterestingGenotypesStep(BaseStep):
         return StepResult(
             data=data,
             metadata=prev_result.metadata,
-            message="Interesting genotypes not implemented (Phase 2C)",
         )

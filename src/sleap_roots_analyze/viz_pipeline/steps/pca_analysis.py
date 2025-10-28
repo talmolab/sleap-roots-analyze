@@ -51,29 +51,37 @@ class PCAAnalysisStep(BaseStep):
 
         logger.info(f"Performing PCA on {len(trait_cols)} traits")
 
-        # Perform PCA analysis
+        # Perform PCA analysis (only on trait columns)
         pca_results = perform_pca_analysis(
-            data,
-            trait_cols=trait_cols,
-            n_components=config.pca.n_components,
+            data[trait_cols],
             standardize=config.pca.standardize,
+            explained_variance_threshold=(
+                config.pca.n_components if config.pca.n_components < 1 else None
+            ),
+            n_components=(
+                int(config.pca.n_components) if config.pca.n_components >= 1 else None
+            ),
         )
 
-        n_components = pca_results["n_components_kept"]
-        explained_var = pca_results["explained_variance_ratio"].sum()
+        n_components = pca_results["n_components_selected"]
+        explained_var = pca_results["cumulative_variance_ratio"][n_components - 1]
         logger.info(
             f"PCA complete: {n_components} components explain {explained_var:.1%} variance"
         )
 
         # Select top features
-        top_features = select_top_features_from_pca(
-            pca_results,
-            strategy=config.pca.feature_selection_strategy,
-            n_top=config.pca.n_top_features,
+        top_feature_indices = select_top_features_from_pca(
+            loadings=pca_results["loadings"],
+            eigenvalues=pca_results["eigenvalues"],
+            n_features_total=len(trait_cols),
+            n_features_to_select=config.pca.n_top_features,
+            method=config.pca.feature_selection_strategy,
         )
 
+        top_features = [trait_cols[i] for i in top_feature_indices]
+
         logger.info(
-            f"Selected top {config.pca.n_top_features} features using {config.pca.feature_selection_strategy} strategy"
+            f"Selected {len(top_features)} top features using {config.pca.feature_selection_strategy} method"
         )
 
         # Save PCA results
@@ -99,11 +107,9 @@ class PCAAnalysisStep(BaseStep):
         # Save explained variance
         explained_var_df = pd.DataFrame(
             {
-                "explained_variance": pca_results["explained_variance"],
+                "explained_variance": pca_results["eigenvalues"],
                 "explained_variance_ratio": pca_results["explained_variance_ratio"],
-                "cumulative_variance_ratio": pca_results[
-                    "explained_variance_ratio"
-                ].cumsum(),
+                "cumulative_variance_ratio": pca_results["cumulative_variance_ratio"],
             },
             index=[f"PC{i+1}" for i in range(n_components)],
         )
@@ -127,5 +133,4 @@ class PCAAnalysisStep(BaseStep):
         return StepResult(
             data=data,
             metadata=metadata,
-            message=f"PCA complete: {n_components} components, {len(top_features)} top features",
         )

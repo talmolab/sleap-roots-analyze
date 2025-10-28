@@ -29,5 +29,4 @@ class GenotypeAggregationStep(BaseStep):
         return StepResult(
             data=data,
             metadata=prev_result.metadata,
-            message="Genotype aggregation not implemented (Phase 2B)",
         )

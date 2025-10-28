@@ -29,7 +29,6 @@ class GenerateDashboardsStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="Dashboards disabled",
             )
 
         # TODO: Implement in Phase 2C
@@ -37,5 +36,4 @@ class GenerateDashboardsStep(BaseStep):
         return StepResult(
             data=data,
             metadata=prev_result.metadata,
-            message="Dashboards not implemented (Phase 2C)",
         )

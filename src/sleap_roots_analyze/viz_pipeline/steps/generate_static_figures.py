@@ -29,7 +29,6 @@ class GenerateStaticFiguresStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="Static viz disabled",
             )
 
         # TODO: Implement in Phase 2B
@@ -37,5 +36,4 @@ class GenerateStaticFiguresStep(BaseStep):
         return StepResult(
             data=data,
             metadata=prev_result.metadata,
-            message="Static figures not implemented (Phase 2B)",
         )

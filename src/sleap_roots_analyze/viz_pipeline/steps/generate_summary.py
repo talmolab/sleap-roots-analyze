@@ -83,7 +83,6 @@ class GenerateSummaryStep(BaseStep):
         return StepResult(
             data=data,
             metadata={**metadata, "summary_data": summary_data},
-            message="Summary generation complete",
         )
 
     def _extract_config_summary(self, config) -> dict:

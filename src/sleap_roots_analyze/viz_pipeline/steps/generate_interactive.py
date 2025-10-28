@@ -29,7 +29,6 @@ class GenerateInteractiveStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="Interactive viz disabled",
             )
 
         # TODO: Implement in Phase 2B
@@ -39,5 +38,4 @@ class GenerateInteractiveStep(BaseStep):
         return StepResult(
             data=data,
             metadata=prev_result.metadata,
-            message="Interactive viz not implemented (Phase 2B)",
         )

@@ -29,7 +29,6 @@ class ClusterAnalysisStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="Clustering disabled",
             )
 
         # TODO: Implement in Phase 2C
@@ -37,5 +36,4 @@ class ClusterAnalysisStep(BaseStep):
         return StepResult(
             data=data,
             metadata=prev_result.metadata,
-            message="Clustering not implemented (Phase 2C)",
         )

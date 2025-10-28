@@ -29,7 +29,6 @@ class UMAPAnalysisStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata=prev_result.metadata,
-                message="UMAP disabled",
             )
 
         # TODO: Implement in Phase 2C
@@ -37,5 +36,4 @@ class UMAPAnalysisStep(BaseStep):
         return StepResult(
             data=data,
             metadata=prev_result.metadata,
-            message="UMAP not implemented (Phase 2C)",
         )

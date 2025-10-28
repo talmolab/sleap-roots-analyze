@@ -122,5 +122,4 @@ class LoadDataAndImagesStep(BaseStep):
         return StepResult(
             data=df,
             metadata=metadata,
-            message=f"Loaded {len(df)} samples with {len(trait_cols)} traits",
         )
