@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from typing import Tuple
 
-from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
 
 
 def calculate_grid_dimensions(n_items: int, max_cols: int = 4) -> Tuple[int, int]:
@@ -58,7 +58,7 @@ def calculate_figure_size(
         Tuple of (width, height) in inches.
 
     Example:
-        >>> from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+        >>> from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
         >>> config = AdaptiveSizingConfig()
         >>> calculate_figure_size(10, config, layout="grid")
         (16.0, 12.0)  # Width and height for 10 items in grid
@@ -124,7 +124,7 @@ def calculate_subplot_grid_size(
         Tuple of (total_width, total_height) in inches.
 
     Example:
-        >>> from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+        >>> from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
         >>> config = AdaptiveSizingConfig()
         >>> calculate_subplot_grid_size(12, config, max_cols=4)
         (16.0, 9.0)  # 4 cols x 3 rows
@@ -164,7 +164,7 @@ def calculate_correlation_matrix_size(
         Tuple of (width, height) in inches for square correlation matrix.
 
     Example:
-        >>> from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+        >>> from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
         >>> config = AdaptiveSizingConfig()
         >>> calculate_correlation_matrix_size(20, config)
         (15.0, 15.0)  # Square matrix with room for labels
@@ -203,7 +203,7 @@ def calculate_barplot_size(
         Tuple of (width, height) in inches.
 
     Example:
-        >>> from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+        >>> from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
         >>> config = AdaptiveSizingConfig()
         >>> calculate_barplot_size(30, config, orientation="horizontal")
         (10.0, 16.0)  # Horizontal bar plot for 30 items

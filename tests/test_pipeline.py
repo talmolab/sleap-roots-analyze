@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sleap_roots_analyze.pipeline.pipeline import BasePipeline
+from sleap_roots_analyze.pipeline.pipelines import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task, TaskResult
 
 

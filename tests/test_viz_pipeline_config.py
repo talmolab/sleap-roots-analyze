@@ -6,7 +6,7 @@ import pytest
 from omegaconf import OmegaConf
 from pathlib import Path
 
-from sleap_roots_analyze.viz_pipeline.config import (
+from sleap_roots_analyze.pipeline.config import (
     AdaptiveSizingConfig,
     ClusteringConfig,
     ColumnConfig,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sleap_roots_analyze.viz_pipeline.adaptive_sizing import (
+from sleap_roots_analyze.viz_utils import (
     calculate_barplot_size,
     calculate_correlation_matrix_size,
     calculate_figure_size,

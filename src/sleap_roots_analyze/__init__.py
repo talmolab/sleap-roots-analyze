@@ -111,6 +111,23 @@ from sleap_roots_analyze.cross_experiment_analysis import (
     create_genotype_boxplots,
 )
 
+from sleap_roots_analyze.pipeline import (
+    VizPipeline,
+    VizPipelineConfig,
+    load_viz_config,
+    save_viz_config,
+    validate_viz_config,
+)
+
+from sleap_roots_analyze.viz_utils import (
+    calculate_grid_dimensions,
+    calculate_figure_size,
+    calculate_subplot_grid_size,
+    calculate_correlation_matrix_size,
+    calculate_barplot_size,
+    suggest_layout_params,
+)
+
 from sleap_roots_analyze.interactive_visualization import (
     encode_image_to_base64,
     create_interactive_scatter_with_images,
@@ -126,6 +143,19 @@ from sleap_roots_analyze.interactive_visualization import (
 )
 
 __all__ = [
+    # Pipeline
+    "VizPipeline",
+    "VizPipelineConfig",
+    "load_viz_config",
+    "save_viz_config",
+    "validate_viz_config",
+    # Adaptive sizing utilities
+    "calculate_grid_dimensions",
+    "calculate_figure_size",
+    "calculate_subplot_grid_size",
+    "calculate_correlation_matrix_size",
+    "calculate_barplot_size",
+    "suggest_layout_params",
     # Data cleanup functions
     "load_trait_data",
     "get_trait_columns",

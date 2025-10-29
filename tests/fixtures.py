@@ -3447,7 +3447,7 @@ def highlight_indices_data(simple_cluster_data):
 @pytest.fixture
 def viz_config_minimal():
     """Minimal VizPipelineConfig for testing."""
-    from sleap_roots_analyze.viz_pipeline.config import VizPipelineConfig
+    from sleap_roots_analyze.pipeline.config import VizPipelineConfig
 
     config = VizPipelineConfig(pipeline_name="test_viz_minimal")
     config.data.csv_path = "dummy.csv"
@@ -3466,7 +3466,7 @@ def viz_config_minimal():
 @pytest.fixture
 def viz_config_with_stats():
     """VizPipelineConfig with statistics enabled."""
-    from sleap_roots_analyze.viz_pipeline.config import VizPipelineConfig
+    from sleap_roots_analyze.pipeline.config import VizPipelineConfig
 
     config = VizPipelineConfig(pipeline_name="test_viz_stats")
     config.data.csv_path = "dummy.csv"
@@ -3486,7 +3486,7 @@ def viz_config_with_stats():
 @pytest.fixture
 def adaptive_sizing_config():
     """Default AdaptiveSizingConfig for testing."""
-    from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+    from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
 
     return AdaptiveSizingConfig()
 
@@ -3494,7 +3494,7 @@ def adaptive_sizing_config():
 @pytest.fixture
 def adaptive_sizing_config_disabled():
     """AdaptiveSizingConfig with sizing disabled."""
-    from sleap_roots_analyze.viz_pipeline.config import AdaptiveSizingConfig
+    from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
 
     config = AdaptiveSizingConfig()
     config.enabled = False

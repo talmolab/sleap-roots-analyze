@@ -11,7 +11,7 @@ from sleap_roots_analyze.pipeline.utils import get_code_snapshot
 
 
 class GenerateSummaryStep(BaseStep):
-    """Generate complete QC pipeline summary.
+    """Generate complete pipeline summary.
 
     This final step aggregates all metadata from previous steps and creates
     a comprehensive summary of the entire pipeline run, including code snapshot

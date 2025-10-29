@@ -54,7 +54,7 @@ clustering:
 
 # Heritability filtering (optional)
 heritability:
-  filter_enabled: false  # Set to true to filter low heritability traits
+  enabled: false  # Set to true to filter low heritability traits
   threshold: 0.60
 
 # Interesting genotypes identification

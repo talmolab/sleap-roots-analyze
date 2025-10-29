@@ -49,7 +49,7 @@ clustering:
 
 # Heritability filtering (DISABLED)
 heritability:
-  filter_enabled: false
+  enabled: false
 
 # Interesting genotypes (DISABLED)
 interesting_genotypes:

@@ -13,18 +13,22 @@ from sleap_roots_analyze.pipeline.config import (
     LoggingConfig,
     OutlierDetectionConfig,
     PCAConfig,
-    PipelineConfig,
+    QCPipelineConfig,
     VisualizationConfig,
-    get_default_config,
-    load_config,
-    merge_configs,
-    save_config,
-    validate_config,
+    VizPipelineConfig,
+    get_default_qc_config,
+    get_default_viz_config,
+    load_qc_config,
+    load_viz_config,
+    merge_qc_configs,
+    save_qc_config,
+    save_viz_config,
+    validate_qc_config,
+    validate_viz_config,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.pipeline.dag import DAGExecutor, DAGValidationError
-from sleap_roots_analyze.pipeline.pipeline import BasePipeline
-from sleap_roots_analyze.pipeline.qc_pipeline import QCPipeline
+from sleap_roots_analyze.pipeline.pipelines import BasePipeline, QCPipeline, VizPipeline
 from sleap_roots_analyze.pipeline.summary import PipelineSummary, StepSummary
 from sleap_roots_analyze.pipeline.task import Task, TaskResult
 from sleap_roots_analyze.pipeline.utils import (
@@ -49,13 +53,13 @@ __all__ = [
     # Pipeline and summary
     "BasePipeline",
     "QCPipeline",
+    "VizPipeline",
     "PipelineSummary",
     "StepSummary",
     # Core step abstractions
     "BaseStep",
     "StepResult",
-    # Configuration
-    "PipelineConfig",
+    # Configuration Components
     "ColumnConfig",
     "DataConfig",
     "CleanupConfig",
@@ -65,11 +69,19 @@ __all__ = [
     "ClusteringConfig",
     "VisualizationConfig",
     "LoggingConfig",
-    "load_config",
-    "save_config",
-    "get_default_config",
-    "merge_configs",
-    "validate_config",
+    # QC Pipeline Configuration
+    "QCPipelineConfig",
+    "load_qc_config",
+    "save_qc_config",
+    "get_default_qc_config",
+    "validate_qc_config",
+    "merge_qc_configs",
+    # Viz Pipeline Configuration
+    "VizPipelineConfig",
+    "load_viz_config",
+    "save_viz_config",
+    "get_default_viz_config",
+    "validate_viz_config",
     # Utilities
     "create_run_directory",
     "get_git_commit_hash",

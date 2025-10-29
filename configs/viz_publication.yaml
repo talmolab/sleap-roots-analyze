@@ -50,7 +50,7 @@ clustering:
 
 # Heritability filtering (ENABLED for publication)
 heritability:
-  filter_enabled: true   # Only highly heritable traits
+  enabled: true   # Only highly heritable traits
   threshold: 0.60
 
 # Interesting genotypes

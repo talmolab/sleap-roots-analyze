@@ -8,7 +8,7 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from sleap_roots_analyze.viz_pipeline import VizPipeline, VizPipelineConfig
+from sleap_roots_analyze.pipeline import VizPipeline, VizPipelineConfig
 
 # Define paths
 DATA_CSV = "path/to/your/traits.csv"  # Replace with your data path

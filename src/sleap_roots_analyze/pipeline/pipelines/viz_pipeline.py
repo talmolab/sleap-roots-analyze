@@ -10,41 +10,25 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List
 
-from sleap_roots_analyze.pipeline.pipeline import BasePipeline
+from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
-from sleap_roots_analyze.viz_pipeline.config import (
+from sleap_roots_analyze.pipeline.config import (
     VizPipelineConfig,
     validate_viz_config,
 )
-from sleap_roots_analyze.viz_pipeline.steps.load_data_images import (
+from sleap_roots_analyze.pipeline.steps import (
     LoadDataAndImagesStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.calculate_statistics import (
-    CalculateStatisticsStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.pca_analysis import PCAAnalysisStep
-from sleap_roots_analyze.viz_pipeline.steps.umap_analysis import UMAPAnalysisStep
-from sleap_roots_analyze.viz_pipeline.steps.cluster_analysis import ClusterAnalysisStep
-from sleap_roots_analyze.viz_pipeline.steps.heritability_analysis import (
-    HeritabilityAnalysisStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.identify_interesting_genotypes import (
+    StatisticalAnalysisStep,
+    PCAAnalysisStep,
+    UMAPAnalysisStep,
+    ClusterAnalysisStep,
+    FilterHeritabilityStep,
     IdentifyInterestingGenotypesStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.genotype_aggregation import (
     GenotypeAggregationStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.generate_static_figures import (
     GenerateStaticFiguresStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.generate_interactive import (
     GenerateInteractiveStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.generate_dashboards import (
     GenerateDashboardsStep,
-)
-from sleap_roots_analyze.viz_pipeline.steps.generate_summary import (
-    GenerateSummaryStep,
+    GenerateSummaryVizStep,
 )
 
 
@@ -75,7 +59,7 @@ class VizPipeline(BasePipeline):
         validate: Whether to validate configuration before execution (default: True).
 
     Example:
-        >>> from sleap_roots_analyze.viz_pipeline import VizPipeline, load_viz_config
+        >>> from sleap_roots_analyze.pipeline import VizPipeline, load_viz_config
         >>> from omegaconf import OmegaConf
         >>> # Load and configure
         >>> omega_conf = OmegaConf.load("viz_standard.yaml")
@@ -83,7 +67,7 @@ class VizPipeline(BasePipeline):
         >>> omega_conf.data.csv_path = "my_data.csv"
         >>> OmegaConf.set_struct(omega_conf, True)
         >>> # Convert to structured config
-        >>> from sleap_roots_analyze.viz_pipeline.config import VizPipelineConfig
+        >>> from sleap_roots_analyze.pipeline import VizPipelineConfig
         >>> structured = OmegaConf.structured(VizPipelineConfig)
         >>> merged = OmegaConf.merge(structured, omega_conf)
         >>> config = OmegaConf.to_object(merged)
@@ -126,17 +110,17 @@ class VizPipeline(BasePipeline):
 
         # Initialize all step instances
         self.step_1_load_data_images = LoadDataAndImagesStep()
-        self.step_2_calculate_statistics = CalculateStatisticsStep()
+        self.step_2_calculate_statistics = StatisticalAnalysisStep()
         self.step_3_pca_analysis = PCAAnalysisStep()
         self.step_4_umap_analysis = UMAPAnalysisStep()
         self.step_5_cluster_analysis = ClusterAnalysisStep()
-        self.step_6_heritability_analysis = HeritabilityAnalysisStep()
+        self.step_6_heritability_analysis = FilterHeritabilityStep()
         self.step_7_identify_interesting_genotypes = IdentifyInterestingGenotypesStep()
         self.step_8_genotype_aggregation = GenotypeAggregationStep()
         self.step_9_generate_static_figures = GenerateStaticFiguresStep()
         self.step_10_generate_interactive = GenerateInteractiveStep()
         self.step_11_generate_dashboards = GenerateDashboardsStep()
-        self.step_12_generate_summary = GenerateSummaryStep()
+        self.step_12_generate_summary = GenerateSummaryVizStep()
 
     def create_tasks(self) -> List[Task]:
         """Create the 12-step visualization pipeline task graph.
