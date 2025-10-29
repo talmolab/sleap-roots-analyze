@@ -135,7 +135,10 @@ def validate_qc_config(config: QCPipelineConfig) -> None:
                     f"Valid methods: {valid_cluster_methods}"
                 )
 
-        if config.clustering.n_clusters is not None and config.clustering.n_clusters < 2:
+        if (
+            config.clustering.n_clusters is not None
+            and config.clustering.n_clusters < 2
+        ):
             raise ValueError("clustering.n_clusters must be at least 2")
 
     # Validate outlier removal config
@@ -351,4 +354,3 @@ def validate_viz_config(config: VizPipelineConfig) -> None:
     valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     if config.logging.level not in valid_log_levels:
         raise ValueError(f"logging.level must be one of {valid_log_levels}")
-

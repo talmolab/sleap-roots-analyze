@@ -254,7 +254,9 @@ class TestPCAAnalysisStep:
         # Should return at most the number of available features
         assert len(result.metadata["top_features"]) <= 6
 
-    def test_pca_different_n_components(self, config, sample_data, prev_result, tmp_path):
+    def test_pca_different_n_components(
+        self, config, sample_data, prev_result, tmp_path
+    ):
         """Test PCA with different numbers of components."""
         for n_comp in [1, 3, 5]:
             config.pca.n_components = n_comp
@@ -278,7 +280,9 @@ class TestPCAAnalysisStep:
             pc_scores = pd.read_csv(pca_dir / "pc_scores.csv", index_col=0)
             assert pc_scores.shape[1] == n_comp
 
-    def test_pca_top_features_selection(self, config, sample_data, prev_result, tmp_path):
+    def test_pca_top_features_selection(
+        self, config, sample_data, prev_result, tmp_path
+    ):
         """Test selecting different numbers of top features."""
         for n_features in [1, 3, 6]:
             config.pca.n_top_features = n_features
@@ -313,7 +317,9 @@ class TestPCAAnalysisStep:
         # Data should be unchanged
         pd.testing.assert_frame_equal(result.data, original_data)
 
-    def test_pca_with_existing_pca_dir(self, config, sample_data, prev_result, tmp_path):
+    def test_pca_with_existing_pca_dir(
+        self, config, sample_data, prev_result, tmp_path
+    ):
         """Test that PCA step handles existing pca directory."""
         pca_dir = tmp_path / "pca"
         pca_dir.mkdir(exist_ok=True)
