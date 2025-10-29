@@ -6,7 +6,7 @@ import pytest
 from pathlib import Path
 import pandas as pd
 
-from sleap_roots_analyze.pipeline import QCPipeline, PipelineConfig, get_default_config
+from sleap_roots_analyze.pipeline import QCPipeline, QCPipelineConfig, get_default_qc_config
 
 
 class TestQCPipelineCreation:
@@ -14,14 +14,14 @@ class TestQCPipelineCreation:
 
     def test_qc_pipeline_creation(self, tmp_path):
         """Test creating a QCPipeline instance."""
-        config = get_default_config()
+        config = get_default_qc_config()
         config.data.csv_path = "test.csv"
         config.outlier_detection.traditional_methods = ["mahalanobis"]
 
         pipeline = QCPipeline(config, output_dir=tmp_path)
 
         assert pipeline.config == config
-        assert pipeline.pipeline_name == "pipeline"
+        assert pipeline.pipeline_name == "qc_pipeline"
         assert pipeline.version == "1.0"
         assert pipeline.output_dir == tmp_path
 
@@ -29,7 +29,7 @@ class TestQCPipelineCreation:
         """Test that invalid config raises ValueError."""
         from omegaconf import MISSING
 
-        config = get_default_config()
+        config = get_default_qc_config()
         # Set csv_path to MISSING (required field)
         config.data.csv_path = MISSING
 
@@ -38,7 +38,7 @@ class TestQCPipelineCreation:
 
     def test_qc_pipeline_skip_validation(self, tmp_path):
         """Test skipping validation allows invalid config."""
-        config = get_default_config()
+        config = get_default_qc_config()
         # Missing csv_path but validation disabled
         config.data.csv_path = None
 
@@ -48,7 +48,7 @@ class TestQCPipelineCreation:
 
     def test_qc_pipeline_creates_tasks(self, tmp_path):
         """Test that create_tasks returns 10 tasks."""
-        config = get_default_config()
+        config = get_default_qc_config()
         config.data.csv_path = "test.csv"
         config.outlier_detection.traditional_methods = ["mahalanobis"]
 
@@ -69,7 +69,7 @@ class TestQCPipelineCreation:
 
     def test_qc_pipeline_task_dependencies(self, tmp_path):
         """Test that tasks have correct dependencies (linear chain)."""
-        config = get_default_config()
+        config = get_default_qc_config()
         config.data.csv_path = "test.csv"
         config.outlier_detection.traditional_methods = ["mahalanobis"]
 
@@ -92,7 +92,7 @@ class TestQCPipelineCreation:
 
     def test_qc_pipeline_all_steps_initialized(self, tmp_path):
         """Test that all 10 step instances are created."""
-        config = get_default_config()
+        config = get_default_qc_config()
         config.data.csv_path = "test.csv"
         config.outlier_detection.traditional_methods = ["mahalanobis"]
 
@@ -112,7 +112,7 @@ class TestQCPipelineCreation:
 
     def test_qc_pipeline_custom_name_and_version(self, tmp_path):
         """Test QC pipeline with custom name from config."""
-        config = get_default_config()
+        config = get_default_qc_config()
         config.pipeline_name = "my_qc_pipeline"
         config.version = "2.0"
         config.data.csv_path = "test.csv"
@@ -163,7 +163,7 @@ class TestQCPipelineIntegration:
         with a simple dataset. For real-world data testing, see
         test_qc_pipeline_turface_integration.
         """
-        config = get_default_config()
+        config = get_default_qc_config()
         config.data.csv_path = str(test_data)
         config.outlier_detection.traditional_methods = ["mahalanobis"]
         config.heritability.enabled = False  # Disable for simple test
@@ -215,15 +215,13 @@ class TestQCPipelineIntegration:
         - After outlier removal (mahalanobis): 152 samples (6 removed)
         - After heritability filtering (H²≥0.62): 12 traits (23 removed)
         """
-        from sleap_roots_analyze.pipeline import load_config
-
         # Use test data path
         assert (
             turface_rsr_csv_path.exists()
         ), f"Test data not found: {turface_rsr_csv_path}"
 
         # Load qc_mahalanobis preset and configure for Turface data
-        config = get_default_config()
+        config = get_default_qc_config()
         config.pipeline_name = "turface_integration_test"
         config.data.csv_path = str(turface_rsr_csv_path)
         config.columns.barcode = "Barcode"
@@ -460,7 +458,7 @@ class TestQCPipelineIntegration:
         ), f"Test data not found: {turface_rsr_csv_path}"
 
         # Configure pipeline with NO outlier detection methods
-        config = get_default_config()
+        config = get_default_qc_config()
         config.pipeline_name = "no_outliers_test"
         config.data.csv_path = str(turface_rsr_csv_path)
         config.columns.barcode = "Barcode"

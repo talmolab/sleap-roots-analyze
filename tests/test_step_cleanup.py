@@ -10,7 +10,7 @@ from sleap_roots_analyze.pipeline import (
     CleanupConfig,
     ColumnConfig,
     DataConfig,
-    PipelineConfig,
+    QCPipelineConfig,
 )
 from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.steps import CleanupTraitsStep, ValidateCleanStep
@@ -49,7 +49,7 @@ def sample_data_with_issues():
 @pytest.fixture
 def config():
     """Create test configuration."""
-    return PipelineConfig(
+    return QCPipelineConfig(
         pipeline_name="test_qc",
         columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
         data=DataConfig(csv_path="dummy.csv"),
