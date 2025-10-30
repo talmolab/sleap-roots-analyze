@@ -234,7 +234,7 @@ class GenerateStaticFiguresStep(BaseStep):
         files = []
 
         # Histograms (batched)
-        fig = create_trait_histograms_batched(df, trait_cols, traits_per_figure=9)
+        fig = create_trait_histograms_batched(df, trait_cols, batch_size=9)
         for i, subfig in enumerate(fig):
             files.extend(
                 self._save_figure(
@@ -250,7 +250,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 df,
                 trait_cols,
                 genotype_col=genotype_col,
-                traits_per_figure=6,
+                batch_size=6,
             )
             for i, subfig in enumerate(fig):
                 files.extend(
