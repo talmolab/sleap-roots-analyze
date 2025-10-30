@@ -370,12 +370,26 @@ class VizPipeline(BasePipeline):
         # Get both PCA and statistics results
         pca_result = kwargs.get("03_pca_analysis").data
         stats_result = kwargs.get("02_calculate_statistics").data
-        # Use PCA result as primary, but pass stats in metadata
-        result = self.step_7_identify_interesting_genotypes.execute(
+
+        # Merge PCA and stats metadata for step (needs heritability & ANOVA when implemented)
+        combined_result = StepResult(
             data=pca_result.data,
+            metadata={
+                **pca_result.metadata,
+                "heritability_results": stats_result.metadata.get(
+                    "heritability_results"
+                ),
+                "anova_results": stats_result.metadata.get("anova_results"),
+                "trait_statistics": stats_result.metadata.get("trait_statistics"),
+            },
+            files_generated=pca_result.files_generated,
+        )
+
+        result = self.step_7_identify_interesting_genotypes.execute(
+            data=combined_result.data,
             config=config,
             run_dir=run_dir,
-            prev_result=pca_result,
+            prev_result=combined_result,
         )
         return result
 
