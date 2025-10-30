@@ -6,7 +6,11 @@ import pytest
 from pathlib import Path
 import pandas as pd
 
-from sleap_roots_analyze.pipeline import QCPipeline, QCPipelineConfig, get_default_qc_config
+from sleap_roots_analyze.pipeline import (
+    QCPipeline,
+    QCPipelineConfig,
+    get_default_qc_config,
+)
 
 
 class TestQCPipelineCreation:
