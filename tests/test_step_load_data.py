@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from sleap_roots_analyze.pipeline import ColumnConfig, DataConfig, PipelineConfig
+from sleap_roots_analyze.pipeline import ColumnConfig, DataConfig, QCPipelineConfig
 from sleap_roots_analyze.pipeline.steps import LoadDataStep
 
 
@@ -29,7 +29,7 @@ def sample_csv(tmp_path):
 @pytest.fixture
 def config(sample_csv):
     """Create a test configuration."""
-    return PipelineConfig(
+    return QCPipelineConfig(
         pipeline_name="test_qc",
         columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
         data=DataConfig(csv_path=str(sample_csv)),
@@ -91,7 +91,7 @@ def test_load_data_step_inspection_file(config, tmp_path):
 
 def test_load_data_step_with_additional_exclude(sample_csv, tmp_path):
     """Test LoadDataStep with additional_exclude_cols."""
-    config = PipelineConfig(
+    config = QCPipelineConfig(
         pipeline_name="test_qc",
         columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
         data=DataConfig(csv_path=str(sample_csv), additional_exclude_cols=["trait2"]),
@@ -108,7 +108,7 @@ def test_load_data_step_with_additional_exclude(sample_csv, tmp_path):
 
 def test_load_data_step_missing_file(tmp_path):
     """Test LoadDataStep with missing CSV file."""
-    config = PipelineConfig(
+    config = QCPipelineConfig(
         pipeline_name="test_qc",
         columns=ColumnConfig(),
         data=DataConfig(csv_path="nonexistent.csv"),
@@ -127,7 +127,7 @@ def test_load_data_step_missing_required_columns(tmp_path):
     csv_path = tmp_path / "bad_data.csv"
     df.to_csv(csv_path, index=False)
 
-    config = PipelineConfig(
+    config = QCPipelineConfig(
         pipeline_name="test_qc",
         columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
         data=DataConfig(csv_path=str(csv_path)),

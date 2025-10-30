@@ -1,13 +1,15 @@
-"""Core abstractions for QC pipeline steps.
+"""Core abstractions for pipeline steps.
 
 This module provides the base classes and data structures for building
 modular, testable pipeline steps. These are higher-level abstractions
 built on top of the general DAG Task/TaskResult framework.
 
+All pipeline steps (both QC and Viz) extend BaseStep and return StepResult.
+
 Relationship with Task/TaskResult:
     - Task/TaskResult: General DAG framework (in task.py) - wraps any callable
-    - BaseStep/StepResult: QC-specific abstractions - domain logic for data processing
-    - QC pipeline steps extend BaseStep and return StepResult
+    - BaseStep/StepResult: Pipeline-specific abstractions - domain logic for data processing
+    - All pipeline steps (QC and Viz) extend BaseStep and return StepResult
     - These steps are wrapped in Tasks when building the pipeline DAG
 
 Example:
@@ -50,7 +52,7 @@ class StepResult:
 
 
 class BaseStep(ABC):
-    """Abstract base class for all QC pipeline steps.
+    """Abstract base class for all pipeline steps.
 
     Each step should:
     1. Execute a specific data processing operation

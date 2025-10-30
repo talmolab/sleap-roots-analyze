@@ -1,0 +1,116 @@
+# Visualization Pipeline Configuration: Publication
+#
+# This preset is optimized for publication-quality figures:
+# - High-DPI raster outputs (600 DPI)
+# - Vector formats (PDF, SVG) for journals
+# - Conservative figure sizes (journal column widths)
+# - Clean, presentation-ready plots
+# - Heritability filtering enabled (only highly heritable traits)
+# - No interactive plots (focus on static figures)
+#
+# Best for: Manuscript figures, journal submissions, presentations
+# Output formats: PNG (600 DPI), PDF, SVG, Markdown summary
+# Note: Larger file sizes due to high DPI
+
+# Pipeline metadata
+pipeline_name: "viz_publication"
+version: "1.0"
+
+# Data configuration
+data:
+  csv_path: ???  # REQUIRED: Path to your trait CSV file
+  image_dir: null
+
+# Column names
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+# Statistics configuration
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 10
+
+# UMAP configuration (optional for publications)
+umap:
+  enabled: false  # Can enable if needed for manuscript
+
+# Clustering configuration (optional)
+clustering:
+  enabled: false
+
+# Heritability filtering (ENABLED for publication)
+heritability:
+  enabled: true   # Only highly heritable traits
+  threshold: 0.60
+
+# Interesting genotypes
+interesting_genotypes:
+  enabled: true
+  methods:
+    - pc_extreme
+    - heritable_extreme  # Focus on heritable extremes for publications
+  pc_threshold: 2.0
+  trait_percentile: 97.5  # More stringent for publications
+  min_heritability: 0.70  # Higher threshold for publications
+  max_genotypes: 8
+  generate_image_grids: true
+  images_per_genotype: 6
+
+# Adaptive figure sizing (conservative for journals)
+adaptive_sizing:
+  enabled: true
+  base_width: 7.0    # Journal single column (~3.5") or double (~7")
+  base_height: 5.5   # Conservative aspect ratio
+  width_per_item: 1.8
+  height_per_item: 1.8
+  min_width: 3.5     # Journal single column minimum
+  max_width: 7.0     # Journal double column maximum
+  min_height: 3.0
+  max_height: 9.0
+
+# Static visualization settings (HIGH QUALITY)
+static_viz:
+  enabled: true
+  formats:
+    - png  # High-DPI raster
+    - pdf  # Vector for journals
+    - svg  # Vector for presentations/editing
+  dpi: 600  # Publication quality
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+
+# Interactive visualization (DISABLED for publications)
+interactive_viz:
+  enabled: false  # Focus on static figures
+
+# Dashboard generation (DISABLED)
+dashboard:
+  enabled: false
+
+# Summary report
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

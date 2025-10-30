@@ -1,4 +1,4 @@
-"""Example of a pipeline with parallel DAG branches.
+r"""Example of a pipeline with parallel DAG branches.
 
 This example demonstrates a more complex pipeline with parallel processing:
 
@@ -31,13 +31,13 @@ class ParallelFilterPipeline(BasePipeline):
     """Pipeline with parallel data filtering branches."""
 
     def create_tasks(self):
-        """Create tasks with parallel branches.
+        r"""Create tasks with parallel branches.
 
         DAG structure:
                 load_data
-               /    |    \\
+               /    |    \
           filter1 filter2 filter3
-               \\    |    /
+               \    |    /
                  merge
                    |
                 analyze

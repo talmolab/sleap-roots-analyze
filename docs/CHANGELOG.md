@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Visualization Pipeline** with DAG-based architecture for automated visualization workflows
+  - 10 new pipeline steps (PCAAnalysisStep, LoadDataAndImagesStep, UMAPAnalysisStep, ClusterAnalysisStep, etc.)
+  - 4 configuration presets: minimal, standard, comprehensive, publication
+  - Example scripts and comprehensive documentation
+- **Unified pipeline architecture** with modular configuration system
+  - Reorganized config into reusable components (25 components in `config/components.py`)
+  - Composition-based config for QC and Viz pipelines
+  - All steps unified in single `pipeline/steps/` directory
+  - Pipeline orchestrators in `pipeline/pipelines/` subdirectory
+- **Adaptive sizing utilities** (`viz_utils.py`) for automatic plot dimension calculations
+  - `calculate_figure_size()` with layout-aware sizing (single, horizontal, vertical, grid)
+  - `calculate_grid_dimensions()` for optimal subplot layouts
+  - `calculate_subplot_grid_size()` for multi-trait plots
+  - `calculate_correlation_matrix_size()` and `calculate_barplot_size()` for specific plot types
+  - 347 comprehensive tests for adaptive sizing functions
+- **Comprehensive test coverage improvements**
+  - PCAAnalysisStep: 31% → 100% coverage (11 new tests)
+  - RemoveOutliersStep: 55% → 100% coverage (17 new tests)
+  - Overall pipeline coverage improved from 66% to 68%
+  - Tests cover all removal strategies, feature selection methods, edge cases, and file outputs
 - **Effect size-based goodness-of-fit evaluation** for large samples (n > 500) in Mahalanobis outlier detection
   - K-S test becomes hypersensitive with large n, now uses K-S statistic magnitude instead of p-values
   - New thresholds: excellent (<0.05), good (<0.10), acceptable (<0.15), poor (<0.20), very poor (≥0.20)

@@ -13,13 +13,13 @@ from sleap_roots_analyze.pipeline.config import (
     LoggingConfig,
     OutlierDetectionConfig,
     PCAConfig,
-    PipelineConfig,
+    QCPipelineConfig,
     VisualizationConfig,
-    get_default_config,
-    load_config,
-    merge_configs,
-    save_config,
-    validate_config,
+    get_default_qc_config,
+    load_qc_config,
+    merge_qc_configs,
+    save_qc_config,
+    validate_qc_config,
 )
 
 
@@ -64,14 +64,15 @@ def test_pca_config_defaults():
 def test_clustering_config_creation():
     """Test creating a ClusteringConfig."""
     config = ClusteringConfig(
-        method="gmm",
+        enabled=True,
+        methods=["gmm"],
         n_clusters=5,
         auto_optimize=True,
         min_clusters=2,
         max_clusters=8,
     )
 
-    assert config.method == "gmm"
+    assert config.methods == ["gmm"]
     assert config.n_clusters == 5
     assert config.auto_optimize is True
     assert config.min_clusters == 2
@@ -101,8 +102,8 @@ def test_logging_config_defaults():
 
 
 def test_pipeline_config_creation():
-    """Test creating a PipelineConfig."""
-    config = PipelineConfig(
+    """Test creating a QCPipelineConfig."""
+    config = QCPipelineConfig(
         pipeline_name="test_pipeline",
         version="2.0",
     )
@@ -117,7 +118,7 @@ def test_pipeline_config_creation():
 
 def test_get_default_config():
     """Test getting a default configuration."""
-    config = get_default_config("my_pipeline")
+    config = get_default_qc_config("my_pipeline")
 
     assert config.pipeline_name == "my_pipeline"
     assert config.version == "1.0"
@@ -127,7 +128,7 @@ def test_get_default_config():
 def test_save_and_load_config(tmp_path):
     """Test saving and loading configuration."""
     # Create a config
-    original = PipelineConfig(
+    original = QCPipelineConfig(
         pipeline_name="test",
         version="1.5",
     )
@@ -137,12 +138,12 @@ def test_save_and_load_config(tmp_path):
 
     # Save
     config_path = tmp_path / "config.yaml"
-    save_config(original, config_path)
+    save_qc_config(original, config_path)
 
     assert config_path.exists()
 
     # Load
-    loaded = load_config(config_path)
+    loaded = load_qc_config(config_path)
 
     assert loaded.pipeline_name == "test"
     assert loaded.version == "1.5"
@@ -152,19 +153,19 @@ def test_save_and_load_config(tmp_path):
 
 
 def test_save_config_creates_directory(tmp_path):
-    """Test that save_config creates parent directories."""
-    config = get_default_config("test")
+    """Test that save_qc_config creates parent directories."""
+    config = get_default_qc_config("test")
     config.data.csv_path = "data.csv"
 
     config_path = tmp_path / "nested" / "dir" / "config.yaml"
-    save_config(config, config_path)
+    save_qc_config(config, config_path)
 
     assert config_path.exists()
 
 
 def test_merge_configs():
     """Test merging configurations."""
-    base = get_default_config("base")
+    base = get_default_qc_config("base")
     base.data.csv_path = "base.csv"
     base.pca.n_components = 0.95
 
@@ -173,7 +174,7 @@ def test_merge_configs():
         "pca": {"n_components": 0.8},
     }
 
-    merged = merge_configs(base, overrides)
+    merged = merge_qc_configs(base, overrides)
 
     # Overridden values
     assert merged.data.csv_path == "override.csv"
@@ -186,7 +187,7 @@ def test_merge_configs():
 
 def test_merge_configs_nested():
     """Test merging with nested overrides."""
-    base = get_default_config("test")
+    base = get_default_qc_config("test")
     base.data.csv_path = "base.csv"
 
     overrides = {
@@ -196,7 +197,7 @@ def test_merge_configs_nested():
         }
     }
 
-    merged = merge_configs(base, overrides)
+    merged = merge_qc_configs(base, overrides)
 
     assert merged.outlier_detection.traditional_methods == ["pca", "mahalanobis"]
     assert merged.outlier_detection.pca.explained_variance == 0.90
@@ -206,7 +207,7 @@ def test_merge_configs_nested():
 
 def test_validate_config_valid():
     """Test validating a valid configuration."""
-    config = PipelineConfig(
+    config = QCPipelineConfig(
         pipeline_name="test",
     )
     config.data.csv_path = "data.csv"
@@ -215,44 +216,44 @@ def test_validate_config_valid():
     config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     # Should not raise
-    validate_config(config)
+    validate_qc_config(config)
 
 
 def test_validate_config_missing_pipeline_name():
     """Test validation fails for missing pipeline_name."""
-    config = PipelineConfig(
+    config = QCPipelineConfig(
         pipeline_name=MISSING,
     )
     config.data.csv_path = "data.csv"
 
     with pytest.raises(ValueError, match="pipeline_name is required"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_missing_csv_path():
     """Test validation fails for missing csv_path."""
-    config = PipelineConfig(
+    config = QCPipelineConfig(
         pipeline_name="test",
     )
     # data.csv_path is MISSING by default
 
     with pytest.raises(ValueError, match="data.csv_path is required"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_invalid_traditional_outlier_method():
     """Test validation fails for invalid traditional outlier detection method."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     config.outlier_detection.traditional_methods = ["invalid"]
 
     with pytest.raises(ValueError, match="traditional_methods contains invalid method"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_valid_outlier_methods():
     """Test validation passes for all valid outlier methods."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
 
     # Test traditional methods
@@ -261,38 +262,38 @@ def test_validate_config_valid_outlier_methods():
         "isolation_forest",
         "mahalanobis",
     ]
-    validate_config(config)  # Should not raise
+    validate_qc_config(config)  # Should not raise
 
     # Test clustering methods
     config.outlier_detection.traditional_methods = []
     config.outlier_detection.clustering_methods = ["kmeans", "gmm", "hierarchical"]
     config.outlier_removal.method = "kmeans"  # Update to match clustering methods
-    validate_config(config)  # Should not raise
+    validate_qc_config(config)  # Should not raise
 
 
 def test_validate_config_invalid_pca_components():
     """Test validation fails for invalid PCA components."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     config.pca.n_components = -1
 
     with pytest.raises(ValueError, match="pca.n_components must be positive"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_invalid_pca_strategy():
     """Test validation fails for invalid PCA feature selection strategy."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     config.pca.feature_selection_strategy = "invalid"
 
     with pytest.raises(ValueError, match="pca.feature_selection_strategy"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_valid_pca_strategies():
     """Test validation passes for all valid PCA strategies."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     # Need to configure at least one outlier detection method
     config.outlier_detection.traditional_methods = ["mahalanobis"]
@@ -304,60 +305,62 @@ def test_validate_config_valid_pca_strategies():
         "top_variance",
     ]:
         config.pca.feature_selection_strategy = strategy
-        validate_config(config)  # Should not raise
+        validate_qc_config(config)  # Should not raise
 
 
 def test_validate_config_invalid_clustering_method():
     """Test validation fails for invalid clustering method."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     config.clustering.method = "invalid"
 
     with pytest.raises(ValueError, match="clustering.method"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_valid_clustering_methods():
     """Test validation passes for all valid clustering methods."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     # Need to configure at least one outlier detection method
     config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for method in ["kmeans", "gmm", "hierarchical"]:
         config.clustering.method = method
-        validate_config(config)  # Should not raise
+        validate_qc_config(config)  # Should not raise
 
 
 def test_validate_config_invalid_n_clusters():
     """Test validation fails for invalid number of clusters."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
+    config.clustering.enabled = True
+    config.clustering.methods = ["kmeans"]
     config.clustering.n_clusters = 1
 
     with pytest.raises(ValueError, match="clustering.n_clusters"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_invalid_logging_level():
     """Test validation fails for invalid logging level."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     # Need to configure at least one outlier detection method
     config.outlier_detection.traditional_methods = ["mahalanobis"]
     config.logging.level = "INVALID"
 
     with pytest.raises(ValueError, match="logging.level"):
-        validate_config(config)
+        validate_qc_config(config)
 
 
 def test_validate_config_valid_logging_levels():
     """Test validation passes for all valid logging levels."""
-    config = PipelineConfig(pipeline_name="test")
+    config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
     # Need to configure at least one outlier detection method
     config.outlier_detection.traditional_methods = ["mahalanobis"]
 
     for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
         config.logging.level = level
-        validate_config(config)  # Should not raise
+        validate_qc_config(config)  # Should not raise

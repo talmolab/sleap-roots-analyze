@@ -16,7 +16,7 @@ class TaskResult:
     """Result of executing a pipeline task.
 
     Attributes:
-        data: The primary output data from the task. In QC pipeline steps, this
+        data: The primary output data from the task. For pipeline steps, this
             typically contains a StepResult object. Access via task_result.data
             to get the StepResult.
         metadata: Dictionary of metadata about the task execution (e.g., timing,

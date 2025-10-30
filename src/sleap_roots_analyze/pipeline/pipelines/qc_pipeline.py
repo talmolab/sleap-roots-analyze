@@ -9,8 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List
 
-from sleap_roots_analyze.pipeline.config import PipelineConfig, validate_config
-from sleap_roots_analyze.pipeline.pipeline import BasePipeline
+from sleap_roots_analyze.pipeline.config import QCPipelineConfig, validate_qc_config
+from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
 from sleap_roots_analyze.pipeline.steps.load_data import LoadDataStep
 from sleap_roots_analyze.pipeline.steps.cleanup_traits import CleanupTraitsStep
@@ -49,7 +49,7 @@ class QCPipeline(BasePipeline):
     and dependency management.
 
     Args:
-        config: PipelineConfig object with all configuration settings.
+        config: QCPipelineConfig object with all configuration settings.
         output_dir: Directory for pipeline outputs. A timestamped subdirectory
             will be created for this run.
         validate: Whether to validate configuration before execution (default: True).
@@ -65,14 +65,14 @@ class QCPipeline(BasePipeline):
 
     def __init__(
         self,
-        config: PipelineConfig,
+        config: QCPipelineConfig,
         output_dir: str | Path = "./qc_runs",
         validate: bool = True,
     ):
         """Initialize the QC pipeline.
 
         Args:
-            config: PipelineConfig object.
+            config: QCPipelineConfig object.
             output_dir: Directory for pipeline outputs.
             validate: Whether to validate config before execution.
 
@@ -81,7 +81,7 @@ class QCPipeline(BasePipeline):
         """
         # Validate configuration if requested
         if validate:
-            validate_config(config)
+            validate_qc_config(config)
 
         # Initialize base pipeline
         super().__init__(
