@@ -195,24 +195,36 @@ class GenerateStaticFiguresStep(BaseStep):
         # Biplot
         genotype_col = config.columns.genotype
         fig = create_pca_biplot(
-            pca_results, df=df, genotype_col=genotype_col, n_features=10
+            pca_results,
+            df=df,
+            trait_names=trait_cols,
+            color_by=genotype_col,
+            top_n_features=10,
         )
         files.extend(self._save_figure(fig, "pca_biplot", output_dir, formats, dpi))
         plt.close(fig)
 
-        # Feature contribution heatmap
-        fig = create_feature_contribution_heatmap(pca_results, top_n=20)
+        # Feature contribution heatmap (returns tuple of 2 figures)
+        variance_fig, loadings_fig = create_feature_contribution_heatmap(
+            pca_results, n_features=20
+        )
         files.extend(
             self._save_figure(
-                fig, "pca_feature_contributions", output_dir, formats, dpi
+                variance_fig, "pca_feature_variance", output_dir, formats, dpi
             )
         )
-        plt.close(fig)
+        files.extend(
+            self._save_figure(
+                loadings_fig, "pca_feature_loadings", output_dir, formats, dpi
+            )
+        )
+        plt.close(variance_fig)
+        plt.close(loadings_fig)
 
         # PC boxplots by genotype
         if "pc_scores" in pca_results and genotype_col in df.columns:
             fig = create_pc_genotype_boxplots(
-                pca_results["pc_scores"], df, genotype_col=genotype_col, n_pcs=3
+                pca_results, df, genotype_col=genotype_col, n_components=3
             )
             files.extend(
                 self._save_figure(fig, "pca_pc_boxplots", output_dir, formats, dpi)

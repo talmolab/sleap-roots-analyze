@@ -10,3 +10,4 @@ if project_root not in sys.path:
 
 # Import all fixtures from centralized fixtures file
 from tests.fixtures import *  # noqa: F401, F403
+from tests.fixtures_visualization import *  # noqa: F401, F403
