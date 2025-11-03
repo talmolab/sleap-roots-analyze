@@ -172,12 +172,11 @@ class GenerateInteractiveStep(BaseStep):
         # Interactive PCA scatter (basic)
         if "pc_scores" in pca_results:
             fig = create_interactive_pca_plot(
-                pca_results["pc_scores"],
+                pca_results,
                 df,
-                genotype_col=genotype_col,
-                title="Interactive PCA Visualization",
+                color_by=genotype_col,
             )
-            filepath = output_dir / "pca_interactive.html"
+            filepath = output_dir / "interactive_pca.html"
             fig.write_html(filepath)
             files.append(filepath)
 
@@ -216,16 +215,15 @@ class GenerateInteractiveStep(BaseStep):
 
         files = []
         genotype_col = config.columns.genotype
-        embedding = umap_results["embedding"]
 
         # Interactive UMAP with hover highlighting
         fig = create_interactive_umap_with_hover_highlight(
-            embedding,
+            umap_results,
             df,
             genotype_col=genotype_col,
             title="Interactive UMAP Visualization",
         )
-        filepath = output_dir / "umap_interactive.html"
+        filepath = output_dir / "interactive_umap.html"
         fig.write_html(filepath)
         files.append(filepath)
 

@@ -293,7 +293,7 @@ class GenerateDashboardsStep(BaseStep):
 </body>
 </html>
 """
-        output_path.write_text(html)
+        output_path.write_text(html, encoding="utf-8")
 
     def _generate_figure_cards(
         self, figures: list, run_dir: Path, category: str

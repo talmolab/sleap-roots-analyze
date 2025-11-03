@@ -74,7 +74,7 @@ def mock_umap_results():
     n_samples = 50
 
     return {
-        "umap_embedding": np.random.randn(n_samples, 2),
+        "embedding": np.random.randn(n_samples, 2),
         "n_neighbors": 15,
         "min_dist": 0.1,
         "metric": "euclidean",
@@ -193,11 +193,14 @@ def interactive_viz_config_enabled():
 @pytest.fixture
 def interactive_viz_config_disabled():
     """QCPipelineConfig with interactive visualization disabled."""
-    from sleap_roots_analyze.pipeline.config import QCPipelineConfig
+    from sleap_roots_analyze.pipeline.config import (
+        QCPipelineConfig,
+        InteractiveVisualizationConfig,
+    )
 
     config = QCPipelineConfig(pipeline_name="test_interactive_viz_disabled")
     config.data.csv_path = "dummy.csv"
-    config.interactive_viz.enabled = False
+    config.interactive_viz = InteractiveVisualizationConfig(enabled=False)
     return config
 
 
@@ -213,9 +216,8 @@ def dashboard_config_enabled():
     config.data.csv_path = "dummy.csv"
     config.dashboard = DashboardConfig(
         enabled=True,
-        include_summary=True,
-        include_figures=True,
-        include_file_list=True,
+        create_summary_dashboard=True,
+        create_trait_dashboard=False,
     )
     return config
 
@@ -223,11 +225,14 @@ def dashboard_config_enabled():
 @pytest.fixture
 def dashboard_config_disabled():
     """QCPipelineConfig with dashboard generation disabled."""
-    from sleap_roots_analyze.pipeline.config import QCPipelineConfig
+    from sleap_roots_analyze.pipeline.config import (
+        QCPipelineConfig,
+        DashboardConfig,
+    )
 
     config = QCPipelineConfig(pipeline_name="test_dashboard_disabled")
     config.data.csv_path = "dummy.csv"
-    config.dashboard.enabled = False
+    config.dashboard = DashboardConfig(enabled=False)
     return config
 
 
@@ -367,9 +372,9 @@ def verify_html_structure(html_path: Path) -> bool:
     Returns:
         True if file contains basic HTML structure.
     """
-    content = html_path.read_text()
+    content = html_path.read_text(encoding="utf-8")
     return (
-        "<html>" in content.lower()
+        "<html" in content.lower()  # Changed to allow attributes like lang="en"
         and "</html>" in content.lower()
         and "<body>" in content.lower()
     )
