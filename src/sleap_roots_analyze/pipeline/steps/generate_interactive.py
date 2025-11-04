@@ -98,7 +98,8 @@ class GenerateInteractiveStep(BaseStep):
         generated_files = []
 
         try:
-            # Import interactive visualization functions (deferred to avoid plotly dependency issues)
+            # Import interactive visualization functions
+            # (deferred to avoid plotly dependency issues)
             from sleap_roots_analyze.interactive_visualization import (
                 create_interactive_pca_plot,
                 create_interactive_pca_with_images,

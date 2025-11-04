@@ -277,7 +277,8 @@ class TestGenerateInteractiveDependencyHandling:
         tmp_path,
     ):
         """Test graceful handling when plotly is not available."""
-        # Mock module unavailable - this will cause ImportError when trying to import from it
+        # Mock module unavailable - this will cause ImportError
+        # when trying to import from it
 
         step = GenerateInteractiveStep()
 
