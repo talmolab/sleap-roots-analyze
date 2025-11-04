@@ -199,14 +199,14 @@ class GenerateStaticFiguresStep(BaseStep):
             df=df,
             trait_names=trait_cols,
             color_by=genotype_col,
-            top_n_features=10,
+            top_n_features=config.static_viz.pca_biplot_top_features,
         )
         files.extend(self._save_figure(fig, "pca_biplot", output_dir, formats, dpi))
         plt.close(fig)
 
         # Feature contribution heatmap (returns tuple of 2 figures)
         variance_fig, loadings_fig = create_feature_contribution_heatmap(
-            pca_results, n_features=20
+            pca_results, n_features=config.static_viz.pca_heatmap_features
         )
         files.extend(
             self._save_figure(
@@ -246,7 +246,9 @@ class GenerateStaticFiguresStep(BaseStep):
         files = []
 
         # Histograms (batched)
-        fig = create_trait_histograms_batched(df, trait_cols, batch_size=9)
+        fig = create_trait_histograms_batched(
+            df, trait_cols, batch_size=config.static_viz.histogram_batch_size
+        )
         for i, subfig in enumerate(fig):
             files.extend(
                 self._save_figure(
@@ -262,7 +264,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 df,
                 trait_cols,
                 genotype_col=genotype_col,
-                batch_size=6,
+                batch_size=config.static_viz.boxplot_batch_size,
             )
             for i, subfig in enumerate(fig):
                 files.extend(
