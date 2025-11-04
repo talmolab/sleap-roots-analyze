@@ -93,7 +93,7 @@ class TestGenerateDashboardsBasic:
         """Test that dashboard.html file is created."""
         step = GenerateDashboardsStep()
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=prev_result_with_generated_figures.metadata["static_figures"][
@@ -126,7 +126,7 @@ class TestGenerateDashboardsHTMLStructure:
             0
         ].parent.parent
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=run_dir,
@@ -150,7 +150,7 @@ class TestGenerateDashboardsHTMLStructure:
             0
         ].parent.parent
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=run_dir,
@@ -183,7 +183,7 @@ class TestGenerateDashboardsHTMLStructure:
             0
         ].parent.parent
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=run_dir,
@@ -256,7 +256,11 @@ class TestGenerateDashboardsWithStaticFigures:
         assert any(f.name in content for f in static_files)
 
     def test_dashboard_with_no_static_figures(
-        self, dashboard_config_enabled, sample_trait_data, prev_result_minimal, tmp_path
+        self,
+        dashboard_config_enabled,
+        sample_trait_data,
+        prev_result_minimal,
+        tmp_path,
     ):
         """Test dashboard generation when no static figures exist."""
         step = GenerateDashboardsStep()
