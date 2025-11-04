@@ -18,15 +18,35 @@ class GenerateInteractiveStep(BaseStep):
 
     Creates interactive HTML visualizations based on configuration:
     - Interactive PCA plots with hover data
-    - Interactive UMAP plots with image tooltips
+    - Interactive UMAP plots with hover highlighting
     - Interactive scatter plots with genotype selection
+    - Optional image tooltips on hover
 
     All figures are saved as standalone HTML files that can be
     opened in any web browser.
 
+    Configuration:
+        Control figure generation via config.interactive_viz:
+        - enabled: Enable/disable step
+        - create_pca_plots: Generate interactive PCA visualizations
+        - create_umap_plots: Generate interactive UMAP visualizations
+        - show_images_on_hover: Show image thumbnails on hover (requires image_paths)
+
     Outputs:
         - interactive_figures/*.html: Generated interactive plots
         - 10_interactive_figures_manifest.json: List of generated files
+
+    Example:
+        ```python
+        config.interactive_viz.enabled = True
+        config.interactive_viz.create_pca_plots = True
+        config.interactive_viz.show_images_on_hover = True
+
+        step = GenerateInteractiveStep()
+        result = step.execute(data, config, run_dir, prev_result)
+
+        # Open in browser: open interactive_figures/interactive_pca.html
+        ```
     """
 
     def __init__(self):

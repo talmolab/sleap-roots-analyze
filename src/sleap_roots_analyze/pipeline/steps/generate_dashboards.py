@@ -20,9 +20,33 @@ class GenerateDashboardsStep(BaseStep):
     and interactive figures, providing a central navigation point
     for all pipeline outputs.
 
+    Features:
+    - Summary statistics cards (sample counts, figure counts)
+    - Figure gallery with thumbnails/links
+    - File listing with download links
+    - Responsive CSS styling with gradient theme
+    - Automatic detection of all generated figures
+
+    Configuration:
+        Control dashboard generation via config.dashboard:
+        - enabled: Enable/disable step
+        - create_summary_dashboard: Create main summary dashboard
+        - create_trait_dashboard: Create per-trait dashboards (future)
+
     Outputs:
         - dashboard.html: Main dashboard HTML file
         - 11_dashboard_manifest.json: Dashboard generation metadata
+
+    Example:
+        ```python
+        config.dashboard.enabled = True
+        config.dashboard.create_summary_dashboard = True
+
+        step = GenerateDashboardsStep()
+        result = step.execute(data, config, run_dir, prev_result)
+
+        # Open in browser: open dashboard.html
+        ```
     """
 
     def __init__(self):

@@ -37,9 +37,35 @@ class GenerateStaticFiguresStep(BaseStep):
     All figures are saved in configurable formats (PNG, PDF, SVG) with
     publication-quality DPI settings.
 
+    Configuration:
+        Control figure generation via config.static_viz:
+        - enabled: Enable/disable step
+        - formats: Output formats ['png', 'pdf', 'svg']
+        - dpi: Resolution (default: 300)
+        - create_pca_plots: Generate PCA visualizations
+        - create_trait_distributions: Generate histograms/boxplots
+        - create_trait_correlations: Generate correlation heatmaps
+        - create_heritability_plots: Generate heritability plots
+        - pca_biplot_top_features: Top features in biplot (default: 10)
+        - pca_heatmap_features: Features in heatmap (default: 20)
+        - pca_n_components: PCs in boxplots (default: 3)
+        - histogram_batch_size: Traits per histogram (default: 9)
+        - boxplot_batch_size: Traits per boxplot (default: 6)
+
     Outputs:
         - static_figures/*.{png,pdf,svg}: Generated figures
         - 09_static_figures_manifest.json: List of generated files
+
+    Example:
+        ```python
+        config.static_viz.enabled = True
+        config.static_viz.formats = ['png', 'pdf']
+        config.static_viz.create_pca_plots = True
+        config.static_viz.pca_biplot_top_features = 15
+
+        step = GenerateStaticFiguresStep()
+        result = step.execute(data, config, run_dir, prev_result)
+        ```
     """
 
     def __init__(self):
@@ -224,7 +250,10 @@ class GenerateStaticFiguresStep(BaseStep):
         # PC boxplots by genotype
         if "pc_scores" in pca_results and genotype_col in df.columns:
             fig = create_pc_genotype_boxplots(
-                pca_results, df, genotype_col=genotype_col, n_components=3
+                pca_results,
+                df,
+                genotype_col=genotype_col,
+                n_components=config.static_viz.pca_n_components,
             )
             files.extend(
                 self._save_figure(fig, "pca_pc_boxplots", output_dir, formats, dpi)
