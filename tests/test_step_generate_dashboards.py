@@ -209,7 +209,7 @@ class TestGenerateDashboardsHTMLStructure:
             0
         ].parent.parent
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=run_dir,
@@ -240,7 +240,7 @@ class TestGenerateDashboardsWithStaticFigures:
             0
         ].parent.parent
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=run_dir,
@@ -265,7 +265,7 @@ class TestGenerateDashboardsWithStaticFigures:
         """Test dashboard generation when no static figures exist."""
         step = GenerateDashboardsStep()
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=tmp_path,
@@ -297,7 +297,7 @@ class TestGenerateDashboardsWithInteractiveFigures:
             0
         ].parent.parent
 
-        result = step.execute(
+        step.execute(
             data=sample_trait_data,
             config=dashboard_config_enabled,
             run_dir=run_dir,
