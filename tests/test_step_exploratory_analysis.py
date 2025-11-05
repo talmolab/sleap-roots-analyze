@@ -113,7 +113,10 @@ class TestExploratoryAnalysisStepBasic:
         step = ExploratoryAnalysisStep()
 
         assert step.step_name == "ExploratoryAnalysis"
-        assert "eda" in step.description.lower() or "exploratory" in step.description.lower()
+        assert (
+            "eda" in step.description.lower()
+            or "exploratory" in step.description.lower()
+        )
 
     def test_basic_execution(self, sample_data, config, prev_result, tmp_path):
         """Test basic step execution generates outputs."""
@@ -140,7 +143,9 @@ class TestExploratoryAnalysisStepBasic:
         # Check files generated
         assert len(result.files_generated) > 0
 
-    def test_figures_directory_created(self, sample_data, config, prev_result, tmp_path):
+    def test_figures_directory_created(
+        self, sample_data, config, prev_result, tmp_path
+    ):
         """Test that figures directory is created."""
         step = ExploratoryAnalysisStep()
 
@@ -373,7 +378,12 @@ class TestExploratoryAnalysisMetadataPropagation:
         assert "trait_names" in result.metadata
         assert "valid_trait_names" in result.metadata
         assert result.metadata["trait_names"] == result.metadata["valid_trait_names"]
-        assert result.metadata["trait_names"] == ["trait1", "trait2", "trait3", "trait4"]
+        assert result.metadata["trait_names"] == [
+            "trait1",
+            "trait2",
+            "trait3",
+            "trait4",
+        ]
 
     def test_sample_count_propagation(self, sample_data, config, prev_result, tmp_path):
         """Test that sample count is correctly recorded."""

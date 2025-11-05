@@ -189,9 +189,7 @@ class TestDetectOutliersStepMetadata:
         assert result.metadata["trait_names"] == ["trait1", "trait2", "trait3"]
         assert result.metadata["valid_trait_names"] == ["trait1", "trait2", "trait3"]
 
-    def test_sample_count(
-        self, sample_data, config_no_methods, prev_result, tmp_path
-    ):
+    def test_sample_count(self, sample_data, config_no_methods, prev_result, tmp_path):
         """Test that sample count is recorded."""
         step = DetectOutliersStep()
 
