@@ -228,3 +228,5 @@ cleanup_diff.txt
 
 # Analysis output directories
 runs/
+qc_runs/
+viz_runs/
