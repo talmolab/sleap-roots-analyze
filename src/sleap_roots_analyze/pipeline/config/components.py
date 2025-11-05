@@ -364,6 +364,11 @@ class StaticVisualizationConfig:
         create_trait_correlations: Whether to create correlation plots.
         create_heritability_plots: Whether to create heritability plots.
         create_genotype_comparisons: Whether to create genotype comparison plots.
+        pca_biplot_top_features: Number of top features to show in PCA biplot (default: 10).
+        pca_heatmap_features: Number of features to show in PCA contribution heatmap (default: 20).
+        pca_n_components: Number of principal components to show in PC boxplots (default: 3).
+        histogram_batch_size: Number of traits per histogram figure (default: 9).
+        boxplot_batch_size: Number of traits per boxplot figure (default: 6).
     """
 
     enabled: bool = True
@@ -376,6 +381,12 @@ class StaticVisualizationConfig:
     create_trait_correlations: bool = True
     create_heritability_plots: bool = True
     create_genotype_comparisons: bool = True
+    # Visualization parameters
+    pca_biplot_top_features: int = 10
+    pca_heatmap_features: int = 20
+    pca_n_components: int = 3
+    histogram_batch_size: int = 9
+    boxplot_batch_size: int = 6
 
 
 @dataclass

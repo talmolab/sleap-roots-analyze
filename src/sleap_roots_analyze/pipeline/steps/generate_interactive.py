@@ -1,10 +1,10 @@
-"""Step 10: Generate interactive visualizations (stub - to be implemented in Phase 2B)."""
+"""Step 10: Generate interactive visualizations."""
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -14,28 +14,238 @@ logger = logging.getLogger(__name__)
 
 
 class GenerateInteractiveStep(BaseStep):
-    """Generate interactive visualizations with image hover (Phase 2B)."""
+    """Generate interactive Plotly visualizations.
+
+    Creates interactive HTML visualizations based on configuration:
+    - Interactive PCA plots with hover data
+    - Interactive UMAP plots with hover highlighting
+    - Interactive scatter plots with genotype selection
+    - Optional image tooltips on hover
+
+    All figures are saved as standalone HTML files that can be
+    opened in any web browser.
+
+    Configuration:
+        Control figure generation via config.interactive_viz:
+        - enabled: Enable/disable step
+        - create_pca_plots: Generate interactive PCA visualizations
+        - create_umap_plots: Generate interactive UMAP visualizations
+        - show_images_on_hover: Show image thumbnails on hover (requires image_paths)
+
+    Outputs:
+        - interactive_figures/*.html: Generated interactive plots
+        - 10_interactive_figures_manifest.json: List of generated files
+
+    Example:
+        ```python
+        config.interactive_viz.enabled = True
+        config.interactive_viz.create_pca_plots = True
+        config.interactive_viz.show_images_on_hover = True
+
+        step = GenerateInteractiveStep()
+        result = step.execute(data, config, run_dir, prev_result)
+
+        # Open in browser: open interactive_figures/interactive_pca.html
+        ```
+    """
+
+    def __init__(self):
+        """Initialize GenerateInteractiveStep."""
+        super().__init__(
+            step_name="GenerateInteractive",
+            description="Generate interactive Plotly visualizations",
+        )
 
     def execute(
         self,
-        data: pd.DataFrame,
-        config,
+        data: Any,
+        config: Any,
         run_dir: Path,
-        prev_result: StepResult,
+        prev_result: Optional[StepResult] = None,
     ) -> StepResult:
-        """Execute interactive visualization generation (stub)."""
+        """Execute interactive figure generation.
+
+        Args:
+            data: DataFrame with trait data.
+            config: Pipeline configuration with interactive_viz settings.
+            run_dir: Directory to save outputs.
+            prev_result: Result from previous step (contains PCA, UMAP, images).
+
+        Returns:
+            StepResult with DataFrame and list of generated HTML paths.
+        """
         if not config.interactive_viz.enabled:
             logger.info("Interactive visualization disabled, skipping")
             return StepResult(
                 data=data,
-                metadata=prev_result.metadata,
+                metadata=prev_result.metadata if prev_result else {},
             )
 
-        # TODO: Implement in Phase 2B
-        logger.warning(
-            "Interactive visualization generation not yet implemented (Phase 2B)"
+        logger.info("Generating interactive visualizations...")
+        df = data.copy()
+
+        # Create output directory
+        figures_dir = run_dir / "interactive_figures"
+        figures_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get metadata from previous steps
+        metadata = prev_result.metadata if prev_result else {}
+        pca_results = metadata.get("pca_results")
+        umap_results = metadata.get("umap_results")
+        image_paths = metadata.get("image_paths")
+
+        # Track generated files
+        generated_files = []
+
+        try:
+            # Import interactive visualization functions
+            # (deferred to avoid plotly dependency issues)
+            from sleap_roots_analyze.interactive_visualization import (
+                create_interactive_pca_plot,
+                create_interactive_pca_with_images,
+                create_interactive_umap_with_hover_highlight,
+            )
+
+            # 1. Interactive PCA plots
+            if config.interactive_viz.create_pca_plots and pca_results:
+                logger.info("  Creating interactive PCA plots...")
+                generated_files.extend(
+                    self._create_interactive_pca(
+                        df,
+                        pca_results,
+                        image_paths,
+                        config,
+                        figures_dir,
+                    )
+                )
+
+            # 2. Interactive UMAP plots
+            if (
+                config.interactive_viz.create_umap_plots
+                and umap_results
+                and "embedding" in umap_results
+            ):
+                logger.info("  Creating interactive UMAP plots...")
+                generated_files.extend(
+                    self._create_interactive_umap(
+                        df,
+                        umap_results,
+                        image_paths,
+                        config,
+                        figures_dir,
+                    )
+                )
+
+            logger.info(f"Generated {len(generated_files)} interactive figures")
+
+            # Save manifest
+            manifest = {
+                "total_figures": len(generated_files),
+                "files": [str(f.relative_to(run_dir)) for f in generated_files],
+            }
+            manifest_file = self.save_json(
+                manifest, "10_interactive_figures_manifest.json", run_dir
+            )
+
+            # Update metadata
+            new_metadata = {
+                **metadata,
+                "interactive_figures": generated_files,
+                "interactive_figures_manifest": manifest,
+            }
+
+            return StepResult(
+                data=df,
+                metadata=new_metadata,
+                files_generated=[manifest_file] + generated_files,
+            )
+
+        except ImportError as e:
+            logger.warning(
+                f"Interactive visualization requires plotly: {e}. Skipping..."
+            )
+            return StepResult(
+                data=df,
+                metadata=metadata,
+            )
+        except Exception as e:
+            logger.error(f"Error generating interactive figures: {e}")
+            raise
+
+    def _create_interactive_pca(
+        self,
+        df: pd.DataFrame,
+        pca_results: dict,
+        image_paths: Optional[pd.Series],
+        config: Any,
+        output_dir: Path,
+    ) -> list[Path]:
+        """Create interactive PCA plots."""
+        from sleap_roots_analyze.interactive_visualization import (
+            create_interactive_pca_plot,
+            create_interactive_pca_with_images,
         )
-        return StepResult(
-            data=data,
-            metadata=prev_result.metadata,
+
+        files = []
+        genotype_col = config.columns.genotype
+        barcode_col = config.columns.barcode
+
+        # Interactive PCA scatter (basic)
+        if "pc_scores" in pca_results:
+            fig = create_interactive_pca_plot(
+                pca_results,
+                df,
+                color_by=genotype_col,
+            )
+            filepath = output_dir / "interactive_pca.html"
+            fig.write_html(filepath)
+            files.append(filepath)
+
+        # Interactive PCA with image hover (if images available)
+        if (
+            config.interactive_viz.show_images_on_hover
+            and image_paths is not None
+            and "pc_scores" in pca_results
+        ):
+            fig = create_interactive_pca_with_images(
+                pca_results["pc_scores"],
+                df,
+                image_paths,
+                genotype_col=genotype_col,
+                id_col=barcode_col,
+                title="Interactive PCA with Image Hover",
+            )
+            filepath = output_dir / "pca_with_images.html"
+            fig.write_html(filepath)
+            files.append(filepath)
+
+        return files
+
+    def _create_interactive_umap(
+        self,
+        df: pd.DataFrame,
+        umap_results: dict,
+        image_paths: Optional[pd.Series],
+        config: Any,
+        output_dir: Path,
+    ) -> list[Path]:
+        """Create interactive UMAP plots."""
+        from sleap_roots_analyze.interactive_visualization import (
+            create_interactive_umap_with_hover_highlight,
         )
+
+        files = []
+        genotype_col = config.columns.genotype
+
+        # Interactive UMAP with hover highlighting
+        fig = create_interactive_umap_with_hover_highlight(
+            umap_results,
+            df,
+            genotype_col=genotype_col,
+            title="Interactive UMAP Visualization",
+        )
+        filepath = output_dir / "interactive_umap.html"
+        fig.write_html(filepath)
+        files.append(filepath)
+
+        return files
