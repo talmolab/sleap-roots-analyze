@@ -800,11 +800,13 @@ def create_heritability_threshold_plot(
             label=f"Current: {current_threshold}",
         )
         ax1.plot(current_threshold, traits_retained[idx], "ro", markersize=8)
+        # Position text above the point to avoid overlap with the line
+        y_offset = total_traits * 0.03  # 3% of total range as offset
         ax1.text(
             current_threshold + 0.02,
-            traits_retained[idx],
+            traits_retained[idx] + y_offset,
             f"{int(traits_retained[idx])} traits",
-            verticalalignment="center",
+            verticalalignment="bottom",
         )
 
     ax1.set_ylabel("Number of Traits Retained", fontsize=12)
@@ -822,11 +824,13 @@ def create_heritability_threshold_plot(
         ax2.axvline(x=current_threshold, color="red", linestyle="--", alpha=0.7)
         idx = np.argmin(np.abs(thresholds - current_threshold))
         ax2.plot(current_threshold, fraction_retained[idx] * 100, "ro", markersize=8)
+        # Position text above the point to avoid overlap with the line
+        y_offset = 3  # 3% as offset
         ax2.text(
             current_threshold + 0.02,
-            fraction_retained[idx] * 100,
+            fraction_retained[idx] * 100 + y_offset,
             f"{fraction_retained[idx]*100:.1f}%",
-            verticalalignment="center",
+            verticalalignment="bottom",
         )
 
     ax2.set_xlabel("Heritability Threshold (H²)", fontsize=12)
@@ -834,11 +838,6 @@ def create_heritability_threshold_plot(
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim(0, 1)
     ax2.set_ylim(0, 105)
-
-    # Add some common threshold annotations
-    for threshold, label in [(0.3, "Low"), (0.5, "Moderate"), (0.7, "High")]:
-        ax2.axvline(x=threshold, color="gray", linestyle=":", alpha=0.3)
-        ax2.text(threshold, 102, label, ha="center", fontsize=9, alpha=0.7)
 
     plt.tight_layout()
     return fig
@@ -3019,5 +3018,233 @@ def create_genotype_image_grid(
     fig.suptitle("\n".join(title_parts), fontsize=title_fontsize, y=0.98)
 
     plt.tight_layout(rect=[0, 0, 1, 0.98])
+
+    return fig
+
+
+def create_regression_plot(
+    df: pd.DataFrame,
+    x_col: str,
+    y_col: str,
+    color_by: Optional[str] = None,
+    figsize: Tuple[int, int] = (8, 8),
+    title: Optional[str] = None,
+    scatter_kws: Optional[Dict] = None,
+    line_kws: Optional[Dict] = None,
+) -> plt.Figure:
+    """Create publication-quality linear regression plot with statistical annotations.
+
+    Generates a scatter plot with linear regression line, confidence interval,
+    and statistical annotations including R², p-value, Pearson correlation,
+    and regression equation.
+
+    Args:
+        df: DataFrame containing the data
+        x_col: Column name for x-axis (independent variable)
+        y_col: Column name for y-axis (dependent variable)
+        color_by: Optional column name for coloring points by category.
+            If provided, points are colored by group but a single regression
+            line is fitted to all data.
+        figsize: Figure size as (width, height) in inches. Default (8, 8).
+        title: Optional custom title. If None, auto-generates from column names.
+        scatter_kws: Optional dict of kwargs passed to scatter plot
+            (e.g., {'s': 50, 'alpha': 0.6})
+        line_kws: Optional dict of kwargs passed to regression line
+            (e.g., {'color': 'red', 'linewidth': 2})
+
+    Returns:
+        matplotlib Figure object with regression plot
+
+    Raises:
+        ValueError: If columns don't exist, are non-numeric, have zero variance,
+            or insufficient samples (<3) after NaN removal
+
+    Examples:
+        >>> # Simple regression plot
+        >>> fig = create_regression_plot(
+        ...     df,
+        ...     x_col='Surface Area (mm²)',
+        ...     y_col='Root Biomass (mg)'
+        ... )
+        >>> fig.savefig('regression_biomass_surface.png', dpi=300)
+        >>>
+        >>> # Regression with color by genotype
+        >>> fig = create_regression_plot(
+        ...     df,
+        ...     x_col='Shoot Biomass (mg)',
+        ...     y_col='Root Biomass (mg)',
+        ...     color_by='Genotype',
+        ...     title='Root vs Shoot Biomass'
+        ... )
+    """
+    from scipy import stats as scipy_stats
+    import warnings
+
+    # Input validation: check columns exist
+    missing_cols = []
+    for col in [x_col, y_col]:
+        if col not in df.columns:
+            missing_cols.append(col)
+    if color_by and color_by not in df.columns:
+        missing_cols.append(color_by)
+
+    if missing_cols:
+        raise ValueError(f"Column(s) not found in DataFrame: {', '.join(missing_cols)}")
+
+    # Check numeric types
+    if not pd.api.types.is_numeric_dtype(df[x_col]):
+        raise ValueError(
+            f"Column '{x_col}' must be numeric. "
+            f"For categorical variables, use the color_by parameter."
+        )
+    if not pd.api.types.is_numeric_dtype(df[y_col]):
+        raise ValueError(
+            f"Column '{y_col}' must be numeric. "
+            f"For categorical variables, use the color_by parameter."
+        )
+
+    # Handle NaN values
+    plot_df = df[[x_col, y_col]].copy()
+    if color_by:
+        plot_df[color_by] = df[color_by]
+
+    initial_count = len(plot_df)
+    plot_df = plot_df.dropna(subset=[x_col, y_col])
+    final_count = len(plot_df)
+
+    if final_count < 3:
+        raise ValueError(
+            f"Insufficient samples for regression analysis. "
+            f"Need at least 3 valid samples, got {final_count} "
+            f"(after removing {initial_count - final_count} NaN values)"
+        )
+
+    # Warn if >20% data dropped
+    pct_dropped = (initial_count - final_count) / initial_count * 100
+    if pct_dropped > 20:
+        warnings.warn(
+            f"Dropped {pct_dropped:.1f}% of data ({initial_count - final_count}/{initial_count} samples) "
+            f"due to NaN values in '{x_col}' or '{y_col}'",
+            UserWarning,
+        )
+
+    # Check for zero variance
+    x_vals = plot_df[x_col].values
+    y_vals = plot_df[y_col].values
+
+    if np.std(x_vals) == 0:
+        raise ValueError(
+            f"Column '{x_col}' has zero variance (all values are {x_vals[0]}). "
+            f"Cannot perform regression analysis."
+        )
+    if np.std(y_vals) == 0:
+        raise ValueError(
+            f"Column '{y_col}' has zero variance (all values are {y_vals[0]}). "
+            f"Cannot perform regression analysis."
+        )
+
+    # Calculate statistics
+    pearson_r, pearson_p = scipy_stats.pearsonr(x_vals, y_vals)
+    r_squared = pearson_r**2
+    slope, intercept, _, _, _ = scipy_stats.linregress(x_vals, y_vals)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Default scatter/line kwargs
+    default_scatter_kws = {"s": 50, "alpha": 0.7}
+    default_line_kws = {"color": "#2E6E73", "linewidth": 2}
+
+    if scatter_kws:
+        default_scatter_kws.update(scatter_kws)
+    if line_kws:
+        default_line_kws.update(line_kws)
+
+    # Plot scatter points with optional coloring
+    if color_by:
+        # Color by groups but fit single regression
+        unique_groups = plot_df[color_by].unique()
+
+        # Warn if too many categories
+        if len(unique_groups) > 20:
+            warnings.warn(
+                f"Color_by column '{color_by}' has {len(unique_groups)} unique values. "
+                f"Legend may be difficult to read.",
+                UserWarning,
+            )
+
+        # Use seaborn color palette for consistency
+        palette = sns.color_palette("tab10", n_colors=len(unique_groups))
+        color_map = dict(zip(unique_groups, palette))
+
+        for group in unique_groups:
+            mask = plot_df[color_by] == group
+            ax.scatter(
+                x_vals[mask],
+                y_vals[mask],
+                label=str(group),
+                color=color_map[group],
+                s=default_scatter_kws["s"],
+                alpha=default_scatter_kws["alpha"],
+            )
+        ax.legend(title=color_by, bbox_to_anchor=(1.05, 1), loc="upper left")
+    else:
+        # Single color scatter
+        scatter_color = default_scatter_kws.pop("color", "#4CB391")
+        ax.scatter(x_vals, y_vals, color=scatter_color, **default_scatter_kws)
+
+    # Add regression line with confidence interval using seaborn
+    sns.regplot(
+        x=x_vals,
+        y=y_vals,
+        ax=ax,
+        scatter=False,  # Already plotted scatter
+        line_kws=default_line_kws,
+        ci=95,  # 95% confidence interval
+    )
+
+    # Add statistical annotations
+    # Format p-value
+    if pearson_p < 0.001:
+        p_text = "p < 0.001"
+    else:
+        p_text = f"p = {pearson_p:.3f}"
+
+    # Format regression equation
+    if intercept >= 0:
+        equation = f"y = {slope:.3f}x + {intercept:.3f}"
+    else:
+        equation = f"y = {slope:.3f}x - {abs(intercept):.3f}"
+
+    # Create annotation text box
+    stats_text = (
+        f"R = {pearson_r:.3f}\n"
+        f"R² = {r_squared:.3f}\n"
+        f"{p_text}\n"
+        f"{equation}\n"
+        f"n = {final_count}"
+    )
+
+    # Position text box in upper left corner
+    ax.text(
+        0.05,
+        0.95,
+        stats_text,
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8, edgecolor="gray"),
+    )
+
+    # Labels and title
+    ax.set_xlabel(x_col, fontsize=12)
+    ax.set_ylabel(y_col, fontsize=12)
+
+    if title:
+        ax.set_title(title, fontsize=14)
+    else:
+        ax.set_title(f"{y_col} vs {x_col}", fontsize=14)
+
+    plt.tight_layout()
 
     return fig

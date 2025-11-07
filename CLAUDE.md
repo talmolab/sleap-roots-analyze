@@ -212,6 +212,7 @@ Key functions to maintain:
 - `outlier_visualization.py` - Specialized plots for outlier detection results
 - `umap.py` - UMAP dimensionality reduction
 - `data_utils.py` - Utility functions for data manipulation
+  - Key function: `sanitize_trait_names()` - Cleans trait names for better visualization (converts `Median.Number.of.Roots` → `Med Num Roots`)
 
 ### Future Modules
 

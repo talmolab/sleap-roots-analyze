@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 from datetime import datetime
 import json
 import shutil
+import re
 
 
 def create_run_directory(base_dir: Path) -> Path:
@@ -47,6 +48,195 @@ def convert_to_json_serializable(obj):
         return obj.tolist()
     else:
         return obj
+
+
+def sanitize_trait_names(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    abbreviate: bool = True,
+    return_mapping: bool = False,
+    sanitize_metadata: bool = True,
+    genotype_col: Optional[str] = None,
+    replicate_col: Optional[str] = None,
+    barcode_col: Optional[str] = None,
+    custom_replacements: Optional[Dict[str, str]] = None,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict[str, str]]]:
+    """Sanitize trait column names and optionally metadata columns for better visualization.
+
+    Converts trait names like "Median.Number.of.Roots" to more readable formats
+    like "Med Num Roots" (with abbreviations) or "Median Number Roots" (without).
+
+    Also sanitizes metadata column names for consistency if column names are provided.
+    For example, if genotype_col="geno", it will be renamed to "Genotype".
+
+    Transformations applied to trait columns:
+    - Apply custom user-defined word replacements (if provided)
+    - Replace dots and hyphens with spaces
+    - Remove common filler words ("of", "the")
+    - Convert units to parenthetical format with proper symbols
+    - Optionally abbreviate common words
+    - Title case the result
+
+    Args:
+        df: DataFrame containing trait data
+        trait_cols: List of trait column names to sanitize
+        abbreviate: If True, abbreviate common words (Default: True)
+        return_mapping: If True, return (df, mapping_dict) tuple (Default: False)
+        sanitize_metadata: If True, also sanitize metadata columns (Default: True)
+        genotype_col: Current genotype column name (e.g., "geno") to rename to "Genotype"
+        replicate_col: Current replicate column name (e.g., "rep") to rename to "Replicate"
+        barcode_col: Current barcode column name to ensure title case as "Barcode"
+        custom_replacements: Optional dict mapping old terms to new terms for
+            domain-specific terminology (e.g., {"crown": "seminal"} to replace
+            "crown" with "seminal" in trait names). Matching is case-insensitive.
+
+    Returns:
+        If return_mapping=False: DataFrame with sanitized column names
+        If return_mapping=True: Tuple of (DataFrame, mapping dict)
+
+    Examples:
+        >>> df, mapping = sanitize_trait_names(
+        ...     df, trait_cols, abbreviate=True, return_mapping=True
+        ... )
+        >>> mapping["Median.Number.of.Roots"]
+        "Med Num Roots"
+        >>> mapping["Total.Root.Length.mm"]
+        "Total Root Length (mm)"
+
+        >>> # With custom replacements
+        >>> df = sanitize_trait_names(
+        ...     df, trait_cols,
+        ...     custom_replacements={"crown": "seminal", "primary": "main"}
+        ... )
+        >>> # "crown_length_mm" -> "Seminal Length (mm)"
+        >>> # "primary.root.angle" -> "Main Root Angle"
+    """
+    df_copy = df.copy()
+    name_mapping = {}
+
+    # Sanitize metadata columns first (if enabled and columns are provided)
+    if sanitize_metadata:
+        # Build metadata mappings from provided column names
+        metadata_mappings = {}
+
+        if genotype_col and genotype_col in df_copy.columns:
+            if genotype_col != "Genotype":
+                metadata_mappings[genotype_col] = "Genotype"
+
+        if replicate_col and replicate_col in df_copy.columns:
+            if replicate_col != "Replicate":
+                metadata_mappings[replicate_col] = "Replicate"
+
+        if barcode_col and barcode_col in df_copy.columns:
+            if barcode_col != "Barcode":
+                metadata_mappings[barcode_col] = "Barcode"
+
+        # Apply metadata column renaming
+        for old_col, new_col in metadata_mappings.items():
+            df_copy.rename(columns={old_col: new_col}, inplace=True)
+            name_mapping[old_col] = new_col
+
+    # Define abbreviation mappings
+    abbreviations = (
+        {
+            "Number": "Num",
+            "Average": "Avg",
+            "Maximum": "Max",
+            "Minimum": "Min",
+            "Median": "Med",
+            "Frequency": "Freq",
+            "Orientation": "Orient",
+        }
+        if abbreviate
+        else {}
+    )
+
+    # Words to remove for brevity
+    filler_words = {"of", "the"}
+
+    for old_name in trait_cols:
+        if old_name not in df_copy.columns:
+            continue
+
+        new_name = old_name
+
+        # Handle unit suffixes first (before splitting)
+        # Order matters: check longer patterns first to avoid partial matches
+        unit_replacements = {
+            ".mm3": " (mm³)",
+            ".mm2": " (mm²)",
+            ".mm": " (mm)",
+            ".deg": " (°)",
+            "_mm3": " (mm³)",
+            "_mm2": " (mm²)",
+            "_mm": " (mm)",
+            "_deg": " (°)",
+            "_mg": " (mg)",
+            "_g": " (g)",
+        }
+        for old_unit, new_unit in unit_replacements.items():
+            if new_name.endswith(old_unit):
+                new_name = new_name[: -len(old_unit)] + new_unit
+                break
+
+        # Split by dots, hyphens, and underscores
+        parts = new_name.replace(".", " ").replace("-", " ").replace("_", " ").split()
+
+        # Apply custom replacements (case-insensitive)
+        if custom_replacements:
+            # Create lowercase mapping for case-insensitive matching
+            lower_replacements = {k.lower(): v for k, v in custom_replacements.items()}
+            parts = [
+                lower_replacements.get(part.lower(), part)
+                for part in parts
+            ]
+
+        # Remove filler words and apply abbreviations
+        processed_parts = []
+        for part in parts:
+            # Skip filler words (case-insensitive)
+            if part.lower() in filler_words:
+                continue
+
+            # Skip empty parts
+            if not part.strip():
+                continue
+
+            # Apply abbreviations if enabled (case-insensitive matching)
+            if abbreviate:
+                # Check if this part (title-cased) matches any abbreviation key
+                part_titlecase = part.title()
+                if part_titlecase in abbreviations:
+                    processed_parts.append(abbreviations[part_titlecase])
+                else:
+                    processed_parts.append(part)
+            else:
+                processed_parts.append(part)
+
+        # Join and apply title case for consistent capitalization
+        new_name = " ".join(processed_parts)
+        new_name = new_name.strip().title()
+
+        # Fix units to be lowercase (e.g., "(G)" -> "(g)", "(Mm)" -> "(mm)")
+        # Keep scientific symbols correct
+        new_name = re.sub(r"\(Mm³\)", "(mm³)", new_name)
+        new_name = re.sub(r"\(Mm²\)", "(mm²)", new_name)
+        new_name = re.sub(r"\(Mm\)", "(mm)", new_name)
+        new_name = re.sub(r"\(G\)", "(g)", new_name)
+        new_name = re.sub(r"\(Mg\)", "(mg)", new_name)
+        # Keep degree symbol as-is
+
+        # Store mapping
+        name_mapping[old_name] = new_name
+
+        # Rename column in dataframe
+        if old_name != new_name:
+            df_copy.rename(columns={old_name: new_name}, inplace=True)
+
+    if return_mapping:
+        return df_copy, name_mapping
+    else:
+        return df_copy
 
 
 def link_rhizovision_images_to_samples(

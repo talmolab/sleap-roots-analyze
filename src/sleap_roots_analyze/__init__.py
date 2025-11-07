@@ -69,6 +69,7 @@ from sleap_roots_analyze.visualization import (
     identify_extreme_phenotypes,
     create_phenotype_variation_plot,
     create_genotype_image_grid,
+    create_regression_plot,
 )
 
 from sleap_roots_analyze.cluster_visualization import (
@@ -212,6 +213,7 @@ __all__ = [
     "identify_extreme_phenotypes",
     "create_phenotype_variation_plot",
     "create_genotype_image_grid",
+    "create_regression_plot",
     # Cluster visualization functions
     "create_cluster_scatter_pca",
     "create_distance_distribution_plot",
