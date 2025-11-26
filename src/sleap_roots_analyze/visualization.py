@@ -1321,7 +1321,7 @@ def create_pca_biplot(
     pc_x: int = 1,
     pc_y: int = 2,
     top_n_features: int = 10,
-    feature_selection: str = "extreme",  # "extreme", "top_absolute", or "top_contribution"
+    feature_selection: str = "vector_length",  # "extreme", "top_absolute", "top_contribution", or "vector_length"
     figsize: Tuple[float, float] = (10, 8),
     alpha: float = 0.6,
     arrow_scale: Optional[float] = None,  # Auto-scale if None
@@ -1339,9 +1339,10 @@ def create_pca_biplot(
         pc_y: PC for y-axis (1-indexed).
         top_n_features: Number of features to show per direction (if extreme) or total.
         feature_selection: Method for selecting features to display:
+            - "vector_length": Top N by Euclidean distance in PC plane (traditional, default)
             - "extreme": Top N most positive and negative for each PC
             - "top_absolute": Top N by absolute loading magnitude
-            - "top_contribution": Top N by contribution to displayed PCs
+            - "top_contribution": Top N by variance contribution to displayed PCs
         figsize: Figure size.
         alpha: Transparency for scatter points.
         arrow_scale: Scaling factor for feature arrows (auto-calculated if None).
@@ -1379,8 +1380,10 @@ def create_pca_biplot(
         method = "top_absolute"
     elif feature_selection == "top_contribution":
         method = "top_contribution"
+    elif feature_selection == "vector_length":
+        method = "vector_length"
     else:
-        method = "top_contribution"  # Default
+        method = "vector_length"  # Default to traditional biplot convention
 
     # Select features using modular function
     top_indices = select_top_features_from_pca(
