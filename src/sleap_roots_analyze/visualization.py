@@ -262,14 +262,14 @@ def create_trait_boxplots_by_genotype_batched(
 
 
 def create_correlation_heatmap(
-    df: pd.DataFrame, trait_cols: List[str], figsize: Tuple[int, int] = (12, 10)
+    df: pd.DataFrame, trait_cols: List[str], figsize: Tuple[int, int] = (12, 12)
 ) -> plt.Figure:
     """Create correlation heatmap for traits.
 
     Args:
         df: DataFrame with trait data
         trait_cols: List of trait column names
-        figsize: Figure size
+        figsize: Figure size (will be made square using the larger dimension)
 
     Returns:
         Matplotlib figure object
@@ -281,8 +281,12 @@ def create_correlation_heatmap(
     # Create mask for upper triangle
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
 
+    # Ensure square figure by using the larger dimension
+    square_size = max(figsize[0], figsize[1])
+    square_figsize = (square_size, square_size)
+
     # Create heatmap
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=square_figsize)
 
     sns.heatmap(
         corr_matrix,

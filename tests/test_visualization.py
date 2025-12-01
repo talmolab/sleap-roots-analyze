@@ -298,15 +298,16 @@ class TestCreateCorrelationHeatmap:
         plt.close(fig)
 
     def test_custom_figsize(self, viz_sample_data):
-        """Test custom figure size."""
+        """Test custom figure size is made square using larger dimension."""
         trait_cols = ["trait1", "trait2"]
 
         fig = create_correlation_heatmap(viz_sample_data, trait_cols, figsize=(8, 6))
 
         assert isinstance(fig, plt.Figure)
         width, height = fig.get_size_inches()
+        # Should use the larger dimension (8) for both width and height
         assert width == 8
-        assert height == 6
+        assert height == 8
         plt.close(fig)
 
     def test_with_nan_values(self, viz_data_with_nan):
