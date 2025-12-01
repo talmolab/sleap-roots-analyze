@@ -139,7 +139,57 @@ def qc(
 
         if dry_run:
             console.print("\n[yellow]Dry run mode - validation complete[/yellow]")
-            console.print("Would execute QC pipeline with 10 steps")
+            
+            # Check if root core processing is enabled
+            if cfg.root_core is not None:
+                console.print("\n[cyan]Root Core Processing:[/cyan] ENABLED")
+                console.print(f"  Sources: {len(cfg.root_core.sources)}")
+                for i, src in enumerate(cfg.root_core.sources, 1):
+                    console.print(f"    {i}. {src.data_type}: {Path(src.csv_path).name}")
+                console.print(f"  Core QC: {'Enabled' if cfg.root_core.core_qc.enabled else 'Disabled'}")
+                
+                console.print("\nWould execute QC pipeline with 15 steps:\n")
+                
+                # Root core steps (0a-0e)
+                steps = [
+                    ("0a", "LoadRootCoreData", f"Load {len(cfg.root_core.sources)} root core data sources"),
+                    ("0b", "TransformRootCoreData", "Transform biomass/counting to long format"),
+                    ("0c", "QCCoreLevel", "Detect and remove outlier cores" if cfg.root_core.core_qc.enabled and cfg.root_core.core_qc.remove_outliers else "Detect outlier cores"),
+                    ("0d", "AggregateCores", f"Aggregate cores to replicate level ({cfg.root_core.sources[0].aggregation_method})"),
+                    ("0e", "ReshapeForTraitQC", "Reshape to wide format with prefixes"),
+                ]
+            else:
+                console.print("\nWould execute QC pipeline with 10 steps:\n")
+                steps = []
+            
+            # Standard QC steps (1-10)
+            steps.extend([
+                ("1", "LoadData", "Load and validate CSV data"),
+                ("2", "CleanupTraits", "Remove problematic traits and samples"),
+                ("3", "ValidateClean", "Validate no NaN values remain"),
+                ("4", "ExploratoryAnalysis", "Generate EDA visualizations"),
+                ("5", "DetectOutliers", "Detect outliers using configured methods"),
+                ("6", "VisualizeOutliers", "Create outlier visualizations"),
+                ("7", "RemoveOutliers", "Remove outliers based on strategy"),
+                ("8", "StatisticalAnalysis", "Calculate ANOVA and heritability"),
+                ("9", "FilterHeritability", "Filter low heritability traits" if cfg.heritability.enabled else "Skip (heritability filtering disabled)"),
+                ("10", "GenerateSummary", "Generate complete pipeline summary"),
+            ])
+            
+            for num, name, desc in steps:
+                console.print(f"  {num}. [cyan]{name}[/cyan] - {desc}")
+            
+            # Show key configuration
+            console.print("\n[cyan]Key Configuration:[/cyan]")
+            console.print(f"  Outlier detection: {', '.join(cfg.outlier_detection.traditional_methods + cfg.outlier_detection.clustering_methods) or 'None'}")
+            console.print(f"  Outlier removal: {cfg.outlier_removal.strategy} ({cfg.outlier_removal.method})")
+            console.print(f"  Heritability filtering: {'Enabled' if cfg.heritability.enabled else 'Disabled'}")
+            if cfg.heritability.enabled:
+                console.print(f"  Heritability threshold: {cfg.heritability.threshold}")
+            console.print(f"  Visualization DPI: {cfg.visualization.dpi}")
+            console.print(f"  Figure format: {cfg.visualization.figure_format}")
+            
+            console.print("\n[green]Configuration is valid [OK][/green]")
             return
 
         # Create and run pipeline
@@ -240,7 +290,31 @@ def viz(
 
         if dry_run:
             console.print("\n[yellow]Dry run mode - validation complete[/yellow]")
-            console.print("Would execute Viz pipeline")
+            console.print("\nWould execute Viz pipeline with configurable steps:\n")
+            
+            # Show which visualization steps would be executed
+            console.print("  Data Loading:")
+            console.print("    - Load trait data from CSV")
+            console.print("    - Link images if image_dir specified")
+            
+            console.print("\n  Core Analysis:")
+            console.print("    - PCA analysis (dimensionality reduction)")
+            console.print("    - UMAP analysis (if enabled)")
+            console.print("    - Statistical summaries")
+            
+            console.print("\n  Visualization Generation:")
+            console.print("    - Trait distributions and correlations")
+            console.print("    - PCA plots (scree, biplot, feature contributions)")
+            console.print("    - Interactive plots (if enabled)")
+            console.print("    - Custom publication figures")
+            
+            # Show key configuration
+            console.print("\n[cyan]Key Configuration:[/cyan]")
+            console.print(f"  Visualization DPI: {cfg.visualization.dpi}")
+            console.print(f"  Figure format: {cfg.visualization.figure_format}")
+            console.print(f"  Figure size: {cfg.visualization.figsize}")
+            
+            console.print("\n[green]Configuration is valid [OK][/green]")
             return
 
         # Create and run pipeline
