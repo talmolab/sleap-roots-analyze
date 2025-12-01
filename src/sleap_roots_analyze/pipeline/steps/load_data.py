@@ -85,6 +85,9 @@ class LoadDataStep(BaseStep):
         # Metadata columns are everything else
         metadata_cols = [col for col in df.columns if col not in trait_cols]
 
+        # Reorder columns: metadata first, then traits (sorted)
+        df = self.reorder_dataframe_columns(df, trait_cols)
+
         # Create inspection summary
         inspection = pd.DataFrame(
             {

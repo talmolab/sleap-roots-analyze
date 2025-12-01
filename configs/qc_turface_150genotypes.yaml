@@ -69,17 +69,17 @@ heritability:
 
 # Visualization settings (matching notebook)
 visualization:
-  dpi: 100                        # FIGURE_DPI = 100 (notebook initial value)
-  figsize: [10, 8]
+  dpi: 100                       # FIGURE_DPI = 300
+  figsize: [12, 8]
 
   # Font sizes (explicit configuration)
-  title_fontsize: 14              # TITLE_FONTSIZE = 14
-  label_fontsize: 12              # LABEL_FONTSIZE = 12
-  tick_fontsize: 10               # TICK_FONTSIZE = 10
-  legend_fontsize: 10             # LEGEND_FONTSIZE = 10
+  title_fontsize: 16
+  label_fontsize: 14            
+  tick_fontsize: 12         
+  legend_fontsize: 12             
 
   # Figure format
-  figure_format: "png"            # FIGURE_FORMAT = 'png'
+  figure_format: "png"
 
   # Savefig parameters
   bbox_inches: "tight"            # Standard tight bounding box

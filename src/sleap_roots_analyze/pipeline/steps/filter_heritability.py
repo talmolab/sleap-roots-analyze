@@ -279,6 +279,9 @@ class FilterHeritabilityStep(BaseStep):
         )
         plt.close(fig)
 
+        # Reorder columns before saving: metadata first, then traits (sorted)
+        df_filtered = self.reorder_dataframe_columns(df_filtered, high_h2_traits)
+
         # Save outputs
         files = []
         files.append(

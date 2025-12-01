@@ -123,3 +123,22 @@ class BaseStep(ABC):
         with open(output_path, "w") as f:
             json.dump(data, f, indent=2, default=str)
         return output_path
+
+    def reorder_dataframe_columns(
+        self, df: pd.DataFrame, trait_cols: list[str]
+    ) -> pd.DataFrame:
+        """Reorder DataFrame columns: metadata first, then traits (sorted).
+
+        This ensures consistent column ordering across all pipeline outputs:
+        - Metadata columns (Plot, Rep, geno, Barcode, etc.) come first
+        - Trait columns (measurements) come after, sorted alphabetically
+
+        Args:
+            df: DataFrame to reorder.
+            trait_cols: List of trait column names.
+
+        Returns:
+            DataFrame with reordered columns.
+        """
+        metadata_cols = [col for col in df.columns if col not in trait_cols]
+        return df[metadata_cols + sorted(trait_cols)]

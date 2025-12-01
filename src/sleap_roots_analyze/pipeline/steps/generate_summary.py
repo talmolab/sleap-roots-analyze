@@ -76,7 +76,11 @@ class GenerateSummaryStep(BaseStep):
                     "replicate": config.columns.replicate,
                 },
                 "data": {
-                    "csv_path": Path(config.data.csv_path).as_posix(),
+                    "csv_path": (
+                        Path(config.data.csv_path).as_posix()
+                        if config.data.csv_path
+                        else "root_core_processing_output"
+                    ),
                     "image_dir": (
                         Path(config.data.image_dir).as_posix()
                         if config.data.image_dir
@@ -140,6 +144,9 @@ class GenerateSummaryStep(BaseStep):
                 summary["step_summaries"]["heritability_filter"] = prev_result.metadata[
                     "summary"
                 ]
+
+        # Reorder columns before saving: metadata first, then traits (sorted)
+        df = self.reorder_dataframe_columns(df, final_traits)
 
         # Save outputs
         files = []

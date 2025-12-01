@@ -545,6 +545,9 @@ class RootCoreSourceConfig:
         aggregation_method: Method for aggregating cores ("mean", "median", or callable).
         depth_mapping: Manual depth mapping for biomass data {column_name: depth_cm}.
             Required for data_type="biomass", optional for data_type="counting" (auto-parsed).
+        genotype_column: Name of genotype column in CSV (default: "geno"). If the CSV uses
+            a different column name (e.g., "salk_geno"), specify it here and it will be
+            renamed to "geno" for standardization across all sources.
     """
 
     csv_path: str = MISSING
@@ -553,6 +556,7 @@ class RootCoreSourceConfig:
     value_column_name: str = "Value"
     aggregation_method: str = "mean"
     depth_mapping: Optional[dict] = None
+    genotype_column: str = "geno"  # Column name for genotype, will be renamed to "geno"
 
 
 @dataclass
