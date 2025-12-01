@@ -310,9 +310,8 @@ def viz(
             
             # Show key configuration
             console.print("\n[cyan]Key Configuration:[/cyan]")
-            console.print(f"  Visualization DPI: {cfg.visualization.dpi}")
-            console.print(f"  Figure format: {cfg.visualization.figure_format}")
-            console.print(f"  Figure size: {cfg.visualization.figsize}")
+            console.print(f"  Visualization DPI: {cfg.static_viz.dpi}")
+            console.print(f"  Figure formats: {', '.join(cfg.static_viz.formats)}")
             
             console.print("\n[green]Configuration is valid [OK][/green]")
             return
