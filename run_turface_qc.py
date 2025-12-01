@@ -1,5 +1,14 @@
 #!/usr/bin/env python
-"""Run QC pipeline on Turface 150 genotypes dataset.
+"""DEPRECATED: Use 'sleap-roots-analyze qc' instead.
+
+This script is deprecated and will be removed in v0.1.0.
+Please use the new CLI:
+
+    sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml -o ./qc_runs
+
+For more info: sleap-roots-analyze qc --help
+
+---
 
 This script replicates the analysis from trait_qc_150_genotypes_turface_20251024.ipynb
 using the tested QC pipeline infrastructure.
@@ -11,6 +20,14 @@ Outputs will be saved to: ./qc_runs/turface_150genotypes_qc_YYYYMMDD_HHMMSS/
 """
 
 from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "run_turface_qc.py is deprecated. Use 'sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml'",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import logging
 from pathlib import Path

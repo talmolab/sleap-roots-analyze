@@ -1,0 +1,133 @@
+# QC Pipeline Configuration: Root Core (EDPIE Example)
+#
+# This config processes root biomass and counting data through full QC pipeline,
+# then merges with above-ground traits. Prevents duplicate columns via prefixing.
+#
+# Use case: Root core experiments with 3 cores per replicate
+# Steps: Core-level QC → Aggregate → Trait-level QC → Merge → Final CSV
+
+# Pipeline metadata
+pipeline_name: "EDPIE Root Core Full QC"
+version: "1.0"
+
+# ============================================================================
+# ROOT CORE PROCESSING (Steps 0a-0f)
+# ============================================================================
+root_core:
+  # Multiple data sources (biomass + counting)
+  sources:
+    # Source 1: Root biomass dry weight (2 depths)
+    - csv_path: "data/root_coring/rearranged_root_biomass_dw.csv"
+      data_type: "biomass"  # Manual depth mapping required
+      depth_column_prefix: "RootDW"  # Output columns: RootDW_15cm, RootDW_45cm
+      value_column_name: "Root_DW_g"
+      aggregation_method: "mean"  # Options: mean, median
+      depth_mapping:
+        "0-30": 15.0   # Midpoint of 0-30 cm range
+        "30-60": 45.0  # Midpoint of 30-60 cm range
+
+    # Source 2: Root intersection counting (12 depths, auto-parsed)
+    - csv_path: "data/root_coring/root_counting_cimmyt_edited.csv"
+      data_type: "counting"  # Auto-parses from c_<start>_<end>_<subcore> pattern
+      depth_column_prefix: "RootCount"  # Output: RootCount_0cm, RootCount_5cm, etc.
+      value_column_name: "Root_Count"
+      aggregation_method: "mean"
+      # depth_mapping not needed - auto-calculated
+
+  # Core-level QC (before aggregation)
+  core_qc:
+    enabled: true
+    outlier_method: "mahalanobis"  # Detect outlier cores within Plot-Rep groups
+    contamination: 0.1  # 10% expected outliers
+    max_missing_proportion: 0.5  # Flag cores with >50% missing depths
+    remove_outliers: true  # Remove before aggregating to replicate level
+
+  # Merge with above-ground traits (after QC)
+  merge_traits:
+    above_ground_csv: "data/field/Field_2024_aboveground.csv"
+    join_keys: ["Plot", "Rep", "geno"]
+    join_type: "inner"  # Options: inner, left, right, outer
+    duplicate_strategy: "fail"  # Options: fail, skip, suffix
+    output_path: "Field_2024_final.csv"
+
+# ============================================================================
+# TRAIT-LEVEL QC (Standard Pipeline Steps 1-10)
+# ============================================================================
+
+# Data configuration (set programmatically from root core processing)
+data:
+  csv_path: null  # Auto-filled by pipeline
+  image_dir: null  # Optional: Link images to samples
+
+# Column names
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "Rep"
+
+# Data cleanup thresholds
+cleanup:
+  max_zeros_per_trait: 0.3  # Remove depths with >30% zeros
+  max_nans_per_trait: 0.3   # Remove depths with >30% NaNs
+  max_nan_fraction: 0.1     # Remove samples with >10% NaNs
+  min_samples_per_trait: 10
+
+# Outlier detection (replicate-level, after aggregation)
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+# Outlier removal
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 10
+
+# UMAP (optional)
+umap:
+  enabled: false
+
+# Statistical analysis
+statistical_analysis:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# Heritability filtering
+filter_heritability:
+  enabled: true
+  threshold: 0.3  # Remove depths with H² < 0.3
+  generate_diagnostics: false  # Generate detailed diagnostic plots and CSV for removed traits
+
+# Visualization
+visualization:
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  create_outlier_plots: true
+  interactive: false
+  dpi: 300
+  figsize: [10, 8]
+
+# Summary report
+summary:
+  enabled: true
+  formats: ["markdown", "json"]
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "root_core_qc_pipeline.log"

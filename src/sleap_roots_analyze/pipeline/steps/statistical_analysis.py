@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
@@ -13,6 +14,7 @@ from sleap_roots_analyze.statistics import (
     calculate_trait_statistics,
     perform_anova_by_genotype,
 )
+from sleap_roots_analyze.visualization import create_heritability_plot
 
 
 class StatisticalAnalysisStep(BaseStep):
@@ -75,11 +77,11 @@ class StatisticalAnalysisStep(BaseStep):
         replicate_col = config.columns.replicate
 
         # 1. Calculate basic trait statistics
-        trait_stats = calculate_trait_statistics(df, trait_cols)
+        trait_stats = calculate_trait_statistics(df=df, trait_cols=trait_cols)
 
         # 2. Perform ANOVA for each trait
         anova_results = perform_anova_by_genotype(
-            df, trait_cols, genotype_col=genotype_col, alpha=0.05
+            df=df, trait_cols=trait_cols, genotype_col=genotype_col, alpha=0.05
         )
 
         # Convert ANOVA results to DataFrame for saving
@@ -118,8 +120,8 @@ class StatisticalAnalysisStep(BaseStep):
 
         # 3. Calculate heritability for each trait
         heritability_results = calculate_heritability_estimates(
-            df,
-            trait_cols,
+            df=df,
+            trait_cols=trait_cols,
             genotype_col=genotype_col,
             replicate_col=replicate_col,
             force_method=None,  # Use default mixed model approach
@@ -227,6 +229,27 @@ class StatisticalAnalysisStep(BaseStep):
         files.append(
             self.save_json(summary, "08_statistical_analysis_summary.json", run_dir)
         )
+
+        # Generate heritability plot
+        figures_dir = run_dir / "figures"
+        figures_dir.mkdir(exist_ok=True)
+
+        fig = create_heritability_plot(
+            heritability_results=heritability_results,
+            figsize=tuple(config.visualization.figsize),
+            dpi=config.visualization.dpi,
+        )
+        heritability_plot_path = figures_dir / f"08_heritability_analysis.{config.visualization.figure_format}"
+        fig.savefig(
+            heritability_plot_path,
+            dpi=config.visualization.dpi,
+            bbox_inches=config.visualization.bbox_inches,
+            facecolor=config.visualization.facecolor,
+            edgecolor=config.visualization.edgecolor,
+            transparent=config.visualization.transparent,
+        )
+        plt.close(fig)
+        files.append(heritability_plot_path)
 
         # Create metadata
         metadata = {

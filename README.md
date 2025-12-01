@@ -20,6 +20,32 @@ uv sync --group dev  # Includes development dependencies
 
 ## Quick Start
 
+### Command-Line Interface
+
+The package provides a CLI for running QC and visualization pipelines:
+
+```bash
+# Run QC pipeline
+sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml
+
+# Run with custom output directory
+sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml -o ./my_results
+
+# Validate configuration
+sleap-roots-analyze config validate configs/qc_turface_150genotypes.yaml
+
+# List example configs
+sleap-roots-analyze config list
+
+# Get help
+sleap-roots-analyze --help
+sleap-roots-analyze qc --help
+```
+
+See [TURFACE_QC_README.md](TURFACE_QC_README.md) for a complete example of running the QC pipeline.
+
+### Python API
+
 ### Load and Clean Data
 
 ```python

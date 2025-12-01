@@ -230,3 +230,8 @@ cleanup_diff.txt
 runs/
 qc_runs/
 viz_runs/
+heritability_diagnostics/
+test_explicit_args_run/
+
+# Temporary test/example output
+examples/heritability_diagnostics/

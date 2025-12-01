@@ -48,6 +48,9 @@ from sleap_roots_analyze.visualization import (
     save_figure_with_unique_name,
     create_exploratory_summary_plots,
     create_trait_eda_plots,
+    create_variance_decomposition_plot,
+    create_trait_by_genotype_boxplots,
+    create_heritability_diagnostic_dashboard,
 )
 
 
@@ -2782,3 +2785,4 @@ class TestCreatePhenotypeVariationPlot:
         assert np.allclose(plot_df["trait_B_high_threshold"].iloc[0], expected_high)
 
         plt.close("all")
+

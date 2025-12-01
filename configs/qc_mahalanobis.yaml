@@ -54,6 +54,7 @@ pca:
 heritability:
   enabled: true
   threshold: 0.5       # Keep traits with h² >= 0.5
+  generate_diagnostics: false  # Generate detailed diagnostic plots and CSV for removed traits
 
 # Visualization settings
 visualization:

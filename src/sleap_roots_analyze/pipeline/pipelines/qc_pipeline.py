@@ -12,6 +12,15 @@ from typing import Any, List
 from sleap_roots_analyze.pipeline.config import QCPipelineConfig, validate_qc_config
 from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
+from sleap_roots_analyze.pipeline.steps.load_root_core_data import LoadRootCoreDataStep
+from sleap_roots_analyze.pipeline.steps.transform_depth_data import (
+    TransformDepthDataStep,
+)
+from sleap_roots_analyze.pipeline.steps.qc_core_level import QCCoreLevelStep
+from sleap_roots_analyze.pipeline.steps.aggregate_cores import AggregateCoresStep
+from sleap_roots_analyze.pipeline.steps.reshape_for_trait_qc import (
+    ReshapeForTraitQCStep,
+)
 from sleap_roots_analyze.pipeline.steps.load_data import LoadDataStep
 from sleap_roots_analyze.pipeline.steps.cleanup_traits import CleanupTraitsStep
 from sleap_roots_analyze.pipeline.steps.validate_clean import ValidateCleanStep
@@ -33,8 +42,18 @@ from sleap_roots_analyze.pipeline.steps.generate_summary import GenerateSummaryS
 class QCPipeline(BasePipeline):
     """Quality Control pipeline for trait data.
 
-    This pipeline implements a 10-step quality control workflow:
-    1. LoadData - Load and validate CSV data
+    This pipeline implements a quality control workflow with optional root core
+    processing (Steps 0a-0e) followed by standard trait-level QC (Steps 1-10).
+
+    **Root Core Processing (Optional - if config.root_core is set):**
+    0a. LoadRootCoreData - Load biomass/counting data for all sources
+    0b. TransformDepthData - Calculate depth_cm and pivot to long format
+    0c. QCCoreLevel - Detect and optionally remove outlier cores (optional)
+    0d. AggregateCores - Aggregate 3 cores to biological replicate level
+    0e. ReshapeForTraitQC - Pivot to wide format with prefixed columns
+
+    **Standard Trait-Level QC:**
+    1. LoadData - Load and validate CSV data (or use root core output)
     2. CleanupTraits - Remove problematic traits (high zeros/NaNs)
     3. ValidateClean - Validate cleaned data
     4. ExploratoryAnalysis - Generate EDA visualizations
@@ -92,9 +111,16 @@ class QCPipeline(BasePipeline):
         )
 
         # Store config for use in create_tasks
-        self.config: PipelineConfig = config
+        self.config: QCPipelineConfig = config
 
-        # Initialize all step instances
+        # Initialize root core processing step instances (optional)
+        self.step_0a_load_root_core = LoadRootCoreDataStep()
+        self.step_0b_transform_depth = TransformDepthDataStep()
+        self.step_0c_qc_core_level = QCCoreLevelStep()
+        self.step_0d_aggregate_cores = AggregateCoresStep()
+        self.step_0e_reshape_for_qc = ReshapeForTraitQCStep()
+
+        # Initialize all standard QC step instances
         self.step_1_load_data = LoadDataStep()
         self.step_2_cleanup_traits = CleanupTraitsStep()
         self.step_3_validate_clean = ValidateCleanStep()
@@ -107,9 +133,9 @@ class QCPipeline(BasePipeline):
         self.step_10_generate_summary = GenerateSummaryStep()
 
     def create_tasks(self) -> List[Task]:
-        """Create the 10-step QC pipeline task graph.
+        """Create the QC pipeline task graph (with optional root core steps).
 
-        This method creates a linear chain of 10 tasks with proper dependencies.
+        If config.root_core is set, creates Steps 0a-0e before standard QC steps.
         The NetworkX DAG executor will ensure they execute in the correct order.
 
         Returns:
@@ -117,12 +143,70 @@ class QCPipeline(BasePipeline):
         """
         tasks = []
 
-        # Step 1: Load Data (no dependencies - first step)
+        # Check if root core processing is configured
+        if self.config.root_core is not None:
+            # Step 0a: Load Root Core Data (first step if root core enabled)
+            tasks.append(
+                Task(
+                    func=self._run_load_root_core_data,
+                    name="00a_load_root_core_data",
+                    depends_on=[],
+                    description="Load root core biomass/counting data from all sources",
+                )
+            )
+
+            # Step 0b: Transform Depth Data
+            tasks.append(
+                Task(
+                    func=self._run_transform_depth_data,
+                    name="00b_transform_depth_data",
+                    depends_on=["00a_load_root_core_data"],
+                    description="Calculate depth_cm and pivot to long format",
+                )
+            )
+
+            # Step 0c: QC Core Level (optional outlier detection)
+            tasks.append(
+                Task(
+                    func=self._run_qc_core_level,
+                    name="00c_qc_core_level",
+                    depends_on=["00b_transform_depth_data"],
+                    description="Detect and optionally remove outlier cores",
+                )
+            )
+
+            # Step 0d: Aggregate Cores
+            tasks.append(
+                Task(
+                    func=self._run_aggregate_cores,
+                    name="00d_aggregate_cores",
+                    depends_on=["00c_qc_core_level"],
+                    description="Aggregate 3 cores to biological replicate level",
+                )
+            )
+
+            # Step 0e: Reshape For Trait QC
+            tasks.append(
+                Task(
+                    func=self._run_reshape_for_trait_qc,
+                    name="00e_reshape_for_trait_qc",
+                    depends_on=["00d_aggregate_cores"],
+                    description="Pivot to wide format with prefixed columns",
+                )
+            )
+
+            # Step 1 now depends on Step 0e if root core enabled
+            first_step_dependency = ["00e_reshape_for_trait_qc"]
+        else:
+            # No root core processing - Step 1 has no dependencies
+            first_step_dependency = []
+
+        # Step 1: Load Data
         tasks.append(
             Task(
                 func=self._run_load_data,
                 name="01_load_data",
-                depends_on=[],
+                depends_on=first_step_dependency,
                 description="Load and validate trait data from CSV",
             )
         )
@@ -222,12 +306,89 @@ class QCPipeline(BasePipeline):
     # Task wrapper methods - these adapt steps to the Task interface
     # Each method receives dependency results as kwargs with the dependency task name
 
-    def _run_load_data(self, config, run_dir, logger):
-        """Execute Step 1: Load Data."""
-        logger.info("Step 1/10: Loading data...")
-        result = self.step_1_load_data.execute(
+    # Root Core Processing Wrapper Methods (Steps 0a-0e)
+
+    def _run_load_root_core_data(self, config, run_dir, logger):
+        """Execute Step 0a: Load Root Core Data."""
+        logger.info("Step 0a: Loading root core data...")
+        result = self.step_0a_load_root_core.execute(
             data=None, config=config, run_dir=run_dir, prev_result=None
         )
+        return result
+
+    def _run_transform_depth_data(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0b: Transform Depth Data."""
+        logger.info("Step 0b: Transforming depth data...")
+        prev_task_result = kwargs.get("00a_load_root_core_data")
+        prev_step_result = prev_task_result.data
+        result = self.step_0b_transform_depth.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_qc_core_level(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0c: QC Core Level."""
+        logger.info("Step 0c: Running core-level QC...")
+        prev_task_result = kwargs.get("00b_transform_depth_data")
+        prev_step_result = prev_task_result.data
+        result = self.step_0c_qc_core_level.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_aggregate_cores(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0d: Aggregate Cores."""
+        logger.info("Step 0d: Aggregating cores to replicate level...")
+        prev_task_result = kwargs.get("00c_qc_core_level")
+        prev_step_result = prev_task_result.data
+        result = self.step_0d_aggregate_cores.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_reshape_for_trait_qc(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0e: Reshape For Trait QC."""
+        logger.info("Step 0e: Reshaping data for trait-level QC...")
+        prev_task_result = kwargs.get("00d_aggregate_cores")
+        prev_step_result = prev_task_result.data
+        result = self.step_0e_reshape_for_qc.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    # Standard QC Pipeline Wrapper Methods (Steps 1-10)
+
+    def _run_load_data(self, config, run_dir, logger, **kwargs):
+        """Execute Step 1: Load Data (or use root core output)."""
+        # Check if root core processing provided data
+        if "00e_reshape_for_trait_qc" in kwargs:
+            logger.info("Step 1/10: Using root core processed data...")
+            prev_task_result = kwargs.get("00e_reshape_for_trait_qc")
+            prev_step_result = prev_task_result.data
+            # Pass through the reshaped root core data
+            result = self.step_1_load_data.execute(
+                data=prev_step_result.data,
+                config=config,
+                run_dir=run_dir,
+                prev_result=prev_step_result,
+            )
+        else:
+            logger.info("Step 1/10: Loading data from CSV...")
+            result = self.step_1_load_data.execute(
+                data=None, config=config, run_dir=run_dir, prev_result=None
+            )
         return result
 
     def _run_cleanup_traits(self, config, run_dir, logger, **kwargs):

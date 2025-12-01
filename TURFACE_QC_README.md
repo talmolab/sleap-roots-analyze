@@ -6,10 +6,30 @@ This document describes how to run the QC pipeline on the Turface 150 genotypes 
 
 ```bash
 # Run the QC pipeline
-python run_turface_qc.py
+sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml
 ```
 
 Outputs will be saved to: `./qc_runs/turface_150genotypes_qc_YYYYMMDD_HHMMSS/`
+
+### Options
+
+```bash
+# Specify custom output directory
+sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml -o ./my_results
+
+# Enable verbose logging
+sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml --verbose
+
+# Dry run (validate config without running)
+sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml --dry-run
+
+# Get help
+sleap-roots-analyze qc --help
+```
+
+### Legacy Script (Deprecated)
+
+The `python run_turface_qc.py` script still works but is deprecated and will be removed in v0.1.0.
 
 ## Configuration
 
@@ -96,6 +116,33 @@ The QC pipeline executes 10 steps in sequence:
 - `02_cleanup_log.json` - Sample removal details
 - `07_outlier_removal_log.json` - Outlier removal details
 - `09_heritability_filter_summary.json` - Heritability filtering summary
+
+## CLI Commands
+
+### Run QC Pipeline
+
+```bash
+sleap-roots-analyze qc configs/qc_turface_150genotypes.yaml [OPTIONS]
+```
+
+**Options:**
+- `-o, --output-dir PATH` - Output directory (default: ./qc_runs)
+- `-v, --verbose` - Enable DEBUG logging
+- `-q, --quiet` - Only show warnings and errors
+- `--log-file FILE` - Save logs to file
+- `--dry-run` - Validate config without running
+
+### Validate Configuration
+
+```bash
+sleap-roots-analyze config validate configs/qc_turface_150genotypes.yaml
+```
+
+### View Configuration
+
+```bash
+sleap-roots-analyze config show configs/qc_turface_150genotypes.yaml
+```
 
 ## Customization
 

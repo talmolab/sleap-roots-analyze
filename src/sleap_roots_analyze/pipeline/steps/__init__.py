@@ -6,6 +6,17 @@ Steps are organized alphabetically and exported for easy access.
 
 from __future__ import annotations
 
+# Root Core Processing Steps (Steps 0a-0e)
+from sleap_roots_analyze.pipeline.steps.aggregate_cores import AggregateCoresStep
+from sleap_roots_analyze.pipeline.steps.load_root_core_data import LoadRootCoreDataStep
+from sleap_roots_analyze.pipeline.steps.qc_core_level import QCCoreLevelStep
+from sleap_roots_analyze.pipeline.steps.reshape_for_trait_qc import (
+    ReshapeForTraitQCStep,
+)
+from sleap_roots_analyze.pipeline.steps.transform_depth_data import (
+    TransformDepthDataStep,
+)
+
 # QC Pipeline Steps
 from sleap_roots_analyze.pipeline.steps.cleanup_traits import CleanupTraitsStep
 from sleap_roots_analyze.pipeline.steps.detect_outliers import DetectOutliersStep
@@ -49,6 +60,12 @@ from sleap_roots_analyze.pipeline.steps.pca_analysis import PCAAnalysisStep
 from sleap_roots_analyze.pipeline.steps.umap_analysis import UMAPAnalysisStep
 
 __all__ = [
+    # Root Core Steps
+    "AggregateCoresStep",
+    "LoadRootCoreDataStep",
+    "QCCoreLevelStep",
+    "ReshapeForTraitQCStep",
+    "TransformDepthDataStep",
     # QC Steps
     "CleanupTraitsStep",
     "DetectOutliersStep",

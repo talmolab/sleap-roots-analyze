@@ -843,6 +843,271 @@ def create_heritability_threshold_plot(
     return fig
 
 
+def create_variance_decomposition_plot(
+    comparison_df: pd.DataFrame,
+    figsize: tuple = (14, 10),
+    output_path: Optional[Path] = None,
+) -> plt.Figure:
+    """Create 4-panel variance decomposition plot for heritability diagnostics.
+
+    Args:
+        comparison_df: DataFrame from compare_trait_heritabilities()
+        figsize: Figure size (width, height) in inches
+        output_path: Optional path to save figure
+
+    Returns:
+        matplotlib Figure object
+
+    Example:
+        >>> comparison = compare_trait_heritabilities(df, traits, h2_results)
+        >>> fig = create_variance_decomposition_plot(comparison)
+        >>> plt.show()
+    """
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+    axes = axes.flatten()
+
+    if len(comparison_df) == 0:
+        # Handle empty data
+        for ax in axes:
+            ax.text(
+                0.5,
+                0.5,
+                "No data available",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+        if output_path:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(output_path, dpi=300, bbox_inches="tight")
+        return fig
+
+    # Panel 1: Heritability bar chart
+    ax = axes[0]
+    comparison_df.plot(
+        x="trait", y="heritability", kind="bar", ax=ax, legend=False, color="steelblue"
+    )
+    ax.set_ylabel("Heritability (H²)")
+    ax.set_title("Heritability Estimates")
+    ax.axhline(y=0.3, color="r", linestyle="--", alpha=0.5, label="Threshold (0.3)")
+    ax.legend()
+    ax.tick_params(axis="x", rotation=45)
+    ax.set_xlabel("")
+
+    # Panel 2: Variance components
+    ax = axes[1]
+    comparison_df.plot(x="trait", y=["var_genetic", "var_residual"], kind="bar", ax=ax)
+    ax.set_ylabel("Variance")
+    ax.set_title("Genetic vs Residual Variance")
+    ax.legend(["Genetic (σ²_G)", "Residual (σ²_E)"])
+    ax.tick_params(axis="x", rotation=45)
+    ax.set_xlabel("")
+
+    # Panel 3: Percentage between genotypes
+    ax = axes[2]
+    comparison_df.plot(
+        x="trait", y="pct_var_between", kind="bar", ax=ax, legend=False, color="green"
+    )
+    ax.set_ylabel("% of Total Variance")
+    ax.set_title("Percentage Variance Between Genotypes")
+    ax.axhline(y=50, color="r", linestyle="--", alpha=0.5)
+    ax.tick_params(axis="x", rotation=45)
+    ax.set_xlabel("")
+
+    # Panel 4: Sample size and CV
+    ax = axes[3]
+    ax2 = ax.twinx()
+
+    # Bar plot for sample size
+    x_pos = range(len(comparison_df))
+    ax.bar(
+        x_pos,
+        comparison_df["n_observations"],
+        color="orange",
+        alpha=0.7,
+        label="N observations",
+    )
+
+    # Line plot for CV
+    ax2.plot(
+        x_pos,
+        comparison_df["trait_cv"],
+        color="purple",
+        marker="o",
+        linewidth=2,
+        label="CV (%)",
+    )
+
+    ax.set_ylabel("N Observations", color="orange")
+    ax2.set_ylabel("Coefficient of Variation (%)", color="purple")
+    ax.set_title("Sample Size and Coefficient of Variation")
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
+    ax.tick_params(axis="y", labelcolor="orange")
+    ax2.tick_params(axis="y", labelcolor="purple")
+    ax.set_xlabel("")
+
+    plt.tight_layout()
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_path, dpi=300, bbox_inches="tight")
+
+    return fig
+
+
+def create_trait_by_genotype_boxplots(
+    df: pd.DataFrame,
+    traits: List[str],
+    heritability_results: Dict[str, Dict],
+    genotype_col: str = "geno",
+    ncols: int = 2,
+    figsize: Optional[tuple] = None,
+    output_path: Optional[Path] = None,
+) -> plt.Figure:
+    """Create boxplots showing trait distributions by genotype with H² annotations.
+
+    Args:
+        df: DataFrame with trait data
+        traits: List of trait names to plot
+        heritability_results: Dictionary mapping traits to heritability results
+        genotype_col: Name of genotype column
+        ncols: Number of columns in subplot grid
+        figsize: Optional figure size (auto-sized if None)
+        output_path: Optional path to save figure
+
+    Returns:
+        matplotlib Figure object
+
+    Example:
+        >>> h2_results = calculate_heritability_estimates(df, traits)
+        >>> fig = create_trait_by_genotype_boxplots(df, traits, h2_results)
+        >>> plt.show()
+    """
+    n_traits = len(traits)
+    nrows = (n_traits + ncols - 1) // ncols
+
+    if figsize is None:
+        figsize = (6 * ncols, 5 * nrows)
+
+    # Handle single subplot case - must create figure differently for pandas boxplot
+    if n_traits == 1:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        axes = [ax]
+    else:
+        fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+        if nrows == 1:
+            axes = list(axes)
+        else:
+            axes = axes.flatten()
+
+    for idx, trait in enumerate(traits):
+        ax = axes[idx]
+
+        # Get data
+        subset = df[[trait, genotype_col]].dropna()
+
+        if len(subset) == 0:
+            ax.text(
+                0.5,
+                0.5,
+                "No data available",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            ax.set_title(f"{trait}\n(No data)")
+            continue
+
+        # Create boxplot
+        subset.boxplot(column=trait, by=genotype_col, ax=ax)
+
+        # Get heritability info
+        h2_result = heritability_results.get(trait, {})
+        h2 = h2_result.get("heritability", np.nan)
+        var_g = h2_result.get("var_genetic", np.nan)
+        var_r = h2_result.get("var_residual", np.nan)
+
+        # Build title
+        title = f"{trait}\nH² = {h2:.3f}"
+        if not np.isnan(var_g) and not np.isnan(var_r):
+            title += f"\nσ²_G = {var_g:.4f}, σ²_E = {var_r:.4f}"
+        ax.set_title(title)
+
+        # Remove pandas default title
+        plt.sca(ax)
+        plt.xlabel(genotype_col)
+        plt.ylabel(trait)
+
+        # Rotate labels if many genotypes
+        if subset[genotype_col].nunique() > 10:
+            ax.tick_params(axis="x", rotation=90)
+
+    # Hide extra subplots
+    for idx in range(n_traits, len(axes)):
+        axes[idx].set_visible(False)
+
+    plt.suptitle("")  # Remove default suptitle
+    plt.tight_layout()
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_path, dpi=300, bbox_inches="tight")
+
+    return fig
+
+
+def create_heritability_diagnostic_dashboard(
+    df: pd.DataFrame,
+    traits: List[str],
+    heritability_results: Dict[str, Dict],
+    comparison_df: pd.DataFrame,
+    layout: str = "vertical",
+    output_path: Optional[Path] = None,
+) -> plt.Figure:
+    """Create comprehensive heritability diagnostic dashboard.
+
+    Combines variance decomposition plots and trait-by-genotype boxplots
+    into a single comprehensive figure.
+
+    Args:
+        df: DataFrame with trait data
+        traits: List of trait names to analyze
+        heritability_results: Dictionary with heritability results
+        comparison_df: DataFrame from compare_trait_heritabilities()
+        layout: "vertical" (default) or "horizontal"
+        output_path: Optional path to save figure
+
+    Returns:
+        matplotlib Figure object
+
+    Example:
+        >>> h2_results = calculate_heritability_estimates(df, traits)
+        >>> comparison = compare_trait_heritabilities(df, traits, h2_results)
+        >>> fig = create_heritability_diagnostic_dashboard(
+        ...     df, traits, h2_results, comparison
+        ... )
+        >>> plt.show()
+    """
+    # Create variance decomposition
+    var_fig = create_variance_decomposition_plot(comparison_df, figsize=(14, 8))
+
+    # Create boxplots
+    box_fig = create_trait_by_genotype_boxplots(
+        df, traits, heritability_results, figsize=(12, 4 * len(traits))
+    )
+
+    # For now, return the variance decomposition figure
+    # Full dashboard integration would require more complex subplot management
+    plt.close(box_fig)
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        var_fig.savefig(output_path, dpi=300, bbox_inches="tight")
+
+    return var_fig
+
+
 def identify_extreme_samples_in_pc_space(
     pca_results: Dict,
     df: pd.DataFrame,

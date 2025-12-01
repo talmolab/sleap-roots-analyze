@@ -287,6 +287,96 @@ def link_rhizovision_images_to_samples(
     return image_links
 
 
+def link_cylinder_images_from_scan_path(
+    df: pd.DataFrame,
+    base_dir: Path | str,
+    image_types: Optional[List[str]] = None,
+    barcode_col: str = "Barcode",
+    scan_path_col: str = "scan_path",
+) -> Dict[str, Dict[str, Optional[Path]]]:
+    """Link cylinder scanner images using the scan_path column in trait data.
+
+    This function is specific to cylinder scanner image organization where images
+    are stored in directories following the pattern: Wave/Day/Barcode/ with numbered
+    JPG files (1.jpg, 2.jpg, ... 72.jpg) representing different rotation angles.
+
+    Args:
+        df: Trait dataframe with barcode and scan_path columns.
+        base_dir: Base directory containing the images_downloader_output folder,
+            or the images_downloader_output folder itself.
+        image_types: List of image filenames to look for (default: ["1.jpg", "36.jpg"]).
+            These typically represent specific rotation angles of the cylinder.
+        barcode_col: Name of the barcode/plant ID column (default: "Barcode").
+        scan_path_col: Name of the column containing the scan path (default: "scan_path").
+
+    Returns:
+        Dictionary mapping barcode to image paths, compatible with
+        create_genotype_image_grid() and other visualization functions.
+
+    Example:
+        >>> from sleap_roots_analyze.data_utils import link_cylinder_images_from_scan_path
+        >>> image_links = link_cylinder_images_from_scan_path(
+        ...     df=df_traits,
+        ...     base_dir="Z:/users/eberrigan/.../images_downloader_output",
+        ...     image_types=["1.jpg", "36.jpg"],  # Front and back views
+        ... )
+        >>> # Use with create_genotype_image_grid
+        >>> fig = create_genotype_image_grid(df, image_links, "GH_7293", image_type="1.jpg")
+    """
+    if image_types is None:
+        image_types = ["1.jpg", "36.jpg"]
+
+    base_dir = Path(base_dir)
+    image_links = {}
+
+    # Validate required columns
+    if barcode_col not in df.columns:
+        raise ValueError(
+            f"Barcode column '{barcode_col}' not found in dataframe. "
+            f"Available columns: {df.columns.tolist()[:10]}..."
+        )
+    if scan_path_col not in df.columns:
+        raise ValueError(
+            f"Scan path column '{scan_path_col}' not found in dataframe. "
+            f"Available columns: {df.columns.tolist()[:10]}..."
+        )
+
+    for _, row in df.iterrows():
+        barcode = row[barcode_col]
+        scan_path = row.get(scan_path_col)
+
+        image_links[barcode] = {}
+
+        if scan_path is None or pd.isna(scan_path):
+            # No scan path available
+            for img_type in image_types:
+                image_links[barcode][img_type] = None
+            continue
+
+        # Handle relative paths that start with "./"
+        scan_path_str = str(scan_path)
+        if scan_path_str.startswith("./images_downloader_output"):
+            # Extract the relative part after images_downloader_output
+            relative_part = scan_path_str.replace("./images_downloader_output/", "")
+            img_dir = base_dir / relative_part
+        elif scan_path_str.startswith("./"):
+            # Other relative path
+            img_dir = base_dir / scan_path_str[2:]
+        else:
+            # Assume it's already a full or relative path
+            img_dir = base_dir / scan_path_str
+
+        for img_type in image_types:
+            img_path = img_dir / img_type
+
+            if img_path.exists():
+                image_links[barcode][img_type] = img_path
+            else:
+                image_links[barcode][img_type] = None
+
+    return image_links
+
+
 def setup_analysis_directories(
     base_dir: Union[str, Path], subdirs: Optional[List[str]] = None
 ) -> Dict[str, Path]:

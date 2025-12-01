@@ -114,7 +114,7 @@ class DataConfig:
     """Data loading and processing configuration.
 
     Attributes:
-        csv_path: Path to trait CSV file.
+        csv_path: Path to trait CSV file. Can be None for root core mode (auto-filled).
         image_dir: Directory containing images (optional).
         output_dir: Directory for output files.
         additional_exclude_cols: Additional columns to exclude from analysis.
@@ -122,7 +122,7 @@ class DataConfig:
         traits_to_exclude: List of trait names to exclude.
     """
 
-    csv_path: str = MISSING
+    csv_path: str | None = MISSING
     image_dir: Optional[str] = None
     output_dir: str = "./outputs"
     additional_exclude_cols: Optional[List[str]] = None
@@ -152,10 +152,16 @@ class HeritabilityConfig:
     Attributes:
         enabled: Whether to filter traits by heritability.
         threshold: Minimum heritability (H²) threshold.
+        generate_diagnostics: Whether to generate diagnostic plots and comparison CSV
+            for removed traits. Only takes effect when enabled=True. Outputs include:
+            - Comparison CSV with variance components for all traits
+            - Variance decomposition plot showing H², variance components, and metrics
+            - Boxplots of removed traits by genotype (limited to top 10 if >10 removed)
     """
 
     enabled: bool = True
     threshold: float = 0.60
+    generate_diagnostics: bool = False
 
 
 @dataclass
@@ -369,6 +375,12 @@ class StaticVisualizationConfig:
         pca_n_components: Number of principal components to show in PC boxplots (default: 3).
         histogram_batch_size: Number of traits per histogram figure (default: 9).
         boxplot_batch_size: Number of traits per boxplot figure (default: 6).
+        title_fontsize: Font size for plot titles.
+        label_fontsize: Font size for axis labels.
+        tick_fontsize: Font size for tick labels.
+        legend_fontsize: Font size for legend text.
+        bbox_inches: Bounding box mode for savefig ("tight" or None).
+        transparent: Whether to save with transparent background.
     """
 
     enabled: bool = True
@@ -387,6 +399,14 @@ class StaticVisualizationConfig:
     pca_n_components: int = 3
     histogram_batch_size: int = 9
     boxplot_batch_size: int = 6
+    # Font sizes
+    title_fontsize: int = 14
+    label_fontsize: int = 12
+    tick_fontsize: int = 10
+    legend_fontsize: int = 10
+    # Savefig parameters
+    bbox_inches: Optional[str] = "tight"
+    transparent: bool = False
 
 
 @dataclass
@@ -448,6 +468,15 @@ class VisualizationConfig:
         interactive: Whether to create interactive plots.
         dpi: DPI for static plots.
         figsize: Figure size for static plots (width, height).
+        title_fontsize: Font size for plot titles.
+        label_fontsize: Font size for axis labels.
+        tick_fontsize: Font size for tick labels.
+        legend_fontsize: Font size for legend text.
+        figure_format: Output format for figures (png, pdf, svg, eps).
+        bbox_inches: Bounding box mode for savefig ("tight" or None).
+        facecolor: Figure face color (None = default).
+        edgecolor: Figure edge color (None = default).
+        transparent: Whether to save with transparent background.
     """
 
     create_pca_plots: bool = True
@@ -457,3 +486,123 @@ class VisualizationConfig:
     interactive: bool = False
     dpi: int = 300
     figsize: tuple[int, int] = (10, 8)
+
+    # Font sizes
+    title_fontsize: int = 14
+    label_fontsize: int = 12
+    tick_fontsize: int = 10
+    legend_fontsize: int = 10
+
+    # Figure format
+    figure_format: str = "png"
+
+    # Savefig parameters
+    bbox_inches: Optional[str] = "tight"
+    facecolor: Optional[str] = None
+    edgecolor: Optional[str] = None
+    transparent: bool = False
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        # Validate font sizes are positive
+        for name in [
+            "title_fontsize",
+            "label_fontsize",
+            "tick_fontsize",
+            "legend_fontsize",
+        ]:
+            value = getattr(self, name)
+            if value <= 0:
+                raise ValueError(f"{name} must be positive, got {value}")
+
+        # Validate figure format
+        valid_formats = {"png", "pdf", "svg", "eps"}
+        if self.figure_format not in valid_formats:
+            raise ValueError(
+                f"figure_format must be one of {valid_formats}, got {self.figure_format}"
+            )
+
+        # Validate bbox_inches
+        if self.bbox_inches not in [None, "tight"]:
+            raise ValueError(
+                f"bbox_inches must be 'tight' or None, got {self.bbox_inches}"
+            )
+
+        # Validate DPI is positive
+        if self.dpi <= 0:
+            raise ValueError(f"dpi must be positive, got {self.dpi}")
+
+
+@dataclass
+class RootCoreSourceConfig:
+    """Configuration for a single root core data source.
+
+    Attributes:
+        csv_path: Path to root core CSV file.
+        data_type: Type of data ("biomass" or "counting").
+        depth_column_prefix: Prefix for wide-format column names (e.g., "RootDW_", "RootCount_").
+        value_column_name: Name of value column in long format (default: "Value").
+        aggregation_method: Method for aggregating cores ("mean", "median", or callable).
+        depth_mapping: Manual depth mapping for biomass data {column_name: depth_cm}.
+            Required for data_type="biomass", optional for data_type="counting" (auto-parsed).
+    """
+
+    csv_path: str = MISSING
+    data_type: str = MISSING  # "biomass" or "counting"
+    depth_column_prefix: str = MISSING
+    value_column_name: str = "Value"
+    aggregation_method: str = "mean"
+    depth_mapping: Optional[dict] = None
+
+
+@dataclass
+class CoreQCConfig:
+    """Configuration for core-level quality control.
+
+    Attributes:
+        enabled: Whether to perform core-level QC.
+        outlier_method: Method for outlier detection ("mahalanobis").
+        contamination: Expected proportion of outliers (0.0-0.5).
+        max_missing_proportion: Maximum proportion of missing depths allowed per core.
+        remove_outliers: Whether to remove flagged outliers before aggregation.
+    """
+
+    enabled: bool = True
+    outlier_method: str = "mahalanobis"
+    contamination: float = 0.1
+    max_missing_proportion: float = 0.5
+    remove_outliers: bool = True
+
+
+@dataclass
+class MergeTraitsConfig:
+    """Configuration for merging above-ground traits with root data.
+
+    Attributes:
+        above_ground_csv: Path to above-ground trait CSV file.
+        join_keys: Column names to use for merging (default: ["Plot", "Rep", "geno"]).
+        join_type: Type of join ("inner", "left", "right", "outer").
+        duplicate_strategy: How to handle duplicate columns ("fail", "skip", "suffix").
+        output_path: Path for merged output CSV file.
+    """
+
+    above_ground_csv: str = MISSING
+    join_keys: List[str] = field(default_factory=lambda: ["Plot", "Rep", "geno"])
+    join_type: str = "inner"
+    duplicate_strategy: str = "fail"  # "fail", "skip", or "suffix"
+    output_path: str = "merged_traits.csv"
+
+
+@dataclass
+class RootCoreConfig:
+    """Root core data processing configuration.
+
+    Attributes:
+        sources: List of root core data sources (biomass, counting, or both).
+        core_qc: Configuration for core-level quality control.
+        merge_traits: Configuration for merging with above-ground traits (optional).
+    """
+
+    sources: List[RootCoreSourceConfig] = field(default_factory=list)
+    core_qc: CoreQCConfig = field(default_factory=CoreQCConfig)
+    merge_traits: Optional[MergeTraitsConfig] = None

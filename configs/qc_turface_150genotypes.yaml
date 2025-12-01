@@ -15,8 +15,8 @@ enable_parallel: false
 
 # Data configuration
 data:
-  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/20251021_wheat_edpie/turface_150_genotypes/all_EDPIE.whole.root_raw_RSR_diameter_traits_removed.csv"
-  image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/20251017_wheat_edpie/turface_150_genotypes/rhizovision_processed_images"
+  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/all_EDPIE.whole.root_raw_RSR_diameter_traits_removed.csv"
+  image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/turface_150_genotypes_rhizovision_processed_images"
   additional_exclude_cols:
     - "File.me"
     - "region"
@@ -65,11 +65,25 @@ pca:
 heritability:
   enabled: true                   # REMOVE_LOW_HERITABILITY_TRAITS = True
   threshold: 0.40                 # HERITABILITY_THRESHOLD = 0.40
+  generate_diagnostics: false     # Generate detailed diagnostic plots and CSV for removed traits
 
 # Visualization settings (matching notebook)
 visualization:
-  dpi: 150                        # FIGURE_DPI = 150 (changed to 100 in later cells)
+  dpi: 100                        # FIGURE_DPI = 100 (notebook initial value)
   figsize: [10, 8]
+
+  # Font sizes (explicit configuration)
+  title_fontsize: 14              # TITLE_FONTSIZE = 14
+  label_fontsize: 12              # LABEL_FONTSIZE = 12
+  tick_fontsize: 10               # TICK_FONTSIZE = 10
+  legend_fontsize: 10             # LEGEND_FONTSIZE = 10
+
+  # Figure format
+  figure_format: "png"            # FIGURE_FORMAT = 'png'
+
+  # Savefig parameters
+  bbox_inches: "tight"            # Standard tight bounding box
+  transparent: false              # Opaque background
 
 # Logging
 logging:

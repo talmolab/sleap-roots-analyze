@@ -1,5 +1,9 @@
 """User exposed API."""
 
+__version__ = "0.0.1"
+
+from sleap_roots_analyze.cli import main
+
 from sleap_roots_analyze.data_cleanup import (
     load_trait_data,
     get_trait_columns,
@@ -11,6 +15,7 @@ from sleap_roots_analyze.data_cleanup import (
 
 from sleap_roots_analyze.data_utils import (
     link_rhizovision_images_to_samples,
+    link_cylinder_images_from_scan_path,
 )
 
 from sleap_roots_analyze.pca import (
@@ -56,6 +61,9 @@ from sleap_roots_analyze.visualization import (
     create_trait_eda_plots,
     create_heritability_plot,
     create_heritability_threshold_plot,
+    create_variance_decomposition_plot,
+    create_trait_by_genotype_boxplots,
+    create_heritability_diagnostic_dashboard,
     identify_extreme_samples_in_pc_space,
     create_pca_scree_plot,
     create_feature_contribution_plot,
@@ -143,7 +151,21 @@ from sleap_roots_analyze.interactive_visualization import (
     create_interactive_pca_plot,
 )
 
+from sleap_roots_analyze.root_core_analysis import (
+    create_sample_identifier,
+    validate_unique_identifiers,
+    melt_depth_data,
+    aggregate_by_replicate,
+)
+
+from sleap_roots_analyze.depth_profile_plots import (
+    plot_depth_profile_faceted,
+    plot_depth_profile_replicates,
+)
+
 __all__ = [
+    # CLI
+    "main",
     # Pipeline
     "VizPipeline",
     "VizPipelineConfig",
@@ -164,6 +186,7 @@ __all__ = [
     "remove_nan_samples",
     "remove_low_heritability_traits",
     "link_rhizovision_images_to_samples",
+    "link_cylinder_images_from_scan_path",
     "inspect_nan_samples",
     # PCA functions
     "perform_pca_analysis",
@@ -200,6 +223,9 @@ __all__ = [
     "create_trait_eda_plots",
     "create_heritability_plot",
     "create_heritability_threshold_plot",
+    "create_variance_decomposition_plot",
+    "create_trait_by_genotype_boxplots",
+    "create_heritability_diagnostic_dashboard",
     "identify_extreme_samples_in_pc_space",
     "create_pca_scree_plot",
     "create_feature_contribution_plot",
@@ -248,4 +274,12 @@ __all__ = [
     "calculate_correlation_confidence_intervals",
     "summarize_correlation_results",
     "create_genotype_boxplots",
+    # Root core analysis functions
+    "create_sample_identifier",
+    "validate_unique_identifiers",
+    "melt_depth_data",
+    "aggregate_by_replicate",
+    # Depth profile visualization functions
+    "plot_depth_profile_faceted",
+    "plot_depth_profile_replicates",
 ]
