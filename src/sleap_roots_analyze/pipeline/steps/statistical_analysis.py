@@ -237,7 +237,6 @@ class StatisticalAnalysisStep(BaseStep):
         fig = create_heritability_plot(
             heritability_results=heritability_results,
             figsize=tuple(config.visualization.figsize),
-            dpi=config.visualization.dpi,
         )
         heritability_plot_path = figures_dir / f"08_heritability_analysis.{config.visualization.figure_format}"
         fig.savefig(
