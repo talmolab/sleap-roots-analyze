@@ -37,13 +37,18 @@ from sleap_roots_analyze.pipeline.steps.filter_heritability import (
     FilterHeritabilityStep,
 )
 from sleap_roots_analyze.pipeline.steps.generate_summary import GenerateSummaryStep
+from sleap_roots_analyze.pipeline.steps.load_above_ground import (
+    LoadAboveGroundTraitsStep,
+)
+from sleap_roots_analyze.pipeline.steps.merge_all_traits import MergeAllTraitsStep
 
 
 class QCPipeline(BasePipeline):
     """Quality Control pipeline for trait data.
 
     This pipeline implements a quality control workflow with optional root core
-    processing (Steps 0a-0e) followed by standard trait-level QC (Steps 1-10).
+    processing (Steps 0a-0e) followed by standard trait-level QC (Steps 1-10),
+    and optional above-ground trait merging (Steps 11-12).
 
     **Root Core Processing (Optional - if config.root_core is set):**
     0a. LoadRootCoreData - Load biomass/counting data for all sources
@@ -63,6 +68,10 @@ class QCPipeline(BasePipeline):
     8. StatisticalAnalysis - Calculate ANOVA and heritability
     9. FilterHeritability - Filter low heritability traits (optional)
     10. GenerateSummary - Generate comprehensive pipeline summary
+
+    **Above-Ground Trait Merging (Optional - if config.root_core.merge_traits is set):**
+    11. LoadAboveGroundTraits - Load and validate above-ground phenotype data
+    12. MergeAllTraits - Merge root and above-ground traits with duplicate handling
 
     The pipeline uses NetworkX-based DAG execution for automatic step ordering
     and dependency management.
@@ -132,10 +141,15 @@ class QCPipeline(BasePipeline):
         self.step_9_filter_heritability = FilterHeritabilityStep()
         self.step_10_generate_summary = GenerateSummaryStep()
 
+        # Initialize above-ground merge step instances (optional)
+        self.step_11_load_above_ground = LoadAboveGroundTraitsStep()
+        self.step_12_merge_all_traits = MergeAllTraitsStep()
+
     def create_tasks(self) -> List[Task]:
-        """Create the QC pipeline task graph (with optional root core steps).
+        """Create the QC pipeline task graph (with optional root core and merge steps).
 
         If config.root_core is set, creates Steps 0a-0e before standard QC steps.
+        If config.root_core.merge_traits is set, creates Steps 11-12 after QC steps.
         The NetworkX DAG executor will ensure they execute in the correct order.
 
         Returns:
@@ -300,6 +314,31 @@ class QCPipeline(BasePipeline):
                 description="Generate comprehensive pipeline summary",
             )
         )
+
+        # Above-Ground Trait Merging (Optional - if config.root_core.merge_traits is set)
+        if (
+            self.config.root_core is not None
+            and self.config.root_core.merge_traits is not None
+        ):
+            # Step 11: Load Above-Ground Traits
+            tasks.append(
+                Task(
+                    func=self._run_load_above_ground,
+                    name="11_load_above_ground",
+                    depends_on=["10_generate_summary"],
+                    description="Load and validate above-ground phenotype data",
+                )
+            )
+
+            # Step 12: Merge All Traits (depends on both step 10 and step 11)
+            tasks.append(
+                Task(
+                    func=self._run_merge_all_traits,
+                    name="12_merge_all_traits",
+                    depends_on=["10_generate_summary", "11_load_above_ground"],
+                    description="Merge root and above-ground traits",
+                )
+            )
 
         return tasks
 
@@ -513,5 +552,33 @@ class QCPipeline(BasePipeline):
             config=config,
             run_dir=run_dir,
             prev_result=prev_step_result,
+        )
+        return result
+
+    # Above-Ground Merge Wrapper Methods (Steps 11-12)
+
+    def _run_load_above_ground(self, config, run_dir, logger, **kwargs):
+        """Execute Step 11: Load Above-Ground Traits."""
+        logger.info("Step 11: Loading above-ground traits...")
+        result = self.step_11_load_above_ground.execute(
+            data=None, config=config, run_dir=run_dir, prev_result=None
+        )
+        return result
+
+    def _run_merge_all_traits(self, config, run_dir, logger, **kwargs):
+        """Execute Step 12: Merge All Traits."""
+        logger.info("Step 12: Merging root and above-ground traits...")
+        qc_task_result = kwargs.get("10_generate_summary")
+        ag_task_result = kwargs.get("11_load_above_ground")
+
+        # Get the data from both previous steps
+        qc_step_result = qc_task_result.data
+        ag_step_result = ag_task_result.data
+
+        # Pass both datasets to merge step
+        result = self.step_12_merge_all_traits.execute(
+            data={"qc_data": qc_step_result.data, "above_ground": ag_step_result.data},
+            config=config,
+            run_dir=run_dir,
         )
         return result
