@@ -106,29 +106,29 @@ Add post-QC merge functionality:
 
 **Output**: `00e_root_core_merged.csv` containing root core traits only (biomass + counting)
 
-### Phase 2: Trait-Level QC (Steps 1-10) - ✅ IMPLEMENTED  
+### Phase 2: Trait-Level QC (Steps 1-10) - ✅ IMPLEMENTED
 Standard QC pipeline runs on root core data:
 - Steps 1-10 execute as normal
 - Final output: `10_qc_summary.csv` with QC'd root traits
 
-**Current Limitation**: Only root core traits are processed. Above-ground traits are not merged yet.
+### Phase 3: Above-Ground Integration (Steps 11-12) - ✅ IMPLEMENTED
+**Status**: Core merge functionality implemented, visualization steps not yet added.
 
-### Phase 3: Above-Ground Integration (Steps 11-14) - ❌ NOT IMPLEMENTED
-**Status**: Config structure exists (`merge_traits.above_ground_csv`) but steps not implemented.
+Implemented steps:
+- Step 11: LoadAboveGroundTraitsStep - Load and validate above-ground CSV
+- Step 12: MergeAllTraitsStep - Merge root + above-ground on Plot-Rep-geno keys with duplicate handling and metadata generation
 
-Planned steps (from tasks.md sections 8-12):
-- Step 11: Load above-ground traits CSV
-- Step 12: Merge root + above-ground on Plot-Rep-geno keys
-- Step 13: Generate processing metadata JSON
-- Step 14: Post-merge visualizations (cross-correlations, PCA)
+**Output**: `final_merged_traits.csv` (or custom path via `merge_traits.output_path`)
 
-**Impact**: Users can currently:
+Future enhancements (not yet implemented):
+- Step 13/14: Post-merge visualizations (cross-correlations, PCA with combined traits)
+
+**Impact**: Users can now:
 - ✅ Process root core data through full QC pipeline
 - ✅ Get clean root trait outputs with prefixes (RootDW_15cm, RootCount_5cm)
-- ❌ Cannot automatically merge with above-ground phenotypes yet
-- ❌ Must manually merge outputs if both root and above-ground traits needed
-
-**Workaround**: Users can manually merge `10_qc_summary.csv` with above-ground CSV using pandas after pipeline completes.
+- ✅ Automatically merge with above-ground phenotypes
+- ✅ Handle duplicate columns with configurable strategies (fail, skip, suffix)
+- ✅ Generate merge metadata JSON with statistics
 
 ## Key Design Decisions
 
@@ -232,11 +232,16 @@ See `tasks.md` for detailed implementation checklist.
 7. ✅ Integration tests pass with real EDPIE data
 8. ✅ Documentation explains configuration options
 
-### Phase 3 (Steps 11-14) - Future Work
-9. ⏳ Above-ground traits merged with root traits
-10. ⏳ No duplicate columns between root and above-ground traits
-11. ⏳ Cross-correlation visualizations (root vs above-ground)
-12. ⏳ PCA with combined trait set
+### Phase 3 (Steps 11-12) - Implemented
+9. ✅ Above-ground traits merged with root traits
+10. ✅ Duplicate column handling with configurable strategies (fail, skip, suffix)
+11. ✅ Merge metadata JSON with statistics generated
+12. ✅ Integration test with 17-step pipeline passes
+13. ✅ 17 unit tests for Steps 11-12 (all pass)
+
+### Phase 3 Future Enhancements (Steps 13-14)
+14. ⏳ Cross-correlation visualizations (root vs above-ground)
+15. ⏳ PCA with combined trait set
 
 ## References
 
