@@ -95,6 +95,41 @@ Add post-QC merge functionality:
     - Heritability by depth bar plots
     - PCA with all traits
 
+## Implementation Status
+
+### Phase 1: Core Data Processing (Steps 0a-0e) - ✅ IMPLEMENTED
+- Step 0a: LoadRootCoreData - Load biomass/counting from multiple sources
+- Step 0b: TransformDepthData - Convert to long format with depth_cm
+- Step 0c: QCCoreLevel - Detect/remove outlier cores (optional)
+- Step 0d: AggregateCores - Aggregate 3 cores → replicate level
+- Step 0e: ReshapeForTraitQC - Pivot to wide format with prefixes
+
+**Output**: `00e_root_core_merged.csv` containing root core traits only (biomass + counting)
+
+### Phase 2: Trait-Level QC (Steps 1-10) - ✅ IMPLEMENTED  
+Standard QC pipeline runs on root core data:
+- Steps 1-10 execute as normal
+- Final output: `10_qc_summary.csv` with QC'd root traits
+
+**Current Limitation**: Only root core traits are processed. Above-ground traits are not merged yet.
+
+### Phase 3: Above-Ground Integration (Steps 11-14) - ❌ NOT IMPLEMENTED
+**Status**: Config structure exists (`merge_traits.above_ground_csv`) but steps not implemented.
+
+Planned steps (from tasks.md sections 8-12):
+- Step 11: Load above-ground traits CSV
+- Step 12: Merge root + above-ground on Plot-Rep-geno keys
+- Step 13: Generate processing metadata JSON
+- Step 14: Post-merge visualizations (cross-correlations, PCA)
+
+**Impact**: Users can currently:
+- ✅ Process root core data through full QC pipeline
+- ✅ Get clean root trait outputs with prefixes (RootDW_15cm, RootCount_5cm)
+- ❌ Cannot automatically merge with above-ground phenotypes yet
+- ❌ Must manually merge outputs if both root and above-ground traits needed
+
+**Workaround**: Users can manually merge `10_qc_summary.csv` with above-ground CSV using pandas after pipeline completes.
+
 ## Key Design Decisions
 
 ### 1. Prefixing Strategy to Prevent Duplicates
@@ -187,14 +222,21 @@ See `tasks.md` for detailed implementation checklist.
 
 ## Success Criteria
 
+### Phase 1 & 2 (Steps 0a-10) - Current Implementation
 1. ✅ Pipeline processes both biomass and counting data from raw CSVs
 2. ✅ Core-level outliers identified and optionally removed
-3. ✅ Aggregated data matches collaborator's values (when using same method)
-4. ✅ Final merged CSV has no duplicate columns
-5. ✅ Metadata JSON generated with complete provenance
+3. ✅ Aggregated data matches expected values (using mean/median)
+4. ✅ Root core traits merged with prefixes (no duplicate columns between biomass/counting)
+5. ✅ Metadata JSON generated for each step
 6. ✅ All depth profile visualizations generated automatically
 7. ✅ Integration tests pass with real EDPIE data
-8. ✅ Documentation explains every configuration option
+8. ✅ Documentation explains configuration options
+
+### Phase 3 (Steps 11-14) - Future Work
+9. ⏳ Above-ground traits merged with root traits
+10. ⏳ No duplicate columns between root and above-ground traits
+11. ⏳ Cross-correlation visualizations (root vs above-ground)
+12. ⏳ PCA with combined trait set
 
 ## References
 

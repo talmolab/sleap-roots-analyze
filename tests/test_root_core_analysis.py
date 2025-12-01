@@ -65,6 +65,26 @@ class TestCreateSampleIdentifier:
         assert isinstance(result, pd.Series)
         assert len(result) == 0
 
+    def test_create_identifier_with_float_columns(self):
+        """Test that float columns (Rep, Plot, core_n) are converted to int without decimals."""
+        # Simulate data loaded from CSV where numeric columns become float
+        df = pd.DataFrame({
+            "Plot": [1.0, 2.0, 1.0],  # float64
+            "Rep": [1.0, 1.0, 2.0],   # float64
+            "geno": ["Control", "GH_7386", "Control"],
+            "core_n": [1.0, 2.0, 1.0]  # float64
+        })
+        
+        result = create_sample_identifier(df)
+        
+        # Should NOT have ".0" in the identifiers
+        assert result.iloc[0] == "plot1_rep1_Control_core1"
+        assert result.iloc[1] == "plot2_rep1_GH_7386_core2"
+        assert result.iloc[2] == "plot1_rep2_Control_core1"
+        
+        # Verify no ".0" appears in any identifier
+        assert not any(".0" in id_str for id_str in result)
+
 
 class TestValidateUniqueIdentifiers:
     """Tests for validate_unique_identifiers function."""

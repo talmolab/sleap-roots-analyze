@@ -103,9 +103,9 @@ def test_reshape_biomass_with_prefix(biomass_aggregated_data, config_biomass, tm
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
 
-    # Check result structure
-    assert "biomass" in result.data
-    df_wide = result.data["biomass"]
+    # Check result is a DataFrame (merged output)
+    assert isinstance(result.data, pd.DataFrame)
+    df_wide = result.data
 
     # Check shape: one row per Plot-Rep-geno combination
     num_unique_samples = biomass_aggregated_data.groupby(
@@ -127,8 +127,9 @@ def test_reshape_biomass_with_prefix(biomass_aggregated_data, config_biomass, tm
     assert "Root_DW_g" not in df_wide.columns
 
     # Check files generated
-    assert (tmp_path / "00d_root_core_biomass_wide.csv").exists()
-    assert (tmp_path / "00d_reshape_metadata.json").exists()
+    assert (tmp_path / "00e_root_core_biomass_wide.csv").exists()
+    assert (tmp_path / "00e_root_core_merged.csv").exists()
+    assert (tmp_path / "00e_reshape_metadata.json").exists()
 
     # Check metadata
     source_meta = result.metadata["sources"][0]
@@ -146,9 +147,9 @@ def test_reshape_counting_with_prefix(
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_counting, run_dir=tmp_path)
 
-    # Check result structure
-    assert "counting" in result.data
-    df_wide = result.data["counting"]
+    # Check result is a DataFrame (merged output)
+    assert isinstance(result.data, pd.DataFrame)
+    df_wide = result.data
 
     # Check column names have prefix
     expected_cols = [
@@ -189,16 +190,24 @@ def test_reshape_both_sources(
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
 
-    # Check both data types reshaped
-    assert "biomass" in result.data
-    assert "counting" in result.data
+    # Check result is a merged DataFrame with columns from both sources
+    assert isinstance(result.data, pd.DataFrame)
+    df_merged = result.data
+
+    # Check both prefixes present in columns
+    assert "RootDW_15cm" in df_merged.columns
+    assert "RootDW_45cm" in df_merged.columns
+    assert "RootCount_0cm" in df_merged.columns
+    assert "RootCount_5cm" in df_merged.columns
 
     # Check files generated
-    assert (tmp_path / "00d_root_core_biomass_wide.csv").exists()
-    assert (tmp_path / "00d_root_core_counting_wide.csv").exists()
+    assert (tmp_path / "00e_root_core_biomass_wide.csv").exists()
+    assert (tmp_path / "00e_root_core_counting_wide.csv").exists()
+    assert (tmp_path / "00e_root_core_merged.csv").exists()
 
     # Check metadata
     assert len(result.metadata["sources"]) == 2
+    assert "merged_shape" in result.metadata
 
 
 def test_reshape_preserves_metadata_columns(
@@ -214,7 +223,7 @@ def test_reshape_preserves_metadata_columns(
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
 
-    df_wide = result.data["biomass"]
+    df_wide = result.data
 
     # Check metadata columns preserved
     assert "Cid" in df_wide.columns
@@ -231,7 +240,7 @@ def test_reshape_column_naming_format(
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
 
-    df_wide = result.data["biomass"]
+    df_wide = result.data
 
     # Check column name format: {prefix}_{depth}cm
     depth_cols = [col for col in df_wide.columns if col.startswith("RootDW_")]
@@ -270,7 +279,7 @@ def test_reshape_float_depths(config_biomass, tmp_path):
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
 
-    df_wide = result.data["biomass"]
+    df_wide = result.data
 
     # Check columns exist with float depths
     assert "RootDW_15.5cm" in df_wide.columns
@@ -300,7 +309,7 @@ def test_reshape_single_depth(config_biomass, tmp_path):
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
 
-    df_wide = result.data["biomass"]
+    df_wide = result.data
 
     # Check only one depth column
     assert "RootDW_15cm" in df_wide.columns
@@ -310,3 +319,55 @@ def test_reshape_single_depth(config_biomass, tmp_path):
     # Check metadata
     source_meta = result.metadata["sources"][0]
     assert source_meta["num_depths"] == 1
+
+
+
+def test_barcode_with_float_columns(config_biomass, tmp_path):
+    """Test that Barcode column doesn't contain '.0' when Plot/Rep are floats.
+    
+    This regression test ensures that when Plot and Rep columns are float64
+    (as happens when loading from CSV), the Barcode column format is correct
+    (e.g., "1-1" not "1.0-1.0").
+    """
+    # Create data with float Plot/Rep columns (simulates CSV loading)
+    data = []
+    for plot in [1.0, 2.0]:  # float64
+        for rep in [1.0, 2.0]:  # float64
+            for geno in ["GH_7386", "GH_7420"]:
+                for depth in [15.0, 45.0]:
+                    data.append(
+                        {
+                            "Plot": plot,
+                            "Rep": rep,
+                            "geno": geno,
+                            "Depth_cm": depth,
+                            "Root_DW_g": np.random.uniform(1.0, 3.0),
+                        }
+                    )
+    
+    df = pd.DataFrame(data)
+    
+    # Verify columns are float
+    assert df["Plot"].dtype == np.float64
+    assert df["Rep"].dtype == np.float64
+    
+    input_data = {"biomass": df}
+    
+    step = ReshapeForTraitQCStep()
+    result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
+    
+    df_wide = result.data
+    
+    # Check Barcode column exists
+    assert "Barcode" in df_wide.columns
+    
+    # Check Barcode format is correct (no ".0" decimals)
+    expected_barcodes = {
+        "1-1", "1-2", "2-1", "2-2"
+    }
+    actual_barcodes = set(df_wide["Barcode"].unique())
+    assert actual_barcodes == expected_barcodes
+    
+    # Explicitly verify no ".0" appears in any barcode
+    for barcode in df_wide["Barcode"]:
+        assert ".0" not in barcode, f"Found '.0' in Barcode: {barcode}"

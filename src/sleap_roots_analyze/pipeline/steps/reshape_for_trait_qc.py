@@ -21,10 +21,13 @@ class ReshapeForTraitQCStep(BaseStep):
 
     This prevents duplicate column names when merging with above-ground traits.
 
+    Multiple sources (e.g., biomass and counting) are merged into a single DataFrame.
+
     Outputs:
-        - 00d_root_core_biomass_wide.csv: Wide-format biomass (if present)
-        - 00d_root_core_counting_wide.csv: Wide-format counting (if present)
-        - 00d_reshape_metadata.json: Metadata about reshape operation
+        - 00e_root_core_biomass_wide.csv: Wide-format biomass (if present)
+        - 00e_root_core_counting_wide.csv: Wide-format counting (if present)
+        - 00e_root_core_merged.csv: Merged DataFrame with all sources
+        - 00e_reshape_metadata.json: Metadata about reshape operation
     """
 
     def __init__(self):
@@ -50,7 +53,7 @@ class ReshapeForTraitQCStep(BaseStep):
             prev_result: StepResult from previous step.
 
         Returns:
-            StepResult with dict of wide-format DataFrames keyed by data_type.
+            StepResult with merged wide-format DataFrame (single table with all depths).
         """
         reshaped_data = {}
         files = []
@@ -70,7 +73,7 @@ class ReshapeForTraitQCStep(BaseStep):
             reshaped_data[source.data_type] = df_wide
 
             # Save wide-format data
-            filename = f"00d_root_core_{source.data_type}_wide.csv"
+            filename = f"00e_root_core_{source.data_type}_wide.csv"
             output_path = self.save_dataframe(df_wide, filename, run_dir)
             files.append(output_path)
 
@@ -84,11 +87,40 @@ class ReshapeForTraitQCStep(BaseStep):
                 }
             )
 
+        # Merge all sources into a single DataFrame
+        df_merged = self._merge_sources(reshaped_data)
+
+        # Create Barcode column for compatibility with downstream steps
+        # Format: Plot-Rep (e.g., "1-1", "2-3")
+        # Convert to int first to avoid ".0" in output (handles float columns from CSV)
+        df_merged["Barcode"] = (
+            df_merged["Plot"].astype(int).astype(str) + "-" + df_merged["Rep"].astype(int).astype(str)
+        )
+
+        # Reorder columns: metadata first, then traits
+        # Identify trait columns (contain depth info like "_Ncm")
+        trait_cols = [
+            col for col in df_merged.columns
+            if any(pattern in col for pattern in ["cm", "DW", "Count"])
+        ]
+        # Metadata columns are everything else
+        metadata_cols = [col for col in df_merged.columns if col not in trait_cols]
+        
+        # Reorder: metadata first, then traits (sorted)
+        df_merged = df_merged[metadata_cols + sorted(trait_cols)]
+
+        # Save merged data
+        merged_path = self.save_dataframe(
+            df_merged, "00e_root_core_merged.csv", run_dir
+        )
+        files.append(merged_path)
+        metadata["merged_shape"] = df_merged.shape
+
         # Save metadata
-        metadata_path = self.save_json(metadata, "00d_reshape_metadata.json", run_dir)
+        metadata_path = self.save_json(metadata, "00e_reshape_metadata.json", run_dir)
         files.append(metadata_path)
 
-        return StepResult(data=reshaped_data, metadata=metadata, files_generated=files)
+        return StepResult(data=df_merged, metadata=metadata, files_generated=files)
 
     def _pivot_to_wide(
         self,
@@ -161,3 +193,50 @@ class ReshapeForTraitQCStep(BaseStep):
         }
 
         return df_pivot, metadata
+
+    def _merge_sources(self, reshaped_data: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """Merge multiple wide-format DataFrames into a single table.
+
+        Args:
+            reshaped_data: Dict of wide-format DataFrames keyed by data_type.
+
+        Returns:
+            Single merged DataFrame with all depth columns from all sources.
+        """
+        if len(reshaped_data) == 0:
+            raise ValueError("No data sources to merge")
+
+        if len(reshaped_data) == 1:
+            # Only one source, return it directly
+            return list(reshaped_data.values())[0]
+
+        # Multiple sources - merge on Plot, Rep, geno
+        # First, identify common metadata columns (non-trait columns)
+        first_df = list(reshaped_data.values())[0]
+        index_cols = ["Plot", "Rep", "geno"]
+        
+        # Metadata columns are those that don't contain depth info (no "_Ncm" pattern)
+        metadata_cols = [
+            col for col in first_df.columns 
+            if col not in index_cols and not any(c in col for c in ["cm", "DW", "Count"])
+        ]
+
+        df_merged = None
+        for data_type, df in reshaped_data.items():
+            if df_merged is None:
+                df_merged = df
+            else:
+                # Separate trait columns (depth-specific) from metadata columns
+                trait_cols = [
+                    col for col in df.columns 
+                    if col not in index_cols and col not in metadata_cols
+                ]
+                
+                # Merge only index + trait columns to avoid duplicate metadata
+                df_to_merge = df[index_cols + trait_cols]
+                
+                df_merged = df_merged.merge(
+                    df_to_merge, on=index_cols, how="outer"
+                )
+
+        return df_merged

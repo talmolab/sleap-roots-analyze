@@ -124,11 +124,20 @@ def create_sample_identifier(
     parts = []
     for col in columns:
         prefix = prefix_map.get(col, "")
+        
+        # Convert to appropriate type before string conversion
+        # For numeric columns (Plot, Rep, core_n), convert to int to avoid ".0"
+        if col in ["Plot", "Rep", "core_n", "Ent", "Sub"] and pd.api.types.is_numeric_dtype(df[col]):
+            # Convert float to int (handles 1.0 -> 1)
+            col_str = df[col].astype(int).astype(str)
+        else:
+            col_str = df[col].astype(str)
+        
         if prefix:
-            parts.append(prefix + df[col].astype(str))
+            parts.append(prefix + col_str)
         else:
             # No prefix for this column (e.g., 'geno')
-            parts.append(df[col].astype(str))
+            parts.append(col_str)
 
     # Join with underscores
     return parts[0].str.cat(parts[1:], sep="_")

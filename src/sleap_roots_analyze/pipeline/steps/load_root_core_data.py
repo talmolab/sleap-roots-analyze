@@ -75,7 +75,7 @@ class LoadRootCoreDataStep(BaseStep):
             df = pd.read_csv(csv_path)
 
             # Validate required columns based on data type
-            required_cols = ["Plot", "Rep", "geno"]
+            required_cols = ["Plot", "Rep"]
             if source.data_type == "biomass":
                 required_cols.append("Core_Replicate")
             elif source.data_type == "counting":
@@ -90,6 +90,17 @@ class LoadRootCoreDataStep(BaseStep):
                 raise ValueError(
                     f"Missing required columns in {csv_path.name}: {missing_cols}"
                 )
+
+            # Handle genotype column renaming for standardization
+            if source.genotype_column not in df.columns:
+                raise ValueError(
+                    f"Genotype column '{source.genotype_column}' not found in {csv_path.name}. "
+                    f"Available columns: {df.columns.tolist()}"
+                )
+            
+            # Rename genotype column to standard 'geno' if it's different
+            if source.genotype_column != "geno":
+                df = df.rename(columns={source.genotype_column: "geno"})
 
             # Create sample identifier if not present
             if "sample_id" not in df.columns:
@@ -139,15 +150,16 @@ class LoadRootCoreDataStep(BaseStep):
         core_col = "Core_Replicate" if data_type == "biomass" else "core_n"
 
         # Create identifier: plot{Plot}_rep{Rep}_{geno}_core{N}
+        # Convert numeric columns to int first to avoid ".0" in identifiers
         df["sample_id"] = (
             "plot"
-            + df["Plot"].astype(str)
+            + df["Plot"].astype(int).astype(str)
             + "_rep"
-            + df["Rep"].astype(str)
+            + df["Rep"].astype(int).astype(str)
             + "_"
             + df["geno"].astype(str)
             + "_core"
-            + df[core_col].astype(str)
+            + df[core_col].astype(int).astype(str)
         )
 
         return df
