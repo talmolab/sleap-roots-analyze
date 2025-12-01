@@ -116,9 +116,17 @@ Standard QC pipeline runs on root core data:
 
 Implemented steps:
 - Step 11: LoadAboveGroundTraitsStep - Load and validate above-ground CSV
-- Step 12: MergeAllTraitsStep - Merge root + above-ground on Plot-Rep-geno keys with duplicate handling and metadata generation
+- Step 12: MergeAllTraitsStep - Merge root + above-ground on configurable join keys with duplicate handling and metadata generation
 
 **Output**: `final_merged_traits.csv` (or custom path via `merge_traits.output_path`)
+
+**CRITICAL**: Join Key Requirements
+- Root core output (Step 0e) has columns: `Plot`, `Rep`, `geno` (one row per plot after core aggregation)
+- Above-ground CSV **must** have matching columns for the configured `join_keys`
+- Common scenarios:
+  - **Plot-level design**: `join_keys: ["Plot", "Rep", "geno"]` - Requires Plot column in both datasets
+  - **Replicate-only design**: `join_keys: ["Rep", "geno"]` - When above-ground lacks Plot (will match all plots with same Rep+geno)
+  - **Genotype-only design**: `join_keys: ["geno"]` - Matches all reps/plots per genotype (creates many-to-many merge)
 
 Future enhancements (not yet implemented):
 - Step 13/14: Post-merge visualizations (cross-correlations, PCA with combined traits)
