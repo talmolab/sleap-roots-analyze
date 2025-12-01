@@ -5,11 +5,13 @@
 ### Requirement: Root Core Data Loading
 The system SHALL load root core experimental data (biomass and counting) from CSV files with proper validation.
 
-#### Scenario: Load biomass data with required columns
-- **GIVEN** a CSV file with columns `Plot`, `Rep`, `geno`, `Core_Replicate`, `0-30`, `30-60`
+#### Scenario: Load biomass data with genotype column mapping
+- **GIVEN** a CSV file with columns `Plot`, `Rep`, `salk_geno`, `Core_Replicate`, `0-30`, `30-60`
+- **AND** configuration specifies `genotype_column: "salk_geno"`
 - **WHEN** `LoadRootCoreDataStep` executes with biomass configuration
 - **THEN** load DataFrame successfully
-- **AND** validate all required columns exist
+- **AND** validate required columns exist: `Plot`, `Rep`, `Core_Replicate`
+- **AND** rename `salk_geno` → `geno` for standardization
 - **AND** create sample identifiers using `create_sample_identifier()`
 
 #### Scenario: Load counting data with depth pattern columns
@@ -22,6 +24,19 @@ The system SHALL load root core experimental data (biomass and counting) from CS
 - **GIVEN** a CSV file missing the `Rep` column
 - **WHEN** `LoadRootCoreDataStep` attempts to load
 - **THEN** raise `ValueError` with message listing missing columns
+
+#### Scenario: Handle missing genotype column
+- **GIVEN** a CSV file without `geno` column
+- **AND** configuration does not specify `genotype_column`
+- **WHEN** `LoadRootCoreDataStep` attempts to load
+- **THEN** raise `ValueError`: `"Genotype column not found. Specify genotype_column in config or ensure 'geno' column exists."`
+
+#### Scenario: Rename genotype column to standard name
+- **GIVEN** biomass CSV with `salk_geno` column
+- **AND** configuration specifies `genotype_column: "salk_geno"`
+- **WHEN** `LoadRootCoreDataStep` executes
+- **THEN** rename column to `geno`
+- **AND** all downstream steps use standard `geno` column name
 
 #### Scenario: Load multiple root core sources
 - **GIVEN** configuration with both biomass and counting sources

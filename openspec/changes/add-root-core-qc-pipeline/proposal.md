@@ -22,7 +22,8 @@ Add a new pre-processing phase to QC Pipeline that handles root core data:
 1. **Step 0a: Load Raw Root Core Data**
    - Load biomass CSV (2 depths, 3 cores/rep)
    - Load counting CSV (12 depths, 3 cores/rep)
-   - Validate data structure and required columns
+   - Validate data structure and required columns (Plot, Rep, core ID)
+   - Map genotype column name (e.g., `salk_geno` → `geno`) per source configuration
    - Create unique sample identifiers per core
 
 2. **Step 0b: Transform to Long Format**
@@ -128,11 +129,13 @@ root_core_processing:
     csv_path: "rearranged_root_biomass_dw.csv"
     depth_column_prefix: "RootDW"
     aggregation_method: "mean"
+    genotype_column: "salk_geno"  # Map to standard 'geno' column
 
   counting:
     csv_path: "root_counting_cimmyt_edited.csv"
     depth_column_prefix: "RootCount"
     aggregation_method: "mean"
+    genotype_column: "geno"  # Already uses standard name
 
   core_qc:
     enabled: true
