@@ -15,6 +15,7 @@ from sleap_roots_analyze.visualization import (
     create_trait_eda_plots,
     create_trait_histograms_batched,
 )
+from sleap_roots_analyze.viz_utils import calculate_correlation_matrix_size
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
 
@@ -103,10 +104,19 @@ class ExploratoryAnalysisStep(BaseStep):
         all_figures = {**summary_figures, **eda_figures}
 
         # 3.5. Add full correlation heatmap (separate from summary plots)
+        # Use adaptive sizing if enabled
+        if config.adaptive_sizing and config.adaptive_sizing.enabled:
+            corr_figsize = calculate_correlation_matrix_size(
+                n_traits=len(trait_cols),
+                config=config.adaptive_sizing
+            )
+        else:
+            corr_figsize = tuple(config.visualization.figsize)
+
         full_corr_fig = create_correlation_heatmap(
             df=df,
             trait_cols=trait_cols,
-            figsize=tuple(config.visualization.figsize),
+            figsize=corr_figsize,
         )
         all_figures["full_correlation_heatmap"] = full_corr_fig
 

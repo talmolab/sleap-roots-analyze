@@ -74,9 +74,9 @@ visualization:
 
   # Font sizes (explicit configuration)
   title_fontsize: 16
-  label_fontsize: 14            
-  tick_fontsize: 12         
-  legend_fontsize: 12             
+  label_fontsize: 14
+  tick_fontsize: 12
+  legend_fontsize: 12
 
   # Figure format
   figure_format: "png"
@@ -84,6 +84,21 @@ visualization:
   # Savefig parameters
   bbox_inches: "tight"            # Standard tight bounding box
   transparent: false              # Opaque background
+
+# Adaptive figure sizing (optional - improves legibility for datasets with varying numbers of traits)
+adaptive_sizing:
+  enabled: false                 # Set to true to enable automatic figure scaling based on content
+  base_width: 8.0                # Base width for single-column figures (inches)
+  base_height: 6.0               # Base height for single-row figures (inches)
+  width_per_item: 2.0            # Width increment per additional column/item (inches)
+  height_per_item: 2.0           # Height increment per additional row/item (inches)
+  min_width: 6.0                 # Minimum figure width (inches)
+  max_width: 20.0                # Maximum figure width (inches)
+  min_height: 4.0                # Minimum figure height (inches)
+  max_height: 16.0               # Maximum figure height (inches)
+  # When enabled, figures automatically scale based on number of traits/items
+  # Example: Correlation heatmap with 50 traits → 20x20 instead of fixed 12x8
+  # Example: Heritability plot with 100 traits → scales height to fit all bars
 
 # Logging
 logging:

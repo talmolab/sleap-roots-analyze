@@ -15,6 +15,7 @@ from sleap_roots_analyze.statistics import (
     perform_anova_by_genotype,
 )
 from sleap_roots_analyze.visualization import create_heritability_plot
+from sleap_roots_analyze.viz_utils import calculate_barplot_size
 
 
 class StatisticalAnalysisStep(BaseStep):
@@ -234,9 +235,19 @@ class StatisticalAnalysisStep(BaseStep):
         figures_dir = run_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
 
+        # Use adaptive sizing if enabled
+        if config.adaptive_sizing and config.adaptive_sizing.enabled:
+            h2_figsize = calculate_barplot_size(
+                n_items=len(heritability_results),
+                config=config.adaptive_sizing,
+                orientation="vertical",
+            )
+        else:
+            h2_figsize = tuple(config.visualization.figsize)
+
         fig = create_heritability_plot(
             heritability_results=heritability_results,
-            figsize=tuple(config.visualization.figsize),
+            figsize=h2_figsize,
         )
         heritability_plot_path = figures_dir / f"08_heritability_analysis.{config.visualization.figure_format}"
         fig.savefig(

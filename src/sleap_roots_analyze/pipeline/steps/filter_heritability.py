@@ -23,6 +23,7 @@ from sleap_roots_analyze.visualization import (
     create_trait_by_genotype_boxplots,
     create_variance_decomposition_plot,
 )
+from sleap_roots_analyze.viz_utils import calculate_figure_size, calculate_barplot_size
 
 
 class FilterHeritabilityStep(BaseStep):
@@ -169,9 +170,20 @@ class FilterHeritabilityStep(BaseStep):
                 comparison_df.to_csv(diag_csv_path, index=False)
 
                 # Create variance decomposition plot for all traits
+                # Use adaptive sizing if enabled (4 panels in 2x2 grid)
+                if config.adaptive_sizing and config.adaptive_sizing.enabled:
+                    var_figsize = calculate_figure_size(
+                        n_items=4,  # 4 panels in 2x2 grid
+                        config=config.adaptive_sizing,
+                        layout="grid",
+                        max_cols=2,
+                    )
+                else:
+                    var_figsize = (14, 10)
+
                 fig_var = create_variance_decomposition_plot(
                     comparison_df=comparison_df,
-                    figsize=(14, 10),
+                    figsize=var_figsize,
                     output_path=None,  # Will save manually
                 )
                 var_plot_path = (
@@ -262,8 +274,17 @@ class FilterHeritabilityStep(BaseStep):
         threshold_analysis = analyze_heritability_thresholds(
             heritability_results=heritability_results
         )
+
+        # Use adaptive sizing if enabled
+        if config.adaptive_sizing and config.adaptive_sizing.enabled:
+            threshold_figsize = (10, 6)  # Keep fixed for this plot (single panel)
+        else:
+            threshold_figsize = (10, 6)
+
         fig = create_heritability_threshold_plot(
-            threshold_analysis=threshold_analysis, current_threshold=threshold
+            threshold_analysis=threshold_analysis,
+            current_threshold=threshold,
+            figsize=threshold_figsize,
         )
         threshold_plot_path = (
             run_dir / "figures" / "09_heritability_threshold_analysis.png"

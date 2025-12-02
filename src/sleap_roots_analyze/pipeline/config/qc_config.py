@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from omegaconf import MISSING
 
 from sleap_roots_analyze.pipeline.config.components import (
+    AdaptiveSizingConfig,
     CleanupConfig,
     ClusteringConfig,
     ColumnConfig,
@@ -43,6 +44,7 @@ class QCPipelineConfig:
         pca: PCA analysis configuration.
         clustering: Clustering analysis configuration.
         visualization: Visualization generation configuration.
+        adaptive_sizing: Adaptive figure sizing configuration.
         logging: Logging configuration.
     """
 
@@ -65,4 +67,5 @@ class QCPipelineConfig:
     pca: PCAConfig = field(default_factory=PCAConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+    adaptive_sizing: AdaptiveSizingConfig = field(default_factory=AdaptiveSizingConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
