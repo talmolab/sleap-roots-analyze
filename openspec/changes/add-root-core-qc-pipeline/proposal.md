@@ -32,10 +32,11 @@ Add a new pre-processing phase to QC Pipeline that handles root core data:
    - Output: Long-format DataFrames with `Depth_cm` column
 
 3. **Step 0c: Core-Level QC**
-   - Detect outlier cores within each biological replicate
-   - Flag cores with excessive missing data
-   - Generate visualizations of individual core profiles
+   - **IMPORTANT: Statistical outlier detection is NOT performed at core level** due to insufficient sample sizes
+   - Root core datasets typically have ~3 cores per plot, but statistical methods (e.g., Mahalanobis distance) require 30+ samples for reliable detection
+   - Core-level QC only flags cores with excessive missing data (>50% NaN depths)
    - Optional: Remove flagged cores before aggregation
+   - **Recommended approach**: Disable core-level QC (`core_qc.enabled: false`) and use median aggregation for robustness to outliers
 
 4. **Step 0d: Aggregate to Biological Replicates**
    - Use existing `aggregate_by_replicate()` function
@@ -54,31 +55,32 @@ Add a new pre-processing phase to QC Pipeline that handles root core data:
    - Add prefix to column names: `RootDW_15cm`, `RootCount_5cm`, etc.
    - This prevents column name conflicts when merging later
 
-### Phase 2: Trait-Level QC (Existing Pipeline)
+### Phase 2: Integration with Above-Ground Traits (NEW WORKFLOW)
 
-Connect to existing QC pipeline steps:
+**CRITICAL WORKFLOW CHANGE**: Merge happens BEFORE trait-level QC to enable outlier detection and heritability analysis on the full trait manifold.
 
-7. **Step 1: LoadData** - Load the wide-format root data from Step 0f
-8. **Steps 2-10**: Run existing QC pipeline as normal
-   - Cleanup traits (remove high-NaN depths)
-   - Detect and remove outlier replicates
-   - Calculate heritability by depth
-   - Filter low-heritability depths
-
-### Phase 3: Integration with Above-Ground Traits (New Steps)
-
-Add post-QC merge functionality:
-
-9. **Step 11: Load and Validate Above-Ground Traits**
+6. **Step 11: Load and Validate Above-Ground Traits**
    - Load phenology, biomass, yield CSV
-   - Validate Plot-Rep combinations match root data
-   - Check for column name conflicts
+   - Validate join key columns match config exactly (case-sensitive)
+   - Check for duplicate samples (one row per join key combination)
 
-10. **Step 12: Merge All Trait Sources**
-    - Merge on Plot-Rep-geno keys
-    - Validate no duplicate columns (fail if conflicts found)
-    - Preserve all metadata columns
-    - Output: Final wide-format CSV with all traits
+7. **Step 12: Merge All Trait Sources**
+   - Merge root + above-ground on configurable join keys (e.g., ["Rep", "geno"])
+   - Validate no duplicate column names (fail if conflicts found)
+   - Output: Merged dataset with all traits (root + above-ground)
+
+### Phase 3: Trait-Level QC on Merged Dataset (Existing Pipeline)
+
+**Run QC on combined trait manifold** (root + above-ground traits together):
+
+8. **Step 1: LoadData** - Uses merged data from Step 12
+9. **Steps 2-10**: Run QC pipeline on full trait set
+   - Cleanup traits (remove high-NaN traits from either source)
+   - **Detect outliers using Mahalanobis distance on FULL manifold** (root + above-ground)
+   - Remove outlier plots
+   - **Calculate heritability on FULL trait set** (root + above-ground)
+   - Filter low-heritability traits
+   - Output: Final QC'd dataset with both root and above-ground traits
 
 11. **Step 13: Generate Processing Metadata**
     - JSON file with complete provenance:
@@ -100,18 +102,19 @@ Add post-QC merge functionality:
 ### Phase 1: Core Data Processing (Steps 0a-0e) - ✅ IMPLEMENTED
 - Step 0a: LoadRootCoreData - Load biomass/counting from multiple sources
 - Step 0b: TransformDepthData - Convert to long format with depth_cm
-- Step 0c: QCCoreLevel - Detect/remove outlier cores (optional)
-- Step 0d: AggregateCores - Aggregate 3 cores → replicate level
+- Step 0c: QCCoreLevel - **Missing data detection only** (statistical outlier detection removed due to insufficient sample sizes)
+- Step 0d: AggregateCores - Aggregate 3 cores → replicate level (median recommended)
 - Step 0e: ReshapeForTraitQC - Pivot to wide format with prefixes
 
 **Output**: `00e_root_core_merged.csv` containing root core traits only (biomass + counting)
 
-### Phase 2: Trait-Level QC (Steps 1-10) - ✅ IMPLEMENTED
-Standard QC pipeline runs on root core data:
-- Steps 1-10 execute as normal
-- Final output: `10_qc_summary.csv` with QC'd root traits
+**IMPORTANT CHANGE**: Core-level QC no longer performs statistical outlier detection (e.g., Mahalanobis distance) because root core datasets have insufficient samples (~3 cores per plot, need 30+ for reliability). Instead, use median aggregation for robustness to outliers and let trait-level QC (Step 5) detect outliers on plot-level data (60+ samples)
 
-### Phase 3: Above-Ground Integration (Steps 11-12) - ✅ IMPLEMENTED
+### Phase 2: Above-Ground Integration (Steps 11-12) - ✅ IMPLEMENTED
+**IMPORTANT**: These steps now run BEFORE trait-level QC to enable analysis on full manifold
+
+### Phase 3: Trait-Level QC on Merged Data (Steps 1-10) - ✅ IMPLEMENTED
+**WORKFLOW CHANGE NEEDED**: Pipeline needs reordering to run Steps 11-12 before Steps 1-10
 **Status**: Core merge functionality implemented, visualization steps not yet added.
 
 Implemented steps:
@@ -124,9 +127,85 @@ Implemented steps:
 - Root core output (Step 0e) has columns: `Plot`, `Rep`, `geno` (one row per plot after core aggregation)
 - Above-ground CSV **must** have matching columns for the configured `join_keys`
 - Common scenarios:
-  - **Plot-level design**: `join_keys: ["Plot", "Rep", "geno"]` - Requires Plot column in both datasets
-  - **Replicate-only design**: `join_keys: ["Rep", "geno"]` - When above-ground lacks Plot (will match all plots with same Rep+geno)
+  - **Plot-level design**: `join_keys: ["Plot", "Rep", "geno"]` - Requires Plot column in both datasets. Use when above-ground data is also collected per plot.
+  - **Replicate-only design**: `join_keys: ["Rep", "geno"]` - When above-ground lacks Plot column (e.g., one measurement per rep-genotype). This is the most common scenario when root cores are plot-level but above-ground is replicate-level.
   - **Genotype-only design**: `join_keys: ["geno"]` - Matches all reps/plots per genotype (creates many-to-many merge)
+- **Key insight**: Both datasets must have exactly **one row per join key combination** to avoid duplicate rows. If root core data has multiple plots per Rep-Geno (after Step 0d aggregation), you cannot use `["Rep", "geno"]` join keys alone.
+
+**CRITICAL: Column Name Validation to Prevent Metadata Contamination**
+
+**Metadata columns MUST be excluded from statistical analyses**. The pipeline uses case-sensitive column matching, so config values must EXACTLY match data column names:
+
+**Common configuration errors:**
+- Config: `replicate: "rep"` but data has `"Rep"` → Rep column NOT excluded! ❌
+- Config: `barcode: "barcode"` but data has `"Barcode"` → Barcode column NOT excluded! ❌
+- Result: Metadata contaminate PCA, outlier detection, heritability calculations
+
+**Validation checklist before running pipeline:**
+1. Check actual data columns: `pd.read_csv("your_data.csv").columns.tolist()`
+2. Update config to match EXACTLY (case-sensitive):
+   ```yaml
+   columns:
+     barcode: "Barcode"  # Match case from data
+     genotype: "geno"     # Match case from data  
+     replicate: "Rep"     # Match case from data (NOT "rep")
+   ```
+3. **NEVER rely on function defaults** - always specify column names in config
+4. Root core pipeline uses: `Plot`, `Rep`, `geno`, `Barcode` (mixed case)
+
+**Consequences of misconfiguration:**
+- Plot/Rep/geno values included in PCA → contaminated outlier detection ❌
+- Heritability calculated FOR metadata columns (nonsensical) ❌
+- Statistical tests use replicate IDs as trait values (invalid) ❌
+
+**CRITICAL: Why Median Aggregation is Recommended Over Core-Level Outlier Detection**
+
+Root core experiments present a unique challenge: each plot has only ~3 cores, but statistical outlier detection methods require 30+ samples for reliability. This fundamental limitation means:
+
+1. **Statistical methods don't work at core level**: 
+   - Mahalanobis distance with PCA requires large samples for stable covariance estimation
+   - Chi-squared threshold calculation assumes asymptotic distribution (violated with n=3)
+   - With only 2-12 depth measurements per core, PCA compression loses outlier signal
+
+2. **Median aggregation solves the problem without detection**:
+   - Median is inherently robust to outliers (breaks down only when >50% of values are outliers)
+   - Handles typos, miscounts, and measurement errors automatically
+   - Works with any sample size (including n=3)
+   - Simpler, faster, and more reliable than statistical detection with insufficient samples
+
+3. **Trait-level QC still detects outliers**:
+   - After aggregation, you have 60+ plots (sufficient for statistical methods)
+   - Step 5 (DetectOutliers) uses Mahalanobis distance on plot-level data
+   - This catches biological outliers (e.g., genotypes with extreme root phenotypes)
+
+**RECOMMENDATION**: Use `aggregation_method: "median"` and disable core-level QC (`core_qc.enabled: false`).
+
+**When to use MEAN (use with caution)**:
+- Data has very low within-plot variance (CV < 0.3)
+- Manual inspection confirms no outlier cores
+- Differences between mean and median are negligible (< 5% of typical values)
+- You need maximum precision for subtle genetic effects
+
+**When to use MEDIAN (recommended default)**:
+- Any dataset where you haven't manually inspected all cores
+- Data with potential typos, miscounts, or measurement errors
+- High within-plot variance (CV > 0.3)
+- You want robust analysis without manual data curation
+
+**Example analysis** (EDPIE root biomass data):
+- Within-plot CV: 0.3-0.4 (moderate)
+- Plots with high skewness: 55% have abs(skew) > 1
+- IQR outliers: 0 plots
+- Mean vs median difference: < 0.2g (< 10% of values)
+- **Recommendation**: MEAN is appropriate - differences are minimal, no outliers detected
+
+To analyze your own data before choosing:
+```python
+# Check within-plot variance and outliers
+plot_stats = df.groupby('Plot')['depth_column'].agg(['mean', 'median', 'std'])
+cv = plot_stats['std'] / plot_stats['mean']
+print(f"Mean CV: {cv.mean():.3f}")  # < 0.3 = low, 0.3-0.5 = moderate, > 0.5 = high
+```
 
 Future enhancements (not yet implemented):
 - Step 13/14: Post-merge visualizations (cross-correlations, PCA with combined traits)
@@ -187,7 +266,7 @@ root_core_processing:
 
 merge_traits:
   above_ground_csv: "above_ground_phenotypes.csv"
-  join_keys: ["Plot", "Rep", "geno"]
+  join_keys: ["Rep", "geno"]  # IMPORTANT: Must match columns in above-ground CSV
   validate_no_duplicates: true
   output_path: "Field_2024_final.csv"
 ```

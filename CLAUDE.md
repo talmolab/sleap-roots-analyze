@@ -29,6 +29,72 @@ This document provides guidelines for AI assistants (particularly Claude) when w
 - Visualization of root system architecture
 - Quality control and outlier detection
 
+## Configuration Philosophy
+
+The sleap-roots-analyze pipeline uses explicit configuration to ensure reproducibility and prevent silent failures from unintended defaults.
+
+### Explicit Configuration Principles
+
+1. **Critical parameters must be explicitly set** - Parameters that significantly affect results (cleanup thresholds, heritability thresholds, aggregation methods) must be defined in your config file
+2. **Validation at pipeline start** - Configuration is validated before execution to catch errors early
+3. **Two-tier validation**:
+   - **Explicit config validation**: Checks that required parameters are set (errors for required, warnings for optional-but-important)
+   - **Structural validation**: Checks that values are valid and internally consistent
+4. **Sensible defaults provided** - Default values exist for convenience but validation encourages awareness
+5. **Templates for common use cases** - Pre-configured templates in `configs/templates/` demonstrate best practices
+
+### Configuration Templates
+
+Two templates are provided in `configs/templates/`:
+
+1. **qc_cleanup_only_template.yaml** - For data cleanup only (NaN/zero removal)
+   - No outlier detection
+   - Will generate warning about empty outlier detection (this is expected)
+   - Use when you only want basic data cleaning
+
+2. **qc_full_pipeline_template.yaml** - Complete QC pipeline
+   - Data cleanup + outlier detection + heritability filtering
+   - Multiple detection methods (Mahalanobis, Isolation Forest, K-Means)
+   - Subset strategy for robust outlier removal
+
+### Required Parameters
+
+These must be explicitly set in your configuration:
+
+**Cleanup Configuration:**
+- `cleanup.max_nan_fraction` - Max fraction of NaN values per sample (recommended: 0.25)
+- `cleanup.max_zeros_per_trait` - Max fraction of zero values per trait (recommended: 0.5)
+- `cleanup.max_nans_per_trait` - Max fraction of NaN values per trait (recommended: 0.2)
+
+**Column Mappings (dataset-specific):**
+- `columns.genotype` - Your genotype column name (e.g., "geno", "accession")
+- `columns.replicate` - Your replicate column name (e.g., "rep", "block")
+
+**PCA Configuration:**
+- `pca.n_components` - Variance explained by selected components (recommended: 0.95)
+
+**Outlier Removal (if detection enabled):**
+- `outlier_removal.strategy` - How to handle outliers ("single", "subset", or "flag")
+
+**Root Core Aggregation (if using root core data):**
+- `root_core.sources[*].aggregation_method` - Method for aggregating cores ("median" or "mean")
+  - Recommended: "median" (robust to outliers and measurement errors)
+
+**Heritability (if filtering enabled):**
+- `heritability.threshold` - Minimum H² for trait retention (typical range: 0.3-0.6)
+
+### Configuration Review
+
+All existing QC configs have been reviewed and are compliant with these requirements. See `docs/configuration_review.md` for detailed status of each config file.
+
+### Validation Warnings
+
+**Expected warnings:**
+- Empty outlier detection in cleanup-only configs - This is valid if you only want data cleanup
+- Consider adding outlier detection suggestion - Informational, not an error
+
+**Configuration errors will prevent pipeline execution** - Fix any validation errors before running the pipeline.
+
 ## Development Environment
 
 ### Dependency Management

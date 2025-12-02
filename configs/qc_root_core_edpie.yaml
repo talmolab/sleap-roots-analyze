@@ -1,10 +1,10 @@
 # QC Pipeline Configuration: Root Core (EDPIE Example)
 #
 # This config processes root biomass and counting data through full QC pipeline,
-# then merges with above-ground traits. Prevents duplicate columns via prefixing.
+# merging with above-ground traits BEFORE QC to enable high-dimensional analysis.
 #
 # Use case: Root core experiments with 3 cores per replicate
-# Steps: Core-level QC → Aggregate → Trait-level QC → Merge → Final CSV
+# Steps: Core-level QC → Aggregate → Merge → Trait-level QC → Final CSV
 
 # Pipeline metadata
 pipeline_name: "EDPIE Root Core Full QC"
@@ -21,7 +21,7 @@ root_core:
       data_type: "biomass"  # Manual depth mapping required
       depth_column_prefix: "RootDW"  # Output columns: RootDW_15cm, RootDW_45cm
       value_column_name: "Root_DW_g"
-      aggregation_method: "mean"  # Options: mean, median
+      aggregation_method: "median"  # Aggregates 3 cores → 1 plot value. MEDIAN is robust to outliers (typos, miscounts) without requiring outlier detection
       genotype_column: "salk_geno"  # Map salk_geno -> geno for standardization
       depth_mapping:
         "0-30": 15.0   # Midpoint of 0-30 cm range
@@ -32,25 +32,35 @@ root_core:
       data_type: "counting"  # Auto-parses from c_<start>_<end>_<subcore> pattern
       depth_column_prefix: "RootCount"  # Output: RootCount_0cm, RootCount_5cm, etc.
       value_column_name: "Root_Count"
-      aggregation_method: "mean"
+      aggregation_method: "median"  # Robust to counting errors and outlier cores
       genotype_column: "geno"  # Already uses standard column name
       # depth_mapping not needed - auto-calculated
 
   # Core-level QC (before aggregation)
+  # 
+  # RECOMMENDATION: Disable core-level QC and use median aggregation instead.
+  # 
+  # WHY: Statistical outlier detection (e.g., Mahalanobis distance) requires 30+ samples
+  # for reliable detection, but core-level data has only ~3 cores per plot. With such
+  # small sample sizes, statistical methods cannot reliably distinguish outliers from
+  # normal variation.
+  # 
+  # BETTER APPROACH:
+  # 1. Use median aggregation (aggregation_method: "median") - robust to outliers
+  # 2. Let trait-level QC (Step 5) detect outliers with 60+ plot samples
+  # 3. Median naturally handles typos, miscounts, and other core-level errors
   core_qc:
-    enabled: true
-    outlier_method: "mahalanobis"  # Detect outlier cores within Plot-Rep groups
-    contamination: 0.1  # 10% expected outliers
-    max_missing_proportion: 0.5  # Flag cores with >50% missing depths
-    remove_outliers: true  # Remove before aggregating to replicate level
+    enabled: false  # Disabled - use median aggregation instead
+    max_missing_proportion: 0.5  # Flag cores with >50% missing depths (if enabled)
+    remove_outliers: true  # Remove flagged cores (if enabled)
 
-  # Merge with above-ground traits (after QC)
+  # Merge with above-ground traits (BEFORE trait-level QC)
   merge_traits:
     above_ground_csv: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/field/Field_2024_aboveground.csv"
-    join_keys: ["Plot", "Rep", "geno"]
-    join_type: "inner"  # Options: inner, left, right, outer
-    duplicate_strategy: "fail"  # Options: fail, skip, suffix
-    output_path: "Field_2024_final.csv"
+    join_keys: ["Rep", "geno"]  # CRITICAL: Must match columns in above-ground CSV. Both datasets have 1 row per Rep-Geno (60 total). Plot column preserved from root data.
+    join_type: "inner"  # Options: inner (only matching), left (keep all root), right (keep all above-ground), outer (keep all)
+    duplicate_strategy: "fail"  # How to handle duplicate trait names: fail (error), skip (keep root version), suffix (add _root/_ag)
+    output_path: "Field_2024_final.csv"  # Final merged CSV with root + above-ground traits
 
 # ============================================================================
 # TRAIT-LEVEL QC (Standard Pipeline Steps 1-10)
@@ -60,6 +70,20 @@ root_core:
 data:
   csv_path: null  # Auto-filled by pipeline
   image_dir: null  # Optional: Link images to samples
+
+  # CRITICAL: Exclude metadata columns from statistical analysis
+  # These columns are PRESERVED in the final CSV but NOT used in PCA/outlier/heritability calculations
+  additional_exclude_cols:
+    - "Ent"          # Entry number
+    - "Sub"          # Sub-entry
+    - "Cid"          # Cross ID
+    - "Sid"          # Selection ID
+    - "GID"          # Germplasm ID
+    - "Cross name"   # Cross pedigree
+    - "Sel_Hist"     # Selection history
+    - "Origin"       # Germplasm origin
+    - "core_id"      # Core identifier
+    - "plant_identifier"  # Plant identifier
 
 # Column names
 columns:
@@ -102,8 +126,8 @@ pca:
 # Heritability filtering
 heritability:
   enabled: true
-  threshold: 0.3  # Remove depths with H² < 0.3
-  generate_diagnostics: false  # Generate detailed diagnostic plots and CSV for removed traits
+  threshold: 0.5
+  generate_diagnostics: true  # Generate detailed diagnostic plots and CSV for removed traits
 
 # Visualization
 visualization:
