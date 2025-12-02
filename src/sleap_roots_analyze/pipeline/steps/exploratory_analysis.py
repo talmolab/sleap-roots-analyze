@@ -81,8 +81,15 @@ class ExploratoryAnalysisStep(BaseStep):
         stats = calculate_trait_statistics(df=df, trait_cols=trait_cols)
 
         # 2. Create exploratory summary plots
+        # Pass adaptive config if enabled
+        adaptive_cfg = (
+            config.adaptive_sizing if config.adaptive_sizing.enabled else None
+        )
         summary_figures = create_exploratory_summary_plots(
-            df=df, trait_cols=trait_cols, genotype_col=config.columns.genotype
+            df=df,
+            trait_cols=trait_cols,
+            genotype_col=config.columns.genotype,
+            adaptive_config=adaptive_cfg,
         )
 
         # 3. Create detailed EDA plots with cleanup thresholds

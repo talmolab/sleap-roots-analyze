@@ -111,6 +111,7 @@ def create_trait_boxplots_by_genotype(
     genotype_col: str = "geno",
     n_cols: int = 3,
     figsize: Tuple[int, int] = (15, 10),
+    adaptive_config: Optional[Any] = None,
 ) -> plt.Figure:
     """Create boxplots for traits grouped by genotype.
 
@@ -119,7 +120,8 @@ def create_trait_boxplots_by_genotype(
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
         n_cols: Number of columns in subplot grid
-        figsize: Figure size
+        figsize: Figure size (only used if adaptive_config is None)
+        adaptive_config: Optional adaptive sizing configuration
 
     Returns:
         Matplotlib figure object
@@ -137,6 +139,36 @@ def create_trait_boxplots_by_genotype(
             transform=ax.transAxes,
         )
         return fig
+
+    # Calculate adaptive size based on genotype count
+    if adaptive_config is not None and genotype_col in df.columns:
+        from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+        n_genotypes = df[genotype_col].nunique()
+        n_rows = (n_traits + n_cols - 1) // n_cols
+
+        # Each subplot needs width based on genotype count
+        subplot_width, subplot_height = calculate_barplot_size(
+            n_items=n_genotypes,
+            config=adaptive_config,
+            orientation="vertical",  # Genotypes on X-axis
+            as_subplot=True,
+            n_subplots=n_traits,
+        )
+
+        # Total figure size based on grid layout
+        fig_width = subplot_width * n_cols
+        fig_height = subplot_height * n_rows
+
+        # Apply bounds
+        fig_width = max(
+            adaptive_config.min_width, min(adaptive_config.max_width, fig_width)
+        )
+        fig_height = max(
+            adaptive_config.min_height, min(adaptive_config.max_height, fig_height)
+        )
+
+        figsize = (fig_width, fig_height)
 
     n_rows = (n_traits + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
@@ -343,7 +375,10 @@ def save_figure_with_unique_name(
 
 
 def create_exploratory_summary_plots(
-    df: pd.DataFrame, trait_cols: List[str], genotype_col: str = "geno"
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    genotype_col: str = "geno",
+    adaptive_config: Optional[Any] = None,
 ) -> Dict[str, plt.Figure]:
     """Create comprehensive exploratory data analysis plots.
 
@@ -351,6 +386,7 @@ def create_exploratory_summary_plots(
         df: DataFrame with trait data
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
+        adaptive_config: Optional adaptive sizing configuration
 
     Returns:
         Dictionary of plot names to figure objects
@@ -377,7 +413,7 @@ def create_exploratory_summary_plots(
     if len(trait_cols) > 0:
         n_traits_box = min(12, len(trait_cols))
         fig = create_trait_boxplots_by_genotype(
-            df, trait_cols[:n_traits_box], genotype_col
+            df, trait_cols[:n_traits_box], genotype_col, adaptive_config=adaptive_config
         )
         figures["trait_ranges_by_genotype"] = fig
 
@@ -385,7 +421,19 @@ def create_exploratory_summary_plots(
     if genotype_col in df.columns:
         genotype_counts = df[genotype_col].value_counts()
         if len(genotype_counts) > 0:
-            fig, ax = plt.subplots(figsize=(10, 6))
+            # Calculate adaptive size based on genotype count
+            if adaptive_config is not None:
+                from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+                sample_count_figsize = calculate_barplot_size(
+                    n_items=len(genotype_counts),
+                    config=adaptive_config,
+                    orientation="vertical",
+                )
+            else:
+                sample_count_figsize = (10, 6)
+
+            fig, ax = plt.subplots(figsize=sample_count_figsize)
             genotype_counts.plot(kind="bar", ax=ax)
             ax.set_title("Sample Size per Genotype")
             ax.set_xlabel("Genotype")
@@ -968,6 +1016,7 @@ def create_trait_by_genotype_boxplots(
     ncols: int = 2,
     figsize: Optional[tuple] = None,
     output_path: Optional[Path] = None,
+    adaptive_config: Optional[Any] = None,
 ) -> plt.Figure:
     """Create boxplots showing trait distributions by genotype with H² annotations.
 
@@ -979,6 +1028,7 @@ def create_trait_by_genotype_boxplots(
         ncols: Number of columns in subplot grid
         figsize: Optional figure size (auto-sized if None)
         output_path: Optional path to save figure
+        adaptive_config: Optional adaptive sizing configuration
 
     Returns:
         matplotlib Figure object
@@ -992,7 +1042,37 @@ def create_trait_by_genotype_boxplots(
     nrows = (n_traits + ncols - 1) // ncols
 
     if figsize is None:
-        figsize = (6 * ncols, 5 * nrows)
+        # Calculate adaptive size based on genotype count
+        if adaptive_config is not None and genotype_col in df.columns:
+            from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+            n_genotypes = df[genotype_col].nunique()
+
+            # Each subplot needs width based on genotype count
+            subplot_width, subplot_height = calculate_barplot_size(
+                n_items=n_genotypes,
+                config=adaptive_config,
+                orientation="vertical",  # Genotypes on X-axis
+                as_subplot=True,
+                n_subplots=n_traits,
+            )
+
+            # Total figure size based on grid layout
+            fig_width = subplot_width * ncols
+            fig_height = subplot_height * nrows
+
+            # Apply bounds
+            fig_width = max(
+                adaptive_config.min_width, min(adaptive_config.max_width, fig_width)
+            )
+            fig_height = max(
+                adaptive_config.min_height,
+                min(adaptive_config.max_height, fig_height),
+            )
+
+            figsize = (fig_width, fig_height)
+        else:
+            figsize = (6 * ncols, 5 * nrows)
 
     # Handle single subplot case - must create figure differently for pandas boxplot
     if n_traits == 1:

@@ -170,14 +170,22 @@ class FilterHeritabilityStep(BaseStep):
                 comparison_df.to_csv(diag_csv_path, index=False)
 
                 # Create variance decomposition plot for all traits
-                # Use adaptive sizing if enabled (4 panels in 2x2 grid)
+                # Use adaptive sizing if enabled
+                # Variance decomposition has traits on X-axis, so scale width
                 if config.adaptive_sizing and config.adaptive_sizing.enabled:
-                    var_figsize = calculate_figure_size(
-                        n_items=4,  # 4 panels in 2x2 grid
+                    from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+                    # Calculate size for each subplot based on trait count
+                    subplot_size = calculate_barplot_size(
+                        n_items=len(comparison_df),  # Number of traits
                         config=config.adaptive_sizing,
-                        layout="grid",
-                        max_cols=2,
+                        orientation="vertical",  # Traits on X-axis
+                        as_subplot=True,
+                        n_subplots=4,  # 4 panels in 2x2 grid
                     )
+
+                    # Total figure size for 2x2 grid
+                    var_figsize = (subplot_size[0] * 2, subplot_size[1] * 2)
                 else:
                     var_figsize = (14, 10)
 
@@ -204,12 +212,18 @@ class FilterHeritabilityStep(BaseStep):
                 traits_to_plot = (
                     removed_traits[:10] if len(removed_traits) > 10 else removed_traits
                 )
+                adaptive_cfg = (
+                    config.adaptive_sizing
+                    if config.adaptive_sizing.enabled
+                    else None
+                )
                 fig_box = create_trait_by_genotype_boxplots(
                     df=df,
                     traits=traits_to_plot,
                     heritability_results=heritability_results,
                     genotype_col=config.columns.genotype,
                     output_path=None,  # Will save manually
+                    adaptive_config=adaptive_cfg,
                 )
                 box_plot_path = (
                     run_dir / "figures" / "09_removed_traits_boxplots.png"

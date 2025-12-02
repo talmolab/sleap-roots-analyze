@@ -189,6 +189,8 @@ def calculate_barplot_size(
     orientation: str = "vertical",
     width_per_bar: float = 0.8,
     height_per_bar: float = 0.6,
+    as_subplot: bool = False,
+    n_subplots: int = 1,
 ) -> Tuple[float, float]:
     """Calculate figure size for bar plots.
 
@@ -198,6 +200,8 @@ def calculate_barplot_size(
         orientation: Bar orientation ("vertical" or "horizontal").
         width_per_bar: Width per bar for vertical plots (default: 0.8).
         height_per_bar: Height per bar for horizontal plots (default: 0.6).
+        as_subplot: True if this is a subplot in a grid (default: False).
+        n_subplots: Total number of subplots in the figure (default: 1).
 
     Returns:
         Tuple of (width, height) in inches.
@@ -207,6 +211,8 @@ def calculate_barplot_size(
         >>> config = AdaptiveSizingConfig()
         >>> calculate_barplot_size(30, config, orientation="horizontal")
         (10.0, 16.0)  # Horizontal bar plot for 30 items
+        >>> calculate_barplot_size(30, config, orientation="vertical", as_subplot=True, n_subplots=4)
+        (12.0, 6.0)  # Reduced width for 4-subplot grid
     """
     if not config.enabled:
         return (config.base_width, config.base_height)
@@ -215,10 +221,22 @@ def calculate_barplot_size(
         # Width scales with number of bars
         width = max(config.base_width, n_items * width_per_bar)
         height = config.base_height
+
+        # If subplot, reduce width to account for multiple subplots
+        if as_subplot and n_subplots > 1:
+            import math
+            width = width / math.sqrt(n_subplots)
+
     elif orientation == "horizontal":
         # Height scales with number of bars
         width = config.base_width
         height = max(config.base_height, n_items * height_per_bar)
+
+        # If subplot, reduce height
+        if as_subplot and n_subplots > 1:
+            import math
+            height = height / math.sqrt(n_subplots)
+
     else:
         raise ValueError(
             f"Invalid orientation '{orientation}'. Must be 'vertical' or 'horizontal'"
