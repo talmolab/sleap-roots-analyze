@@ -43,11 +43,19 @@ class AdaptiveSizingConfig:
 class CleanupConfig:
     """Data cleanup filters configuration.
 
+    IMPORTANT: All threshold parameters should be explicitly set in your config
+    to avoid silent data removal. Default values are provided for convenience but
+    may not match your analysis requirements.
+
     Attributes:
-        max_nan_fraction: Maximum fraction of NaN values allowed per sample.
-        max_zeros_per_trait: Maximum fraction of zero values allowed per trait.
-        max_nans_per_trait: Maximum fraction of NaN values allowed per trait.
+        max_nan_fraction: Max fraction of NaN values per sample (0.0-1.0).
+            Samples exceeding this will be removed. Recommended: 0.25
+        max_zeros_per_trait: Max fraction of zero values per trait (0.0-1.0).
+            Traits exceeding this will be removed. Recommended: 0.5
+        max_nans_per_trait: Max fraction of NaN values per trait (0.0-1.0).
+            Traits exceeding this will be removed. Recommended: 0.2-0.3
         min_samples_per_trait: Minimum number of valid samples required per trait.
+            Traits with fewer samples will be removed. Recommended: 10
     """
 
     max_nan_fraction: float = 0.0
@@ -149,9 +157,14 @@ class GMMOutlierConfig:
 class HeritabilityConfig:
     """Heritability analysis and filtering configuration.
 
+    IMPORTANT: If filtering is enabled, threshold should be explicitly set in your
+    config to match your scientific objectives.
+
     Attributes:
         enabled: Whether to filter traits by heritability.
-        threshold: Minimum heritability (H²) threshold.
+        threshold: Minimum heritability (H²) for trait retention (0.0-1.0).
+            Typical range: 0.3 (permissive) to 0.6 (stringent).
+            Must be explicitly set if enabled=True. Default: 0.60
         generate_diagnostics: Whether to generate diagnostic plots and comparison CSV
             for removed traits. Only takes effect when enabled=True. Outputs include:
             - Comparison CSV with variance components for all traits
@@ -545,12 +558,18 @@ class VisualizationConfig:
 class RootCoreSourceConfig:
     """Configuration for a single root core data source.
 
+    IMPORTANT: aggregation_method should be explicitly set in your config to match
+    your statistical requirements, though a sensible default is provided.
+
     Attributes:
         csv_path: Path to root core CSV file.
         data_type: Type of data ("biomass" or "counting").
         depth_column_prefix: Prefix for wide-format column names (e.g., "RootDW_", "RootCount_").
         value_column_name: Name of value column in long format (default: "Value").
-        aggregation_method: Method for aggregating cores ("mean", "median", or callable).
+        aggregation_method: Method for aggregating cores ("mean" or "median").
+            Recommended: "median" (robust to outliers, typos, measurement errors).
+            Use "mean" only if you're confident data has no outliers.
+            Default: "median"
         depth_mapping: Manual depth mapping for biomass data {column_name: depth_cm}.
             Required for data_type="biomass", optional for data_type="counting" (auto-parsed).
         genotype_column: Name of genotype column in CSV (default: "geno"). If the CSV uses
@@ -562,7 +581,7 @@ class RootCoreSourceConfig:
     data_type: str = MISSING  # "biomass" or "counting"
     depth_column_prefix: str = MISSING
     value_column_name: str = "Value"
-    aggregation_method: str = "mean"
+    aggregation_method: str = "median"  # Robust to outliers and measurement errors
     depth_mapping: Optional[dict] = None
     genotype_column: str = "geno"  # Column name for genotype, will be renamed to "geno"
 

@@ -2786,4 +2786,3 @@ class TestCreatePhenotypeVariationPlot:
         assert np.allclose(plot_df["trait_B_high_threshold"].iloc[0], expected_high)
 
         plt.close("all")
-

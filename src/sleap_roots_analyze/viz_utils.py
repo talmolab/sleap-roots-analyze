@@ -225,6 +225,7 @@ def calculate_barplot_size(
         # If subplot, reduce width to account for multiple subplots
         if as_subplot and n_subplots > 1:
             import math
+
             width = width / math.sqrt(n_subplots)
 
     elif orientation == "horizontal":
@@ -235,6 +236,7 @@ def calculate_barplot_size(
         # If subplot, reduce height
         if as_subplot and n_subplots > 1:
             import math
+
             height = height / math.sqrt(n_subplots)
 
     else:

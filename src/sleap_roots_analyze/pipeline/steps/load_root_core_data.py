@@ -97,7 +97,7 @@ class LoadRootCoreDataStep(BaseStep):
                     f"Genotype column '{source.genotype_column}' not found in {csv_path.name}. "
                     f"Available columns: {df.columns.tolist()}"
                 )
-            
+
             # Rename genotype column to standard 'geno' if it's different
             if source.genotype_column != "geno":
                 df = df.rename(columns={source.genotype_column: "geno"})

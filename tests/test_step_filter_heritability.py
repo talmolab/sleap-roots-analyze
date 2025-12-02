@@ -147,7 +147,6 @@ class TestFilterHeritabilityStepEdgeCases:
         assert len(result.metadata["valid_trait_names"]) == 3
 
 
-
 class TestFilterHeritabilityStepDiagnostics:
     """Test diagnostic mode functionality."""
 

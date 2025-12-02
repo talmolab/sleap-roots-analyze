@@ -195,9 +195,7 @@ class FilterHeritabilityStep(BaseStep):
                     output_path=None,  # Will save manually
                     threshold=config.heritability.threshold,
                 )
-                var_plot_path = (
-                    run_dir / "figures" / "09_variance_decomposition.png"
-                )
+                var_plot_path = run_dir / "figures" / "09_variance_decomposition.png"
                 var_plot_path.parent.mkdir(parents=True, exist_ok=True)
                 fig_var.savefig(
                     var_plot_path,
@@ -214,9 +212,7 @@ class FilterHeritabilityStep(BaseStep):
                     removed_traits[:10] if len(removed_traits) > 10 else removed_traits
                 )
                 adaptive_cfg = (
-                    config.adaptive_sizing
-                    if config.adaptive_sizing.enabled
-                    else None
+                    config.adaptive_sizing if config.adaptive_sizing.enabled else None
                 )
                 fig_box = create_trait_by_genotype_boxplots(
                     df=df,
@@ -226,9 +222,7 @@ class FilterHeritabilityStep(BaseStep):
                     output_path=None,  # Will save manually
                     adaptive_config=adaptive_cfg,
                 )
-                box_plot_path = (
-                    run_dir / "figures" / "09_removed_traits_boxplots.png"
-                )
+                box_plot_path = run_dir / "figures" / "09_removed_traits_boxplots.png"
                 fig_box.savefig(
                     box_plot_path,
                     dpi=config.visualization.dpi,
@@ -256,9 +250,7 @@ class FilterHeritabilityStep(BaseStep):
 
             except Exception as e:
                 # Log warning but don't fail the step
-                logger.warning(
-                    f"Failed to generate heritability diagnostics: {e}"
-                )
+                logger.warning(f"Failed to generate heritability diagnostics: {e}")
                 diagnostic_results = {"error": str(e), "status": "failed"}
 
         # Create summary

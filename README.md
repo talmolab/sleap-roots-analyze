@@ -42,7 +42,7 @@ sleap-roots-analyze --help
 sleap-roots-analyze qc --help
 ```
 
-See [TURFACE_QC_README.md](TURFACE_QC_README.md) for a complete example of running the QC pipeline.
+See [docs/QC_PIPELINE_GUIDE.md](docs/QC_PIPELINE_GUIDE.md) for a complete guide to using the QC pipeline.
 
 ### Python API
 

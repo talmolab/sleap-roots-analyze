@@ -321,10 +321,9 @@ def test_reshape_single_depth(config_biomass, tmp_path):
     assert source_meta["num_depths"] == 1
 
 
-
 def test_barcode_with_float_columns(config_biomass, tmp_path):
     """Test that Barcode column doesn't contain '.0' when Plot/Rep are floats.
-    
+
     This regression test ensures that when Plot and Rep columns are float64
     (as happens when loading from CSV), the Barcode column format is correct
     (e.g., "1-1" not "1.0-1.0").
@@ -344,30 +343,28 @@ def test_barcode_with_float_columns(config_biomass, tmp_path):
                             "Root_DW_g": np.random.uniform(1.0, 3.0),
                         }
                     )
-    
+
     df = pd.DataFrame(data)
-    
+
     # Verify columns are float
     assert df["Plot"].dtype == np.float64
     assert df["Rep"].dtype == np.float64
-    
+
     input_data = {"biomass": df}
-    
+
     step = ReshapeForTraitQCStep()
     result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
-    
+
     df_wide = result.data
-    
+
     # Check Barcode column exists
     assert "Barcode" in df_wide.columns
-    
+
     # Check Barcode format is correct (no ".0" decimals)
-    expected_barcodes = {
-        "1-1", "1-2", "2-1", "2-2"
-    }
+    expected_barcodes = {"1-1", "1-2", "2-1", "2-2"}
     actual_barcodes = set(df_wide["Barcode"].unique())
     assert actual_barcodes == expected_barcodes
-    
+
     # Explicitly verify no ".0" appears in any barcode
     for barcode in df_wide["Barcode"]:
         assert ".0" not in barcode, f"Found '.0' in Barcode: {barcode}"

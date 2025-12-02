@@ -94,18 +94,21 @@ class ReshapeForTraitQCStep(BaseStep):
         # Format: Plot-Rep (e.g., "1-1", "2-3")
         # Convert to int first to avoid ".0" in output (handles float columns from CSV)
         df_merged["Barcode"] = (
-            df_merged["Plot"].astype(int).astype(str) + "-" + df_merged["Rep"].astype(int).astype(str)
+            df_merged["Plot"].astype(int).astype(str)
+            + "-"
+            + df_merged["Rep"].astype(int).astype(str)
         )
 
         # Reorder columns: metadata first, then traits
         # Identify trait columns (contain depth info like "_Ncm")
         trait_cols = [
-            col for col in df_merged.columns
+            col
+            for col in df_merged.columns
             if any(pattern in col for pattern in ["cm", "DW", "Count"])
         ]
         # Metadata columns are everything else
         metadata_cols = [col for col in df_merged.columns if col not in trait_cols]
-        
+
         # Reorder: metadata first, then traits (sorted)
         df_merged = df_merged[metadata_cols + sorted(trait_cols)]
 
@@ -214,11 +217,13 @@ class ReshapeForTraitQCStep(BaseStep):
         # First, identify common metadata columns (non-trait columns)
         first_df = list(reshaped_data.values())[0]
         index_cols = ["Plot", "Rep", "geno"]
-        
+
         # Metadata columns are those that don't contain depth info (no "_Ncm" pattern)
         metadata_cols = [
-            col for col in first_df.columns 
-            if col not in index_cols and not any(c in col for c in ["cm", "DW", "Count"])
+            col
+            for col in first_df.columns
+            if col not in index_cols
+            and not any(c in col for c in ["cm", "DW", "Count"])
         ]
 
         df_merged = None
@@ -228,15 +233,14 @@ class ReshapeForTraitQCStep(BaseStep):
             else:
                 # Separate trait columns (depth-specific) from metadata columns
                 trait_cols = [
-                    col for col in df.columns 
+                    col
+                    for col in df.columns
                     if col not in index_cols and col not in metadata_cols
                 ]
-                
+
                 # Merge only index + trait columns to avoid duplicate metadata
                 df_to_merge = df[index_cols + trait_cols]
-                
-                df_merged = df_merged.merge(
-                    df_to_merge, on=index_cols, how="outer"
-                )
+
+                df_merged = df_merged.merge(df_to_merge, on=index_cols, how="outer")
 
         return df_merged

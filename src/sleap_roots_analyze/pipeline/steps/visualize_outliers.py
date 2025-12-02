@@ -101,7 +101,9 @@ class VisualizeOutliersStep(BaseStep):
 
             if method == "pca":
                 fig = create_pca_outlier_plot(df=df, pca_results=result)
-                fig_path = figures_dir / f"outliers_pca.{config.visualization.figure_format}"
+                fig_path = (
+                    figures_dir / f"outliers_pca.{config.visualization.figure_format}"
+                )
                 fig.savefig(
                     fig_path,
                     dpi=config.visualization.dpi,
@@ -116,7 +118,10 @@ class VisualizeOutliersStep(BaseStep):
             elif method == "isolation_forest":
                 figs = create_isolation_forest_plots(df=df, iso_results=result)
                 for fig_name, fig in figs.items():
-                    fig_path = figures_dir / f"outliers_if_{fig_name}.{config.visualization.figure_format}"
+                    fig_path = (
+                        figures_dir
+                        / f"outliers_if_{fig_name}.{config.visualization.figure_format}"
+                    )
                     fig.savefig(
                         fig_path,
                         dpi=config.visualization.dpi,
@@ -131,7 +136,10 @@ class VisualizeOutliersStep(BaseStep):
             elif method == "mahalanobis":
                 figs = create_mahalanobis_outlier_plots(df=df, mahal_results=result)
                 for fig_name, fig in figs.items():
-                    fig_path = figures_dir / f"outliers_mahal_{fig_name}.{config.visualization.figure_format}"
+                    fig_path = (
+                        figures_dir
+                        / f"outliers_mahal_{fig_name}.{config.visualization.figure_format}"
+                    )
                     fig.savefig(
                         fig_path,
                         dpi=config.visualization.dpi,
@@ -146,7 +154,10 @@ class VisualizeOutliersStep(BaseStep):
             elif method == "kmeans":
                 figs = create_kmeans_outlier_plots(df=df, kmeans_results=result)
                 for fig_name, fig in figs.items():
-                    fig_path = figures_dir / f"outliers_kmeans_{fig_name}.{config.visualization.figure_format}"
+                    fig_path = (
+                        figures_dir
+                        / f"outliers_kmeans_{fig_name}.{config.visualization.figure_format}"
+                    )
                     fig.savefig(
                         fig_path,
                         dpi=config.visualization.dpi,
@@ -161,7 +172,10 @@ class VisualizeOutliersStep(BaseStep):
             elif method == "gmm":
                 figs = create_gmm_outlier_plots(df=df, gmm_results=result)
                 for fig_name, fig in figs.items():
-                    fig_path = figures_dir / f"outliers_gmm_{fig_name}.{config.visualization.figure_format}"
+                    fig_path = (
+                        figures_dir
+                        / f"outliers_gmm_{fig_name}.{config.visualization.figure_format}"
+                    )
                     fig.savefig(
                         fig_path,
                         dpi=config.visualization.dpi,
@@ -174,9 +188,14 @@ class VisualizeOutliersStep(BaseStep):
                     files.append(fig_path)
 
             elif method == "hierarchical":
-                figs = create_hierarchical_outlier_plots(df=df, hierarchical_results=result)
+                figs = create_hierarchical_outlier_plots(
+                    df=df, hierarchical_results=result
+                )
                 for fig_name, fig in figs.items():
-                    fig_path = figures_dir / f"outliers_hierarchical_{fig_name}.{config.visualization.figure_format}"
+                    fig_path = (
+                        figures_dir
+                        / f"outliers_hierarchical_{fig_name}.{config.visualization.figure_format}"
+                    )
                     fig.savefig(
                         fig_path,
                         dpi=config.visualization.dpi,
@@ -191,8 +210,12 @@ class VisualizeOutliersStep(BaseStep):
         # Generate comparison plots (only if multiple methods were run)
         if len(methods_run) > 1:
             # Comprehensive comparison
-            fig = create_comprehensive_outlier_comparison(outlier_results=outlier_results)
-            fig_path = figures_dir / f"outlier_comparison.{config.visualization.figure_format}"
+            fig = create_comprehensive_outlier_comparison(
+                outlier_results=outlier_results
+            )
+            fig_path = (
+                figures_dir / f"outlier_comparison.{config.visualization.figure_format}"
+            )
             fig.savefig(
                 fig_path,
                 dpi=config.visualization.dpi,
@@ -206,7 +229,10 @@ class VisualizeOutliersStep(BaseStep):
 
             # Overlap heatmap
             fig = create_outlier_overlap_heatmap(outlier_results=outlier_results)
-            fig_path = figures_dir / f"outlier_overlap_heatmap.{config.visualization.figure_format}"
+            fig_path = (
+                figures_dir
+                / f"outlier_overlap_heatmap.{config.visualization.figure_format}"
+            )
             fig.savefig(
                 fig_path,
                 dpi=config.visualization.dpi,
@@ -225,7 +251,10 @@ class VisualizeOutliersStep(BaseStep):
                 all_outlier_results=outlier_results,
                 genotype_col=config.columns.genotype,
             )
-            fig_path = figures_dir / f"outliers_per_genotype.{config.visualization.figure_format}"
+            fig_path = (
+                figures_dir
+                / f"outliers_per_genotype.{config.visualization.figure_format}"
+            )
             fig.savefig(
                 fig_path,
                 dpi=config.visualization.dpi,

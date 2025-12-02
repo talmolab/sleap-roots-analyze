@@ -24,6 +24,18 @@ class MergeAllTraitsStep:
     - Duplicate column detection and resolution
     - Output file generation
     - Processing metadata documentation
+
+    CRITICAL: Data Structure Requirements
+    - Both root and above-ground datasets must have exactly ONE row per join key combination
+    - If join_keys = ["Rep", "geno"], each Rep-Geno combination must appear once in each dataset
+    - After root core Step 0d (aggregation), root data typically has one row per plot
+    - If above-ground data is replicate-level (no Plot column), use join_keys: ["Rep", "geno"]
+    - If above-ground data is plot-level (has Plot column), use join_keys: ["Plot", "Rep", "geno"]
+
+    Example:
+        Root data (60 rows after Step 0d): Plot 1-60, each with Rep + geno
+        Above-ground data (60 rows): Rep 1-3 × 20 genotypes, no Plot column
+        Correct join_keys: ["Rep", "geno"] → 60 merged rows (Plot preserved from root)
     """
 
     def execute(
@@ -110,9 +122,9 @@ class MergeAllTraitsStep:
             "root_trait_columns": qc_traits,
             "above_ground_trait_columns": ag_traits,
             "duplicate_columns_found": list(duplicates) if duplicates else [],
-            "duplicate_strategy_used": merge_config.duplicate_strategy
-            if duplicates
-            else None,
+            "duplicate_strategy_used": (
+                merge_config.duplicate_strategy if duplicates else None
+            ),
         }
 
         # Save merged CSV

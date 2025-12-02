@@ -198,6 +198,43 @@ class TestGetTraitColumns:
         assert "extra2" not in trait_cols
         assert "trait1" in trait_cols
 
+    def test_root_core_metadata_exclusion(self):
+        """Test exclusion of root core pipeline metadata columns (Plot, Rep, geno, Barcode).
+
+        CRITICAL: Root core pipeline uses capital-letter column names (Plot, Rep) which
+        must be excluded from trait analyses to prevent metadata contamination.
+        """
+        df = pd.DataFrame(
+            {
+                "Plot": [1, 2, 3],
+                "Rep": [1, 2, 3],
+                "geno": ["GH_7386", "GH_7420", "Control"],
+                "Barcode": ["1-1", "2-2", "3-3"],
+                "RootDW_15cm": [2.5, 2.1, 2.8],
+                "RootDW_45cm": [1.2, 0.9, 1.5],
+                "RootCount_0cm": [10, 12, 11],
+            }
+        )
+
+        # Test with capital Rep (root core pipeline uses 'Rep')
+        trait_cols = get_trait_columns(
+            df, barcode_col="Barcode", genotype_col="geno", replicate_col="Rep"
+        )
+
+        # Verify ALL metadata columns are excluded
+        assert "Plot" not in trait_cols, "Plot should be excluded"
+        assert "Rep" not in trait_cols, "Rep should be excluded"
+        assert "geno" not in trait_cols, "geno should be excluded"
+        assert "Barcode" not in trait_cols, "Barcode should be excluded"
+
+        # Verify only trait columns remain
+        assert "RootDW_15cm" in trait_cols
+        assert "RootDW_45cm" in trait_cols
+        assert "RootCount_0cm" in trait_cols
+        assert (
+            len(trait_cols) == 3
+        ), f"Should have 3 traits, got {len(trait_cols)}: {trait_cols}"
+
 
 class TestLinkRhizovisionImagesToSamples:
     """Tests for link_rhizovision_images_to_samples function."""

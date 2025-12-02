@@ -396,7 +396,12 @@ class GenerateStaticFiguresStep(BaseStep):
         """Create heritability plots."""
         files = []
 
-        fig = create_heritability_plot(heritability_results)
+        # Use configured threshold for visualization
+        # Note: Shows the configured threshold regardless of whether filtering is enabled.
+        # This ensures consistency with Step 8 plots and helps users understand what
+        # threshold would be used if heritability filtering were enabled.
+        threshold = config.heritability.threshold
+        fig = create_heritability_plot(heritability_results, threshold=threshold)
         files.extend(
             self._save_figure(
                 fig,

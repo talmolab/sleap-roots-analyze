@@ -99,6 +99,11 @@ def get_trait_columns(
     if additional_exclude:
         exclude_cols.extend(additional_exclude)
 
+    # CRITICAL: Also exclude Plot column (root core pipeline metadata)
+    # Root core pipeline uses: Plot, Rep, geno, Barcode
+    if "Plot" in df.columns:
+        exclude_cols.append("Plot")
+
     # Also exclude common metadata columns that might exist with different names
     # These are case-insensitive matches
     common_metadata = [

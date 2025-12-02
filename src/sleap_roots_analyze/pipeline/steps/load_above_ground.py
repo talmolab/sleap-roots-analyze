@@ -21,9 +21,14 @@ class LoadAboveGroundTraitsStep:
     This step loads the above-ground phenotype CSV specified in the config and
     validates that:
     - The file exists and can be loaded
-    - Required join keys are present
-    - No duplicate samples exist
+    - Required join keys are present (must match those configured in merge_traits.join_keys)
+    - No duplicate samples exist (must have exactly one row per join key combination)
     - Data types are appropriate
+
+    IMPORTANT: The above-ground CSV must contain all columns listed in merge_traits.join_keys.
+    Common configurations:
+    - join_keys: ["Rep", "geno"] - For replicate-level above-ground data (most common)
+    - join_keys: ["Plot", "Rep", "geno"] - For plot-level above-ground data
 
     The loaded data is prepared for merging with root core traits in the next step.
     """
@@ -63,9 +68,7 @@ class LoadAboveGroundTraitsStep:
         # Load CSV
         csv_path = Path(merge_config.above_ground_csv)
         if not csv_path.exists():
-            raise FileNotFoundError(
-                f"Above-ground traits CSV not found: {csv_path}"
-            )
+            raise FileNotFoundError(f"Above-ground traits CSV not found: {csv_path}")
 
         df = pd.read_csv(csv_path)
 

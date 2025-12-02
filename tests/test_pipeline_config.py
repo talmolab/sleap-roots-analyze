@@ -312,9 +312,10 @@ def test_validate_config_invalid_clustering_method():
     """Test validation fails for invalid clustering method."""
     config = QCPipelineConfig(pipeline_name="test")
     config.data.csv_path = "data.csv"
-    config.clustering.method = "invalid"
+    config.clustering.enabled = True
+    config.clustering.methods = ["invalid"]
 
-    with pytest.raises(ValueError, match="clustering.method"):
+    with pytest.raises(ValueError, match="clustering.methods"):
         validate_qc_config(config)
 
 

@@ -299,7 +299,7 @@ def test_missing_genotype_column(tmp_path):
 
 def test_sample_id_with_float_columns(tmp_path):
     """Test that sample IDs don't contain '.0' when numeric columns are floats.
-    
+
     This regression test ensures that when Plot, Rep, Core_Replicate, or core_n
     are stored as float64 (as happens when loading from CSV), the sample_id
     doesn't contain decimals like 'plot1.0_rep1.0_Control_core1.0'.
@@ -307,22 +307,22 @@ def test_sample_id_with_float_columns(tmp_path):
     # Create CSV with float columns (simulates CSV loading behavior)
     data = {
         "Plot": [1.0, 1.0, 2.0],  # float64
-        "Rep": [1.0, 2.0, 1.0],   # float64
+        "Rep": [1.0, 2.0, 1.0],  # float64
         "geno": ["Control", "Control", "GH_7386"],
         "Core_Replicate": [1.0, 1.0, 2.0],  # float64
         "0-30": [1.2, 1.5, 2.1],
         "30-60": [0.8, 0.9, 1.5],
     }
     df = pd.DataFrame(data)
-    
+
     # Verify columns are indeed float (as they would be from CSV)
     assert df["Plot"].dtype == np.float64
     assert df["Rep"].dtype == np.float64
     assert df["Core_Replicate"].dtype == np.float64
-    
+
     csv_path = tmp_path / "biomass_float_cols.csv"
     df.to_csv(csv_path, index=False)
-    
+
     config = QCPipelineConfig(
         pipeline_name="test_float_sample_id",
         root_core=RootCoreConfig(
@@ -338,12 +338,12 @@ def test_sample_id_with_float_columns(tmp_path):
             core_qc=CoreQCConfig(enabled=False),
         ),
     )
-    
+
     step = LoadRootCoreDataStep()
     result = step.execute(data=None, config=config, run_dir=tmp_path)
-    
+
     biomass_df = result.data["biomass"]
-    
+
     # Check sample identifiers DON'T have ".0" in them
     expected_ids = [
         "plot1_rep1_Control_core1",
@@ -351,7 +351,7 @@ def test_sample_id_with_float_columns(tmp_path):
         "plot2_rep1_GH_7386_core2",
     ]
     assert biomass_df["sample_id"].tolist() == expected_ids
-    
+
     # Explicitly verify no ".0" appears in any identifier
     for sample_id in biomass_df["sample_id"]:
         assert ".0" not in sample_id, f"Found '.0' in sample_id: {sample_id}"

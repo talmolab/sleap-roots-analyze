@@ -115,7 +115,9 @@ def test_load_above_ground_no_merge_config(tmp_path):
         step.execute(data=None, config=config, run_dir=tmp_path)
 
 
-def test_load_above_ground_preserves_dtypes(above_ground_data, config_with_merge, tmp_path):
+def test_load_above_ground_preserves_dtypes(
+    above_ground_data, config_with_merge, tmp_path
+):
     """Test that numeric columns are preserved with correct dtypes."""
     # Ensure Plot/Rep are integers
     above_ground_data["Plot"] = above_ground_data["Plot"].astype(int)

@@ -414,8 +414,6 @@ def test_viz_command_with_log_file(runner, sample_viz_config, tmp_path):
 def test_qc_command_conflicting_flags(runner, sample_qc_config):
     """Test QC command with conflicting verbose and quiet flags."""
     # Both flags provided - verbose should take precedence
-    result = runner.invoke(
-        cli, ["qc", str(sample_qc_config), "-v", "-q", "--dry-run"]
-    )
+    result = runner.invoke(cli, ["qc", str(sample_qc_config), "-v", "-q", "--dry-run"])
     # Should still work (one flag takes precedence)
     assert result.exit_code == 0

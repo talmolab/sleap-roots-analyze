@@ -124,7 +124,9 @@ class CleanupTraitsStep(BaseStep):
             )
 
         # Reorder columns before saving: metadata first, then traits (sorted)
-        df_traits_cleaned = self.reorder_dataframe_columns(df_traits_cleaned, traits_after_cleanup)
+        df_traits_cleaned = self.reorder_dataframe_columns(
+            df_traits_cleaned, traits_after_cleanup
+        )
         df_clean = self.reorder_dataframe_columns(df_clean, traits_after_cleanup)
 
         # Save outputs

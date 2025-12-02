@@ -189,7 +189,7 @@ def create_trait_boxplots_by_genotype(
                 axes[i].set_title(f"{trait}")
                 axes[i].set_xlabel("Genotype")
                 axes[i].set_ylabel(trait)
-                plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=45)
+                plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=90)
             else:
                 axes[i].text(
                     0.5,
@@ -251,7 +251,9 @@ def create_trait_histograms_batched(
             batch_figsize = figsize
 
         # Create figure for this batch
-        fig = create_trait_histograms(df, batch_traits, n_cols=n_cols, figsize=batch_figsize)
+        fig = create_trait_histograms(
+            df, batch_traits, n_cols=n_cols, figsize=batch_figsize
+        )
         fig.suptitle(
             f"Trait Histograms (Traits {batch_start+1}-{batch_end} of {n_traits})",
             fontsize=14,
@@ -307,7 +309,11 @@ def create_trait_boxplots_by_genotype_batched(
 
         # Create figure for this batch
         fig = create_trait_boxplots_by_genotype(
-            df, batch_traits, genotype_col=genotype_col, n_cols=n_cols, figsize=batch_figsize
+            df,
+            batch_traits,
+            genotype_col=genotype_col,
+            n_cols=n_cols,
+            figsize=batch_figsize,
         )
         fig.suptitle(
             f"Trait Boxplots by Genotype (Traits {batch_start+1}-{batch_end} of {n_traits})",
@@ -359,7 +365,7 @@ def create_correlation_heatmap(
     )
 
     ax.set_title("Trait Correlation Matrix")
-    plt.xticks(rotation=45, ha="right")
+    plt.xticks(rotation=90, ha="center")
     plt.yticks(rotation=0)
     plt.tight_layout()
 
@@ -464,7 +470,7 @@ def create_exploratory_summary_plots(
             ax.set_title("Sample Size per Genotype")
             ax.set_xlabel("Genotype")
             ax.set_ylabel("Number of Samples")
-            ax.tick_params(axis="x", rotation=45)
+            ax.tick_params(axis="x", rotation=90)
             plt.tight_layout()
             figures["samples_per_genotype"] = fig
 
@@ -804,7 +810,7 @@ def create_heritability_plot(
     ax.set_ylabel("Heritability (H²)")
     ax.set_title("Broad-sense Heritability Estimates")
     ax.set_xticks(range(len(traits)))
-    ax.set_xticklabels(traits, rotation=45, ha="right")
+    ax.set_xticklabels(traits, rotation=90, ha="center")
     ax.set_ylim(0, 1)
     ax.legend()
     ax.grid(True, alpha=0.3, axis="y")
@@ -923,11 +929,14 @@ def create_heritability_threshold_plot(
 
 def create_variance_decomposition_plot(
     comparison_df: pd.DataFrame,
-    figsize: tuple = (14, 10),
+    figsize: tuple = (14, 8),
     output_path: Optional[Path] = None,
     threshold: float = 0.3,
 ) -> plt.Figure:
-    """Create 4-panel variance decomposition plot for heritability diagnostics.
+    """Create 3-panel variance decomposition plot for heritability diagnostics.
+
+    Displays heritability estimates, variance components, and sample statistics.
+    Uses Linear Mixed Model (LMM) with genotype as random effect for estimation.
 
     Args:
         comparison_df: DataFrame from compare_trait_heritabilities()
@@ -943,8 +952,7 @@ def create_variance_decomposition_plot(
         >>> fig = create_variance_decomposition_plot(comparison)
         >>> plt.show()
     """
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
-    axes = axes.flatten()
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
 
     if len(comparison_df) == 0:
         # Handle empty data
@@ -968,38 +976,45 @@ def create_variance_decomposition_plot(
     ax.bar(x_pos, comparison_df["heritability"], color="steelblue", alpha=0.7)
     ax.set_ylabel("Heritability (H²)")
     ax.set_title("Heritability Estimates")
-    ax.axhline(y=threshold, color="r", linestyle="--", alpha=0.5, label=f"Threshold ({threshold})")
+    ax.axhline(
+        y=threshold,
+        color="r",
+        linestyle="--",
+        alpha=0.5,
+        label=f"Threshold ({threshold})",
+    )
     ax.legend()
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
+    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
     ax.set_xlabel("")
 
     # Panel 2: Variance components (stacked bar)
     ax = axes[1]
     x_pos = range(len(comparison_df))
-    ax.bar(x_pos, comparison_df["var_genetic"], label="Genetic (σ²_G)", color="steelblue", alpha=0.7)
-    ax.bar(x_pos, comparison_df["var_residual"], bottom=comparison_df["var_genetic"],
-           label="Residual (σ²_E)", color="orange", alpha=0.7)
+    ax.bar(
+        x_pos,
+        comparison_df["var_genetic"],
+        label="Genetic (σ²_G)",
+        color="teal",
+        alpha=0.7,
+    )
+    ax.bar(
+        x_pos,
+        comparison_df["var_residual"],
+        bottom=comparison_df["var_genetic"],
+        label="Residual (σ²_E)",
+        color="coral",
+        alpha=0.7,
+    )
     ax.set_ylabel("Variance")
     ax.set_title("Genetic vs Residual Variance")
     ax.legend()
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
+    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
     ax.set_xlabel("")
 
-    # Panel 3: Percentage between genotypes
+    # Panel 3: Sample size and CV
     ax = axes[2]
-    x_pos = range(len(comparison_df))
-    ax.bar(x_pos, comparison_df["pct_var_between"], color="green", alpha=0.7)
-    ax.set_ylabel("% of Total Variance")
-    ax.set_title("Percentage Variance Between Genotypes")
-    ax.axhline(y=50, color="r", linestyle="--", alpha=0.5)
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
-    ax.set_xlabel("")
-
-    # Panel 4: Sample size and CV
-    ax = axes[3]
     ax2 = ax.twinx()
 
     # Bar plot for sample size
@@ -1007,7 +1022,7 @@ def create_variance_decomposition_plot(
     ax.bar(
         x_pos,
         comparison_df["n_observations"],
-        color="orange",
+        color="goldenrod",
         alpha=0.7,
         label="N observations",
     )
@@ -1022,16 +1037,27 @@ def create_variance_decomposition_plot(
         label="CV (%)",
     )
 
-    ax.set_ylabel("N Observations", color="orange")
+    ax.set_ylabel("N Observations", color="goldenrod")
     ax2.set_ylabel("Coefficient of Variation (%)", color="purple")
     ax.set_title("Sample Size and Coefficient of Variation")
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
-    ax.tick_params(axis="y", labelcolor="orange")
+    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
+    ax.tick_params(axis="y", labelcolor="goldenrod")
     ax2.tick_params(axis="y", labelcolor="purple")
     ax.set_xlabel("")
 
-    plt.tight_layout()
+    # Add model information to figure
+    fig.text(
+        0.5,
+        0.02,
+        "Model: Linear Mixed Model with Genotype as Random Effect (LMM: Trait ~ 1 + (1|Genotype))",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        color="gray",
+    )
+
+    plt.tight_layout(rect=[0, 0.04, 1, 1])  # Leave space for model text
 
     if output_path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3095,7 +3121,7 @@ def create_phenotype_variation_plot(
 
     # Set labels and title
     ax.set_xticks(list(range(len(group_order))))
-    ax.set_xticklabels(group_order, rotation=45, ha="right")
+    ax.set_xticklabels(group_order, rotation=90, ha="center")
     ax.set_xlabel(group_col.capitalize())
     ax.set_ylabel(trait)
 

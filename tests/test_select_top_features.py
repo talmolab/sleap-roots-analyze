@@ -16,12 +16,14 @@ class TestSelectTopFeaturesFromPCA:
         # Feature 1: weak on PC1, strong on PC2 → vector length ≈ 0.71
         # Feature 2: moderate on both → vector length ≈ 0.99
         # Feature 3: weak on both → vector length ≈ 0.14
-        loadings = np.array([
-            [0.7, 0.1],    # Feature 0
-            [0.1, 0.7],    # Feature 1
-            [0.7, 0.7],    # Feature 2 - longest vector
-            [0.1, 0.1],    # Feature 3 - shortest vector
-        ])
+        loadings = np.array(
+            [
+                [0.7, 0.1],  # Feature 0
+                [0.1, 0.7],  # Feature 1
+                [0.7, 0.7],  # Feature 2 - longest vector
+                [0.1, 0.1],  # Feature 3 - shortest vector
+            ]
+        )
         eigenvalues = np.array([2.0, 1.0])
 
         # Select top 2 features by vector length
@@ -45,10 +47,12 @@ class TestSelectTopFeaturesFromPCA:
         # Create scenario where methods differ
         # Feature 0: [0.9, 0.3] → abs sum = 1.2, euclidean = 0.95
         # Feature 1: [0.7, 0.7] → abs sum = 1.4, euclidean = 0.99
-        loadings = np.array([
-            [0.9, 0.3],
-            [0.7, 0.7],
-        ])
+        loadings = np.array(
+            [
+                [0.9, 0.3],
+                [0.7, 0.7],
+            ]
+        )
         eigenvalues = np.array([1.0, 1.0])
 
         vector_selected = select_top_features_from_pca(
@@ -77,11 +81,13 @@ class TestSelectTopFeaturesFromPCA:
 
     def test_vector_length_single_pc(self):
         """Test vector_length with single PC."""
-        loadings = np.array([
-            [0.8],
-            [0.5],
-            [0.3],
-        ])
+        loadings = np.array(
+            [
+                [0.8],
+                [0.5],
+                [0.3],
+            ]
+        )
         eigenvalues = np.array([2.0])
 
         selected = select_top_features_from_pca(

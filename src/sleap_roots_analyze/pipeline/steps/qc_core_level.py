@@ -7,24 +7,31 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.covariance import EmpiricalCovariance
 
+# Statistical outlier detection removed - insufficient samples at core level
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
 
 class QCCoreLevelStep(BaseStep):
-    """Detect and optionally remove outlier cores within biological replicates.
+    """Quality control for individual cores before aggregation.
 
-    This step performs quality control on individual cores before aggregation:
-    1. Groups data by Plot-Rep-geno
-    2. Detects outlier cores using Mahalanobis distance on depth profiles
-    3. Flags cores with excessive missing data
-    4. Optionally removes flagged cores before aggregation
+    IMPORTANT: This step only performs missing data filtering. Statistical outlier
+    detection (e.g., Mahalanobis) is NOT used because core-level data has insufficient
+    samples (~3 cores per plot). Statistical methods require 30+ samples for reliability.
+
+    Recommended approach:
+    1. Disable this step (core_qc.enabled: false)
+    2. Use median aggregation for robustness to outliers
+    3. Perform outlier detection at trait level (Step 5) with 60+ plot samples
+
+    If enabled, this step:
+    1. Flags cores with excessive missing data (>50% NaN depths)
+    2. Optionally removes flagged cores before aggregation
 
     Outputs:
         - 00c_root_core_biomass_qc.csv: QC'd biomass data (if present)
         - 00c_root_core_counting_qc.csv: QC'd counting data (if present)
-        - 00c_core_qc_metadata.json: Metadata about outliers detected/removed
+        - 00c_core_qc_metadata.json: Metadata about cores flagged/removed
     """
 
     def __init__(self):
@@ -63,7 +70,7 @@ class QCCoreLevelStep(BaseStep):
         qc_config = config.root_core.core_qc
         qc_data = {}
         files = []
-        metadata = {"sources": [], "total_outliers": 0, "total_removed": 0}
+        metadata = {"sources": [], "total_flagged": 0, "total_removed": 0}
 
         for source in config.root_core.sources:
             df_long = data[source.data_type]
@@ -73,10 +80,7 @@ class QCCoreLevelStep(BaseStep):
                 df_long,
                 source.value_column_name,
                 source.data_type,
-                qc_config.outlier_method,
-                qc_config.contamination,
-                qc_config.max_missing_proportion,
-                qc_config.remove_outliers,
+                qc_config,  # Pass entire config object
             )
 
             qc_data[source.data_type] = df_qc
@@ -93,8 +97,8 @@ class QCCoreLevelStep(BaseStep):
                     **qc_metadata,
                 }
             )
-            metadata["total_outliers"] += qc_metadata["outliers_detected"]
-            metadata["total_removed"] += qc_metadata["outliers_removed"]
+            metadata["total_flagged"] += qc_metadata["cores_flagged"]
+            metadata["total_removed"] += qc_metadata["cores_removed"]
 
         # Save metadata
         metadata_path = self.save_json(metadata, "00c_core_qc_metadata.json", run_dir)
@@ -107,28 +111,30 @@ class QCCoreLevelStep(BaseStep):
         df: pd.DataFrame,
         value_column: str,
         data_type: str,
-        outlier_method: str,
-        contamination: float,
-        max_missing_proportion: float,
-        remove_outliers: bool,
+        qc_config: Any,  # CoreQCConfig
     ) -> tuple[pd.DataFrame, dict]:
-        """Detect outlier cores within Plot-Rep groups.
+        """Flag cores with excessive missing data.
+
+        NOTE: Statistical outlier detection is NOT performed at the core level due to
+        insufficient sample sizes. Core-level data typically has only 3 cores per plot,
+        but methods like Mahalanobis distance require 30+ samples for reliable detection.
+
+        Instead, this method only flags cores with excessive missing depths. Users should:
+        1. Use median aggregation for robustness to outliers (e.g., typos, miscounts)
+        2. Perform statistical outlier detection at trait level (Step 5) with 60+ samples
 
         Args:
             df: Long-format DataFrame with core-level data.
             value_column: Name of the value column.
-            data_type: Type of data for logging.
-            outlier_method: Method for outlier detection ('mahalanobis').
-            contamination: Expected proportion of outliers.
-            max_missing_proportion: Max proportion of missing depths allowed.
-            remove_outliers: Whether to remove flagged outliers.
+            data_type: Type of data for logging ('biomass' or 'counting').
+            qc_config: CoreQCConfig with missing data threshold.
 
         Returns:
             Tuple of (QC'd DataFrame, metadata dict).
         """
         df = df.copy()
 
-        # Create unique core identifier (for all rows)
+        # Create unique core identifier
         core_col = "Core_Replicate" if data_type == "biomass" else "core_n"
         df["core_id"] = (
             "plot"
@@ -147,10 +153,9 @@ class QCCoreLevelStep(BaseStep):
 
         # Group by Plot-Rep-geno
         group_cols = ["Plot", "Rep", "geno"]
-        outlier_cores = []
+        flagged_cores = []
 
         for group_key, group_df in df.groupby(group_cols):
-
             # Pivot: rows=cores, columns=depths
             core_depth_matrix = group_df.pivot(
                 index="core_id", columns="Depth_cm", values=value_column
@@ -160,78 +165,49 @@ class QCCoreLevelStep(BaseStep):
             missing_prop = core_depth_matrix.isna().sum(axis=1) / len(
                 core_depth_matrix.columns
             )
-            missing_outliers = missing_prop > max_missing_proportion
+            missing_outliers = missing_prop > qc_config.max_missing_proportion
 
-            # Detect outliers using Mahalanobis distance (on non-missing cores)
-            valid_cores = ~missing_outliers
-            if valid_cores.sum() >= 3:  # Need at least 3 cores for covariance
-                X = core_depth_matrix.loc[valid_cores].fillna(
-                    core_depth_matrix.loc[valid_cores].mean()
-                )
-
-                if len(X) > 0 and X.shape[1] > 0:
-                    # Calculate Mahalanobis distances
-                    cov = EmpiricalCovariance().fit(X)
-                    mahal_dist = cov.mahalanobis(X)
-
-                    # Threshold based on contamination
-                    threshold = np.percentile(mahal_dist, (1 - contamination) * 100)
-                    mahal_outliers = mahal_dist > threshold
-
-                    # Map back to core IDs
-                    mahal_outlier_cores = X.index[mahal_outliers].tolist()
-                else:
-                    mahal_outlier_cores = []
-            else:
-                mahal_outlier_cores = []
-
-            # Combine outlier flags
+            # Flag cores
             for core_id in core_depth_matrix.index:
-                reasons = []
-
                 if missing_outliers.loc[core_id]:
-                    reasons.append(f"missing_data_{missing_prop.loc[core_id]:.2f}")
-
-                if core_id in mahal_outlier_cores:
-                    reasons.append("mahalanobis")
-
-                if reasons:
-                    outlier_cores.append(
+                    reason = f"missing_data_{missing_prop.loc[core_id]:.2f}"
+                    flagged_cores.append(
                         {
                             "core_id": core_id,
                             "group": f"{group_key}",
-                            "reasons": reasons,
+                            "reason": reason,
                         }
                     )
 
                     # Flag all rows for this core
                     mask = df["core_id"] == core_id
                     df.loc[mask, "outlier_flag"] = True
-                    df.loc[mask, "outlier_reason"] = "|".join(reasons)
+                    df.loc[mask, "outlier_reason"] = reason
 
-        # Remove outliers if requested
-        outliers_detected = len(outlier_cores)
-        if remove_outliers and outliers_detected > 0:
+        # Remove flagged cores if requested
+        cores_flagged = len(flagged_cores)
+        if qc_config.remove_outliers and cores_flagged > 0:
             df = df[~df["outlier_flag"]].copy()
-            outliers_removed = outliers_detected
+            cores_removed = cores_flagged
         else:
-            outliers_removed = 0
+            cores_removed = 0
 
         # Drop temporary core_id column
         if "core_id" in df.columns:
             df = df.drop(columns=["core_id"])
 
+        # Calculate samples before/after
+        if cores_removed > 0 and len(df) > 0:
+            samples_per_core = df.groupby(group_cols + ["Depth_cm"]).size().iloc[0]
+            samples_before = len(df) + (cores_removed * samples_per_core)
+        else:
+            samples_before = len(df)
+
         metadata = {
-            "outliers_detected": outliers_detected,
-            "outliers_removed": outliers_removed,
-            "outlier_list": outlier_cores,
-            "samples_before": len(df)
-            + (
-                outliers_removed
-                * df.groupby(["Plot", "Rep", "geno", "Depth_cm"]).size().iloc[0]
-                if outliers_removed > 0
-                else 0
-            ),
+            "cores_flagged": cores_flagged,
+            "cores_removed": cores_removed,
+            "flagged_cores_list": flagged_cores,
+            "samples_before": samples_before,
             "samples_after": len(df),
         }
 

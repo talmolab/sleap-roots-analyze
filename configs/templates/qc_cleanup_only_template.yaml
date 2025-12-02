@@ -1,0 +1,85 @@
+# QC Pipeline Configuration Template - Cleanup Only
+#
+# This template is for users who only want data cleanup (NaN/zero removal)
+# without outlier detection. Copy this file and customize for your dataset.
+#
+# Usage:
+#   1. Copy: cp configs/templates/qc_cleanup_only_template.yaml configs/my_cleanup.yaml
+#   2. Edit my_cleanup.yaml with your dataset-specific values
+#   3. Run: sleap-roots-analyze qc configs/my_cleanup.yaml
+
+pipeline_name: "my_cleanup_pipeline"  # REQUIRED: Give your pipeline a descriptive name
+
+# ============================================================================
+# REQUIRED: Column Mappings (Dataset-Specific)
+# ============================================================================
+columns:
+  genotype: "geno"           # REQUIRED: Your genotype column name
+  replicate: "rep"           # REQUIRED: Your replicate column name
+  barcode: "Barcode"         # Optional: Sample barcode column
+
+# ============================================================================
+# REQUIRED: Data Configuration
+# ============================================================================
+data:
+  csv_path: "path/to/your/data.csv"  # REQUIRED: Path to your trait CSV file
+  image_dir: null                     # Optional: Directory containing root images
+
+# ============================================================================
+# REQUIRED: Data Cleanup Thresholds
+# These parameters determine which samples and traits are kept
+# ============================================================================
+cleanup:
+  max_nan_fraction: 0.25           # REQUIRED: Max fraction NaN per sample (0.0-1.0)
+  max_zeros_per_trait: 0.5         # REQUIRED: Max fraction zeros per trait (0.0-1.0)
+  max_nans_per_trait: 0.2          # REQUIRED: Max fraction NaN per trait (0.0-1.0)
+  min_samples_per_trait: 10        # Min samples required per trait
+
+# ============================================================================
+# OPTIONAL: Outlier Detection (Leave empty for cleanup-only pipeline)
+# WARNING: You will be warned if this is empty (to ensure conscious choice)
+# ============================================================================
+outlier_detection:
+  traditional_methods: []    # Empty = no outlier detection (cleanup only)
+  clustering_methods: []     # Empty = no outlier detection (cleanup only)
+
+# No outlier_removal section needed since we're not doing outlier detection
+# (The pipeline will skip outlier removal steps automatically)
+
+# ============================================================================
+# REQUIRED: PCA Configuration
+# (Used in exploratory analysis even without outlier detection)
+# ============================================================================
+pca:
+  n_components: 0.95                 # REQUIRED: Variance explained by selected components (0.90-0.99)
+  standardize: true                  # Standardize features before PCA
+  feature_selection_strategy: "top_variance"  # Strategy for selecting top features
+
+# ============================================================================
+# OPTIONAL: Heritability Filtering (Disable if not needed)
+# ============================================================================
+heritability:
+  enabled: false             # Set true to filter traits by heritability
+  # threshold: 0.40          # REQUIRED if enabled: Min H² for trait retention (0.3-0.6)
+
+# ============================================================================
+# Visualization Settings
+# ============================================================================
+visualization:
+  dpi: 100
+  figsize: [12, 8]
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+# Adaptive sizing (optional - improves legibility for varying dataset sizes)
+adaptive_sizing:
+  enabled: true
+  base_width: 10
+  base_height: 8
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

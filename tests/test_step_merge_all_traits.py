@@ -101,7 +101,9 @@ def test_merge_inner_join(
     assert result.metadata["merge_type"] == "inner"
 
 
-def test_merge_left_join(root_trait_data, above_ground_data, config_with_merge, tmp_path):
+def test_merge_left_join(
+    root_trait_data, above_ground_data, config_with_merge, tmp_path
+):
     """Test left join keeps all root samples even if above-ground missing."""
     # Remove one above-ground sample
     above_ground_partial = above_ground_data[

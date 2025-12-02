@@ -114,8 +114,7 @@ class ExploratoryAnalysisStep(BaseStep):
         # Use adaptive sizing if enabled
         if config.adaptive_sizing and config.adaptive_sizing.enabled:
             corr_figsize = calculate_correlation_matrix_size(
-                n_traits=len(trait_cols),
-                config=config.adaptive_sizing
+                n_traits=len(trait_cols), config=config.adaptive_sizing
             )
         else:
             corr_figsize = tuple(config.visualization.figsize)

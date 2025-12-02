@@ -186,10 +186,7 @@ def sanitize_trait_names(
         if custom_replacements:
             # Create lowercase mapping for case-insensitive matching
             lower_replacements = {k.lower(): v for k, v in custom_replacements.items()}
-            parts = [
-                lower_replacements.get(part.lower(), part)
-                for part in parts
-            ]
+            parts = [lower_replacements.get(part.lower(), part) for part in parts]
 
         # Remove filler words and apply abbreviations
         processed_parts = []
