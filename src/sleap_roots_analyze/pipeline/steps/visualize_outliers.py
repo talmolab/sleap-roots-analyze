@@ -228,7 +228,7 @@ class VisualizeOutliersStep(BaseStep):
             files.append(fig_path)
 
             # Overlap heatmap
-            fig = create_outlier_overlap_heatmap(outlier_results=outlier_results)
+            fig = create_outlier_overlap_heatmap(all_outlier_results=outlier_results)
             fig_path = (
                 figures_dir
                 / f"outlier_overlap_heatmap.{config.visualization.figure_format}"

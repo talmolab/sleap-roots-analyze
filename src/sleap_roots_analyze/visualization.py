@@ -1207,21 +1207,22 @@ def create_heritability_diagnostic_dashboard(
     layout: str = "vertical",
     output_path: Optional[Path] = None,
 ) -> plt.Figure:
-    """Create comprehensive heritability diagnostic dashboard.
+    """Create heritability diagnostic visualization with variance decomposition.
 
-    Combines variance decomposition plots and trait-by-genotype boxplots
-    into a single comprehensive figure.
+    Creates variance decomposition and trait-by-genotype boxplot figures.
+    Note: Currently returns only the variance decomposition plot; the boxplot
+    is generated but not included in the returned figure.
 
     Args:
         df: DataFrame with trait data
         traits: List of trait names to analyze
         heritability_results: Dictionary with heritability results
         comparison_df: DataFrame from compare_trait_heritabilities()
-        layout: "vertical" (default) or "horizontal"
-        output_path: Optional path to save figure
+        layout: "vertical" (default) or "horizontal" (currently unused)
+        output_path: Optional path to save variance decomposition figure
 
     Returns:
-        matplotlib Figure object
+        matplotlib Figure object containing variance decomposition plot
 
     Example:
         >>> h2_results = calculate_heritability_estimates(df, traits)

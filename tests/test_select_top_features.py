@@ -76,8 +76,8 @@ class TestSelectTopFeaturesFromPCA:
         # Vector length favors [0.7, 0.7] (balanced contribution)
         assert vector_selected[0] == 1
 
-        # Top absolute favors [0.9, 0.3] (highest sum)
-        assert absolute_selected[0] == 1  # Actually both select feature 1
+        # Top absolute favors [0.7, 0.7] (highest sum = 1.4 vs 1.2)
+        assert absolute_selected[0] == 1  # Both methods select feature 1
 
     def test_vector_length_single_pc(self):
         """Test vector_length with single PC."""
