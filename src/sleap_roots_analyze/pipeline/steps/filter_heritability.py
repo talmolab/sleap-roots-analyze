@@ -193,6 +193,7 @@ class FilterHeritabilityStep(BaseStep):
                     comparison_df=comparison_df,
                     figsize=var_figsize,
                     output_path=None,  # Will save manually
+                    threshold=config.heritability.threshold,
                 )
                 var_plot_path = (
                     run_dir / "figures" / "09_variance_decomposition.png"

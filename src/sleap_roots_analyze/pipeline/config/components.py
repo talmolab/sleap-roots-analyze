@@ -477,6 +477,9 @@ class VisualizationConfig:
         facecolor: Figure face color (None = default).
         edgecolor: Figure edge color (None = default).
         transparent: Whether to save with transparent background.
+        enable_batched_plots: Whether to create batched plots for many traits.
+        batched_plot_threshold: Trait count threshold for creating batches.
+        batch_size: Number of traits per batch figure.
     """
 
     create_pca_plots: bool = True
@@ -501,6 +504,11 @@ class VisualizationConfig:
     facecolor: Optional[str] = None
     edgecolor: Optional[str] = None
     transparent: bool = False
+
+    # Batched plot configuration
+    enable_batched_plots: bool = True
+    batched_plot_threshold: int = 16  # Create batches when > this many traits
+    batch_size: int = 16  # Traits per batch figure
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -563,19 +571,25 @@ class RootCoreSourceConfig:
 class CoreQCConfig:
     """Configuration for core-level quality control.
 
+    NOTE: Statistical outlier detection (e.g., Mahalanobis distance) is NOT recommended
+    at the core level due to insufficient sample sizes. Root core datasets typically have
+    only 3 cores per plot, but statistical methods require 30+ samples for reliability.
+
+    Instead, use:
+    1. Missing data filtering (max_missing_proportion) to remove incomplete cores
+    2. Median aggregation (aggregation_method: "median") for robustness to outliers
+    3. Trait-level outlier detection (Step 5) on aggregated plot data (60+ samples)
+
     Attributes:
-        enabled: Whether to perform core-level QC.
-        outlier_method: Method for outlier detection ("mahalanobis").
-        contamination: Expected proportion of outliers (0.0-0.5).
+        enabled: Whether to perform core-level QC (typically should be False).
         max_missing_proportion: Maximum proportion of missing depths allowed per core.
-        remove_outliers: Whether to remove flagged outliers before aggregation.
+                                Cores exceeding this are flagged and optionally removed.
+        remove_outliers: Whether to remove flagged cores before aggregation.
     """
 
-    enabled: bool = True
-    outlier_method: str = "mahalanobis"
-    contamination: float = 0.1
-    max_missing_proportion: float = 0.5
-    remove_outliers: bool = True
+    enabled: bool = False  # Default to disabled - use median aggregation instead
+    max_missing_proportion: float = 0.5  # Flag cores with >50% missing depths
+    remove_outliers: bool = True  # Remove flagged cores if enabled
 
 
 @dataclass

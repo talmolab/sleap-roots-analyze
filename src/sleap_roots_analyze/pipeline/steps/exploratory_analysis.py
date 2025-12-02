@@ -127,12 +127,16 @@ class ExploratoryAnalysisStep(BaseStep):
         )
         all_figures["full_correlation_heatmap"] = full_corr_fig
 
-        # 4. Add batched trait visualizations if comprehensive mode or many traits
-        # Generate batched plots if we have more than 16 traits
-        if len(trait_cols) > 16:
+        # 4. Add batched trait visualizations if enabled and threshold exceeded
+        if (
+            config.visualization.enable_batched_plots
+            and len(trait_cols) > config.visualization.batched_plot_threshold
+        ):
             # Batched histograms
             hist_figs = create_trait_histograms_batched(
-                df=df, trait_cols=trait_cols, batch_size=16
+                df=df,
+                trait_cols=trait_cols,
+                batch_size=config.visualization.batch_size,
             )
             for i, fig in enumerate(hist_figs):
                 all_figures[f"04_trait_histograms_batch_{i+1}"] = fig
@@ -142,7 +146,7 @@ class ExploratoryAnalysisStep(BaseStep):
                 df=df,
                 trait_cols=trait_cols,
                 genotype_col=config.columns.genotype,
-                batch_size=16,
+                batch_size=config.visualization.batch_size,
             )
             for i, fig in enumerate(box_figs):
                 all_figures[f"04_trait_boxplots_batch_{i+1}"] = fig

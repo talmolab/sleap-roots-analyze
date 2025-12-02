@@ -65,7 +65,7 @@ pca:
 heritability:
   enabled: true                   # REMOVE_LOW_HERITABILITY_TRAITS = True
   threshold: 0.40                 # HERITABILITY_THRESHOLD = 0.40
-  generate_diagnostics: false     # Generate detailed diagnostic plots and CSV for removed traits
+  generate_diagnostics: true      # Generate detailed diagnostic plots and CSV for removed traits
 
 # Visualization settings (matching notebook)
 visualization:
@@ -85,9 +85,14 @@ visualization:
   bbox_inches: "tight"            # Standard tight bounding box
   transparent: false              # Opaque background
 
+  # Batched plot configuration (for datasets with many traits)
+  enable_batched_plots: true      # Set to false to disable batch plots
+  batched_plot_threshold: 16      # Create batches when > this many traits
+  batch_size: 16                  # Traits per batch figure
+
 # Adaptive figure sizing (optional - improves legibility for datasets with varying numbers of traits)
 adaptive_sizing:
-  enabled: false                 # Set to true to enable automatic figure scaling based on content
+  enabled: true                  # Set to true to enable automatic figure scaling based on content
   base_width: 8.0                # Base width for single-column figures (inches)
   base_height: 6.0               # Base height for single-row figures (inches)
   width_per_item: 2.0            # Width increment per additional column/item (inches)

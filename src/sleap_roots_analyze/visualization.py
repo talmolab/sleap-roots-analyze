@@ -223,7 +223,7 @@ def create_trait_histograms_batched(
         trait_cols: List of trait column names
         batch_size: Number of traits per figure (default: 16)
         n_cols: Number of columns in subplot grid
-        figsize: Figure size for each batch
+        figsize: Figure size for FULL batches (default: (16, 16))
 
     Returns:
         List of matplotlib figure objects (one per batch)
@@ -237,8 +237,21 @@ def create_trait_histograms_batched(
         batch_end = min(batch_start + batch_size, n_traits)
         batch_traits = trait_cols[batch_start:batch_end]
 
+        # Calculate adaptive figsize for this batch
+        n_traits_in_batch = len(batch_traits)
+        n_rows = (n_traits_in_batch + n_cols - 1) // n_cols
+
+        # Scale figsize proportionally for partial batches
+        if n_traits_in_batch < batch_size:
+            # Calculate full batch dimensions
+            full_n_rows = (batch_size + n_cols - 1) // n_cols
+            # Scale height proportionally
+            batch_figsize = (figsize[0], figsize[1] * (n_rows / full_n_rows))
+        else:
+            batch_figsize = figsize
+
         # Create figure for this batch
-        fig = create_trait_histograms(df, batch_traits, n_cols=n_cols, figsize=figsize)
+        fig = create_trait_histograms(df, batch_traits, n_cols=n_cols, figsize=batch_figsize)
         fig.suptitle(
             f"Trait Histograms (Traits {batch_start+1}-{batch_end} of {n_traits})",
             fontsize=14,
@@ -265,7 +278,7 @@ def create_trait_boxplots_by_genotype_batched(
         genotype_col: Column name for genotype grouping
         batch_size: Number of traits per figure (default: 16)
         n_cols: Number of columns in subplot grid
-        figsize: Figure size for each batch
+        figsize: Figure size for FULL batches (default: (16, 16))
 
     Returns:
         List of matplotlib figure objects (one per batch)
@@ -279,9 +292,22 @@ def create_trait_boxplots_by_genotype_batched(
         batch_end = min(batch_start + batch_size, n_traits)
         batch_traits = trait_cols[batch_start:batch_end]
 
+        # Calculate adaptive figsize for this batch
+        n_traits_in_batch = len(batch_traits)
+        n_rows = (n_traits_in_batch + n_cols - 1) // n_cols
+
+        # Scale figsize proportionally for partial batches
+        if n_traits_in_batch < batch_size:
+            # Calculate full batch dimensions
+            full_n_rows = (batch_size + n_cols - 1) // n_cols
+            # Scale height proportionally
+            batch_figsize = (figsize[0], figsize[1] * (n_rows / full_n_rows))
+        else:
+            batch_figsize = figsize
+
         # Create figure for this batch
         fig = create_trait_boxplots_by_genotype(
-            df, batch_traits, genotype_col=genotype_col, n_cols=n_cols, figsize=figsize
+            df, batch_traits, genotype_col=genotype_col, n_cols=n_cols, figsize=batch_figsize
         )
         fig.suptitle(
             f"Trait Boxplots by Genotype (Traits {batch_start+1}-{batch_end} of {n_traits})",
@@ -899,6 +925,7 @@ def create_variance_decomposition_plot(
     comparison_df: pd.DataFrame,
     figsize: tuple = (14, 10),
     output_path: Optional[Path] = None,
+    threshold: float = 0.3,
 ) -> plt.Figure:
     """Create 4-panel variance decomposition plot for heritability diagnostics.
 
@@ -906,6 +933,7 @@ def create_variance_decomposition_plot(
         comparison_df: DataFrame from compare_trait_heritabilities()
         figsize: Figure size (width, height) in inches
         output_path: Optional path to save figure
+        threshold: Heritability threshold for reference lines (default: 0.3)
 
     Returns:
         matplotlib Figure object
@@ -936,34 +964,38 @@ def create_variance_decomposition_plot(
 
     # Panel 1: Heritability bar chart
     ax = axes[0]
-    comparison_df.plot(
-        x="trait", y="heritability", kind="bar", ax=ax, legend=False, color="steelblue"
-    )
+    x_pos = range(len(comparison_df))
+    ax.bar(x_pos, comparison_df["heritability"], color="steelblue", alpha=0.7)
     ax.set_ylabel("Heritability (H²)")
     ax.set_title("Heritability Estimates")
-    ax.axhline(y=0.3, color="r", linestyle="--", alpha=0.5, label="Threshold (0.3)")
+    ax.axhline(y=threshold, color="r", linestyle="--", alpha=0.5, label=f"Threshold ({threshold})")
     ax.legend()
-    ax.tick_params(axis="x", rotation=45)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
     ax.set_xlabel("")
 
-    # Panel 2: Variance components
+    # Panel 2: Variance components (stacked bar)
     ax = axes[1]
-    comparison_df.plot(x="trait", y=["var_genetic", "var_residual"], kind="bar", ax=ax)
+    x_pos = range(len(comparison_df))
+    ax.bar(x_pos, comparison_df["var_genetic"], label="Genetic (σ²_G)", color="steelblue", alpha=0.7)
+    ax.bar(x_pos, comparison_df["var_residual"], bottom=comparison_df["var_genetic"],
+           label="Residual (σ²_E)", color="orange", alpha=0.7)
     ax.set_ylabel("Variance")
     ax.set_title("Genetic vs Residual Variance")
-    ax.legend(["Genetic (σ²_G)", "Residual (σ²_E)"])
-    ax.tick_params(axis="x", rotation=45)
+    ax.legend()
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
     ax.set_xlabel("")
 
     # Panel 3: Percentage between genotypes
     ax = axes[2]
-    comparison_df.plot(
-        x="trait", y="pct_var_between", kind="bar", ax=ax, legend=False, color="green"
-    )
+    x_pos = range(len(comparison_df))
+    ax.bar(x_pos, comparison_df["pct_var_between"], color="green", alpha=0.7)
     ax.set_ylabel("% of Total Variance")
     ax.set_title("Percentage Variance Between Genotypes")
     ax.axhline(y=50, color="r", linestyle="--", alpha=0.5)
-    ax.tick_params(axis="x", rotation=45)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(comparison_df["trait"], rotation=45, ha="right")
     ax.set_xlabel("")
 
     # Panel 4: Sample size and CV
