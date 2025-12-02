@@ -12,6 +12,15 @@ from typing import Any, List
 from sleap_roots_analyze.pipeline.config import QCPipelineConfig, validate_qc_config
 from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
+from sleap_roots_analyze.pipeline.steps.load_root_core_data import LoadRootCoreDataStep
+from sleap_roots_analyze.pipeline.steps.transform_depth_data import (
+    TransformDepthDataStep,
+)
+from sleap_roots_analyze.pipeline.steps.qc_core_level import QCCoreLevelStep
+from sleap_roots_analyze.pipeline.steps.aggregate_cores import AggregateCoresStep
+from sleap_roots_analyze.pipeline.steps.reshape_for_trait_qc import (
+    ReshapeForTraitQCStep,
+)
 from sleap_roots_analyze.pipeline.steps.load_data import LoadDataStep
 from sleap_roots_analyze.pipeline.steps.cleanup_traits import CleanupTraitsStep
 from sleap_roots_analyze.pipeline.steps.validate_clean import ValidateCleanStep
@@ -28,13 +37,28 @@ from sleap_roots_analyze.pipeline.steps.filter_heritability import (
     FilterHeritabilityStep,
 )
 from sleap_roots_analyze.pipeline.steps.generate_summary import GenerateSummaryStep
+from sleap_roots_analyze.pipeline.steps.load_above_ground import (
+    LoadAboveGroundTraitsStep,
+)
+from sleap_roots_analyze.pipeline.steps.merge_all_traits import MergeAllTraitsStep
 
 
 class QCPipeline(BasePipeline):
     """Quality Control pipeline for trait data.
 
-    This pipeline implements a 10-step quality control workflow:
-    1. LoadData - Load and validate CSV data
+    This pipeline implements a quality control workflow with optional root core
+    processing (Steps 0a-0e) followed by standard trait-level QC (Steps 1-10),
+    and optional above-ground trait merging (Steps 11-12).
+
+    **Root Core Processing (Optional - if config.root_core is set):**
+    0a. LoadRootCoreData - Load biomass/counting data for all sources
+    0b. TransformDepthData - Calculate depth_cm and pivot to long format
+    0c. QCCoreLevel - Detect and optionally remove outlier cores (optional)
+    0d. AggregateCores - Aggregate 3 cores to biological replicate level
+    0e. ReshapeForTraitQC - Pivot to wide format with prefixed columns
+
+    **Standard Trait-Level QC:**
+    1. LoadData - Load and validate CSV data (or use root core output)
     2. CleanupTraits - Remove problematic traits (high zeros/NaNs)
     3. ValidateClean - Validate cleaned data
     4. ExploratoryAnalysis - Generate EDA visualizations
@@ -44,6 +68,10 @@ class QCPipeline(BasePipeline):
     8. StatisticalAnalysis - Calculate ANOVA and heritability
     9. FilterHeritability - Filter low heritability traits (optional)
     10. GenerateSummary - Generate comprehensive pipeline summary
+
+    **Above-Ground Trait Merging (Optional - if config.root_core.merge_traits is set):**
+    11. LoadAboveGroundTraits - Load and validate above-ground phenotype data
+    12. MergeAllTraits - Merge root and above-ground traits with duplicate handling
 
     The pipeline uses NetworkX-based DAG execution for automatic step ordering
     and dependency management.
@@ -92,9 +120,16 @@ class QCPipeline(BasePipeline):
         )
 
         # Store config for use in create_tasks
-        self.config: PipelineConfig = config
+        self.config: QCPipelineConfig = config
 
-        # Initialize all step instances
+        # Initialize root core processing step instances (optional)
+        self.step_0a_load_root_core = LoadRootCoreDataStep()
+        self.step_0b_transform_depth = TransformDepthDataStep()
+        self.step_0c_qc_core_level = QCCoreLevelStep()
+        self.step_0d_aggregate_cores = AggregateCoresStep()
+        self.step_0e_reshape_for_qc = ReshapeForTraitQCStep()
+
+        # Initialize all standard QC step instances
         self.step_1_load_data = LoadDataStep()
         self.step_2_cleanup_traits = CleanupTraitsStep()
         self.step_3_validate_clean = ValidateCleanStep()
@@ -106,23 +141,115 @@ class QCPipeline(BasePipeline):
         self.step_9_filter_heritability = FilterHeritabilityStep()
         self.step_10_generate_summary = GenerateSummaryStep()
 
-    def create_tasks(self) -> List[Task]:
-        """Create the 10-step QC pipeline task graph.
+        # Initialize above-ground merge step instances (optional)
+        self.step_11_load_above_ground = LoadAboveGroundTraitsStep()
+        self.step_12_merge_all_traits = MergeAllTraitsStep()
 
-        This method creates a linear chain of 10 tasks with proper dependencies.
-        The NetworkX DAG executor will ensure they execute in the correct order.
+    def create_tasks(self) -> List[Task]:
+        """Create the QC pipeline task graph (with optional root core and merge steps).
+
+        CRITICAL WORKFLOW: If root_core.merge_traits is configured, the pipeline executes:
+        1. Steps 0a-0e: Process root cores → root_core_traits.csv
+        2. Steps 11-12: Merge root + above-ground → merged_all_traits.csv
+        3. Steps 1-10: QC on merged dataset → final_qc_traits.csv
+
+        This ensures outlier detection and heritability analysis operate on the full
+        trait manifold (root + above-ground traits combined), not just root traits alone.
 
         Returns:
             List of Task objects representing the QC pipeline steps.
         """
         tasks = []
 
-        # Step 1: Load Data (no dependencies - first step)
+        # Check if root core processing is configured
+        if self.config.root_core is not None:
+            # Step 0a: Load Root Core Data (first step if root core enabled)
+            tasks.append(
+                Task(
+                    func=self._run_load_root_core_data,
+                    name="00a_load_root_core_data",
+                    depends_on=[],
+                    description="Load root core biomass/counting data from all sources",
+                )
+            )
+
+            # Step 0b: Transform Depth Data
+            tasks.append(
+                Task(
+                    func=self._run_transform_depth_data,
+                    name="00b_transform_depth_data",
+                    depends_on=["00a_load_root_core_data"],
+                    description="Calculate depth_cm and pivot to long format",
+                )
+            )
+
+            # Step 0c: QC Core Level (optional outlier detection)
+            tasks.append(
+                Task(
+                    func=self._run_qc_core_level,
+                    name="00c_qc_core_level",
+                    depends_on=["00b_transform_depth_data"],
+                    description="Detect and optionally remove outlier cores",
+                )
+            )
+
+            # Step 0d: Aggregate Cores
+            tasks.append(
+                Task(
+                    func=self._run_aggregate_cores,
+                    name="00d_aggregate_cores",
+                    depends_on=["00c_qc_core_level"],
+                    description="Aggregate 3 cores to biological replicate level",
+                )
+            )
+
+            # Step 0e: Reshape For Trait QC
+            tasks.append(
+                Task(
+                    func=self._run_reshape_for_trait_qc,
+                    name="00e_reshape_for_trait_qc",
+                    depends_on=["00d_aggregate_cores"],
+                    description="Pivot to wide format with prefixed columns",
+                )
+            )
+
+            # Check if merge is configured - if so, merge happens BEFORE QC steps
+            if self.config.root_core.merge_traits is not None:
+                # Step 11: Load Above-Ground Traits (after root core processing)
+                tasks.append(
+                    Task(
+                        func=self._run_load_above_ground,
+                        name="11_load_above_ground",
+                        depends_on=["00e_reshape_for_trait_qc"],
+                        description="Load and validate above-ground phenotype data",
+                    )
+                )
+
+                # Step 12: Merge All Traits (after root core + above-ground loaded)
+                tasks.append(
+                    Task(
+                        func=self._run_merge_all_traits,
+                        name="12_merge_all_traits",
+                        depends_on=["00e_reshape_for_trait_qc", "11_load_above_ground"],
+                        description="Merge root and above-ground traits into combined dataset",
+                    )
+                )
+
+                # QC steps (1-10) operate on MERGED data
+                first_step_dependency = ["12_merge_all_traits"]
+            else:
+                # No merge configured - QC operates on root traits only
+                first_step_dependency = ["00e_reshape_for_trait_qc"]
+        else:
+            # No root core processing - Step 1 has no dependencies
+            first_step_dependency = []
+
+        # Step 1: Load Data
         tasks.append(
             Task(
                 func=self._run_load_data,
                 name="01_load_data",
-                depends_on=[],
+                depends_on=first_step_dependency,
                 description="Load and validate trait data from CSV",
             )
         )
@@ -222,12 +349,100 @@ class QCPipeline(BasePipeline):
     # Task wrapper methods - these adapt steps to the Task interface
     # Each method receives dependency results as kwargs with the dependency task name
 
-    def _run_load_data(self, config, run_dir, logger):
-        """Execute Step 1: Load Data."""
-        logger.info("Step 1/10: Loading data...")
-        result = self.step_1_load_data.execute(
+    # Root Core Processing Wrapper Methods (Steps 0a-0e)
+
+    def _run_load_root_core_data(self, config, run_dir, logger):
+        """Execute Step 0a: Load Root Core Data."""
+        logger.info("Step 0a: Loading root core data...")
+        result = self.step_0a_load_root_core.execute(
             data=None, config=config, run_dir=run_dir, prev_result=None
         )
+        return result
+
+    def _run_transform_depth_data(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0b: Transform Depth Data."""
+        logger.info("Step 0b: Transforming depth data...")
+        prev_task_result = kwargs.get("00a_load_root_core_data")
+        prev_step_result = prev_task_result.data
+        result = self.step_0b_transform_depth.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_qc_core_level(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0c: QC Core Level."""
+        logger.info("Step 0c: Running core-level QC...")
+        prev_task_result = kwargs.get("00b_transform_depth_data")
+        prev_step_result = prev_task_result.data
+        result = self.step_0c_qc_core_level.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_aggregate_cores(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0d: Aggregate Cores."""
+        logger.info("Step 0d: Aggregating cores to replicate level...")
+        prev_task_result = kwargs.get("00c_qc_core_level")
+        prev_step_result = prev_task_result.data
+        result = self.step_0d_aggregate_cores.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_reshape_for_trait_qc(self, config, run_dir, logger, **kwargs):
+        """Execute Step 0e: Reshape For Trait QC."""
+        logger.info("Step 0e: Reshaping data for trait-level QC...")
+        prev_task_result = kwargs.get("00d_aggregate_cores")
+        prev_step_result = prev_task_result.data
+        result = self.step_0e_reshape_for_qc.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    # Standard QC Pipeline Wrapper Methods (Steps 1-10)
+
+    def _run_load_data(self, config, run_dir, logger, **kwargs):
+        """Execute Step 1: Load Data (from CSV, root core, or merged dataset)."""
+        # Priority: merged data > root core data > CSV
+        if "12_merge_all_traits" in kwargs:
+            logger.info("Step 1/10: Using merged trait data (root + above-ground)...")
+            prev_task_result = kwargs.get("12_merge_all_traits")
+            prev_step_result = prev_task_result.data
+            # Pass through the merged data
+            result = self.step_1_load_data.execute(
+                data=prev_step_result.data,
+                config=config,
+                run_dir=run_dir,
+                prev_result=prev_step_result,
+            )
+        elif "00e_reshape_for_trait_qc" in kwargs:
+            logger.info("Step 1/10: Using root core processed data...")
+            prev_task_result = kwargs.get("00e_reshape_for_trait_qc")
+            prev_step_result = prev_task_result.data
+            # Pass through the reshaped root core data
+            result = self.step_1_load_data.execute(
+                data=prev_step_result.data,
+                config=config,
+                run_dir=run_dir,
+                prev_result=prev_step_result,
+            )
+        else:
+            logger.info("Step 1/10: Loading data from CSV...")
+            result = self.step_1_load_data.execute(
+                data=None, config=config, run_dir=run_dir, prev_result=None
+            )
         return result
 
     def _run_cleanup_traits(self, config, run_dir, logger, **kwargs):
@@ -352,5 +567,36 @@ class QCPipeline(BasePipeline):
             config=config,
             run_dir=run_dir,
             prev_result=prev_step_result,
+        )
+        return result
+
+    # Above-Ground Merge Wrapper Methods (Steps 11-12)
+
+    def _run_load_above_ground(self, config, run_dir, logger, **kwargs):
+        """Execute Step 11: Load Above-Ground Traits."""
+        logger.info("Step 11: Loading above-ground traits...")
+        result = self.step_11_load_above_ground.execute(
+            data=None, config=config, run_dir=run_dir, prev_result=None
+        )
+        return result
+
+    def _run_merge_all_traits(self, config, run_dir, logger, **kwargs):
+        """Execute Step 12: Merge All Traits (BEFORE QC steps)."""
+        logger.info("Step 12: Merging root and above-ground traits...")
+        root_task_result = kwargs.get("00e_reshape_for_trait_qc")
+        ag_task_result = kwargs.get("11_load_above_ground")
+
+        # Get the data from both previous steps
+        root_step_result = root_task_result.data
+        ag_step_result = ag_task_result.data
+
+        # Pass both datasets to merge step
+        result = self.step_12_merge_all_traits.execute(
+            data={
+                "qc_data": root_step_result.data,
+                "above_ground": ag_step_result.data,
+            },
+            config=config,
+            run_dir=run_dir,
         )
         return result

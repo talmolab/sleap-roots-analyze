@@ -32,6 +32,7 @@ def select_top_features_from_pca(
             - "top_absolute": Top N by absolute loading magnitude on specified PCs
             - "top_contribution": Top N by variance contribution to specified PCs
             - "top_variance": Top N by total variance contribution (all PCs)
+            - "vector_length": Top N by Euclidean distance in PC plane (traditional biplot)
         pc_indices: Which PCs to consider (0-based). If None, uses first 2 PCs.
 
     Returns:
@@ -110,6 +111,16 @@ def select_top_features_from_pca(
             contributions += eigenvalues[i] * loadings[:n_features, i] ** 2
 
         return np.argsort(contributions)[::-1][:n_features_to_select].tolist()
+
+    elif method == "vector_length":
+        # Traditional biplot: Euclidean distance (vector length) in PC plane
+        # This selects features with the longest arrows in the displayed PC space
+        squared_loadings = np.zeros(n_features)
+        for pc_idx in pc_indices:
+            squared_loadings += loadings[:n_features, pc_idx] ** 2
+        distances = np.sqrt(squared_loadings)
+
+        return np.argsort(distances)[::-1][:n_features_to_select].tolist()
 
     else:
         raise ValueError(f"Unknown selection method: {method}")

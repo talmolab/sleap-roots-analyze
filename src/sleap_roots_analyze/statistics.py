@@ -459,3 +459,352 @@ def analyze_heritability_thresholds(
         "total_traits": total_traits,
         "h2_values": h2_values,
     }
+
+
+def analyze_trait_variance(
+    df: pd.DataFrame,
+    trait: str,
+    genotype_col: str = "geno",
+    replicate_col: str = "rep",
+) -> Dict[str, Any]:
+    """Analyze variance components for a single trait.
+
+    Decomposes trait variance into between-genotype and within-genotype
+    components to support heritability diagnostics.
+
+    Args:
+        df: DataFrame with trait data
+        trait: Name of trait column to analyze
+        genotype_col: Name of genotype column (default: "geno")
+        replicate_col: Name of replicate column (default: "rep")
+
+    Returns:
+        Dictionary containing:
+            - n_observations: Total number of valid observations
+            - n_genotypes: Number of unique genotypes
+            - mean_reps_per_geno: Average replicates per genotype
+            - min_reps_per_geno: Minimum replicates per genotype
+            - max_reps_per_geno: Maximum replicates per genotype
+            - overall_variance: Total variance of trait values
+            - between_genotype_variance: Variance of genotype means
+            - within_genotype_variance: Mean variance within genotypes
+            - pct_variance_between_geno: Percentage of variance between genotypes
+            - trait_mean: Mean of trait values
+            - trait_std: Standard deviation of trait values
+            - trait_cv: Coefficient of variation (%)
+
+    Example:
+        >>> df = pd.DataFrame({
+        ...     'geno': ['G1', 'G1', 'G2', 'G2'],
+        ...     'rep': [1, 2, 1, 2],
+        ...     'trait1': [10.0, 12.0, 20.0, 22.0]
+        ... })
+        >>> result = analyze_trait_variance(df, 'trait1')
+        >>> print(f"Between-genotype variance: {result['between_genotype_variance']:.2f}")
+    """
+    # Create subset with complete data
+    subset = df[[trait, genotype_col, replicate_col]].dropna()
+
+    # Check for insufficient data
+    if len(subset) < 3:
+        return {
+            "error": "Insufficient data for variance analysis",
+            "n_observations": len(subset),
+        }
+
+    # Basic counts
+    n_obs = len(subset)
+    reps_per_geno = subset.groupby(genotype_col).size()
+    n_genotypes = len(reps_per_geno)
+
+    # Overall variance and statistics
+    overall_var = subset[trait].var(ddof=1) if len(subset) > 1 else 0.0
+    overall_mean = subset[trait].mean()
+    overall_std = subset[trait].std(ddof=1) if len(subset) > 1 else 0.0
+
+    # Coefficient of variation
+    cv = (overall_std / overall_mean * 100) if overall_mean != 0 else np.inf
+
+    # Between-genotype variance (variance of genotype means)
+    geno_means = subset.groupby(genotype_col)[trait].mean()
+    between_geno_var = geno_means.var(ddof=1) if len(geno_means) > 1 else 0.0
+
+    # Within-genotype variance (mean of variances within each genotype)
+    geno_vars = subset.groupby(genotype_col)[trait].var(ddof=1)
+    # Filter out NaN values (groups with only 1 observation)
+    geno_vars_valid = geno_vars.dropna()
+    within_geno_var = geno_vars_valid.mean() if len(geno_vars_valid) > 0 else 0.0
+
+    # Calculate percentage of variance between genotypes
+    total_var = between_geno_var + within_geno_var
+    if total_var > 0:
+        pct_between = (between_geno_var / total_var) * 100
+    else:
+        pct_between = 0.0
+
+    return {
+        "n_observations": int(n_obs),
+        "n_genotypes": int(n_genotypes),
+        "mean_reps_per_geno": float(reps_per_geno.mean()),
+        "min_reps_per_geno": int(reps_per_geno.min()),
+        "max_reps_per_geno": int(reps_per_geno.max()),
+        "trait_mean": float(overall_mean),
+        "trait_std": float(overall_std),
+        "trait_cv": float(cv),
+        "overall_variance": float(overall_var),
+        "between_genotype_variance": float(between_geno_var),
+        "within_genotype_variance": float(within_geno_var),
+        "pct_variance_between_geno": float(pct_between),
+    }
+
+
+def diagnose_heritability_issues(
+    df: pd.DataFrame,
+    trait: str,
+    heritability_result: Dict[str, Any],
+    genotype_col: str = "geno",
+    replicate_col: str = "rep",
+) -> Dict[str, Any]:
+    """Identify specific causes of low or zero heritability with explanations.
+
+    Args:
+        df: DataFrame with trait data
+        trait: Name of trait to diagnose
+        heritability_result: Dictionary from calculate_heritability_estimates()
+        genotype_col: Name of genotype column (default: "geno")
+        replicate_col: Name of replicate column (default: "rep")
+
+    Returns:
+        Dictionary containing:
+            - has_issues: Boolean indicating if problems detected
+            - issues: List of issue descriptions
+            - severity: "critical", "warning", or "info"
+            - recommendations: List of suggested actions
+
+    Example:
+        >>> h2_results = calculate_heritability_estimates(df, ['trait1'])
+        >>> diagnosis = diagnose_heritability_issues(df, 'trait1', h2_results['trait1'])
+        >>> if diagnosis['has_issues']:
+        ...     print(f"Issues: {', '.join(diagnosis['issues'])}")
+    """
+    issues = []
+    recommendations = []
+    severity = "info"
+
+    # Check for errors in heritability calculation
+    if "error" in heritability_result:
+        return {
+            "has_issues": True,
+            "issues": [f"Model failure: {heritability_result['error']}"],
+            "severity": "critical",
+            "recommendations": [
+                "Check data quality",
+                "Ensure sufficient genotypes and replicates",
+                "Try ANOVA-based method if mixed model failed",
+            ],
+        }
+
+    # Get heritability value
+    h2 = heritability_result.get("heritability", np.nan)
+    if np.isnan(h2):
+        return {
+            "has_issues": True,
+            "issues": ["Heritability could not be calculated"],
+            "severity": "critical",
+            "recommendations": ["Check input data for missing or invalid values"],
+        }
+
+    # Get variance analysis
+    var_analysis = analyze_trait_variance(df, trait, genotype_col, replicate_col)
+
+    if "error" in var_analysis:
+        return {
+            "has_issues": True,
+            "issues": [var_analysis["error"]],
+            "severity": "critical",
+            "recommendations": ["Increase sample size", "Check for missing data"],
+        }
+
+    # Check for zero heritability
+    if h2 == 0.0:
+        severity = "critical"
+
+        # Diagnose why
+        if var_analysis["between_genotype_variance"] == 0.0:
+            issues.append("No variation between genotype means")
+            recommendations.append("Check if trait is constant across genotypes")
+            recommendations.append("Verify genotype labels are correct")
+        elif var_analysis["overall_variance"] == 0.0:
+            issues.append("No variation in trait values (all identical)")
+            recommendations.append("Check data quality and measurement accuracy")
+        else:
+            # High within-genotype variance
+            ratio = (
+                var_analysis["within_genotype_variance"]
+                / var_analysis["between_genotype_variance"]
+                if var_analysis["between_genotype_variance"] > 0
+                else np.inf
+            )
+            if ratio > 10:
+                issues.append(
+                    f"Within-genotype variation >> between-genotype variation "
+                    f"(ratio: {ratio:.1f}x)"
+                )
+                recommendations.append("Check for high measurement noise")
+                recommendations.append("Consider improving experimental conditions")
+                recommendations.append("Verify replicate quality")
+
+    # Check sample size
+    n_obs = var_analysis["n_observations"]
+    if n_obs < 30:
+        issues.append(f"Low sample size (n={n_obs})")
+        severity = "warning" if severity == "info" else severity
+        recommendations.append(
+            f"Increase sample size (current: {n_obs}, recommended: >30)"
+        )
+
+    # Check design balance
+    min_reps = var_analysis["min_reps_per_geno"]
+    max_reps = var_analysis["max_reps_per_geno"]
+    if max_reps > min_reps * 2:
+        issues.append(f"Imbalanced design (reps per genotype: {min_reps}-{max_reps})")
+        recommendations.append("Consider balancing replicate numbers across genotypes")
+
+    # Check for high within-genotype variation (even if H² > 0)
+    if h2 > 0:
+        ratio = (
+            var_analysis["within_genotype_variance"]
+            / var_analysis["between_genotype_variance"]
+            if var_analysis["between_genotype_variance"] > 0
+            else 0
+        )
+        if ratio > 3:
+            issues.append(
+                f"High within-genotype variation (within/between ratio: {ratio:.1f})"
+            )
+            if severity == "info":
+                severity = "warning"
+
+    # Determine if issues exist
+    has_issues = len(issues) > 0 or h2 < 0.3
+
+    # If no specific issues but low H², provide general note
+    if len(issues) == 0 and h2 < 0.3:
+        issues.append(f"Low heritability (H²={h2:.3f})")
+        severity = "warning"
+        recommendations.append(
+            "Trait may have weak genetic control or high environmental influence"
+        )
+
+    return {
+        "has_issues": has_issues,
+        "issues": issues,
+        "severity": severity,
+        "recommendations": recommendations if has_issues else [],
+    }
+
+
+def compare_trait_heritabilities(
+    df: pd.DataFrame,
+    traits: List[str],
+    heritability_results: Dict[str, Dict[str, Any]],
+    genotype_col: str = "geno",
+    replicate_col: str = "rep",
+    sort_by: Optional[str] = None,
+) -> pd.DataFrame:
+    """Compare variance components and heritability metrics for multiple traits.
+
+    Args:
+        df: DataFrame with trait data
+        traits: List of trait names to compare
+        heritability_results: Dictionary mapping trait names to heritability results
+        genotype_col: Name of genotype column (default: "geno")
+        replicate_col: Name of replicate column (default: "rep")
+        sort_by: Optional column name to sort by (default: None)
+
+    Returns:
+        DataFrame with one row per trait and columns for variance metrics
+
+    Example:
+        >>> traits = ['trait1', 'trait2', 'trait3']
+        >>> h2_results = calculate_heritability_estimates(df, traits)
+        >>> comparison = compare_trait_heritabilities(df, traits, h2_results)
+        >>> print(comparison[['trait', 'heritability', 'pct_var_between']])
+    """
+    if len(traits) == 0:
+        # Return empty DataFrame with expected columns
+        return pd.DataFrame(
+            columns=[
+                "trait",
+                "heritability",
+                "var_genetic",
+                "var_residual",
+                "between_geno_var",
+                "within_geno_var",
+                "pct_var_between",
+                "n_observations",
+                "n_genotypes",
+                "mean_reps_per_geno",
+                "trait_mean",
+                "trait_cv",
+                "model_type",
+            ]
+        )
+
+    results = []
+
+    for trait in traits:
+        # Get heritability result
+        h2_result = heritability_results.get(trait, {})
+
+        # Get variance analysis
+        var_analysis = analyze_trait_variance(df, trait, genotype_col, replicate_col)
+
+        # Handle errors
+        if "error" in h2_result or "error" in var_analysis:
+            result = {
+                "trait": trait,
+                "heritability": np.nan,
+                "var_genetic": np.nan,
+                "var_residual": np.nan,
+                "between_geno_var": np.nan,
+                "within_geno_var": np.nan,
+                "pct_var_between": np.nan,
+                "n_observations": var_analysis.get("n_observations", 0),
+                "n_genotypes": var_analysis.get("n_genotypes", 0),
+                "mean_reps_per_geno": np.nan,
+                "trait_mean": np.nan,
+                "trait_cv": np.nan,
+                "model_type": "error",
+            }
+        else:
+            result = {
+                "trait": trait,
+                "heritability": h2_result.get("heritability", np.nan),
+                "var_genetic": h2_result.get("var_genetic", np.nan),
+                "var_residual": h2_result.get("var_residual", np.nan),
+                "between_geno_var": var_analysis.get(
+                    "between_genotype_variance", np.nan
+                ),
+                "within_geno_var": var_analysis.get("within_genotype_variance", np.nan),
+                "pct_var_between": var_analysis.get(
+                    "pct_variance_between_geno", np.nan
+                ),
+                "n_observations": var_analysis.get("n_observations", 0),
+                "n_genotypes": var_analysis.get("n_genotypes", 0),
+                "mean_reps_per_geno": var_analysis.get("mean_reps_per_geno", np.nan),
+                "trait_mean": var_analysis.get("trait_mean", np.nan),
+                "trait_cv": var_analysis.get("trait_cv", np.nan),
+                "model_type": h2_result.get("model_type", "unknown"),
+            }
+
+        results.append(result)
+
+    # Create DataFrame
+    comparison_df = pd.DataFrame(results)
+
+    # Sort if requested
+    if sort_by and sort_by in comparison_df.columns:
+        comparison_df = comparison_df.sort_values(by=sort_by)
+
+    return comparison_df

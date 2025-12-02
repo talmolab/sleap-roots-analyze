@@ -9,11 +9,13 @@ import matplotlib.pyplot as plt
 
 from sleap_roots_analyze.statistics import calculate_trait_statistics
 from sleap_roots_analyze.visualization import (
+    create_correlation_heatmap,
     create_exploratory_summary_plots,
     create_trait_boxplots_by_genotype_batched,
     create_trait_eda_plots,
     create_trait_histograms_batched,
 )
+from sleap_roots_analyze.viz_utils import calculate_correlation_matrix_size
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
 
@@ -76,11 +78,18 @@ class ExploratoryAnalysisStep(BaseStep):
         figures_dir.mkdir(exist_ok=True)
 
         # 1. Calculate trait statistics
-        stats = calculate_trait_statistics(df, trait_cols)
+        stats = calculate_trait_statistics(df=df, trait_cols=trait_cols)
 
         # 2. Create exploratory summary plots
+        # Pass adaptive config if enabled
+        adaptive_cfg = (
+            config.adaptive_sizing if config.adaptive_sizing.enabled else None
+        )
         summary_figures = create_exploratory_summary_plots(
-            df, trait_cols, genotype_col=config.columns.genotype
+            df=df,
+            trait_cols=trait_cols,
+            genotype_col=config.columns.genotype,
+            adaptive_config=adaptive_cfg,
         )
 
         # 3. Create detailed EDA plots with cleanup thresholds
@@ -91,8 +100,8 @@ class ExploratoryAnalysisStep(BaseStep):
         }
 
         eda_figures = create_trait_eda_plots(
-            df,
-            trait_cols,
+            df=df,
+            trait_cols=trait_cols,
             thresholds=thresholds,
             cleanup_log=cleanup_log,
             min_samples_per_trait=config.cleanup.min_samples_per_trait,
@@ -101,17 +110,42 @@ class ExploratoryAnalysisStep(BaseStep):
         # Combine all figures
         all_figures = {**summary_figures, **eda_figures}
 
-        # 4. Add batched trait visualizations if comprehensive mode or many traits
-        # Generate batched plots if we have more than 16 traits
-        if len(trait_cols) > 16:
+        # 3.5. Add full correlation heatmap (separate from summary plots)
+        # Use adaptive sizing if enabled
+        if config.adaptive_sizing and config.adaptive_sizing.enabled:
+            corr_figsize = calculate_correlation_matrix_size(
+                n_traits=len(trait_cols), config=config.adaptive_sizing
+            )
+        else:
+            corr_figsize = tuple(config.visualization.figsize)
+
+        full_corr_fig = create_correlation_heatmap(
+            df=df,
+            trait_cols=trait_cols,
+            figsize=corr_figsize,
+        )
+        all_figures["full_correlation_heatmap"] = full_corr_fig
+
+        # 4. Add batched trait visualizations if enabled and threshold exceeded
+        if (
+            config.visualization.enable_batched_plots
+            and len(trait_cols) > config.visualization.batched_plot_threshold
+        ):
             # Batched histograms
-            hist_figs = create_trait_histograms_batched(df, trait_cols, batch_size=16)
+            hist_figs = create_trait_histograms_batched(
+                df=df,
+                trait_cols=trait_cols,
+                batch_size=config.visualization.batch_size,
+            )
             for i, fig in enumerate(hist_figs):
                 all_figures[f"04_trait_histograms_batch_{i+1}"] = fig
 
             # Batched boxplots by genotype
             box_figs = create_trait_boxplots_by_genotype_batched(
-                df, trait_cols, genotype_col=config.columns.genotype, batch_size=16
+                df=df,
+                trait_cols=trait_cols,
+                genotype_col=config.columns.genotype,
+                batch_size=config.visualization.batch_size,
             )
             for i, fig in enumerate(box_figs):
                 all_figures[f"04_trait_boxplots_batch_{i+1}"] = fig
@@ -119,8 +153,15 @@ class ExploratoryAnalysisStep(BaseStep):
         # Save all figures
         files = []
         for fig_name, fig in all_figures.items():
-            fig_path = figures_dir / f"{fig_name}.png"
-            fig.savefig(fig_path, dpi=config.visualization.dpi, bbox_inches="tight")
+            fig_path = figures_dir / f"{fig_name}.{config.visualization.figure_format}"
+            fig.savefig(
+                fig_path,
+                dpi=config.visualization.dpi,
+                bbox_inches=config.visualization.bbox_inches,
+                facecolor=config.visualization.facecolor,
+                edgecolor=config.visualization.edgecolor,
+                transparent=config.visualization.transparent,
+            )
             plt.close(fig)  # Close to free memory
             files.append(fig_path)
 

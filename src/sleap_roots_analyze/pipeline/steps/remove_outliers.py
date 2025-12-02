@@ -178,6 +178,9 @@ class RemoveOutliersStep(BaseStep):
         elif strategy == "subset":
             removal_log["min_methods_required"] = config.outlier_removal.min_methods
 
+        # Reorder columns before saving: metadata first, then traits (sorted)
+        df_clean = self.reorder_dataframe_columns(df_clean, trait_cols)
+
         # Save outputs
         files = []
         files.append(

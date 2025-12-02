@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
+logger = logging.getLogger(__name__)
+
 from sleap_roots_analyze.data_cleanup import get_trait_columns
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.statistics import (
     analyze_heritability_thresholds,
+    compare_trait_heritabilities,
     identify_high_heritability_traits,
 )
-from sleap_roots_analyze.visualization import create_heritability_threshold_plot
+from sleap_roots_analyze.visualization import (
+    create_heritability_threshold_plot,
+    create_trait_by_genotype_boxplots,
+    create_variance_decomposition_plot,
+)
+from sleap_roots_analyze.viz_utils import calculate_figure_size, calculate_barplot_size
 
 
 class FilterHeritabilityStep(BaseStep):
@@ -28,6 +37,11 @@ class FilterHeritabilityStep(BaseStep):
         - 09_removed_traits.json: List of removed low heritability traits
         - 09_heritability_filter_summary.json: Summary of filtering
         - figures/09_heritability_threshold_analysis.png: Threshold analysis plot
+
+    Optional Diagnostic Outputs (if generate_diagnostics=True):
+        - 09_heritability_diagnostics.csv: Variance component comparison for all traits
+        - figures/09_variance_decomposition.png: 4-panel variance decomposition plot
+        - figures/09_removed_traits_boxplots.png: Boxplots of removed traits by genotype
     """
 
     def __init__(self):
@@ -103,7 +117,7 @@ class FilterHeritabilityStep(BaseStep):
 
         # Identify high heritability traits
         high_h2_traits = identify_high_heritability_traits(
-            heritability_results, threshold=threshold
+            heritability_results=heritability_results, threshold=threshold
         )
 
         # Determine which traits to remove
@@ -137,6 +151,108 @@ class FilterHeritabilityStep(BaseStep):
                 }
             )
 
+        # Generate diagnostics if enabled
+        diagnostic_results = None
+        if config.heritability.generate_diagnostics and removed_traits:
+            try:
+                # Generate comparison DataFrame for all traits
+                comparison_df = compare_trait_heritabilities(
+                    df=df,
+                    traits=trait_cols,
+                    heritability_results=heritability_results,
+                    genotype_col=config.columns.genotype,
+                    replicate_col=config.columns.replicate,
+                    sort_by="heritability",  # Sort by heritability (lowest first)
+                )
+
+                # Save diagnostic comparison CSV
+                diag_csv_path = run_dir / "09_heritability_diagnostics.csv"
+                comparison_df.to_csv(diag_csv_path, index=False)
+
+                # Create variance decomposition plot for all traits
+                # Use adaptive sizing if enabled
+                # Variance decomposition has traits on X-axis, so scale width
+                if config.adaptive_sizing and config.adaptive_sizing.enabled:
+                    from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+                    # Calculate size for each subplot based on trait count
+                    subplot_size = calculate_barplot_size(
+                        n_items=len(comparison_df),  # Number of traits
+                        config=config.adaptive_sizing,
+                        orientation="vertical",  # Traits on X-axis
+                        as_subplot=True,
+                        n_subplots=4,  # 4 panels in 2x2 grid
+                    )
+
+                    # Total figure size for 2x2 grid
+                    var_figsize = (subplot_size[0] * 2, subplot_size[1] * 2)
+                else:
+                    var_figsize = (14, 10)
+
+                fig_var = create_variance_decomposition_plot(
+                    comparison_df=comparison_df,
+                    figsize=var_figsize,
+                    output_path=None,  # Will save manually
+                    threshold=config.heritability.threshold,
+                )
+                var_plot_path = run_dir / "figures" / "09_variance_decomposition.png"
+                var_plot_path.parent.mkdir(parents=True, exist_ok=True)
+                fig_var.savefig(
+                    var_plot_path,
+                    dpi=config.visualization.dpi,
+                    bbox_inches=config.visualization.bbox_inches,
+                    facecolor=config.visualization.facecolor,
+                    edgecolor=config.visualization.edgecolor,
+                    transparent=config.visualization.transparent,
+                )
+                plt.close(fig_var)
+
+                # Create boxplots for removed traits (limit to top 10 if many)
+                traits_to_plot = (
+                    removed_traits[:10] if len(removed_traits) > 10 else removed_traits
+                )
+                adaptive_cfg = (
+                    config.adaptive_sizing if config.adaptive_sizing.enabled else None
+                )
+                fig_box = create_trait_by_genotype_boxplots(
+                    df=df,
+                    traits=traits_to_plot,
+                    heritability_results=heritability_results,
+                    genotype_col=config.columns.genotype,
+                    output_path=None,  # Will save manually
+                    adaptive_config=adaptive_cfg,
+                )
+                box_plot_path = run_dir / "figures" / "09_removed_traits_boxplots.png"
+                fig_box.savefig(
+                    box_plot_path,
+                    dpi=config.visualization.dpi,
+                    bbox_inches=config.visualization.bbox_inches,
+                    facecolor=config.visualization.facecolor,
+                    edgecolor=config.visualization.edgecolor,
+                    transparent=config.visualization.transparent,
+                )
+                plt.close(fig_box)
+
+                # Store diagnostic results for metadata
+                diagnostic_results = {
+                    "comparison_df": comparison_df.to_dict("records"),
+                    "diagnostic_csv": str(diag_csv_path),
+                    "variance_plot": str(var_plot_path),
+                    "boxplot": str(box_plot_path),
+                    "traits_analyzed": len(trait_cols),
+                    "traits_removed_plotted": len(traits_to_plot),
+                }
+
+                logger.info(f"Generated heritability diagnostics:")
+                logger.info(f"  - Comparison CSV: {diag_csv_path}")
+                logger.info(f"  - Variance decomposition: {var_plot_path}")
+                logger.info(f"  - Removed traits boxplots: {box_plot_path}")
+
+            except Exception as e:
+                # Log warning but don't fail the step
+                logger.warning(f"Failed to generate heritability diagnostics: {e}")
+                diagnostic_results = {"error": str(e), "status": "failed"}
+
         # Create summary
         summary = {
             "filtering_enabled": True,
@@ -162,16 +278,37 @@ class FilterHeritabilityStep(BaseStep):
         }
 
         # Generate heritability threshold analysis plot
-        threshold_analysis = analyze_heritability_thresholds(heritability_results)
+        threshold_analysis = analyze_heritability_thresholds(
+            heritability_results=heritability_results
+        )
+
+        # Use adaptive sizing if enabled
+        if config.adaptive_sizing and config.adaptive_sizing.enabled:
+            threshold_figsize = (10, 6)  # Keep fixed for this plot (single panel)
+        else:
+            threshold_figsize = (10, 6)
+
         fig = create_heritability_threshold_plot(
-            threshold_analysis, current_threshold=threshold
+            threshold_analysis=threshold_analysis,
+            current_threshold=threshold,
+            figsize=threshold_figsize,
         )
         threshold_plot_path = (
             run_dir / "figures" / "09_heritability_threshold_analysis.png"
         )
         threshold_plot_path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(threshold_plot_path, dpi=300, bbox_inches="tight")
+        fig.savefig(
+            threshold_plot_path,
+            dpi=config.visualization.dpi,
+            bbox_inches=config.visualization.bbox_inches,
+            facecolor=config.visualization.facecolor,
+            edgecolor=config.visualization.edgecolor,
+            transparent=config.visualization.transparent,
+        )
         plt.close(fig)
+
+        # Reorder columns before saving: metadata first, then traits (sorted)
+        df_filtered = self.reorder_dataframe_columns(df_filtered, high_h2_traits)
 
         # Save outputs
         files = []
@@ -184,6 +321,12 @@ class FilterHeritabilityStep(BaseStep):
         )
         files.append(threshold_plot_path)
 
+        # Add diagnostic files if they were generated
+        if diagnostic_results and "error" not in diagnostic_results:
+            files.append(Path(diagnostic_results["diagnostic_csv"]))
+            files.append(Path(diagnostic_results["variance_plot"]))
+            files.append(Path(diagnostic_results["boxplot"]))
+
         # Create metadata
         metadata = {
             "filtering_enabled": True,
@@ -195,5 +338,9 @@ class FilterHeritabilityStep(BaseStep):
             "trait_names": final_traits,  # Pass through for next step
             "valid_trait_names": final_traits,  # For consistency with other steps
         }
+
+        # Add diagnostic results to metadata if they were generated
+        if diagnostic_results:
+            metadata["diagnostic_results"] = diagnostic_results
 
         return StepResult(data=df_filtered, metadata=metadata, files_generated=files)

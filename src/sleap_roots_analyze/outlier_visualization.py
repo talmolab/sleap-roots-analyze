@@ -212,7 +212,7 @@ def create_outliers_per_genotype_plot(
     ax1.set_ylabel("Number of Outliers")
     ax1.set_title("Outliers per Genotype by Detection Method")
     ax1.set_xticks(x)
-    ax1.set_xticklabels(genotypes, rotation=45, ha="right")
+    ax1.set_xticklabels(genotypes, rotation=90, ha="center")
     ax1.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
     ax1.grid(True, alpha=0.3, axis="y")
 
@@ -233,7 +233,7 @@ def create_outliers_per_genotype_plot(
     ax2.set_ylabel("Outlier Percentage (%)")
     ax2.set_title("Outlier Proportion per Genotype by Detection Method")
     ax2.set_xticks(x)
-    ax2.set_xticklabels(genotypes, rotation=45, ha="right")
+    ax2.set_xticklabels(genotypes, rotation=90, ha="center")
     ax2.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
     ax2.grid(True, alpha=0.3, axis="y")
 
@@ -1099,7 +1099,7 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
     ax1.set_xlabel("Detection Method")
     ax1.set_ylabel("Number of Outliers")
     ax1.set_title("Outliers Detected by Each Method")
-    ax1.tick_params(axis="x", rotation=45)
+    ax1.tick_params(axis="x", rotation=90)
 
     # 2. Venn diagram (simplified overlap visualization)
     # Dynamically detect available methods

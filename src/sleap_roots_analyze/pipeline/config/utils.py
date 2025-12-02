@@ -71,8 +71,134 @@ def get_default_qc_config(pipeline_name: str = "qc_pipeline") -> QCPipelineConfi
     return QCPipelineConfig(pipeline_name=pipeline_name)
 
 
+def validate_explicit_config(config: QCPipelineConfig) -> None:
+    """Validate that critical parameters are explicitly configured.
+
+    This validation ensures users explicitly set critical parameters that affect
+    analysis results, preventing silent failures from unintended defaults.
+
+    Args:
+        config: QCPipelineConfig object to validate.
+
+    Raises:
+        ValueError: If required parameters are missing or use default values.
+
+    Warns:
+        UserWarning: If important-but-optional parameters are not set.
+
+    Example:
+        >>> config = load_qc_config("my_config.yaml")
+        >>> validate_explicit_config(config)  # Errors if required params missing
+    """
+    import warnings
+
+    errors = []
+    warnings_list = []
+
+    # REQUIRED: Cleanup thresholds (affect data entry)
+    if config.cleanup.max_nan_fraction is None:
+        errors.append(
+            "cleanup.max_nan_fraction must be explicitly set\n"
+            "  Recommended: 0.25 (removes samples with >25% missing data)\n"
+            "  Range: 0.0-1.0 (lower = stricter)"
+        )
+    if config.cleanup.max_zeros_per_trait is None:
+        errors.append(
+            "cleanup.max_zeros_per_trait must be explicitly set\n"
+            "  Recommended: 0.5 (removes traits with >50% zeros)\n"
+            "  Range: 0.0-1.0 (lower = stricter)"
+        )
+
+    # REQUIRED: Column mappings (dataset-specific)
+    if config.columns.genotype is None:
+        errors.append(
+            "columns.genotype must be explicitly set (dataset-specific)\n"
+            "  Examples: 'geno', 'genotype', 'accession', 'salk_geno'"
+        )
+    if config.columns.replicate is None:
+        errors.append(
+            "columns.replicate must be explicitly set (dataset-specific)\n"
+            "  Examples: 'rep', 'replicate', 'Rep', 'block'"
+        )
+
+    # REQUIRED: PCA n_components (affects dimensionality)
+    if config.pca.n_components is None:
+        errors.append(
+            "pca.n_components must be explicitly set\n"
+            "  Recommended: 0.95 (retain components explaining 95% variance)\n"
+            "  Range: 0.90-0.99 (higher = more components retained)"
+        )
+
+    # REQUIRED: Heritability threshold (if filtering enabled)
+    if config.heritability.enabled and config.heritability.threshold is None:
+        errors.append(
+            "heritability.threshold must be explicitly set when filtering enabled\n"
+            "  Typical range: 0.3-0.6\n"
+            "  Higher = more stringent (fewer traits retained)"
+        )
+
+    # REQUIRED: Root core aggregation method (if root_core processing enabled)
+    if config.root_core is not None:
+        for i, source in enumerate(config.root_core.sources):
+            if source.aggregation_method is None:
+                errors.append(
+                    f"root_core.sources[{i}].aggregation_method must be explicitly set\n"
+                    f"  Recommended: 'median' (robust to outliers and typos)\n"
+                    f"  Alternative: 'mean' (if no outliers expected)"
+                )
+
+    # REQUIRED: Outlier removal strategy (if outlier detection configured)
+    has_outlier_detection = (
+        len(config.outlier_detection.traditional_methods) > 0
+        or len(config.outlier_detection.clustering_methods) > 0
+    )
+    if has_outlier_detection and config.outlier_removal.strategy is None:
+        errors.append(
+            "outlier_removal.strategy must be set when outlier detection enabled\n"
+            "  Options:\n"
+            "    - 'remove': Delete outlier samples from dataset\n"
+            "    - 'flag': Add outlier_* columns but keep samples\n"
+            "    - 'none': Detect but don't remove or flag"
+        )
+
+    # IMPORTANT BUT OPTIONAL: Outlier detection
+    if not has_outlier_detection:
+        warnings_list.append(
+            "No outlier detection methods configured (traditional_methods and clustering_methods are empty).\n"
+            "  This is valid if you only want data cleanup (NaN/zero removal).\n"
+            "  Consider adding outlier detection for robust QC:\n"
+            "    - traditional_methods: ['mahalanobis_pca', 'isolation_forest']\n"
+            "    - clustering_methods: ['dbscan']\n"
+            "  See configs/templates/ for examples."
+        )
+
+    # Raise errors if any required parameters missing
+    if errors:
+        error_msg = (
+            "Configuration Validation Failed\n"
+            "================================================================\n"
+            "Critical parameters must be explicitly set to avoid silent failures.\n\n"
+        )
+        error_msg += "\n\n".join(errors)
+        error_msg += (
+            "\n\n================================================================\n"
+            "See configuration templates in configs/templates/:\n"
+            "   - qc_cleanup_only_template.yaml (data cleanup only)\n"
+            "   - qc_full_pipeline_template.yaml (cleanup + outlier detection)\n"
+        )
+        raise ValueError(error_msg)
+
+    # Issue warnings for important-but-optional parameters
+    for warning_msg in warnings_list:
+        warnings.warn(warning_msg, UserWarning, stacklevel=2)
+
+
 def validate_qc_config(config: QCPipelineConfig) -> None:
     """Validate a QC pipeline configuration.
+
+    This function performs both explicit configuration validation (checking that
+    critical parameters are set) and structural validation (checking that values
+    are valid).
 
     Args:
         config: QCPipelineConfig object to validate.
@@ -80,10 +206,17 @@ def validate_qc_config(config: QCPipelineConfig) -> None:
     Raises:
         ValueError: If configuration is invalid.
 
+    Warns:
+        UserWarning: If important-but-optional parameters are not set.
+
     Example:
         >>> config = QCPipelineConfig(pipeline_name="test")
         >>> validate_qc_config(config)
     """
+    # First, validate explicit configuration (required parameters set)
+    validate_explicit_config(config)
+
+    # Then validate structural correctness
     # Check required fields
     if config.pipeline_name == MISSING:
         raise ValueError("pipeline_name is required")
@@ -141,45 +274,51 @@ def validate_qc_config(config: QCPipelineConfig) -> None:
         ):
             raise ValueError("clustering.n_clusters must be at least 2")
 
-    # Validate outlier removal config
-    valid_removal_strategies = ["single", "consensus", "subset"]
-    if config.outlier_removal.strategy not in valid_removal_strategies:
-        raise ValueError(
-            f"outlier_removal.strategy must be one of {valid_removal_strategies}"
-        )
+    # Validate outlier removal config (only if outlier detection is configured)
+    has_outlier_detection = (
+        len(config.outlier_detection.traditional_methods) > 0
+        or len(config.outlier_detection.clustering_methods) > 0
+    )
 
-    # For "single" strategy, validate the method is configured
-    if config.outlier_removal.strategy == "single":
-        all_configured_methods = (
-            config.outlier_detection.traditional_methods
-            + config.outlier_detection.clustering_methods
-        )
-        if config.outlier_removal.method not in all_configured_methods:
-            if not all_configured_methods:
-                raise ValueError(
-                    f"outlier_removal.method '{config.outlier_removal.method}' "
-                    f"specified, but no outlier detection methods are configured. "
-                    f"Add methods to outlier_detection.traditional_methods or clustering_methods."
-                )
-            else:
-                raise ValueError(
-                    f"outlier_removal.method '{config.outlier_removal.method}' "
-                    f"not in configured detection methods: {all_configured_methods}"
-                )
-
-    # For "subset" strategy, validate min_methods is reasonable
-    if config.outlier_removal.strategy == "subset":
-        all_configured_methods = (
-            config.outlier_detection.traditional_methods
-            + config.outlier_detection.clustering_methods
-        )
-        if config.outlier_removal.min_methods < 1:
-            raise ValueError("outlier_removal.min_methods must be at least 1")
-        if config.outlier_removal.min_methods > len(all_configured_methods):
+    if has_outlier_detection:
+        valid_removal_strategies = ["single", "consensus", "subset"]
+        if config.outlier_removal.strategy not in valid_removal_strategies:
             raise ValueError(
-                f"outlier_removal.min_methods ({config.outlier_removal.min_methods}) "
-                f"cannot exceed number of configured methods ({len(all_configured_methods)})"
+                f"outlier_removal.strategy must be one of {valid_removal_strategies}"
             )
+
+        # For "single" strategy, validate the method is configured
+        if config.outlier_removal.strategy == "single":
+            all_configured_methods = (
+                config.outlier_detection.traditional_methods
+                + config.outlier_detection.clustering_methods
+            )
+            if config.outlier_removal.method not in all_configured_methods:
+                if not all_configured_methods:
+                    raise ValueError(
+                        f"outlier_removal.method '{config.outlier_removal.method}' "
+                        f"specified, but no outlier detection methods are configured. "
+                        f"Add methods to outlier_detection.traditional_methods or clustering_methods."
+                    )
+                else:
+                    raise ValueError(
+                        f"outlier_removal.method '{config.outlier_removal.method}' "
+                        f"not in configured detection methods: {all_configured_methods}"
+                    )
+
+        # For "subset" strategy, validate min_methods is reasonable
+        if config.outlier_removal.strategy == "subset":
+            all_configured_methods = (
+                config.outlier_detection.traditional_methods
+                + config.outlier_detection.clustering_methods
+            )
+            if config.outlier_removal.min_methods < 1:
+                raise ValueError("outlier_removal.min_methods must be at least 1")
+            if config.outlier_removal.min_methods > len(all_configured_methods):
+                raise ValueError(
+                    f"outlier_removal.min_methods ({config.outlier_removal.min_methods}) "
+                    f"cannot exceed number of configured methods ({len(all_configured_methods)})"
+                )
 
     # Validate logging config
     valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]

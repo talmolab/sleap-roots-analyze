@@ -42,26 +42,33 @@ class LoadDataStep(BaseStep):
         """Execute the data loading step.
 
         Args:
-            data: Not used (this is the first step).
+            data: Pre-loaded DataFrame from root core processing (if provided), else None.
             config: Pipeline configuration with:
-                - data.csv_path: Path to CSV file
+                - data.csv_path: Path to CSV file (if data is None)
                 - columns.barcode: Barcode column name
                 - columns.genotype: Genotype column name
                 - columns.replicate: Replicate column name (optional)
                 - data.additional_exclude_cols: Additional columns to exclude (optional)
             run_dir: Directory to save outputs.
-            prev_result: Not used (this is the first step).
+            prev_result: Previous step result from root core processing (if applicable).
 
         Returns:
             StepResult with loaded DataFrame and metadata about columns.
         """
-        # Load the data
-        df = load_trait_data(
-            config.data.csv_path,
-            barcode_col=config.columns.barcode,
-            genotype_col=config.columns.genotype,
-            replicate_col=config.columns.replicate,
-        )
+        # Check if data was provided from root core processing
+        if data is not None and isinstance(data, pd.DataFrame):
+            # Use pre-loaded data from root core processing
+            df = data
+            csv_path = "root_core_processing_output"
+        else:
+            # Load the data from CSV
+            df = load_trait_data(
+                config.data.csv_path,
+                barcode_col=config.columns.barcode,
+                genotype_col=config.columns.genotype,
+                replicate_col=config.columns.replicate,
+            )
+            csv_path = Path(config.data.csv_path).as_posix()
 
         # Get additional columns to exclude if specified
         additional_exclude = config.data.additional_exclude_cols
@@ -77,6 +84,9 @@ class LoadDataStep(BaseStep):
 
         # Metadata columns are everything else
         metadata_cols = [col for col in df.columns if col not in trait_cols]
+
+        # Reorder columns: metadata first, then traits (sorted)
+        df = self.reorder_dataframe_columns(df, trait_cols)
 
         # Create inspection summary
         inspection = pd.DataFrame(
@@ -106,7 +116,7 @@ class LoadDataStep(BaseStep):
             "valid_trait_names": trait_cols,  # For consistency
             "metadata_columns": len(metadata_cols),
             "metadata_column_names": metadata_cols,
-            "csv_path": Path(config.data.csv_path).as_posix(),
+            "csv_path": csv_path,
         }
 
         return StepResult(data=df, metadata=metadata, files_generated=files)

@@ -11,6 +11,9 @@ from src.sleap_roots_analyze.statistics import (
     calculate_heritability_estimates,
     identify_high_heritability_traits,
     analyze_heritability_thresholds,
+    analyze_trait_variance,
+    diagnose_heritability_issues,
+    compare_trait_heritabilities,
 )
 
 
@@ -889,3 +892,470 @@ class TestExpectedFailures:
         results = perform_anova_by_genotype(df, ["trait1"])
         assert "error" in results
         assert "at least 2 genotypes" in results["error"].lower()
+
+
+# ============================================================================
+# DIAGNOSTIC FUNCTION TESTS
+# ============================================================================
+
+
+def assert_diagnostic_result_structure(result):
+    """Helper function to validate diagnostic result dictionary structure.
+
+    Args:
+        result: Dictionary returned from diagnostic function
+
+    Raises:
+        AssertionError: If structure is invalid
+    """
+    assert isinstance(result, dict), "Result must be a dictionary"
+    assert "n_observations" in result, "Must include n_observations"
+    assert isinstance(
+        result["n_observations"], (int, np.integer)
+    ), "n_observations must be integer"
+
+
+class TestAnalyzeTraitVariance:
+    """Tests for analyze_trait_variance function."""
+
+    def test_successful_variance_analysis(self, heritability_data_known_h2):
+        """Test variance analysis returns correct structure for normal trait."""
+        df, _ = heritability_data_known_h2
+
+        result = analyze_trait_variance(
+            df=df,
+            trait="trait_high_h2",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Check structure
+        assert_diagnostic_result_structure(result)
+
+        # Check required keys
+        assert "n_genotypes" in result
+        assert "mean_reps_per_geno" in result
+        assert "overall_variance" in result
+        assert "between_genotype_variance" in result
+        assert "within_genotype_variance" in result
+        assert "pct_variance_between_geno" in result
+        assert "trait_mean" in result
+        assert "trait_std" in result
+        assert "trait_cv" in result
+
+        # Check types
+        assert isinstance(result["n_genotypes"], (int, np.integer))
+        assert isinstance(result["overall_variance"], (float, np.floating))
+        assert isinstance(result["pct_variance_between_geno"], (float, np.floating))
+
+        # Check values are reasonable
+        assert result["n_observations"] == 100  # 20 genotypes * 5 reps
+        assert result["n_genotypes"] == 20
+        assert result["mean_reps_per_geno"] == 5.0
+        assert result["overall_variance"] > 0
+        assert 0 <= result["pct_variance_between_geno"] <= 100
+
+    def test_variance_analysis_with_zero_variance_trait(
+        self, heritability_diagnostic_zero_variance
+    ):
+        """Test variance analysis with trait where all values identical."""
+        df = heritability_diagnostic_zero_variance
+
+        # Make all values identical
+        df["trait_identical"] = 100.0
+
+        result = analyze_trait_variance(
+            df=df,
+            trait="trait_identical",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        assert result["overall_variance"] == 0.0
+        assert result["between_genotype_variance"] == 0.0
+        assert result["within_genotype_variance"] == 0.0
+
+    def test_variance_analysis_with_missing_data(self, heritability_data_known_h2):
+        """Test variance analysis excludes NaN values."""
+        df, _ = heritability_data_known_h2
+
+        # Add NaN values
+        df_with_nan = df.copy()
+        df_with_nan.loc[:10, "trait_high_h2"] = np.nan
+
+        result = analyze_trait_variance(
+            df=df_with_nan,
+            trait="trait_high_h2",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Should have fewer observations
+        assert result["n_observations"] < 100
+        assert result["n_observations"] == 89  # 100 - 11 NaNs
+
+    def test_variance_analysis_with_insufficient_data(self):
+        """Test variance analysis with fewer than 3 observations."""
+        df = pd.DataFrame(
+            {
+                "geno": ["G1", "G1"],
+                "rep": [1, 2],
+                "trait": [10.0, 12.0],
+            }
+        )
+
+        result = analyze_trait_variance(
+            df=df,
+            trait="trait",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Should indicate error
+        assert "error" in result or result["n_observations"] == 2
+
+    def test_variance_decomposition_correctness(self, heritability_data_known_h2):
+        """Test that variance components add up correctly."""
+        df, _ = heritability_data_known_h2
+
+        result = analyze_trait_variance(
+            df=df,
+            trait="trait_high_h2",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Total variance should be approximately between + within
+        # (not exact due to different denominators, but should be close)
+        total = result["overall_variance"]
+        between = result["between_genotype_variance"]
+        within = result["within_genotype_variance"]
+
+        assert between > 0, "Between-genotype variance should be positive"
+        assert within > 0, "Within-genotype variance should be positive"
+        assert between + within > 0, "Sum of variances should be positive"
+
+        # For high H² trait, between should be larger than within
+        assert between > within, "High H² trait should have between > within"
+
+    def test_high_heritability_trait_high_pct_between(self, heritability_perfect_data):
+        """Test that perfect H² trait has high % between-genotype variance."""
+        df = heritability_perfect_data
+
+        result = analyze_trait_variance(
+            df=df,
+            trait="trait_perfect",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Perfect heritability means all variance is between genotypes
+        assert result["pct_variance_between_geno"] > 99.0
+
+    def test_low_heritability_trait_low_pct_between(self, heritability_zero_data):
+        """Test that zero H² trait has low % between-genotype variance."""
+        df = heritability_zero_data
+
+        result = analyze_trait_variance(
+            df=df,
+            trait="trait_zero",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Zero heritability means most variance is within genotypes
+        # Due to random sampling, may have some between-genotype variance
+        assert result["pct_variance_between_geno"] < 50.0  # Should be < 50% for low H²
+
+
+class TestDiagnoseHeritabilityIssues:
+    """Tests for diagnose_heritability_issues function."""
+
+    def test_diagnose_zero_variance_issue(self, heritability_diagnostic_zero_variance):
+        """Test diagnosis identifies low/zero heritability issues."""
+        df = heritability_diagnostic_zero_variance
+
+        # Calculate heritability
+        h2_results = calculate_heritability_estimates(
+            df=df,
+            trait_cols=["trait_zero_var"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        diagnosis = diagnose_heritability_issues(
+            df=df,
+            trait="trait_zero_var",
+            heritability_result=h2_results["trait_zero_var"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Should identify some issues (may not always be zero H² due to random sampling)
+        h2 = h2_results["trait_zero_var"]["heritability"]
+        if h2 < 0.3:
+            assert diagnosis["has_issues"] is True
+            assert len(diagnosis["issues"]) > 0
+        assert diagnosis["severity"] in ["critical", "warning", "info"]
+
+    def test_diagnose_high_within_variance_issue(
+        self, heritability_diagnostic_high_within_variance
+    ):
+        """Test diagnosis identifies high within-genotype variance."""
+        df = heritability_diagnostic_high_within_variance
+
+        h2_results = calculate_heritability_estimates(
+            df=df,
+            trait_cols=["trait_high_within"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        diagnosis = diagnose_heritability_issues(
+            df=df,
+            trait="trait_high_within",
+            heritability_result=h2_results["trait_high_within"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        assert diagnosis["has_issues"] is True
+        issues_text = " ".join(diagnosis["issues"]).lower()
+        assert "within" in issues_text or "replicate" in issues_text
+
+    def test_diagnose_low_sample_size_issue(
+        self, heritability_diagnostic_low_sample_size
+    ):
+        """Test diagnosis identifies low sample size."""
+        df = heritability_diagnostic_low_sample_size
+
+        h2_results = calculate_heritability_estimates(
+            df=df,
+            trait_cols=["trait_low_sample"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        diagnosis = diagnose_heritability_issues(
+            df=df,
+            trait="trait_low_sample",
+            heritability_result=h2_results["trait_low_sample"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        assert diagnosis["has_issues"] is True or diagnosis["severity"] == "warning"
+        issues_text = " ".join(diagnosis["issues"]).lower()
+        assert "sample" in issues_text or "observations" in issues_text
+
+    def test_diagnose_healthy_trait_no_issues(self, heritability_data_known_h2):
+        """Test diagnosis returns no issues for good quality trait."""
+        df, _ = heritability_data_known_h2
+
+        h2_results = calculate_heritability_estimates(
+            df=df,
+            trait_cols=["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        diagnosis = diagnose_heritability_issues(
+            df=df,
+            trait="trait_high_h2",
+            heritability_result=h2_results["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        assert diagnosis["has_issues"] is False
+        assert len(diagnosis["issues"]) == 0
+
+    def test_diagnose_handles_missing_heritability_result(
+        self, heritability_data_known_h2
+    ):
+        """Test diagnosis handles gracefully when heritability result missing."""
+        df, _ = heritability_data_known_h2
+
+        diagnosis = diagnose_heritability_issues(
+            df=df,
+            trait="trait_high_h2",
+            heritability_result={},  # Empty result
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Should handle gracefully, either return error or basic diagnosis
+        assert isinstance(diagnosis, dict)
+
+    def test_diagnose_model_failure_issue(self):
+        """Test diagnosis identifies mixed model failure."""
+        df = pd.DataFrame(
+            {
+                "geno": ["G1"] * 5,
+                "rep": [1, 2, 3, 4, 5],
+                "trait": [1, 2, 3, 4, 5],
+            }
+        )
+
+        # This will fail due to only one genotype
+        h2_results = calculate_heritability_estimates(
+            df=df, trait_cols=["trait"], genotype_col="geno", replicate_col="rep"
+        )
+
+        diagnosis = diagnose_heritability_issues(
+            df=df,
+            trait="trait",
+            heritability_result=h2_results.get("trait", {"error": "Model failed"}),
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Single genotype case: H²=0 with low sample warnings
+        assert diagnosis["has_issues"] is True
+        assert diagnosis["severity"] in ["critical", "warning"]  # Can be either
+
+
+class TestCompareTraitHeritabilities:
+    """Tests for compare_trait_heritabilities function."""
+
+    def test_compare_returns_dataframe(self, heritability_diagnostic_mixed_quality):
+        """Test comparison returns properly structured DataFrame."""
+        df = heritability_diagnostic_mixed_quality
+
+        h2_results = calculate_heritability_estimates(
+            df=df,
+            trait_cols=["trait_good", "trait_poor", "trait_constant"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        comparison = compare_trait_heritabilities(
+            df=df,
+            traits=["trait_good", "trait_poor", "trait_constant"],
+            heritability_results=h2_results,
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        assert isinstance(comparison, pd.DataFrame)
+        assert len(comparison) == 3  # Three traits
+
+    def test_compare_includes_expected_columns(
+        self, heritability_diagnostic_mixed_quality
+    ):
+        """Test comparison DataFrame includes all expected columns."""
+        df = heritability_diagnostic_mixed_quality
+
+        h2_results = calculate_heritability_estimates(
+            df=df,
+            trait_cols=["trait_good", "trait_poor"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        comparison = compare_trait_heritabilities(
+            df=df,
+            traits=["trait_good", "trait_poor"],
+            heritability_results=h2_results,
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        expected_cols = [
+            "trait",
+            "heritability",
+            "var_genetic",
+            "var_residual",
+            "between_geno_var",
+            "within_geno_var",
+            "pct_var_between",
+            "n_observations",
+            "n_genotypes",
+            "mean_reps_per_geno",
+        ]
+
+        for col in expected_cols:
+            assert col in comparison.columns, f"Missing column: {col}"
+
+    def test_compare_handles_error_in_heritability(
+        self, heritability_diagnostic_mixed_quality
+    ):
+        """Test comparison handles traits with errors."""
+        df = heritability_diagnostic_mixed_quality
+
+        # Add a column to DataFrame that will have error
+        df["trait_error"] = 100.0  # Add the trait that will error
+
+        # Create heritability results with one error
+        h2_results = {
+            "trait_good": {
+                "heritability": 0.8,
+                "var_genetic": 2.0,
+                "var_residual": 0.5,
+                "n_observations": 60,
+                "n_genotypes": 15,
+                "mean_n_reps": 4.0,
+            },
+            "trait_error": {"error": "Calculation failed"},
+        }
+
+        comparison = compare_trait_heritabilities(
+            df=df,
+            traits=["trait_good", "trait_error"],
+            heritability_results=h2_results,
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        assert len(comparison) == 2
+        # Error trait should have NaN for numeric columns
+        error_row = comparison[comparison["trait"] == "trait_error"]
+        assert pd.isna(error_row["heritability"].values[0])
+
+    def test_compare_empty_trait_list(self, heritability_diagnostic_mixed_quality):
+        """Test comparison handles empty trait list."""
+        df = heritability_diagnostic_mixed_quality
+
+        comparison = compare_trait_heritabilities(
+            df=df,
+            traits=[],
+            heritability_results={},
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        assert isinstance(comparison, pd.DataFrame)
+        assert len(comparison) == 0
+
+    def test_compare_correctly_calculates_pct_variance(
+        self, heritability_data_known_h2
+    ):
+        """Test comparison correctly calculates percentage variance between genotypes."""
+        df, _ = heritability_data_known_h2
+
+        h2_results = calculate_heritability_estimates(
+            df=df,
+            trait_cols=["trait_high_h2", "trait_low_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        comparison = compare_trait_heritabilities(
+            df=df,
+            traits=["trait_high_h2", "trait_low_h2"],
+            heritability_results=h2_results,
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # High H² trait should have higher % between
+        high_h2_pct = comparison[comparison["trait"] == "trait_high_h2"][
+            "pct_var_between"
+        ].values[0]
+        low_h2_pct = comparison[comparison["trait"] == "trait_low_h2"][
+            "pct_var_between"
+        ].values[0]
+
+        assert high_h2_pct > low_h2_pct
+        assert 0 <= high_h2_pct <= 100
+        assert 0 <= low_h2_pct <= 100

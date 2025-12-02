@@ -2,6 +2,10 @@
 
 import sys
 from pathlib import Path
+import matplotlib
+
+# Use non-interactive backend for tests to avoid tkinter issues
+matplotlib.use("Agg")
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent

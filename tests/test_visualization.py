@@ -48,6 +48,9 @@ from sleap_roots_analyze.visualization import (
     save_figure_with_unique_name,
     create_exploratory_summary_plots,
     create_trait_eda_plots,
+    create_variance_decomposition_plot,
+    create_trait_by_genotype_boxplots,
+    create_heritability_diagnostic_dashboard,
 )
 
 
@@ -295,15 +298,16 @@ class TestCreateCorrelationHeatmap:
         plt.close(fig)
 
     def test_custom_figsize(self, viz_sample_data):
-        """Test custom figure size."""
+        """Test custom figure size is made square using larger dimension."""
         trait_cols = ["trait1", "trait2"]
 
         fig = create_correlation_heatmap(viz_sample_data, trait_cols, figsize=(8, 6))
 
         assert isinstance(fig, plt.Figure)
         width, height = fig.get_size_inches()
+        # Should use the larger dimension (8) for both width and height
         assert width == 8
-        assert height == 6
+        assert height == 8
         plt.close(fig)
 
     def test_with_nan_values(self, viz_data_with_nan):
@@ -1344,14 +1348,6 @@ class TestCreateHeritabilityThresholdPlot:
         ]  # Horizontal lines have constant y
         assert len(hlines) >= 2  # At least 50% and 75% lines
 
-        # Check for vertical reference lines in bottom plot (Low, Moderate, High)
-        vlines = [
-            line
-            for line in ax2.get_lines()
-            if line.get_linestyle() == ":" and line.get_alpha() == 0.3
-        ]
-        assert len(vlines) >= 3  # Low (0.3), Moderate (0.5), High (0.7)
-
         plt.close("all")
 
     def test_threshold_plot_annotations(self, heritability_threshold_analysis):
@@ -1370,11 +1366,7 @@ class TestCreateHeritabilityThresholdPlot:
 
         # Should have annotation for current threshold value
         assert len(texts1) > 0  # "X traits" annotation
-        assert len(texts2) > 0  # Percentage and threshold labels
-
-        # Check for threshold labels (Low, Moderate, High)
-        all_text = " ".join(text.get_text() for text in texts2)
-        assert any(label in all_text for label in ["Low", "Moderate", "High"])
+        assert len(texts2) > 0  # Percentage annotation
 
         plt.close("all")
 

@@ -148,7 +148,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 logger.info("  Creating correlation heatmap...")
                 generated_files.extend(
                     self._create_correlation_plot(
-                        df, trait_cols, figures_dir, formats, dpi
+                        df, trait_cols, config, figures_dir, formats, dpi
                     )
                 )
 
@@ -157,7 +157,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 logger.info("  Creating heritability plots...")
                 generated_files.extend(
                     self._create_heritability_plots(
-                        heritability_results, figures_dir, formats, dpi
+                        heritability_results, config, figures_dir, formats, dpi
                     )
                 )
 
@@ -215,7 +215,17 @@ class GenerateStaticFiguresStep(BaseStep):
 
         # Scree plot
         fig = create_pca_scree_plot(pca_results)
-        files.extend(self._save_figure(fig, "pca_scree_plot", output_dir, formats, dpi))
+        files.extend(
+            self._save_figure(
+                fig,
+                "pca_scree_plot",
+                output_dir,
+                formats,
+                dpi,
+                bbox_inches=config.static_viz.bbox_inches,
+                transparent=config.static_viz.transparent,
+            )
+        )
         plt.close(fig)
 
         # Biplot
@@ -227,7 +237,17 @@ class GenerateStaticFiguresStep(BaseStep):
             color_by=genotype_col,
             top_n_features=config.static_viz.pca_biplot_top_features,
         )
-        files.extend(self._save_figure(fig, "pca_biplot", output_dir, formats, dpi))
+        files.extend(
+            self._save_figure(
+                fig,
+                "pca_biplot",
+                output_dir,
+                formats,
+                dpi,
+                bbox_inches=config.static_viz.bbox_inches,
+                transparent=config.static_viz.transparent,
+            )
+        )
         plt.close(fig)
 
         # Feature contribution heatmap (returns tuple of 2 figures)
@@ -236,12 +256,24 @@ class GenerateStaticFiguresStep(BaseStep):
         )
         files.extend(
             self._save_figure(
-                variance_fig, "pca_feature_variance", output_dir, formats, dpi
+                variance_fig,
+                "pca_feature_variance",
+                output_dir,
+                formats,
+                dpi,
+                bbox_inches=config.static_viz.bbox_inches,
+                transparent=config.static_viz.transparent,
             )
         )
         files.extend(
             self._save_figure(
-                loadings_fig, "pca_feature_loadings", output_dir, formats, dpi
+                loadings_fig,
+                "pca_feature_loadings",
+                output_dir,
+                formats,
+                dpi,
+                bbox_inches=config.static_viz.bbox_inches,
+                transparent=config.static_viz.transparent,
             )
         )
         plt.close(variance_fig)
@@ -256,7 +288,15 @@ class GenerateStaticFiguresStep(BaseStep):
                 n_components=config.static_viz.pca_n_components,
             )
             files.extend(
-                self._save_figure(fig, "pca_pc_boxplots", output_dir, formats, dpi)
+                self._save_figure(
+                    fig,
+                    "pca_pc_boxplots",
+                    output_dir,
+                    formats,
+                    dpi,
+                    bbox_inches=config.static_viz.bbox_inches,
+                    transparent=config.static_viz.transparent,
+                )
             )
             plt.close(fig)
 
@@ -281,7 +321,13 @@ class GenerateStaticFiguresStep(BaseStep):
         for i, subfig in enumerate(fig):
             files.extend(
                 self._save_figure(
-                    subfig, f"trait_histograms_batch{i+1}", output_dir, formats, dpi
+                    subfig,
+                    f"trait_histograms_batch{i+1}",
+                    output_dir,
+                    formats,
+                    dpi,
+                    bbox_inches=config.static_viz.bbox_inches,
+                    transparent=config.static_viz.transparent,
                 )
             )
             plt.close(subfig)
@@ -303,6 +349,8 @@ class GenerateStaticFiguresStep(BaseStep):
                         output_dir,
                         formats,
                         dpi,
+                        bbox_inches=config.static_viz.bbox_inches,
+                        transparent=config.static_viz.transparent,
                     )
                 )
                 plt.close(subfig)
@@ -313,6 +361,7 @@ class GenerateStaticFiguresStep(BaseStep):
         self,
         df: pd.DataFrame,
         trait_cols: list,
+        config: Any,
         output_dir: Path,
         formats: list,
         dpi: int,
@@ -322,7 +371,15 @@ class GenerateStaticFiguresStep(BaseStep):
 
         fig = create_correlation_heatmap(df, trait_cols)
         files.extend(
-            self._save_figure(fig, "trait_correlations", output_dir, formats, dpi)
+            self._save_figure(
+                fig,
+                "trait_correlations",
+                output_dir,
+                formats,
+                dpi,
+                bbox_inches=config.static_viz.bbox_inches,
+                transparent=config.static_viz.transparent,
+            )
         )
         plt.close(fig)
 
@@ -331,6 +388,7 @@ class GenerateStaticFiguresStep(BaseStep):
     def _create_heritability_plots(
         self,
         heritability_results: dict,
+        config: Any,
         output_dir: Path,
         formats: list,
         dpi: int,
@@ -338,9 +396,22 @@ class GenerateStaticFiguresStep(BaseStep):
         """Create heritability plots."""
         files = []
 
-        fig = create_heritability_plot(heritability_results)
+        # Use configured threshold for visualization
+        # Note: Shows the configured threshold regardless of whether filtering is enabled.
+        # This ensures consistency with Step 8 plots and helps users understand what
+        # threshold would be used if heritability filtering were enabled.
+        threshold = config.heritability.threshold
+        fig = create_heritability_plot(heritability_results, threshold=threshold)
         files.extend(
-            self._save_figure(fig, "heritability_estimates", output_dir, formats, dpi)
+            self._save_figure(
+                fig,
+                "heritability_estimates",
+                output_dir,
+                formats,
+                dpi,
+                bbox_inches=config.static_viz.bbox_inches,
+                transparent=config.static_viz.transparent,
+            )
         )
         plt.close(fig)
 
@@ -367,11 +438,18 @@ class GenerateStaticFiguresStep(BaseStep):
         output_dir: Path,
         formats: list,
         dpi: int,
+        bbox_inches: str = "tight",
+        transparent: bool = False,
     ) -> list[Path]:
         """Save figure in multiple formats."""
         files = []
         for fmt in formats:
             filepath = output_dir / f"{basename}.{fmt}"
-            fig.savefig(filepath, dpi=dpi, bbox_inches="tight")
+            fig.savefig(
+                filepath,
+                dpi=dpi,
+                bbox_inches=bbox_inches,
+                transparent=transparent,
+            )
             files.append(filepath)
         return files

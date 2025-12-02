@@ -292,6 +292,133 @@ def heritability_zero_data():
 
 
 # ============================================================================
+# HERITABILITY DIAGNOSTIC FIXTURES - Data for testing diagnostic functions
+# ============================================================================
+
+
+@pytest.fixture
+def heritability_diagnostic_zero_variance():
+    """Generate data with zero between-genotype variance for diagnostics.
+
+    Returns:
+        pd.DataFrame: All genotypes have identical trait values
+    """
+    n_genotypes = 8
+    n_reps = 4
+
+    data = []
+    # All genotypes have same mean, only replicate variation
+    constant_mean = 100.0
+    for g in range(n_genotypes):
+        for r in range(n_reps):
+            data.append(
+                {
+                    "geno": f"G{g+1:02d}",
+                    "rep": r + 1,
+                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "trait_zero_var": constant_mean + np.random.normal(0, 2),
+                }
+            )
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def heritability_diagnostic_high_within_variance():
+    """Generate data with high within-genotype (replicate) variance.
+
+    Returns:
+        pd.DataFrame: Within-genotype variance >> between-genotype variance
+    """
+    np.random.seed(42)
+    n_genotypes = 10
+    n_reps = 5
+
+    data = []
+    # Small genetic effects, large environmental noise
+    for g in range(n_genotypes):
+        # Small genetic effect (genotypes differ slightly)
+        genetic_effect = np.random.normal(0, 0.5)
+
+        for r in range(n_reps):
+            # Large environmental noise (replicates vary widely)
+            environmental_noise = np.random.normal(0, 10)
+
+            data.append(
+                {
+                    "geno": f"G{g+1:02d}",
+                    "rep": r + 1,
+                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "trait_high_within": 50 + genetic_effect + environmental_noise,
+                }
+            )
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def heritability_diagnostic_low_sample_size():
+    """Generate data with minimal sample size for diagnostics.
+
+    Returns:
+        pd.DataFrame: Only 3 genotypes with 2 replicates each
+    """
+    n_genotypes = 3
+    n_reps = 2
+
+    data = []
+    for g in range(n_genotypes):
+        genetic_value = 10 + g * 5
+
+        for r in range(n_reps):
+            data.append(
+                {
+                    "geno": f"G{g+1:02d}",
+                    "rep": r + 1,
+                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "trait_low_sample": genetic_value + np.random.normal(0, 1),
+                }
+            )
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def heritability_diagnostic_mixed_quality():
+    """Generate dataset with mix of good and bad quality traits.
+
+    Returns:
+        pd.DataFrame: Contains traits with varying heritability quality
+    """
+    np.random.seed(42)
+    n_genotypes = 15
+    n_reps = 4
+
+    data = []
+    for g in range(n_genotypes):
+        # Different genetic effects for different trait types
+        genetic_high = np.random.normal(0, 3)  # High H²
+        genetic_low = np.random.normal(0, 0.2)  # Low H²
+        genetic_zero = 0  # Zero variance between genotypes
+
+        for r in range(n_reps):
+            env_noise = np.random.normal(0, 1)
+
+            data.append(
+                {
+                    "geno": f"G{g+1:02d}",
+                    "rep": r + 1,
+                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "trait_good": 100 + genetic_high + env_noise,
+                    "trait_poor": 50 + genetic_low + env_noise * 5,
+                    "trait_constant": 25 + genetic_zero + env_noise,
+                }
+            )
+
+    return pd.DataFrame(data)
+
+
+# ============================================================================
 # ANOVA TESTING FIXTURES - Data with known group differences
 # ============================================================================
 
@@ -3499,3 +3626,49 @@ def adaptive_sizing_config_disabled():
     config = AdaptiveSizingConfig()
     config.enabled = False
     return config
+
+
+# ============================================================================
+# ROOT CORE ANALYSIS FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def create_test_root_core_data():
+    """Create sample root core data for testing.
+
+    Returns a DataFrame with root core count data in the expected format:
+    - Metadata columns: Plot, geno, Rep, core_n
+    - Depth columns: c_<start>_<end>_<subcore> (e.g., c_0_10_1, c_0_10_2)
+
+    Data includes:
+    - 2 genotypes (GH_7386, GH_7418)
+    - 1 replicate each
+    - 3 cores per plot
+    - 4 depth ranges (0-10, 10-20, 20-30, 30-40 cm)
+    - 2 subcores per depth range
+
+    Returns:
+        pd.DataFrame: Root core count data with known values for testing
+    """
+    data = {
+        "Plot": [1, 1, 1, 2, 2, 2],
+        "geno": ["GH_7386", "GH_7386", "GH_7386", "GH_7418", "GH_7418", "GH_7418"],
+        "Ent": [1, 1, 1, 2, 2, 2],
+        "Rep": [1, 1, 1, 1, 1, 1],
+        "Sub": [1, 1, 1, 1, 1, 1],
+        "core_n": [1, 2, 3, 1, 2, 3],
+        # Depth 0-10cm (2 subcores)
+        "c_0_10_1": [78, 89, 87, 120, 47, 115],
+        "c_0_10_2": [62, 96, 42, 134, 67, 98],
+        # Depth 10-20cm (2 subcores)
+        "c_10_20_1": [44, 49, 36, 78, 56, 79],
+        "c_10_20_2": [26, 56, 32, 38, 38, 43],
+        # Depth 20-30cm (2 subcores)
+        "c_20_30_1": [26, 32, 22, 27, 36, 46],
+        "c_20_30_2": [23, 4, 21, 16, 17, 32],
+        # Depth 30-40cm (2 subcores)
+        "c_30_40_1": [16, 6, 7, 11, 8, 7],
+        "c_30_40_2": [5, 9, 3, 9, 5, 10],
+    }
+    return pd.DataFrame(data)

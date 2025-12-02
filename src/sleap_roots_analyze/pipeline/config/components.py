@@ -43,11 +43,19 @@ class AdaptiveSizingConfig:
 class CleanupConfig:
     """Data cleanup filters configuration.
 
+    IMPORTANT: All threshold parameters should be explicitly set in your config
+    to avoid silent data removal. Default values are provided for convenience but
+    may not match your analysis requirements.
+
     Attributes:
-        max_nan_fraction: Maximum fraction of NaN values allowed per sample.
-        max_zeros_per_trait: Maximum fraction of zero values allowed per trait.
-        max_nans_per_trait: Maximum fraction of NaN values allowed per trait.
+        max_nan_fraction: Max fraction of NaN values per sample (0.0-1.0).
+            Samples exceeding this will be removed. Recommended: 0.25
+        max_zeros_per_trait: Max fraction of zero values per trait (0.0-1.0).
+            Traits exceeding this will be removed. Recommended: 0.5
+        max_nans_per_trait: Max fraction of NaN values per trait (0.0-1.0).
+            Traits exceeding this will be removed. Recommended: 0.2-0.3
         min_samples_per_trait: Minimum number of valid samples required per trait.
+            Traits with fewer samples will be removed. Recommended: 10
     """
 
     max_nan_fraction: float = 0.0
@@ -114,7 +122,7 @@ class DataConfig:
     """Data loading and processing configuration.
 
     Attributes:
-        csv_path: Path to trait CSV file.
+        csv_path: Path to trait CSV file. Can be None for root core mode (auto-filled).
         image_dir: Directory containing images (optional).
         output_dir: Directory for output files.
         additional_exclude_cols: Additional columns to exclude from analysis.
@@ -122,7 +130,7 @@ class DataConfig:
         traits_to_exclude: List of trait names to exclude.
     """
 
-    csv_path: str = MISSING
+    csv_path: str | None = MISSING
     image_dir: Optional[str] = None
     output_dir: str = "./outputs"
     additional_exclude_cols: Optional[List[str]] = None
@@ -149,13 +157,24 @@ class GMMOutlierConfig:
 class HeritabilityConfig:
     """Heritability analysis and filtering configuration.
 
+    IMPORTANT: If filtering is enabled, threshold should be explicitly set in your
+    config to match your scientific objectives.
+
     Attributes:
         enabled: Whether to filter traits by heritability.
-        threshold: Minimum heritability (H²) threshold.
+        threshold: Minimum heritability (H²) for trait retention (0.0-1.0).
+            Typical range: 0.3 (permissive) to 0.6 (stringent).
+            Must be explicitly set if enabled=True. Default: 0.60
+        generate_diagnostics: Whether to generate diagnostic plots and comparison CSV
+            for removed traits. Only takes effect when enabled=True. Outputs include:
+            - Comparison CSV with variance components for all traits
+            - Variance decomposition plot showing H², variance components, and metrics
+            - Boxplots of removed traits by genotype (limited to top 10 if >10 removed)
     """
 
     enabled: bool = True
     threshold: float = 0.60
+    generate_diagnostics: bool = False
 
 
 @dataclass
@@ -369,6 +388,12 @@ class StaticVisualizationConfig:
         pca_n_components: Number of principal components to show in PC boxplots (default: 3).
         histogram_batch_size: Number of traits per histogram figure (default: 9).
         boxplot_batch_size: Number of traits per boxplot figure (default: 6).
+        title_fontsize: Font size for plot titles.
+        label_fontsize: Font size for axis labels.
+        tick_fontsize: Font size for tick labels.
+        legend_fontsize: Font size for legend text.
+        bbox_inches: Bounding box mode for savefig ("tight" or None).
+        transparent: Whether to save with transparent background.
     """
 
     enabled: bool = True
@@ -387,6 +412,14 @@ class StaticVisualizationConfig:
     pca_n_components: int = 3
     histogram_batch_size: int = 9
     boxplot_batch_size: int = 6
+    # Font sizes
+    title_fontsize: int = 14
+    label_fontsize: int = 12
+    tick_fontsize: int = 10
+    legend_fontsize: int = 10
+    # Savefig parameters
+    bbox_inches: Optional[str] = "tight"
+    transparent: bool = False
 
 
 @dataclass
@@ -448,6 +481,18 @@ class VisualizationConfig:
         interactive: Whether to create interactive plots.
         dpi: DPI for static plots.
         figsize: Figure size for static plots (width, height).
+        title_fontsize: Font size for plot titles.
+        label_fontsize: Font size for axis labels.
+        tick_fontsize: Font size for tick labels.
+        legend_fontsize: Font size for legend text.
+        figure_format: Output format for figures (png, pdf, svg, eps).
+        bbox_inches: Bounding box mode for savefig ("tight" or None).
+        facecolor: Figure face color (None = default).
+        edgecolor: Figure edge color (None = default).
+        transparent: Whether to save with transparent background.
+        enable_batched_plots: Whether to create batched plots for many traits.
+        batched_plot_threshold: Trait count threshold for creating batches.
+        batch_size: Number of traits per batch figure.
     """
 
     create_pca_plots: bool = True
@@ -457,3 +502,144 @@ class VisualizationConfig:
     interactive: bool = False
     dpi: int = 300
     figsize: tuple[int, int] = (10, 8)
+
+    # Font sizes
+    title_fontsize: int = 14
+    label_fontsize: int = 12
+    tick_fontsize: int = 10
+    legend_fontsize: int = 10
+
+    # Figure format
+    figure_format: str = "png"
+
+    # Savefig parameters
+    bbox_inches: Optional[str] = "tight"
+    facecolor: Optional[str] = None
+    edgecolor: Optional[str] = None
+    transparent: bool = False
+
+    # Batched plot configuration
+    enable_batched_plots: bool = True
+    batched_plot_threshold: int = 16  # Create batches when > this many traits
+    batch_size: int = 16  # Traits per batch figure
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        # Validate font sizes are positive
+        for name in [
+            "title_fontsize",
+            "label_fontsize",
+            "tick_fontsize",
+            "legend_fontsize",
+        ]:
+            value = getattr(self, name)
+            if value <= 0:
+                raise ValueError(f"{name} must be positive, got {value}")
+
+        # Validate figure format
+        valid_formats = {"png", "pdf", "svg", "eps"}
+        if self.figure_format not in valid_formats:
+            raise ValueError(
+                f"figure_format must be one of {valid_formats}, got {self.figure_format}"
+            )
+
+        # Validate bbox_inches
+        if self.bbox_inches not in [None, "tight"]:
+            raise ValueError(
+                f"bbox_inches must be 'tight' or None, got {self.bbox_inches}"
+            )
+
+        # Validate DPI is positive
+        if self.dpi <= 0:
+            raise ValueError(f"dpi must be positive, got {self.dpi}")
+
+
+@dataclass
+class RootCoreSourceConfig:
+    """Configuration for a single root core data source.
+
+    IMPORTANT: aggregation_method should be explicitly set in your config to match
+    your statistical requirements, though a sensible default is provided.
+
+    Attributes:
+        csv_path: Path to root core CSV file.
+        data_type: Type of data ("biomass" or "counting").
+        depth_column_prefix: Prefix for wide-format column names (e.g., "RootDW_", "RootCount_").
+        value_column_name: Name of value column in long format (default: "Value").
+        aggregation_method: Method for aggregating cores ("mean" or "median").
+            Recommended: "median" (robust to outliers, typos, measurement errors).
+            Use "mean" only if you're confident data has no outliers.
+            Default: "median"
+        depth_mapping: Manual depth mapping for biomass data {column_name: depth_cm}.
+            Required for data_type="biomass", optional for data_type="counting" (auto-parsed).
+        genotype_column: Name of genotype column in CSV (default: "geno"). If the CSV uses
+            a different column name (e.g., "salk_geno"), specify it here and it will be
+            renamed to "geno" for standardization across all sources.
+    """
+
+    csv_path: str = MISSING
+    data_type: str = MISSING  # "biomass" or "counting"
+    depth_column_prefix: str = MISSING
+    value_column_name: str = "Value"
+    aggregation_method: str = "median"  # Robust to outliers and measurement errors
+    depth_mapping: Optional[dict] = None
+    genotype_column: str = "geno"  # Column name for genotype, will be renamed to "geno"
+
+
+@dataclass
+class CoreQCConfig:
+    """Configuration for core-level quality control.
+
+    NOTE: Statistical outlier detection (e.g., Mahalanobis distance) is NOT recommended
+    at the core level due to insufficient sample sizes. Root core datasets typically have
+    only 3 cores per plot, but statistical methods require 30+ samples for reliability.
+
+    Instead, use:
+    1. Missing data filtering (max_missing_proportion) to remove incomplete cores
+    2. Median aggregation (aggregation_method: "median") for robustness to outliers
+    3. Trait-level outlier detection (Step 5) on aggregated plot data (60+ samples)
+
+    Attributes:
+        enabled: Whether to perform core-level QC (typically should be False).
+        max_missing_proportion: Maximum proportion of missing depths allowed per core.
+                                Cores exceeding this are flagged and optionally removed.
+        remove_outliers: Whether to remove flagged cores before aggregation.
+    """
+
+    enabled: bool = False  # Default to disabled - use median aggregation instead
+    max_missing_proportion: float = 0.5  # Flag cores with >50% missing depths
+    remove_outliers: bool = True  # Remove flagged cores if enabled
+
+
+@dataclass
+class MergeTraitsConfig:
+    """Configuration for merging above-ground traits with root data.
+
+    Attributes:
+        above_ground_csv: Path to above-ground trait CSV file.
+        join_keys: Column names to use for merging (default: ["Plot", "Rep", "geno"]).
+        join_type: Type of join ("inner", "left", "right", "outer").
+        duplicate_strategy: How to handle duplicate columns ("fail", "skip", "suffix").
+        output_path: Path for merged output CSV file.
+    """
+
+    above_ground_csv: str = MISSING
+    join_keys: List[str] = field(default_factory=lambda: ["Plot", "Rep", "geno"])
+    join_type: str = "inner"
+    duplicate_strategy: str = "fail"  # "fail", "skip", or "suffix"
+    output_path: str = "merged_traits.csv"
+
+
+@dataclass
+class RootCoreConfig:
+    """Root core data processing configuration.
+
+    Attributes:
+        sources: List of root core data sources (biomass, counting, or both).
+        core_qc: Configuration for core-level quality control.
+        merge_traits: Configuration for merging with above-ground traits (optional).
+    """
+
+    sources: List[RootCoreSourceConfig] = field(default_factory=list)
+    core_qc: CoreQCConfig = field(default_factory=CoreQCConfig)
+    merge_traits: Optional[MergeTraitsConfig] = None

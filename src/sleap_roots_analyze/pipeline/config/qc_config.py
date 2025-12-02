@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from omegaconf import MISSING
 
 from sleap_roots_analyze.pipeline.config.components import (
+    AdaptiveSizingConfig,
     CleanupConfig,
     ClusteringConfig,
     ColumnConfig,
@@ -20,6 +21,7 @@ from sleap_roots_analyze.pipeline.config.components import (
     OutlierDetectionConfig,
     OutlierRemovalConfig,
     PCAConfig,
+    RootCoreConfig,
     VisualizationConfig,
 )
 
@@ -32,6 +34,7 @@ class QCPipelineConfig:
         pipeline_name: Name of the pipeline.
         version: Pipeline version.
         enable_parallel: Whether to enable parallel task execution.
+        root_core: Root core data processing configuration (optional).
         columns: Column name configuration.
         data: Data loading and processing configuration.
         cleanup: Data cleanup configuration.
@@ -41,12 +44,16 @@ class QCPipelineConfig:
         pca: PCA analysis configuration.
         clustering: Clustering analysis configuration.
         visualization: Visualization generation configuration.
+        adaptive_sizing: Adaptive figure sizing configuration.
         logging: Logging configuration.
     """
 
     pipeline_name: str = MISSING
     version: str = "1.0"
     enable_parallel: bool = False
+
+    # Optional root core processing (Steps 0a-0f)
+    root_core: RootCoreConfig | None = None
 
     # Compose reusable components
     columns: ColumnConfig = field(default_factory=ColumnConfig)
@@ -60,4 +67,5 @@ class QCPipelineConfig:
     pca: PCAConfig = field(default_factory=PCAConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+    adaptive_sizing: AdaptiveSizingConfig = field(default_factory=AdaptiveSizingConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)

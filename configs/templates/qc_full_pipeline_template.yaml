@@ -1,0 +1,110 @@
+# QC Pipeline Configuration Template - Full Pipeline with Outlier Detection
+#
+# This template includes data cleanup AND outlier detection. Copy this file
+# and customize for your dataset.
+#
+# Usage:
+#   1. Copy: cp configs/templates/qc_full_pipeline_template.yaml configs/my_qc.yaml
+#   2. Edit my_qc.yaml with your dataset-specific values
+#   3. Run: sleap-roots-analyze qc configs/my_qc.yaml
+
+pipeline_name: "my_full_qc_pipeline"  # REQUIRED: Give your pipeline a descriptive name
+
+# ============================================================================
+# REQUIRED: Column Mappings (Dataset-Specific)
+# ============================================================================
+columns:
+  genotype: "geno"           # REQUIRED: Your genotype column name
+  replicate: "rep"           # REQUIRED: Your replicate column name
+  barcode: "Barcode"         # Optional: Sample barcode column
+
+# ============================================================================
+# REQUIRED: Data Configuration
+# ============================================================================
+data:
+  csv_path: "path/to/your/data.csv"  # REQUIRED: Path to your trait CSV file
+  image_dir: null                     # Optional: Directory containing root images
+
+# ============================================================================
+# REQUIRED: Data Cleanup Thresholds
+# ============================================================================
+cleanup:
+  max_nan_fraction: 0.25           # REQUIRED: Max fraction NaN per sample (0.0-1.0)
+  max_zeros_per_trait: 0.5         # REQUIRED: Max fraction zeros per trait (0.0-1.0)
+  max_nans_per_trait: 0.2          # REQUIRED: Max fraction NaN per trait (0.0-1.0)
+  min_samples_per_trait: 10
+
+# ============================================================================
+# Outlier Detection Configuration
+# ============================================================================
+outlier_detection:
+  traditional_methods:
+    - mahalanobis          # Mahalanobis distance in PCA space (fast, reliable)
+    - isolation_forest     # Isolation Forest (robust to complex patterns)
+  clustering_methods:
+    - kmeans               # K-Means clustering outlier detection
+
+  # Mahalanobis-specific settings
+  mahalanobis:
+    variance_threshold: 0.95     # Keep components explaining 95% variance
+    use_chi_squared: true        # Use chi-squared distribution for threshold
+    chi2_percentile: 99.0        # 99th percentile threshold
+
+  # Isolation Forest settings
+  isolation_forest:
+    contamination: 0.1           # Expected fraction of outliers (0.0-0.5)
+
+  # K-Means settings
+  kmeans:
+    n_clusters: null             # null = auto-optimize
+    max_clusters: 10             # Max clusters to consider for optimization
+    distance_threshold: 2.0      # Distance threshold for outlier flagging
+
+# ============================================================================
+# REQUIRED: Outlier Removal Strategy (if outlier detection enabled)
+# ============================================================================
+outlier_removal:
+  strategy: "subset"             # REQUIRED: "single", "subset", or "flag"
+                                  #   - "single": Use one method (specify in 'method' field)
+                                  #   - "subset": Require multiple methods to agree
+                                  #   - "flag": Add outlier_* columns but keep samples
+  min_methods: 2                  # For subset: min methods that must flag a sample
+  # method: "mahalanobis"         # For single: which method to use
+
+# ============================================================================
+# REQUIRED: PCA Configuration
+# ============================================================================
+pca:
+  n_components: 0.95              # REQUIRED: Variance explained by selected components
+  standardize: true
+  feature_selection_strategy: "top_variance"
+
+# ============================================================================
+# OPTIONAL: Heritability Filtering
+# ============================================================================
+heritability:
+  enabled: true                   # Enable heritability-based trait filtering
+  threshold: 0.40                 # REQUIRED if enabled: Min H² for trait inclusion (0.3-0.6)
+  generate_diagnostics: true      # Generate detailed diagnostic plots
+
+# ============================================================================
+# Visualization Settings
+# ============================================================================
+visualization:
+  dpi: 100
+  figsize: [12, 8]
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+# Adaptive sizing
+adaptive_sizing:
+  enabled: true
+  base_width: 10
+  base_height: 8
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

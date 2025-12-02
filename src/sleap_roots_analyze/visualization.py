@@ -111,6 +111,7 @@ def create_trait_boxplots_by_genotype(
     genotype_col: str = "geno",
     n_cols: int = 3,
     figsize: Tuple[int, int] = (15, 10),
+    adaptive_config: Optional[Any] = None,
 ) -> plt.Figure:
     """Create boxplots for traits grouped by genotype.
 
@@ -119,7 +120,8 @@ def create_trait_boxplots_by_genotype(
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
         n_cols: Number of columns in subplot grid
-        figsize: Figure size
+        figsize: Figure size (only used if adaptive_config is None)
+        adaptive_config: Optional adaptive sizing configuration
 
     Returns:
         Matplotlib figure object
@@ -137,6 +139,36 @@ def create_trait_boxplots_by_genotype(
             transform=ax.transAxes,
         )
         return fig
+
+    # Calculate adaptive size based on genotype count
+    if adaptive_config is not None and genotype_col in df.columns:
+        from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+        n_genotypes = df[genotype_col].nunique()
+        n_rows = (n_traits + n_cols - 1) // n_cols
+
+        # Each subplot needs width based on genotype count
+        subplot_width, subplot_height = calculate_barplot_size(
+            n_items=n_genotypes,
+            config=adaptive_config,
+            orientation="vertical",  # Genotypes on X-axis
+            as_subplot=True,
+            n_subplots=n_traits,
+        )
+
+        # Total figure size based on grid layout
+        fig_width = subplot_width * n_cols
+        fig_height = subplot_height * n_rows
+
+        # Apply bounds
+        fig_width = max(
+            adaptive_config.min_width, min(adaptive_config.max_width, fig_width)
+        )
+        fig_height = max(
+            adaptive_config.min_height, min(adaptive_config.max_height, fig_height)
+        )
+
+        figsize = (fig_width, fig_height)
 
     n_rows = (n_traits + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
@@ -157,7 +189,7 @@ def create_trait_boxplots_by_genotype(
                 axes[i].set_title(f"{trait}")
                 axes[i].set_xlabel("Genotype")
                 axes[i].set_ylabel(trait)
-                plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=45)
+                plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=90)
             else:
                 axes[i].text(
                     0.5,
@@ -191,7 +223,7 @@ def create_trait_histograms_batched(
         trait_cols: List of trait column names
         batch_size: Number of traits per figure (default: 16)
         n_cols: Number of columns in subplot grid
-        figsize: Figure size for each batch
+        figsize: Figure size for FULL batches (default: (16, 16))
 
     Returns:
         List of matplotlib figure objects (one per batch)
@@ -205,8 +237,23 @@ def create_trait_histograms_batched(
         batch_end = min(batch_start + batch_size, n_traits)
         batch_traits = trait_cols[batch_start:batch_end]
 
+        # Calculate adaptive figsize for this batch
+        n_traits_in_batch = len(batch_traits)
+        n_rows = (n_traits_in_batch + n_cols - 1) // n_cols
+
+        # Scale figsize proportionally for partial batches
+        if n_traits_in_batch < batch_size:
+            # Calculate full batch dimensions
+            full_n_rows = (batch_size + n_cols - 1) // n_cols
+            # Scale height proportionally
+            batch_figsize = (figsize[0], figsize[1] * (n_rows / full_n_rows))
+        else:
+            batch_figsize = figsize
+
         # Create figure for this batch
-        fig = create_trait_histograms(df, batch_traits, n_cols=n_cols, figsize=figsize)
+        fig = create_trait_histograms(
+            df, batch_traits, n_cols=n_cols, figsize=batch_figsize
+        )
         fig.suptitle(
             f"Trait Histograms (Traits {batch_start+1}-{batch_end} of {n_traits})",
             fontsize=14,
@@ -233,7 +280,7 @@ def create_trait_boxplots_by_genotype_batched(
         genotype_col: Column name for genotype grouping
         batch_size: Number of traits per figure (default: 16)
         n_cols: Number of columns in subplot grid
-        figsize: Figure size for each batch
+        figsize: Figure size for FULL batches (default: (16, 16))
 
     Returns:
         List of matplotlib figure objects (one per batch)
@@ -247,9 +294,26 @@ def create_trait_boxplots_by_genotype_batched(
         batch_end = min(batch_start + batch_size, n_traits)
         batch_traits = trait_cols[batch_start:batch_end]
 
+        # Calculate adaptive figsize for this batch
+        n_traits_in_batch = len(batch_traits)
+        n_rows = (n_traits_in_batch + n_cols - 1) // n_cols
+
+        # Scale figsize proportionally for partial batches
+        if n_traits_in_batch < batch_size:
+            # Calculate full batch dimensions
+            full_n_rows = (batch_size + n_cols - 1) // n_cols
+            # Scale height proportionally
+            batch_figsize = (figsize[0], figsize[1] * (n_rows / full_n_rows))
+        else:
+            batch_figsize = figsize
+
         # Create figure for this batch
         fig = create_trait_boxplots_by_genotype(
-            df, batch_traits, genotype_col=genotype_col, n_cols=n_cols, figsize=figsize
+            df,
+            batch_traits,
+            genotype_col=genotype_col,
+            n_cols=n_cols,
+            figsize=batch_figsize,
         )
         fig.suptitle(
             f"Trait Boxplots by Genotype (Traits {batch_start+1}-{batch_end} of {n_traits})",
@@ -262,14 +326,14 @@ def create_trait_boxplots_by_genotype_batched(
 
 
 def create_correlation_heatmap(
-    df: pd.DataFrame, trait_cols: List[str], figsize: Tuple[int, int] = (12, 10)
+    df: pd.DataFrame, trait_cols: List[str], figsize: Tuple[int, int] = (12, 12)
 ) -> plt.Figure:
     """Create correlation heatmap for traits.
 
     Args:
         df: DataFrame with trait data
         trait_cols: List of trait column names
-        figsize: Figure size
+        figsize: Figure size (will be made square using the larger dimension)
 
     Returns:
         Matplotlib figure object
@@ -281,8 +345,12 @@ def create_correlation_heatmap(
     # Create mask for upper triangle
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
 
+    # Ensure square figure by using the larger dimension
+    square_size = max(figsize[0], figsize[1])
+    square_figsize = (square_size, square_size)
+
     # Create heatmap
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=square_figsize)
 
     sns.heatmap(
         corr_matrix,
@@ -297,7 +365,7 @@ def create_correlation_heatmap(
     )
 
     ax.set_title("Trait Correlation Matrix")
-    plt.xticks(rotation=45, ha="right")
+    plt.xticks(rotation=90, ha="center")
     plt.yticks(rotation=0)
     plt.tight_layout()
 
@@ -339,7 +407,10 @@ def save_figure_with_unique_name(
 
 
 def create_exploratory_summary_plots(
-    df: pd.DataFrame, trait_cols: List[str], genotype_col: str = "geno"
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    genotype_col: str = "geno",
+    adaptive_config: Optional[Any] = None,
 ) -> Dict[str, plt.Figure]:
     """Create comprehensive exploratory data analysis plots.
 
@@ -347,6 +418,7 @@ def create_exploratory_summary_plots(
         df: DataFrame with trait data
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
+        adaptive_config: Optional adaptive sizing configuration
 
     Returns:
         Dictionary of plot names to figure objects
@@ -373,7 +445,7 @@ def create_exploratory_summary_plots(
     if len(trait_cols) > 0:
         n_traits_box = min(12, len(trait_cols))
         fig = create_trait_boxplots_by_genotype(
-            df, trait_cols[:n_traits_box], genotype_col
+            df, trait_cols[:n_traits_box], genotype_col, adaptive_config=adaptive_config
         )
         figures["trait_ranges_by_genotype"] = fig
 
@@ -381,12 +453,24 @@ def create_exploratory_summary_plots(
     if genotype_col in df.columns:
         genotype_counts = df[genotype_col].value_counts()
         if len(genotype_counts) > 0:
-            fig, ax = plt.subplots(figsize=(10, 6))
+            # Calculate adaptive size based on genotype count
+            if adaptive_config is not None:
+                from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+                sample_count_figsize = calculate_barplot_size(
+                    n_items=len(genotype_counts),
+                    config=adaptive_config,
+                    orientation="vertical",
+                )
+            else:
+                sample_count_figsize = (10, 6)
+
+            fig, ax = plt.subplots(figsize=sample_count_figsize)
             genotype_counts.plot(kind="bar", ax=ax)
             ax.set_title("Sample Size per Genotype")
             ax.set_xlabel("Genotype")
             ax.set_ylabel("Number of Samples")
-            ax.tick_params(axis="x", rotation=45)
+            ax.tick_params(axis="x", rotation=90)
             plt.tight_layout()
             figures["samples_per_genotype"] = fig
 
@@ -726,7 +810,7 @@ def create_heritability_plot(
     ax.set_ylabel("Heritability (H²)")
     ax.set_title("Broad-sense Heritability Estimates")
     ax.set_xticks(range(len(traits)))
-    ax.set_xticklabels(traits, rotation=45, ha="right")
+    ax.set_xticklabels(traits, rotation=90, ha="center")
     ax.set_ylim(0, 1)
     ax.legend()
     ax.grid(True, alpha=0.3, axis="y")
@@ -800,11 +884,13 @@ def create_heritability_threshold_plot(
             label=f"Current: {current_threshold}",
         )
         ax1.plot(current_threshold, traits_retained[idx], "ro", markersize=8)
+        # Position text above the point to avoid overlap with the line
+        y_offset = total_traits * 0.03  # 3% of total range as offset
         ax1.text(
             current_threshold + 0.02,
-            traits_retained[idx],
+            traits_retained[idx] + y_offset,
             f"{int(traits_retained[idx])} traits",
-            verticalalignment="center",
+            verticalalignment="bottom",
         )
 
     ax1.set_ylabel("Number of Traits Retained", fontsize=12)
@@ -822,11 +908,13 @@ def create_heritability_threshold_plot(
         ax2.axvline(x=current_threshold, color="red", linestyle="--", alpha=0.7)
         idx = np.argmin(np.abs(thresholds - current_threshold))
         ax2.plot(current_threshold, fraction_retained[idx] * 100, "ro", markersize=8)
+        # Position text above the point to avoid overlap with the line
+        y_offset = 3  # 3% as offset
         ax2.text(
             current_threshold + 0.02,
-            fraction_retained[idx] * 100,
+            fraction_retained[idx] * 100 + y_offset,
             f"{fraction_retained[idx]*100:.1f}%",
-            verticalalignment="center",
+            verticalalignment="bottom",
         )
 
     ax2.set_xlabel("Heritability Threshold (H²)", fontsize=12)
@@ -835,13 +923,332 @@ def create_heritability_threshold_plot(
     ax2.set_xlim(0, 1)
     ax2.set_ylim(0, 105)
 
-    # Add some common threshold annotations
-    for threshold, label in [(0.3, "Low"), (0.5, "Moderate"), (0.7, "High")]:
-        ax2.axvline(x=threshold, color="gray", linestyle=":", alpha=0.3)
-        ax2.text(threshold, 102, label, ha="center", fontsize=9, alpha=0.7)
-
     plt.tight_layout()
     return fig
+
+
+def create_variance_decomposition_plot(
+    comparison_df: pd.DataFrame,
+    figsize: tuple = (14, 8),
+    output_path: Optional[Path] = None,
+    threshold: float = 0.3,
+) -> plt.Figure:
+    """Create 3-panel variance decomposition plot for heritability diagnostics.
+
+    Displays heritability estimates, variance components, and sample statistics.
+    Uses Linear Mixed Model (LMM) with genotype as random effect for estimation.
+
+    Args:
+        comparison_df: DataFrame from compare_trait_heritabilities()
+        figsize: Figure size (width, height) in inches
+        output_path: Optional path to save figure
+        threshold: Heritability threshold for reference lines (default: 0.3)
+
+    Returns:
+        matplotlib Figure object
+
+    Example:
+        >>> comparison = compare_trait_heritabilities(df, traits, h2_results)
+        >>> fig = create_variance_decomposition_plot(comparison)
+        >>> plt.show()
+    """
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
+
+    if len(comparison_df) == 0:
+        # Handle empty data
+        for ax in axes:
+            ax.text(
+                0.5,
+                0.5,
+                "No data available",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+        if output_path:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(output_path, dpi=300, bbox_inches="tight")
+        return fig
+
+    # Panel 1: Heritability bar chart
+    ax = axes[0]
+    x_pos = range(len(comparison_df))
+    ax.bar(x_pos, comparison_df["heritability"], color="steelblue", alpha=0.7)
+    ax.set_ylabel("Heritability (H²)")
+    ax.set_title("Heritability Estimates")
+    ax.axhline(
+        y=threshold,
+        color="r",
+        linestyle="--",
+        alpha=0.5,
+        label=f"Threshold ({threshold})",
+    )
+    ax.legend()
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
+    ax.set_xlabel("")
+
+    # Panel 2: Variance components (stacked bar)
+    ax = axes[1]
+    x_pos = range(len(comparison_df))
+    ax.bar(
+        x_pos,
+        comparison_df["var_genetic"],
+        label="Genetic (σ²_G)",
+        color="teal",
+        alpha=0.7,
+    )
+    ax.bar(
+        x_pos,
+        comparison_df["var_residual"],
+        bottom=comparison_df["var_genetic"],
+        label="Residual (σ²_E)",
+        color="coral",
+        alpha=0.7,
+    )
+    ax.set_ylabel("Variance")
+    ax.set_title("Genetic vs Residual Variance")
+    ax.legend()
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
+    ax.set_xlabel("")
+
+    # Panel 3: Sample size and CV
+    ax = axes[2]
+    ax2 = ax.twinx()
+
+    # Bar plot for sample size
+    x_pos = range(len(comparison_df))
+    ax.bar(
+        x_pos,
+        comparison_df["n_observations"],
+        color="goldenrod",
+        alpha=0.7,
+        label="N observations",
+    )
+
+    # Line plot for CV
+    ax2.plot(
+        x_pos,
+        comparison_df["trait_cv"],
+        color="purple",
+        marker="o",
+        linewidth=2,
+        label="CV (%)",
+    )
+
+    ax.set_ylabel("N Observations", color="goldenrod")
+    ax2.set_ylabel("Coefficient of Variation (%)", color="purple")
+    ax.set_title("Sample Size and Coefficient of Variation")
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
+    ax.tick_params(axis="y", labelcolor="goldenrod")
+    ax2.tick_params(axis="y", labelcolor="purple")
+    ax.set_xlabel("")
+
+    # Add model information to figure
+    fig.text(
+        0.5,
+        0.02,
+        "Model: Linear Mixed Model with Genotype as Random Effect (LMM: Trait ~ 1 + (1|Genotype))",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        color="gray",
+    )
+
+    plt.tight_layout(rect=[0, 0.04, 1, 1])  # Leave space for model text
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_path, dpi=300, bbox_inches="tight")
+
+    return fig
+
+
+def create_trait_by_genotype_boxplots(
+    df: pd.DataFrame,
+    traits: List[str],
+    heritability_results: Dict[str, Dict],
+    genotype_col: str = "geno",
+    ncols: int = 2,
+    figsize: Optional[tuple] = None,
+    output_path: Optional[Path] = None,
+    adaptive_config: Optional[Any] = None,
+) -> plt.Figure:
+    """Create boxplots showing trait distributions by genotype with H² annotations.
+
+    Args:
+        df: DataFrame with trait data
+        traits: List of trait names to plot
+        heritability_results: Dictionary mapping traits to heritability results
+        genotype_col: Name of genotype column
+        ncols: Number of columns in subplot grid
+        figsize: Optional figure size (auto-sized if None)
+        output_path: Optional path to save figure
+        adaptive_config: Optional adaptive sizing configuration
+
+    Returns:
+        matplotlib Figure object
+
+    Example:
+        >>> h2_results = calculate_heritability_estimates(df, traits)
+        >>> fig = create_trait_by_genotype_boxplots(df, traits, h2_results)
+        >>> plt.show()
+    """
+    n_traits = len(traits)
+    nrows = (n_traits + ncols - 1) // ncols
+
+    if figsize is None:
+        # Calculate adaptive size based on genotype count
+        if adaptive_config is not None and genotype_col in df.columns:
+            from sleap_roots_analyze.viz_utils import calculate_barplot_size
+
+            n_genotypes = df[genotype_col].nunique()
+
+            # Each subplot needs width based on genotype count
+            subplot_width, subplot_height = calculate_barplot_size(
+                n_items=n_genotypes,
+                config=adaptive_config,
+                orientation="vertical",  # Genotypes on X-axis
+                as_subplot=True,
+                n_subplots=n_traits,
+            )
+
+            # Total figure size based on grid layout
+            fig_width = subplot_width * ncols
+            fig_height = subplot_height * nrows
+
+            # Apply bounds
+            fig_width = max(
+                adaptive_config.min_width, min(adaptive_config.max_width, fig_width)
+            )
+            fig_height = max(
+                adaptive_config.min_height,
+                min(adaptive_config.max_height, fig_height),
+            )
+
+            figsize = (fig_width, fig_height)
+        else:
+            figsize = (6 * ncols, 5 * nrows)
+
+    # Handle single subplot case - must create figure differently for pandas boxplot
+    if n_traits == 1:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        axes = [ax]
+    else:
+        fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+        if nrows == 1:
+            axes = list(axes)
+        else:
+            axes = axes.flatten()
+
+    for idx, trait in enumerate(traits):
+        ax = axes[idx]
+
+        # Get data
+        subset = df[[trait, genotype_col]].dropna()
+
+        if len(subset) == 0:
+            ax.text(
+                0.5,
+                0.5,
+                "No data available",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            ax.set_title(f"{trait}\n(No data)")
+            continue
+
+        # Create boxplot
+        subset.boxplot(column=trait, by=genotype_col, ax=ax)
+
+        # Get heritability info
+        h2_result = heritability_results.get(trait, {})
+        h2 = h2_result.get("heritability", np.nan)
+        var_g = h2_result.get("var_genetic", np.nan)
+        var_r = h2_result.get("var_residual", np.nan)
+
+        # Build title
+        title = f"{trait}\nH² = {h2:.3f}"
+        if not np.isnan(var_g) and not np.isnan(var_r):
+            title += f"\nσ²_G = {var_g:.4f}, σ²_E = {var_r:.4f}"
+        ax.set_title(title)
+
+        # Remove pandas default title
+        plt.sca(ax)
+        plt.xlabel(genotype_col)
+        plt.ylabel(trait)
+
+        # Rotate labels if many genotypes
+        if subset[genotype_col].nunique() > 10:
+            ax.tick_params(axis="x", rotation=90)
+
+    # Hide extra subplots
+    for idx in range(n_traits, len(axes)):
+        axes[idx].set_visible(False)
+
+    plt.suptitle("")  # Remove default suptitle
+    plt.tight_layout()
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_path, dpi=300, bbox_inches="tight")
+
+    return fig
+
+
+def create_heritability_diagnostic_dashboard(
+    df: pd.DataFrame,
+    traits: List[str],
+    heritability_results: Dict[str, Dict],
+    comparison_df: pd.DataFrame,
+    layout: str = "vertical",
+    output_path: Optional[Path] = None,
+) -> plt.Figure:
+    """Create heritability diagnostic visualization with variance decomposition.
+
+    Creates variance decomposition and trait-by-genotype boxplot figures.
+    Note: Currently returns only the variance decomposition plot; the boxplot
+    is generated but not included in the returned figure.
+
+    Args:
+        df: DataFrame with trait data
+        traits: List of trait names to analyze
+        heritability_results: Dictionary with heritability results
+        comparison_df: DataFrame from compare_trait_heritabilities()
+        layout: "vertical" (default) or "horizontal" (currently unused)
+        output_path: Optional path to save variance decomposition figure
+
+    Returns:
+        matplotlib Figure object containing variance decomposition plot
+
+    Example:
+        >>> h2_results = calculate_heritability_estimates(df, traits)
+        >>> comparison = compare_trait_heritabilities(df, traits, h2_results)
+        >>> fig = create_heritability_diagnostic_dashboard(
+        ...     df, traits, h2_results, comparison
+        ... )
+        >>> plt.show()
+    """
+    # Create variance decomposition
+    var_fig = create_variance_decomposition_plot(comparison_df, figsize=(14, 8))
+
+    # Create boxplots
+    box_fig = create_trait_by_genotype_boxplots(
+        df, traits, heritability_results, figsize=(12, 4 * len(traits))
+    )
+
+    # For now, return the variance decomposition figure
+    # Full dashboard integration would require more complex subplot management
+    plt.close(box_fig)
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        var_fig.savefig(output_path, dpi=300, bbox_inches="tight")
+
+    return var_fig
 
 
 def identify_extreme_samples_in_pc_space(
@@ -1322,7 +1729,7 @@ def create_pca_biplot(
     pc_x: int = 1,
     pc_y: int = 2,
     top_n_features: int = 10,
-    feature_selection: str = "extreme",  # "extreme", "top_absolute", or "top_contribution"
+    feature_selection: str = "vector_length",  # "extreme", "top_absolute", "top_contribution", or "vector_length"
     figsize: Tuple[float, float] = (10, 8),
     alpha: float = 0.6,
     arrow_scale: Optional[float] = None,  # Auto-scale if None
@@ -1340,9 +1747,10 @@ def create_pca_biplot(
         pc_y: PC for y-axis (1-indexed).
         top_n_features: Number of features to show per direction (if extreme) or total.
         feature_selection: Method for selecting features to display:
+            - "vector_length": Top N by Euclidean distance in PC plane (traditional, default)
             - "extreme": Top N most positive and negative for each PC
             - "top_absolute": Top N by absolute loading magnitude
-            - "top_contribution": Top N by contribution to displayed PCs
+            - "top_contribution": Top N by variance contribution to displayed PCs
         figsize: Figure size.
         alpha: Transparency for scatter points.
         arrow_scale: Scaling factor for feature arrows (auto-calculated if None).
@@ -1380,8 +1788,10 @@ def create_pca_biplot(
         method = "top_absolute"
     elif feature_selection == "top_contribution":
         method = "top_contribution"
+    elif feature_selection == "vector_length":
+        method = "vector_length"
     else:
-        method = "top_contribution"  # Default
+        method = "vector_length"  # Default to traditional biplot convention
 
     # Select features using modular function
     top_indices = select_top_features_from_pca(
@@ -2712,7 +3122,7 @@ def create_phenotype_variation_plot(
 
     # Set labels and title
     ax.set_xticks(list(range(len(group_order))))
-    ax.set_xticklabels(group_order, rotation=45, ha="right")
+    ax.set_xticklabels(group_order, rotation=90, ha="center")
     ax.set_xlabel(group_col.capitalize())
     ax.set_ylabel(trait)
 
@@ -3019,5 +3429,233 @@ def create_genotype_image_grid(
     fig.suptitle("\n".join(title_parts), fontsize=title_fontsize, y=0.98)
 
     plt.tight_layout(rect=[0, 0, 1, 0.98])
+
+    return fig
+
+
+def create_regression_plot(
+    df: pd.DataFrame,
+    x_col: str,
+    y_col: str,
+    color_by: Optional[str] = None,
+    figsize: Tuple[int, int] = (8, 8),
+    title: Optional[str] = None,
+    scatter_kws: Optional[Dict] = None,
+    line_kws: Optional[Dict] = None,
+) -> plt.Figure:
+    """Create publication-quality linear regression plot with statistical annotations.
+
+    Generates a scatter plot with linear regression line, confidence interval,
+    and statistical annotations including R², p-value, Pearson correlation,
+    and regression equation.
+
+    Args:
+        df: DataFrame containing the data
+        x_col: Column name for x-axis (independent variable)
+        y_col: Column name for y-axis (dependent variable)
+        color_by: Optional column name for coloring points by category.
+            If provided, points are colored by group but a single regression
+            line is fitted to all data.
+        figsize: Figure size as (width, height) in inches. Default (8, 8).
+        title: Optional custom title. If None, auto-generates from column names.
+        scatter_kws: Optional dict of kwargs passed to scatter plot
+            (e.g., {'s': 50, 'alpha': 0.6})
+        line_kws: Optional dict of kwargs passed to regression line
+            (e.g., {'color': 'red', 'linewidth': 2})
+
+    Returns:
+        matplotlib Figure object with regression plot
+
+    Raises:
+        ValueError: If columns don't exist, are non-numeric, have zero variance,
+            or insufficient samples (<3) after NaN removal
+
+    Examples:
+        >>> # Simple regression plot
+        >>> fig = create_regression_plot(
+        ...     df,
+        ...     x_col='Surface Area (mm²)',
+        ...     y_col='Root Biomass (mg)'
+        ... )
+        >>> fig.savefig('regression_biomass_surface.png', dpi=300)
+        >>>
+        >>> # Regression with color by genotype
+        >>> fig = create_regression_plot(
+        ...     df,
+        ...     x_col='Shoot Biomass (mg)',
+        ...     y_col='Root Biomass (mg)',
+        ...     color_by='Genotype',
+        ...     title='Root vs Shoot Biomass'
+        ... )
+    """
+    from scipy import stats as scipy_stats
+    import warnings
+
+    # Input validation: check columns exist
+    missing_cols = []
+    for col in [x_col, y_col]:
+        if col not in df.columns:
+            missing_cols.append(col)
+    if color_by and color_by not in df.columns:
+        missing_cols.append(color_by)
+
+    if missing_cols:
+        raise ValueError(f"Column(s) not found in DataFrame: {', '.join(missing_cols)}")
+
+    # Check numeric types
+    if not pd.api.types.is_numeric_dtype(df[x_col]):
+        raise ValueError(
+            f"Column '{x_col}' must be numeric. "
+            f"For categorical variables, use the color_by parameter."
+        )
+    if not pd.api.types.is_numeric_dtype(df[y_col]):
+        raise ValueError(
+            f"Column '{y_col}' must be numeric. "
+            f"For categorical variables, use the color_by parameter."
+        )
+
+    # Handle NaN values
+    plot_df = df[[x_col, y_col]].copy()
+    if color_by:
+        plot_df[color_by] = df[color_by]
+
+    initial_count = len(plot_df)
+    plot_df = plot_df.dropna(subset=[x_col, y_col])
+    final_count = len(plot_df)
+
+    if final_count < 3:
+        raise ValueError(
+            f"Insufficient samples for regression analysis. "
+            f"Need at least 3 valid samples, got {final_count} "
+            f"(after removing {initial_count - final_count} NaN values)"
+        )
+
+    # Warn if >20% data dropped
+    pct_dropped = (initial_count - final_count) / initial_count * 100
+    if pct_dropped > 20:
+        warnings.warn(
+            f"Dropped {pct_dropped:.1f}% of data ({initial_count - final_count}/{initial_count} samples) "
+            f"due to NaN values in '{x_col}' or '{y_col}'",
+            UserWarning,
+        )
+
+    # Check for zero variance
+    x_vals = plot_df[x_col].values
+    y_vals = plot_df[y_col].values
+
+    if np.std(x_vals) == 0:
+        raise ValueError(
+            f"Column '{x_col}' has zero variance (all values are {x_vals[0]}). "
+            f"Cannot perform regression analysis."
+        )
+    if np.std(y_vals) == 0:
+        raise ValueError(
+            f"Column '{y_col}' has zero variance (all values are {y_vals[0]}). "
+            f"Cannot perform regression analysis."
+        )
+
+    # Calculate statistics
+    pearson_r, pearson_p = scipy_stats.pearsonr(x_vals, y_vals)
+    r_squared = pearson_r**2
+    slope, intercept, _, _, _ = scipy_stats.linregress(x_vals, y_vals)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Default scatter/line kwargs
+    default_scatter_kws = {"s": 50, "alpha": 0.7}
+    default_line_kws = {"color": "#2E6E73", "linewidth": 2}
+
+    if scatter_kws:
+        default_scatter_kws.update(scatter_kws)
+    if line_kws:
+        default_line_kws.update(line_kws)
+
+    # Plot scatter points with optional coloring
+    if color_by:
+        # Color by groups but fit single regression
+        unique_groups = plot_df[color_by].unique()
+
+        # Warn if too many categories
+        if len(unique_groups) > 20:
+            warnings.warn(
+                f"Color_by column '{color_by}' has {len(unique_groups)} unique values. "
+                f"Legend may be difficult to read.",
+                UserWarning,
+            )
+
+        # Use seaborn color palette for consistency
+        palette = sns.color_palette("tab10", n_colors=len(unique_groups))
+        color_map = dict(zip(unique_groups, palette))
+
+        for group in unique_groups:
+            mask = plot_df[color_by] == group
+            ax.scatter(
+                x_vals[mask],
+                y_vals[mask],
+                label=str(group),
+                color=color_map[group],
+                s=default_scatter_kws["s"],
+                alpha=default_scatter_kws["alpha"],
+            )
+        ax.legend(title=color_by, bbox_to_anchor=(1.05, 1), loc="upper left")
+    else:
+        # Single color scatter
+        scatter_color = default_scatter_kws.pop("color", "#4CB391")
+        ax.scatter(x_vals, y_vals, color=scatter_color, **default_scatter_kws)
+
+    # Add regression line with confidence interval using seaborn
+    sns.regplot(
+        x=x_vals,
+        y=y_vals,
+        ax=ax,
+        scatter=False,  # Already plotted scatter
+        line_kws=default_line_kws,
+        ci=95,  # 95% confidence interval
+    )
+
+    # Add statistical annotations
+    # Format p-value
+    if pearson_p < 0.001:
+        p_text = "p < 0.001"
+    else:
+        p_text = f"p = {pearson_p:.3f}"
+
+    # Format regression equation
+    if intercept >= 0:
+        equation = f"y = {slope:.3f}x + {intercept:.3f}"
+    else:
+        equation = f"y = {slope:.3f}x - {abs(intercept):.3f}"
+
+    # Create annotation text box
+    stats_text = (
+        f"R = {pearson_r:.3f}\n"
+        f"R² = {r_squared:.3f}\n"
+        f"{p_text}\n"
+        f"{equation}\n"
+        f"n = {final_count}"
+    )
+
+    # Position text box in upper left corner
+    ax.text(
+        0.05,
+        0.95,
+        stats_text,
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8, edgecolor="gray"),
+    )
+
+    # Labels and title
+    ax.set_xlabel(x_col, fontsize=12)
+    ax.set_ylabel(y_col, fontsize=12)
+
+    if title:
+        ax.set_title(title, fontsize=14)
+    else:
+        ax.set_title(f"{y_col} vs {x_col}", fontsize=14)
+
+    plt.tight_layout()
 
     return fig
