@@ -74,8 +74,10 @@ class StatisticalAnalysisStep(BaseStep):
                 "Expected 'valid_trait_names' or 'trait_names'."
             )
 
-        genotype_col = config.columns.genotype
-        replicate_col = config.columns.replicate
+        # After CleanupTraitsStep (Step 02), column names are sanitized to standard names
+        # Use the sanitized names consistently across all subsequent steps
+        genotype_col = "Genotype"
+        replicate_col = "Replicate"
 
         # 1. Calculate basic trait statistics
         trait_stats = calculate_trait_statistics(df=df, trait_cols=trait_cols)
@@ -236,6 +238,23 @@ class StatisticalAnalysisStep(BaseStep):
         figures_dir.mkdir(exist_ok=True)
 
         # Use adaptive sizing if enabled
+        # Handle both QC and Viz pipeline configs
+        viz_config = getattr(config, 'visualization', getattr(config, 'static_viz', None))
+        
+        # Get figure format and savefig parameters compatible with both config types
+        if hasattr(viz_config, 'figure_format'):
+            # QC config: VisualizationConfig
+            figure_format = viz_config.figure_format
+            figsize = tuple(viz_config.figsize) if not (config.adaptive_sizing and config.adaptive_sizing.enabled) else None
+            facecolor = viz_config.facecolor
+            edgecolor = viz_config.edgecolor
+        else:
+            # Viz config: StaticVisualizationConfig
+            figure_format = viz_config.formats[0]  # Use first format from list
+            figsize = (10, 6)  # Default figsize for viz pipeline
+            facecolor = 'white'
+            edgecolor = 'none'
+        
         if config.adaptive_sizing and config.adaptive_sizing.enabled:
             h2_figsize = calculate_barplot_size(
                 n_items=len(heritability_results),
@@ -243,7 +262,7 @@ class StatisticalAnalysisStep(BaseStep):
                 orientation="vertical",
             )
         else:
-            h2_figsize = tuple(config.visualization.figsize)
+            h2_figsize = figsize
 
         fig = create_heritability_plot(
             heritability_results=heritability_results,
@@ -252,15 +271,15 @@ class StatisticalAnalysisStep(BaseStep):
         )
         heritability_plot_path = (
             figures_dir
-            / f"08_heritability_analysis.{config.visualization.figure_format}"
+            / f"08_heritability_analysis.{figure_format}"
         )
         fig.savefig(
             heritability_plot_path,
-            dpi=config.visualization.dpi,
-            bbox_inches=config.visualization.bbox_inches,
-            facecolor=config.visualization.facecolor,
-            edgecolor=config.visualization.edgecolor,
-            transparent=config.visualization.transparent,
+            dpi=viz_config.dpi,
+            bbox_inches=viz_config.bbox_inches,
+            facecolor=facecolor,
+            edgecolor=edgecolor,
+            transparent=viz_config.transparent,
         )
         plt.close(fig)
         files.append(heritability_plot_path)

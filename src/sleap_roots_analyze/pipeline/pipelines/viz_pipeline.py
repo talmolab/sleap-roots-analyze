@@ -12,6 +12,7 @@ from typing import List
 
 from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
+from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.config import (
     VizPipelineConfig,
     validate_viz_config,

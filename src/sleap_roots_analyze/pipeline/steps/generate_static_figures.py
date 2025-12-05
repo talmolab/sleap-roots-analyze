@@ -229,7 +229,8 @@ class GenerateStaticFiguresStep(BaseStep):
         plt.close(fig)
 
         # Biplot
-        genotype_col = config.columns.genotype
+        # Use hardcoded sanitized column name (data from QC pipeline already sanitized)
+        genotype_col = "Genotype"
         fig = create_pca_biplot(
             pca_results,
             df=df,
@@ -333,7 +334,8 @@ class GenerateStaticFiguresStep(BaseStep):
             plt.close(subfig)
 
         # Boxplots by genotype (batched)
-        genotype_col = config.columns.genotype
+        # Use hardcoded sanitized column name (data from QC pipeline already sanitized)
+        genotype_col = "Genotype"
         if genotype_col in df.columns:
             fig = create_trait_boxplots_by_genotype_batched(
                 df,

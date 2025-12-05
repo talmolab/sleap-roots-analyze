@@ -1,0 +1,134 @@
+# Visualization Pipeline Configuration: Root Coring (Field/EDPIE)
+#
+# Platform: Field trials with root coring and above-ground traits
+# Input: Cleaned trait data from QC pipeline (qc_root_core_edpie)
+#
+# Features:
+# - PCA analysis with top feature identification
+# - Statistical analysis (ANOVA, heritability)
+# - Static and interactive visualizations
+# - Interesting genotype identification
+# - Trait distributions and correlations
+# - Depth profile visualizations (if supported)
+#
+# Notes:
+# - Data includes both root core (below-ground) and above-ground traits merged by QC
+# - May include depth-profiled measurements
+#
+# Source: QC pipeline output from qc_root_core_edpie.yaml
+#         Based on trait_viz_root_coring_20251130.ipynb
+
+# Pipeline metadata
+pipeline_name: "viz_root_coring"
+version: "1.0"
+
+# Data configuration
+data:
+  # Path to cleaned trait data from QC pipeline
+  csv_path: "runs/qc_root_coring/cleaned_traits.csv"
+
+  # Optional: Directory containing root images for hover visualization
+  image_dir: null
+
+# Column names (post-sanitization from QC pipeline)
+columns:
+  barcode: "Barcode"          # Sanitized from original barcode column
+  genotype: "Genotype"         # Sanitized from original geno column
+  replicate: "Replicate"       # Sanitized from original rep column
+  image_path: "image_path"     # Column containing image paths (if using image hover)
+
+# Statistics configuration
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# PCA configuration
+pca:
+  n_components: 0.95             # Keep components explaining 95% variance
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 10
+
+# UMAP configuration (disabled by default)
+umap:
+  enabled: false
+  n_neighbors: 15
+  min_dist: 0.1
+  metric: "euclidean"
+  random_state: 42
+
+# Clustering configuration (disabled by default)
+clustering:
+  enabled: false
+
+# Heritability filtering (optional - traits already filtered by QC)
+heritability:
+  enabled: false               # Traits already filtered by QC pipeline
+  threshold: 0.40
+
+# Interesting genotypes identification
+interesting_genotypes:
+  enabled: true
+  methods:
+    - pc_extreme               # Extreme in PC space
+    - trait_extreme            # Extreme per-trait values
+    - heritable_extreme        # Extreme + heritable traits
+  pc_threshold: 2.0            # Z-score threshold for PC extremes
+  trait_percentile: 95.0       # Percentile for trait extremes
+  min_heritability: 0.40       # Minimum H² for heritable extremes
+  max_genotypes: 10            # Max genotypes per method
+  generate_image_grids: true   # Create image grids (requires image_dir)
+  images_per_genotype: 9       # Images per genotype in grid
+
+# Adaptive figure sizing
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+# Static visualization settings
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+
+# Interactive visualization settings
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  show_images_on_hover: true   # Requires image_dir
+
+# Dashboard generation (disabled by default)
+dashboard:
+  enabled: false
+
+# Summary report
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

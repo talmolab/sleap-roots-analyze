@@ -110,6 +110,8 @@ class LoadDataAndImagesStep(BaseStep):
             "n_samples": len(df),
             "n_traits": len(trait_cols),
             "trait_cols": trait_cols,
+            "valid_trait_names": trait_cols,  # Add for compatibility with downstream steps
+            "trait_names": trait_cols,  # Add for compatibility with downstream steps
             "barcode_col": config.columns.barcode,
             "genotype_col": config.columns.genotype,
             "replicate_col": config.columns.replicate,

@@ -57,7 +57,11 @@ class GenerateSummaryStep(BaseStep):
             "data_file": config.data.csv_path,
             "n_samples": metadata.get("n_samples", len(data)),
             "n_traits_initial": metadata.get("n_traits", 0),
-            "n_traits_final": len(metadata.get("trait_cols", [])),
+            "n_traits_final": len(
+                metadata.get("trait_names")
+                or metadata.get("valid_trait_names")
+                or metadata.get("trait_cols", [])
+            ),
             "configuration": self._extract_config_summary(config),
             "results": self._extract_results_summary(metadata),
         }
@@ -100,7 +104,7 @@ class GenerateSummaryStep(BaseStep):
                 "calculate_heritability": config.statistics.calculate_heritability,
             },
             "heritability_filtering": {
-                "enabled": config.heritability.filter_enabled,
+                "enabled": config.heritability.enabled,
                 "threshold": config.heritability.threshold,
             },
             "interesting_genotypes_enabled": config.interesting_genotypes.enabled,
@@ -118,21 +122,25 @@ class GenerateSummaryStep(BaseStep):
                 "n_top_features": len(metadata.get("top_features", [])),
             }
 
-        if "anova_results" in metadata:
-            anova_df = metadata["anova_results"]
-            results["anova"] = {
-                "n_traits_tested": len(anova_df),
-                "n_significant": int((anova_df["p_value"] < 0.05).sum()),
-            }
+        if "anova_results" in metadata and "summary" in metadata:
+            # Use the pre-computed summary from StatisticalAnalysisStep
+            summary = metadata["summary"]
+            if "anova_summary" in summary:
+                anova_summary = summary["anova_summary"]
+                results["anova"] = {
+                    "n_traits_tested": anova_summary.get("traits_with_results", 0),
+                    "n_significant": anova_summary.get("significant_traits_p005", 0),
+                }
 
-        if "heritability_results" in metadata:
-            h2_df = metadata["heritability_results"]
-            results["heritability"] = {
-                "mean_h2": float(h2_df["H2"].mean()),
-                "median_h2": float(h2_df["H2"].median()),
-                "min_h2": float(h2_df["H2"].min()),
-                "max_h2": float(h2_df["H2"].max()),
-            }
+        if "heritability_results" in metadata and "summary" in metadata:
+            # Use the pre-computed summary from StatisticalAnalysisStep
+            summary = metadata["summary"]
+            if "heritability_summary" in summary:
+                heritability_summary = summary["heritability_summary"]
+                results["heritability"] = {
+                    "mean_h2": heritability_summary.get("mean_heritability", 0),
+                    "n_high_h2": heritability_summary.get("high_heritability_traits_h60", 0),
+                }
 
         if "n_traits_removed_by_heritability" in metadata:
             results["heritability_filtering"] = {
@@ -212,15 +220,12 @@ class GenerateSummaryStep(BaseStep):
                     )
 
                 if "heritability" in results:
-                    f.write(f"### Heritability\n")
+                    f.write(f"### Heritability\\n")
                     f.write(
-                        f"- **Mean H²:** {results['heritability']['mean_h2']:.3f}\n"
+                        f"- **Mean H²:** {results['heritability']['mean_h2']:.3f}\\n"
                     )
                     f.write(
-                        f"- **Median H²:** {results['heritability']['median_h2']:.3f}\n"
-                    )
-                    f.write(
-                        f"- **Range:** {results['heritability']['min_h2']:.3f} - {results['heritability']['max_h2']:.3f}\n\n"
+                        f"- **High H² traits (H² >= 0.60):** {results['heritability']['n_high_h2']}\\n\\n"
                     )
 
                 if "heritability_filtering" in results:

@@ -7,7 +7,7 @@ pipelines. These are building blocks that pipelines use to create their configur
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from omegaconf import MISSING
 
@@ -56,12 +56,17 @@ class CleanupConfig:
             Traits exceeding this will be removed. Recommended: 0.2-0.3
         min_samples_per_trait: Minimum number of valid samples required per trait.
             Traits with fewer samples will be removed. Recommended: 10
+        custom_replacements: Optional dict mapping old terms to new terms for
+            domain-specific trait name terminology (e.g., {"crown": "seminal"} to
+            replace "crown" with "seminal" in wheat trait names). Applied during
+            trait name sanitization. Keys are matched case-insensitively.
     """
 
     max_nan_fraction: float = 0.0
     max_zeros_per_trait: float = 0.5
     max_nans_per_trait: float = 0.2
     min_samples_per_trait: int = 10
+    custom_replacements: Optional[Dict[str, str]] = None
 
 
 @dataclass

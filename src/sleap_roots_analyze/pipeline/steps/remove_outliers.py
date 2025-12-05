@@ -79,9 +79,12 @@ class RemoveOutliersStep(BaseStep):
         if trait_cols is None:
             trait_cols = prev_result.metadata.get("trait_names", [])
 
+        # Get sanitized column names from CleanupTraitsStep metadata
+        column_mapping = prev_result.metadata.get("column_mapping", {})
+        barcode_col = column_mapping.get("barcode", "Barcode")
+
         # Get removal strategy
         strategy = config.outlier_removal.strategy
-        barcode_col = config.columns.barcode
 
         # Identify samples to remove based on strategy
         if strategy == "single":

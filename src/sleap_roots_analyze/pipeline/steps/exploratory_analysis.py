@@ -73,6 +73,10 @@ class ExploratoryAnalysisStep(BaseStep):
         trait_cols = prev_result.metadata["valid_trait_names"]
         cleanup_log = prev_result.metadata.get("cleanup_log", {})
 
+        # Get sanitized column names from CleanupTraitsStep metadata
+        column_mapping = prev_result.metadata.get("column_mapping", {})
+        genotype_col = column_mapping.get("genotype", "Genotype")
+
         # Create figures directory
         figures_dir = run_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
@@ -88,7 +92,7 @@ class ExploratoryAnalysisStep(BaseStep):
         summary_figures = create_exploratory_summary_plots(
             df=df,
             trait_cols=trait_cols,
-            genotype_col=config.columns.genotype,
+            genotype_col=genotype_col,
             adaptive_config=adaptive_cfg,
         )
 
@@ -144,7 +148,7 @@ class ExploratoryAnalysisStep(BaseStep):
             box_figs = create_trait_boxplots_by_genotype_batched(
                 df=df,
                 trait_cols=trait_cols,
-                genotype_col=config.columns.genotype,
+                genotype_col=genotype_col,
                 batch_size=config.visualization.batch_size,
             )
             for i, fig in enumerate(box_figs):

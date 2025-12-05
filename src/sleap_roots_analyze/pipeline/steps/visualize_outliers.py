@@ -69,6 +69,10 @@ class VisualizeOutliersStep(BaseStep):
         outlier_results = prev_result.metadata["outlier_results"]
         methods_run = prev_result.metadata["methods_run"]
 
+        # Get sanitized column names from CleanupTraitsStep metadata
+        column_mapping = prev_result.metadata.get("column_mapping", {})
+        genotype_col = column_mapping.get("genotype", "Genotype")
+
         # Validate that outlier detection was performed
         # methods_run is guaranteed to be a list (empty list [] if no methods)
         if len(methods_run) == 0:
@@ -245,11 +249,11 @@ class VisualizeOutliersStep(BaseStep):
             files.append(fig_path)
 
         # Per-genotype outlier counts (if genotype column exists)
-        if config.columns.genotype in df.columns:
+        if genotype_col in df.columns:
             fig = create_outliers_per_genotype_plot(
                 df=df,
                 all_outlier_results=outlier_results,
-                genotype_col=config.columns.genotype,
+                genotype_col=genotype_col,
             )
             fig_path = (
                 figures_dir

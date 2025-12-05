@@ -1,0 +1,116 @@
+# QC Pipeline Configuration for Cylinder (EDPIE) Platform
+#
+# Platform: Cylinder greenhouse system with depth-profiled root traits
+# Dataset: Wheat EDPIE 11 DAG (Days After Germination)
+# Traits: 819 depth-profile measurements of root architecture
+# Samples: 129 plants across multiple genotypes
+#
+# Key Features:
+# - Custom trait name replacements for wheat terminology (crown → seminal)
+# - Higher heritability threshold (0.60) due to large trait count
+# - Mahalanobis distance outlier detection
+# - Scanner-independent QC applied upstream
+#
+# Source Notebook: trait_qc_cylinders_20251105.ipynb
+
+pipeline_name: "cylinder_edpie_qc"
+
+# Data Configuration
+data:
+  # Path to cleaned trait data CSV (scanner-independent QC already applied)
+  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/20251105_wheat_edpie/cylinder/traits_11DAG_cleaned_qc_scanner_independent.csv"
+
+  # Additional columns to exclude from trait analysis (beyond auto-detected metadata)
+  additional_exclude_cols: []
+
+# Column Name Mapping
+columns:
+  # Plant barcode column (unique identifier for each sample)
+  barcode: "plant_qr_code"
+
+  # Genotype column
+  genotype: "Geno"
+
+  # Replicate column
+  replicate: "Rep"
+
+# Data Cleanup Configuration
+cleanup:
+  # Maximum fraction of NaN values per sample (0.0 = no NaN samples allowed)
+  max_nan_fraction: 0.0
+
+  # Maximum fraction of zeros per trait (0.5 = remove traits with >50% zeros)
+  max_zeros_per_trait: 0.5
+
+  # Maximum fraction of NaN values per trait (0.2 = remove traits with >20% NaN)
+  max_nans_per_trait: 0.2
+
+  # Minimum number of valid samples required per trait
+  min_samples_per_trait: 10
+
+  # Custom trait name replacements for wheat-specific terminology
+  # Applied during trait name sanitization (case-insensitive matching)
+  custom_replacements:
+    crown: "seminal"  # Wheat: crown roots → seminal roots
+
+# Outlier Detection Configuration
+outlier_detection:
+  # Traditional outlier detection methods to run
+  traditional_methods:
+    - mahalanobis
+
+  # Mahalanobis distance configuration
+  mahalanobis:
+    # Variance threshold for PCA dimensionality reduction (0.95 = keep 95% variance)
+    variance_threshold: 0.95
+
+    # Use chi-squared distribution for automatic threshold
+    use_chi_squared: true
+
+    # Chi-squared percentile for outlier threshold (99.0 = 99th percentile)
+    chi2_percentile: 99.0
+
+# Outlier Removal Configuration
+outlier_removal:
+  # Strategy for removing outliers
+  # Options: "single" (remove once), "iterative" (remove until convergence), "none" (detect only)
+  strategy: "single"
+
+  # Method to use for outlier removal (must be in traditional_methods above)
+  method: "mahalanobis"
+
+# PCA Configuration (for consistency with outlier detection)
+pca:
+  # Number of components to keep (0.95 = keep components explaining 95% variance)
+  n_components: 0.95
+
+  # Feature selection strategy for identifying important traits
+  feature_selection_strategy: "top_variance"
+
+# Heritability Filtering Configuration
+heritability:
+  # Enable heritability-based trait filtering
+  enabled: true
+
+  # Minimum heritability threshold (0.60 = 60% heritability required)
+  # Higher than Turface (0.40) due to large trait count (819 traits)
+  # Ensures only highly heritable traits retained for downstream analysis
+  threshold: 0.60
+
+  # Generate detailed diagnostic plots and CSV for removed traits
+  generate_diagnostics: true
+
+# Visualization Configuration
+visualization:
+  # Display settings
+  dpi: 100
+  figsize: [12, 8]
+
+  # Font sizes
+  title_fontsize: 16
+  label_fontsize: 14
+  tick_fontsize: 12
+  legend_fontsize: 12
+
+  # Figure format
+  figure_format: "png"

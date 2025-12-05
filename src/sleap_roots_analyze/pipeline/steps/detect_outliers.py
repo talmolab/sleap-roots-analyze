@@ -70,12 +70,18 @@ class DetectOutliersStep(BaseStep):
         df = data
         trait_cols = prev_result.metadata["valid_trait_names"]
 
+        # Get sanitized column names from CleanupTraitsStep metadata
+        column_mapping = prev_result.metadata.get("column_mapping", {})
+        barcode_col = column_mapping.get("barcode", "Barcode")
+        genotype_col = column_mapping.get("genotype", "Genotype")
+        replicate_col = column_mapping.get("replicate", "Replicate")
+
         # Get numeric traits only (for detection)
         numeric_df = get_numeric_traits_only(
             df,
-            barcode_col=config.columns.barcode,
-            genotype_col=config.columns.genotype,
-            replicate_col=config.columns.replicate,
+            barcode_col=barcode_col,
+            genotype_col=genotype_col,
+            replicate_col=replicate_col,
         )
 
         # Store all outlier detection results

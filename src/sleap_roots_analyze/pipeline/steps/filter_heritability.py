@@ -128,11 +128,12 @@ class FilterHeritabilityStep(BaseStep):
         df_filtered = df.drop(columns=removed_traits).copy()
 
         # Verify the high heritability traits are still present
+        # After CleanupTraitsStep (Step 02), columns are sanitized to standard names
         final_traits = get_trait_columns(
             df_filtered,
-            barcode_col=config.columns.barcode,
-            genotype_col=config.columns.genotype,
-            replicate_col=config.columns.replicate,
+            barcode_col="Barcode",
+            genotype_col="Genotype",
+            replicate_col="Replicate",
             additional_exclude=config.data.additional_exclude_cols,
         )
 
@@ -156,12 +157,13 @@ class FilterHeritabilityStep(BaseStep):
         if config.heritability.generate_diagnostics and removed_traits:
             try:
                 # Generate comparison DataFrame for all traits
+                # After CleanupTraitsStep (Step 02), columns are sanitized to standard names
                 comparison_df = compare_trait_heritabilities(
                     df=df,
                     traits=trait_cols,
                     heritability_results=heritability_results,
-                    genotype_col=config.columns.genotype,
-                    replicate_col=config.columns.replicate,
+                    genotype_col="Genotype",
+                    replicate_col="Replicate",
                     sort_by="heritability",  # Sort by heritability (lowest first)
                 )
 
@@ -185,7 +187,8 @@ class FilterHeritabilityStep(BaseStep):
                     )
 
                     # Total figure size for 2x2 grid
-                    var_figsize = (subplot_size[0] * 2, subplot_size[1] * 2)
+                    # Width scales with traits (2 subplots wide), height stays reasonable
+                    var_figsize = (subplot_size[0] * 2, 8.0)
                 else:
                     var_figsize = (14, 10)
 
@@ -214,11 +217,12 @@ class FilterHeritabilityStep(BaseStep):
                 adaptive_cfg = (
                     config.adaptive_sizing if config.adaptive_sizing.enabled else None
                 )
+                # After CleanupTraitsStep (Step 02), columns are sanitized to standard names
                 fig_box = create_trait_by_genotype_boxplots(
                     df=df,
                     traits=traits_to_plot,
                     heritability_results=heritability_results,
-                    genotype_col=config.columns.genotype,
+                    genotype_col="Genotype",
                     output_path=None,  # Will save manually
                     adaptive_config=adaptive_cfg,
                 )
