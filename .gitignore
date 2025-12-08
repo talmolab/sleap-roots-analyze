@@ -234,6 +234,11 @@ heritability_diagnostics/
 test_explicit_args_run/
 test_run/
 test_run_*/
+biomass_correlation_analysis/
+cross_platform_runs/
+
+# User-specific scripts and analysis
+scripts/
 
 # Temporary test/example output
 examples/heritability_diagnostics/
