@@ -15,8 +15,16 @@
 # - Trait names sanitized with "seminal" instead of "crown" for wheat terminology
 # - Large trait count (819 → ~588 after H² filtering) may require adjusted parameters
 #
-# Source: QC pipeline output from qc_cylinder_edpie.yaml
-#         Based on trait_qc_cylinders_20251105.ipynb
+# Source Notebook: trait_viz_cylinder_20251105.ipynb (2025-11-05)
+# Source QC Config: qc_cylinder_edpie.yaml
+# Last Verified: 2025-12-05
+# Verification Status: ✅ Parameters match notebook
+#
+# Key Parameters from Notebook:
+# - PCA_EXPLAINED_VARIANCE_THRESHOLD = 0.75 (Cell 6)
+# - GENOTYPES_TO_COLOR = ["GH_7293", "GH_7378", "GH_7327"] (Cell 7)
+# - GENOTYPES_TO_HIGHLIGHT = ["GH_7293", "GH_7378", "GH_7327"] (Cell 7)
+# - BIPLOT_ARROW_SCALE = 100.0 (Cell 6)
 
 # Pipeline metadata
 pipeline_name: "viz_cylinder_edpie"
@@ -43,9 +51,9 @@ statistics:
   calculate_heritability: true
   alpha: 0.05
 
-# PCA configuration
+# PCA configuration (matches notebook: trait_viz_cylinder_20251105.ipynb, Cell 6)
 pca:
-  n_components: 0.95             # Keep components explaining 95% variance
+  n_components: 0.75             # Keep components explaining 75% variance (PCA_EXPLAINED_VARIANCE_THRESHOLD)
   standardize: true
   feature_selection_strategy: "top_variance"
   n_top_features: 15             # Show more features due to large trait count
@@ -107,6 +115,18 @@ static_viz:
   create_trait_correlations: true
   create_heritability_plots: true
   create_genotype_comparisons: true
+
+  # Genotype highlighting (from notebook: trait_viz_cylinder_20251105.ipynb, Cell 7)
+  # genotypes_to_color: List of genotypes to color distinctly in PCA plots
+  #   - All listed genotypes get unique colors from the palette
+  #   - Other genotypes are shown in gray as "Other"
+  genotypes_to_color: ["GH_7293", "GH_7378", "GH_7327"]
+
+  # highlight_genotypes: List of genotypes to emphasize with special formatting
+  #   - Larger points (150 vs 50 for regular points)
+  #   - Black edge colors for visibility
+  #   - Bold, colored labels in PC boxplots
+  highlight_genotypes: ["GH_7293", "GH_7378", "GH_7327"]
 
 # Interactive visualization settings
 interactive_viz:
