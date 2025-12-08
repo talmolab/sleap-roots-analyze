@@ -9,6 +9,7 @@ from sleap_roots_analyze.pipeline.config import (
     ClusteringConfig,
     ColumnConfig,
     CoreQCConfig,
+    CrossPlatformConfig,
     DataConfig,
     HeritabilityConfig,
     LoggingConfig,
@@ -22,6 +23,7 @@ from sleap_roots_analyze.pipeline.config import (
     VizPipelineConfig,
     get_default_qc_config,
     get_default_viz_config,
+    load_cross_platform_config,
     load_qc_config,
     load_viz_config,
     merge_qc_configs,
@@ -32,7 +34,12 @@ from sleap_roots_analyze.pipeline.config import (
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.pipeline.dag import DAGExecutor, DAGValidationError
-from sleap_roots_analyze.pipeline.pipelines import BasePipeline, QCPipeline, VizPipeline
+from sleap_roots_analyze.pipeline.pipelines import (
+    BasePipeline,
+    CrossPlatformPipeline,
+    QCPipeline,
+    VizPipeline,
+)
 from sleap_roots_analyze.pipeline.summary import PipelineSummary, StepSummary
 from sleap_roots_analyze.pipeline.task import Task, TaskResult
 from sleap_roots_analyze.pipeline.utils import (
@@ -56,6 +63,7 @@ __all__ = [
     "DAGValidationError",
     # Pipeline and summary
     "BasePipeline",
+    "CrossPlatformPipeline",
     "QCPipeline",
     "VizPipeline",
     "PipelineSummary",
@@ -91,6 +99,9 @@ __all__ = [
     "save_viz_config",
     "get_default_viz_config",
     "validate_viz_config",
+    # Cross-Platform Configuration
+    "CrossPlatformConfig",
+    "load_cross_platform_config",
     # Utilities
     "create_run_directory",
     "get_git_commit_hash",

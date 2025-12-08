@@ -25,6 +25,9 @@ data:
   # Optional: Directory containing root images for hover visualization
   image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/turface_150_genotypes_rhizovision_processed_images"
 
+  # Exclude additional metadata columns from trait analysis (matching notebook)
+  additional_exclude_cols: ["File.me", "region", "set", "Salk_geno", "Entry", "GID", "scanner"]
+
 # Column names (post-sanitization from QC pipeline)
 columns:
   barcode: "Barcode"          # Sanitized from original barcode column
@@ -38,17 +41,17 @@ statistics:
   calculate_heritability: true
   alpha: 0.05
 
-# PCA configuration
+# PCA configuration (matching notebook)
 pca:
-  n_components: 0.95             # Keep components explaining 95% variance
+  n_components: 0.80             # Keep components explaining 80% variance (matches notebook)
   standardize: true
-  feature_selection_strategy: "top_variance"
-  n_top_features: 10
+  feature_selection_strategy: "extreme"
+  n_top_features: 1
 
-# UMAP configuration (disabled by default)
+# UMAP configuration (disabled by default, matching notebook parameters)
 umap:
   enabled: false
-  n_neighbors: 15
+  n_neighbors: 8              # Matches notebook
   min_dist: 0.1
   metric: "euclidean"
   random_state: 42
@@ -62,14 +65,14 @@ heritability:
   enabled: false               # Traits already filtered at H² > 0.40 by QC pipeline
   threshold: 0.40
 
-# Interesting genotypes identification
+# Interesting genotypes identification (matching notebook)
 interesting_genotypes:
   enabled: true
   methods:
     - pc_extreme               # Extreme in PC space
     - trait_extreme            # Extreme per-trait values
     - heritable_extreme        # Extreme + heritable traits
-  pc_threshold: 2.0            # Z-score threshold for PC extremes
+  pc_threshold: 2.5            # Z-score threshold for PC extremes (matches notebook EXTREME_PC_N_STD)
   trait_percentile: 95.0       # Percentile for trait extremes
   min_heritability: 0.40       # Minimum H² for heritable extremes (matching QC threshold)
   max_genotypes: 10            # Max genotypes per method
@@ -102,6 +105,34 @@ static_viz:
   create_trait_correlations: true
   create_heritability_plots: true
   create_genotype_comparisons: true
+
+  # PCA biplot feature control
+  # With "extreme" method: shows N most positive + N most negative for EACH PC axis
+  # So pca_biplot_top_features: 2 gives up to 8 features (2×2 directions × 2 PCs)
+  pca_biplot_top_features: 1  # Show extreme loadings for both PC1 and PC2
+
+  # Genotype highlighting (optional) - two-tier system for emphasis
+  #
+  # genotypes_to_color: List of genotypes to color distinctly in PCA plots
+  #   - All listed genotypes get unique colors from the palette
+  #   - Other genotypes are shown in gray as "Other"
+  #   - Set to null or [] to color all genotypes (default behavior)
+  #   - Example use case: Focus on specific lines of interest in a large panel
+  genotypes_to_color: [
+    "GH_7293", "GH_7295", "GH_7299", "GH_7300", "GH_7327", "GH_7328",
+    "GH_7361", "GH_7367", "GH_7368", "GH_7362", "GH_7378", "GH_7391",
+    "GH_7371", "GH_7386", "GH_7401", "GH_7417", "GH_7418", "GH_7420",
+    "GH_7440"
+]
+
+  # highlight_genotypes: List of genotypes to emphasize with special formatting
+  #   - Larger points (150 vs 50 for regular points)
+  #   - Black edge colors for visibility
+  #   - Bold, colored labels in PC boxplots
+  #   - Works independently of genotypes_to_color
+  #   - Set to null or [] to disable highlighting
+  #   - Example use case: Mark your positive/negative controls or extreme phenotypes
+  highlight_genotypes: ["GH_7401", "GH_7391", "GH_7361"]
 
 # Interactive visualization settings
 interactive_viz:

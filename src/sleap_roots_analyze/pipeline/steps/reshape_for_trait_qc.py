@@ -58,6 +58,12 @@ class ReshapeForTraitQCStep(BaseStep):
         reshaped_data = {}
         files = []
         metadata = {"sources": []}
+        
+        # Build combined depth_range_mapping from all sources
+        combined_depth_range_mapping = {}
+        for source in config.root_core.sources:
+            if source.depth_range_mapping:
+                combined_depth_range_mapping.update(source.depth_range_mapping)
 
         for source in config.root_core.sources:
             df_long = data[source.data_type]
@@ -118,6 +124,10 @@ class ReshapeForTraitQCStep(BaseStep):
         )
         files.append(merged_path)
         metadata["merged_shape"] = df_merged.shape
+        
+        # Add depth_range_mapping to metadata for downstream steps (e.g., CleanupTraitsStep)
+        if combined_depth_range_mapping:
+            metadata["depth_range_mapping"] = combined_depth_range_mapping
 
         # Save metadata
         metadata_path = self.save_json(metadata, "00e_reshape_metadata.json", run_dir)

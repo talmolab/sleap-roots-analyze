@@ -2634,8 +2634,13 @@ def create_pc_genotype_boxplots(
     # Create subplots - stack vertically
     n_cols = 1
     n_rows = n_components
+    
+    # Make figure height adaptive based on number of components
+    # Use provided figsize width, but scale height by number of PCs
+    adaptive_height = max(figsize[1], n_components * 3)  # Minimum 3 inches per PC
+    adaptive_figsize = (figsize[0], adaptive_height)
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=adaptive_figsize)
     if n_components == 1:
         axes = [axes]
     else:
@@ -2798,6 +2803,7 @@ def create_feature_contribution_heatmap(
     # Get top features by total variance contribution
     top_indices = np.argsort(variance_contributions)[::-1][:n_features]
     top_feature_names = [feature_names[i] for i in top_indices]
+    n_features_actual = len(top_feature_names)  # Actual number of features plotted
 
     # Helper function to create a heatmap
     def create_heatmap(data, title, cbar_label):
@@ -2835,7 +2841,7 @@ def create_feature_contribution_heatmap(
 
         variance_fig = create_heatmap(
             variance_df,
-            f"Top {n_features} Feature Variance Contributions to First {n_comp_to_show} PCs",
+            f"Top {n_features_actual} Feature Variance Contributions to First {n_comp_to_show} PCs",
             "Variance Contribution",
         )
 
@@ -2851,7 +2857,7 @@ def create_feature_contribution_heatmap(
 
         loadings_fig = create_heatmap(
             loadings_df,
-            f"Top {n_features} Feature Loadings (Correlations) for First {n_comp_to_show} PCs",
+            f"Top {n_features_actual} Feature Loadings (Correlations) for First {n_comp_to_show} PCs",
             "Loading (Correlation)",
         )
 

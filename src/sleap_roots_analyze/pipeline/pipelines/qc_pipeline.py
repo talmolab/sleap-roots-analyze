@@ -21,6 +21,9 @@ from sleap_roots_analyze.pipeline.steps.aggregate_cores import AggregateCoresSte
 from sleap_roots_analyze.pipeline.steps.reshape_for_trait_qc import (
     ReshapeForTraitQCStep,
 )
+from sleap_roots_analyze.pipeline.steps.visualize_depth_profiles import (
+    VisualizeDepthProfilesStep,
+)
 from sleap_roots_analyze.pipeline.steps.load_data import LoadDataStep
 from sleap_roots_analyze.pipeline.steps.cleanup_traits import CleanupTraitsStep
 from sleap_roots_analyze.pipeline.steps.validate_clean import ValidateCleanStep
@@ -128,6 +131,7 @@ class QCPipeline(BasePipeline):
         self.step_0c_qc_core_level = QCCoreLevelStep()
         self.step_0d_aggregate_cores = AggregateCoresStep()
         self.step_0e_reshape_for_qc = ReshapeForTraitQCStep()
+        self.step_0f_visualize_depth_profiles = VisualizeDepthProfilesStep()
 
         # Initialize all standard QC step instances
         self.step_1_load_data = LoadDataStep()
@@ -210,6 +214,16 @@ class QCPipeline(BasePipeline):
                     name="00e_reshape_for_trait_qc",
                     depends_on=["00d_aggregate_cores"],
                     description="Pivot to wide format with prefixed columns",
+                )
+            )
+
+            # Step 00f: Visualize Depth Profiles (optional)
+            tasks.append(
+                Task(
+                    func=self._run_visualize_depth_profiles,
+                    name="00f_visualize_depth_profiles",
+                    depends_on=["00d_aggregate_cores"],
+                    description="Generate depth profile visualizations (if enabled)",
                 )
             )
 
@@ -404,6 +418,19 @@ class QCPipeline(BasePipeline):
         prev_task_result = kwargs.get("00d_aggregate_cores")
         prev_step_result = prev_task_result.data
         result = self.step_0e_reshape_for_qc.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_visualize_depth_profiles(self, config, run_dir, logger, **kwargs):
+        """Execute Step 00f: Visualize Depth Profiles."""
+        logger.info("Step 0f: Generating depth profile visualizations...")
+        prev_task_result = kwargs.get("00d_aggregate_cores")
+        prev_step_result = prev_task_result.data
+        result = self.step_0f_visualize_depth_profiles.execute(
             data=prev_step_result.data,
             config=config,
             run_dir=run_dir,

@@ -114,3 +114,14 @@ visualization:
 
   # Figure format
   figure_format: "png"
+
+  # Batched plot settings - CONTROLS PLOT GENERATION
+  enable_batched_plots: false  # Set to false to skip batched histograms and boxplots
+  batched_plot_threshold: 16   # Only create batches if > this many traits
+  batch_size: 16               # How many traits per batch
+
+  # Plot output settings
+  bbox_inches: "tight"
+  facecolor: "white"
+  edgecolor: "none"
+  transparent: false

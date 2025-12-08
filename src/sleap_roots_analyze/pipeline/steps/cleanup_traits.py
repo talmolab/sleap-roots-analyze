@@ -65,8 +65,11 @@ class CleanupTraitsStep(BaseStep):
 
         # Get trait columns from previous step
         trait_cols = prev_result.metadata["trait_column_names"]
+        
+        # Extract depth_range_mapping from previous step (if available from ReshapeForTraitQCStep)
+        depth_range_mapping = prev_result.metadata.get("depth_range_mapping", None)
 
-        # Sanitize trait names (abbreviate + custom replacements)
+        # Sanitize trait names (abbreviate + custom replacements + depth ranges)
         df, trait_name_mapping = sanitize_trait_names(
             df=df,
             trait_cols=trait_cols,
@@ -77,6 +80,7 @@ class CleanupTraitsStep(BaseStep):
             replicate_col=config.columns.replicate,
             barcode_col=config.columns.barcode,
             custom_replacements=config.cleanup.custom_replacements,
+            depth_range_mapping=depth_range_mapping,
         )
 
         # Update column references to use sanitized names

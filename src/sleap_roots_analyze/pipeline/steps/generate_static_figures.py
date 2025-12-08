@@ -214,7 +214,11 @@ class GenerateStaticFiguresStep(BaseStep):
         files = []
 
         # Scree plot
-        fig = create_pca_scree_plot(pca_results)
+        # Pass the variance threshold from config to ensure plot matches PCA analysis
+        variance_threshold = (
+            config.pca.n_components if config.pca.n_components < 1 else 0.95
+        )
+        fig = create_pca_scree_plot(pca_results, variance_threshold=variance_threshold)
         files.extend(
             self._save_figure(
                 fig,
@@ -237,6 +241,9 @@ class GenerateStaticFiguresStep(BaseStep):
             trait_names=trait_cols,
             color_by=genotype_col,
             top_n_features=config.static_viz.pca_biplot_top_features,
+            feature_selection=config.pca.feature_selection_strategy,  # Pass feature selection method from config
+            genotypes_to_color=config.static_viz.genotypes_to_color,
+            highlight_genotypes=config.static_viz.highlight_genotypes,
         )
         files.extend(
             self._save_figure(
@@ -281,12 +288,13 @@ class GenerateStaticFiguresStep(BaseStep):
         plt.close(loadings_fig)
 
         # PC boxplots by genotype
-        if "pc_scores" in pca_results and genotype_col in df.columns:
+        if "transformed_data" in pca_results and genotype_col in df.columns:
             fig = create_pc_genotype_boxplots(
                 pca_results,
                 df,
                 genotype_col=genotype_col,
                 n_components=config.static_viz.pca_n_components,
+                highlight_genotypes=config.static_viz.highlight_genotypes,
             )
             files.extend(
                 self._save_figure(

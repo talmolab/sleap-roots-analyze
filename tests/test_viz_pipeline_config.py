@@ -326,6 +326,114 @@ class TestSaveVizConfig:
         assert loaded_omega.umap.enabled is False
 
 
+class TestStaticVisualizationConfigGenotypeHighlighting:
+    """Tests for genotype highlighting parameters in StaticVisualizationConfig."""
+
+    def test_genotypes_to_color_defaults_to_none(self):
+        """Test that genotypes_to_color defaults to None."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        config = StaticVisualizationConfig()
+        assert config.genotypes_to_color is None
+
+    def test_highlight_genotypes_defaults_to_none(self):
+        """Test that highlight_genotypes defaults to None."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        config = StaticVisualizationConfig()
+        assert config.highlight_genotypes is None
+
+    def test_genotypes_to_color_accepts_list(self):
+        """Test that genotypes_to_color accepts list of strings."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        genotypes = ["GH_7401", "GH_7391", "GH_7361"]
+        config = StaticVisualizationConfig(genotypes_to_color=genotypes)
+        assert config.genotypes_to_color == genotypes
+
+    def test_highlight_genotypes_accepts_list(self):
+        """Test that highlight_genotypes accepts list of strings."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        genotypes = ["GH_7401", "GH_7391"]
+        config = StaticVisualizationConfig(highlight_genotypes=genotypes)
+        assert config.highlight_genotypes == genotypes
+
+    def test_both_parameters_can_be_set_together(self):
+        """Test that both genotype highlighting parameters work together."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        genotypes_to_color = ["GH_7401", "GH_7391", "GH_7361"]
+        highlight_genotypes = ["GH_7401"]
+        config = StaticVisualizationConfig(
+            genotypes_to_color=genotypes_to_color,
+            highlight_genotypes=highlight_genotypes,
+        )
+        assert config.genotypes_to_color == genotypes_to_color
+        assert config.highlight_genotypes == highlight_genotypes
+
+    def test_empty_list_accepted(self):
+        """Test that empty list is accepted for genotype parameters."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        config = StaticVisualizationConfig(
+            genotypes_to_color=[], highlight_genotypes=[]
+        )
+        assert config.genotypes_to_color == []
+        assert config.highlight_genotypes == []
+
+    def test_config_loads_from_yaml_with_genotypes(self, tmp_path):
+        """Test that config can be loaded from YAML with genotype highlighting."""
+        yaml_content = """
+pipeline_name: test_with_highlighting
+data:
+  csv_path: test.csv
+static_viz:
+  genotypes_to_color:
+    - GH_7401
+    - GH_7391
+    - GH_7361
+  highlight_genotypes:
+    - GH_7401
+"""
+        config_path = tmp_path / "test_config.yaml"
+        config_path.write_text(yaml_content)
+
+        omega_conf = OmegaConf.load(config_path)
+        assert omega_conf.static_viz.genotypes_to_color == [
+            "GH_7401",
+            "GH_7391",
+            "GH_7361",
+        ]
+        assert omega_conf.static_viz.highlight_genotypes == ["GH_7401"]
+
+    def test_config_saves_genotype_parameters(self, tmp_path):
+        """Test that genotype parameters are saved to YAML."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.static_viz.genotypes_to_color = ["GH_7401", "GH_7391"]
+        config.static_viz.highlight_genotypes = ["GH_7401"]
+
+        config_path = tmp_path / "test_config.yaml"
+        save_viz_config(config, config_path)
+
+        loaded = OmegaConf.load(config_path)
+        assert loaded.static_viz.genotypes_to_color == ["GH_7401", "GH_7391"]
+        assert loaded.static_viz.highlight_genotypes == ["GH_7401"]
+
+
 class TestConfigIntegration:
     """Integration tests for config system."""
 

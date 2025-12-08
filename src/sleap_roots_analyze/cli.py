@@ -15,8 +15,10 @@ from rich.console import Console
 from rich.table import Table
 
 from sleap_roots_analyze.pipeline import (
+    CrossPlatformPipeline,
     QCPipeline,
     VizPipeline,
+    load_cross_platform_config,
     load_qc_config,
     load_viz_config,
 )
@@ -386,6 +388,146 @@ def viz(
         console.print(
             "[yellow]Hint: Use 'sleap-roots-analyze config validate' to check your config[/yellow]"
         )
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {e}", exc_info=True)
+        console.print(f"[red]Error: Pipeline failed - {e}[/red]")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument(
+    "config",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "-o",
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default="./cross_platform_runs",
+    help="Output directory for cross-platform analysis results (default: ./cross_platform_runs)",
+)
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose (DEBUG) logging",
+)
+@click.option(
+    "-q",
+    "--quiet",
+    is_flag=True,
+    help="Quiet mode - only show warnings and errors",
+)
+@click.option(
+    "--log-file",
+    type=str,
+    default=None,
+    help="Save logs to file",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Validate configuration without running the pipeline",
+)
+def cross_platform(
+    config: Path,
+    output_dir: Path,
+    verbose: bool,
+    quiet: bool,
+    log_file: str | None,
+    dry_run: bool,
+):
+    """Run cross-platform correlation analysis.
+
+    The cross-platform pipeline performs:
+    - Load and align data from two experiments
+    - Calculate correlations between all trait pairs (Cartesian product)
+    - Generate correlation visualizations
+
+    This pipeline is designed to compare traits across different experimental
+    platforms or conditions to identify which traits capture similar biological
+    variation patterns.
+
+    Examples:
+        sleap-roots-analyze cross-platform configs/cross_platform_turface19_vs_cylinder.yaml
+        sleap-roots-analyze cross-platform myconfig.yaml -o /data/results --verbose
+        sleap-roots-analyze cross-platform myconfig.yaml --dry-run
+    """
+    setup_logging(verbose, quiet, log_file)
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Load and validate config
+        console.print(f"[cyan]Loading configuration:[/cyan] {config}")
+        cfg = load_cross_platform_config(config)
+
+        # Display config summary
+        console.print(f"[cyan]Experiment 1:[/cyan] {cfg.exp1_name}")
+        console.print(f"[cyan]  Data:[/cyan] {cfg.exp1_data_path}")
+        console.print(f"[cyan]Experiment 2:[/cyan] {cfg.exp2_name}")
+        console.print(f"[cyan]  Data:[/cyan] {cfg.exp2_data_path}")
+        console.print(f"[cyan]Output:[/cyan] {output_dir.absolute()}")
+
+        if dry_run:
+            console.print("\n[yellow]Dry run mode - validation complete[/yellow]")
+            console.print("\nWould execute Cross-Platform pipeline with 3 steps:\n")
+
+            steps = [
+                (
+                    "1",
+                    "LoadCrossPlatformData",
+                    f"Load and align {cfg.exp1_name} vs {cfg.exp2_name}",
+                ),
+                (
+                    "2",
+                    "CalculateCrossPlatformCorrelations",
+                    f"Calculate correlations using {cfg.correlation_method} method",
+                ),
+                (
+                    "3",
+                    "VisualizeCrossPlatform",
+                    f"Generate {cfg.top_n_correlations} top correlation visualizations",
+                ),
+            ]
+
+            for num, name, desc in steps:
+                console.print(f"  {num}. [cyan]{name}[/cyan] - {desc}")
+
+            # Show key configuration
+            console.print("\n[cyan]Key Configuration:[/cyan]")
+            console.print(f"  Correlation method: {cfg.correlation_method}")
+            console.print(
+                f"  Min samples per genotype: {cfg.min_samples_per_genotype}"
+            )
+            console.print(f"  Significance level: {cfg.significance_level}")
+            console.print(f"  Top correlations to display: {cfg.top_n_correlations}")
+            console.print(f"  Joint plots: {cfg.top_n_joint_plots}")
+            console.print(f"  Boxplots: {cfg.top_n_boxplots}")
+
+            console.print("\n[green]Configuration is valid [OK][/green]")
+            return
+
+        # Create and run pipeline
+        console.print("\n[cyan]Initializing Cross-Platform pipeline...[/cyan]")
+        pipeline = CrossPlatformPipeline(config=cfg, output_dir=output_dir)
+
+        console.print("[cyan]Running pipeline...[/cyan]")
+        results = pipeline.run()
+
+        # Display summary
+        console.print("\n[green]Pipeline completed successfully![/green]")
+        console.print(f"[green]Results saved to:[/green] {pipeline.run_dir}")
+        console.print(f"[green]Steps completed:[/green] {len(results)}")
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Error: File not found - {e}[/red]")
+        console.print(
+            "[yellow]Hint: Check the config file path and data file paths in the config[/yellow]"
+        )
+        sys.exit(1)
+    except ValueError as e:
+        console.print(f"[red]Error: Invalid configuration - {e}[/red]")
         sys.exit(1)
     except Exception as e:
         logger.error(f"Pipeline execution failed: {e}", exc_info=True)

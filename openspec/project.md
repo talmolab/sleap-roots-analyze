@@ -249,6 +249,54 @@ uv run pytest -v
 - Better preserves local structure than PCA
 - Useful for identifying clusters and patterns
 
+### Configuration Philosophy
+
+The sleap-roots-analyze pipeline uses explicit configuration to ensure reproducibility and prevent silent failures from unintended defaults.
+
+**Explicit Configuration Principles:**
+1. **Critical parameters must be explicitly set** - Parameters that significantly affect results (cleanup thresholds, heritability thresholds, aggregation methods) must be defined in your config file
+2. **Validation at pipeline start** - Configuration is validated before execution to catch errors early
+3. **Two-tier validation**:
+   - **Explicit config validation**: Checks that required parameters are set (errors for required, warnings for optional-but-important)
+   - **Structural validation**: Checks that values are valid and internally consistent
+4. **Sensible defaults provided** - Default values exist for convenience but validation encourages awareness
+5. **Templates for common use cases** - Pre-configured templates in `configs/templates/` demonstrate best practices
+
+**Configuration Templates:**
+- `qc_cleanup_only_template.yaml` - For data cleanup only (NaN/zero removal)
+- `qc_full_pipeline_template.yaml` - Complete QC pipeline with outlier detection and heritability filtering
+
+**Required Parameters:**
+- `cleanup.max_nan_fraction` - Max fraction of NaN values per sample (recommended: 0.25)
+- `cleanup.max_zeros_per_trait` - Max fraction of zero values per trait (recommended: 0.5)
+- `cleanup.max_nans_per_trait` - Max fraction of NaN values per trait (recommended: 0.2)
+- `columns.genotype` - Your genotype column name (e.g., "geno", "accession")
+- `columns.replicate` - Your replicate column name (e.g., "rep", "block")
+- `pca.n_components` - Variance explained by selected components (recommended: 0.95)
+- `outlier_removal.strategy` - How to handle outliers ("single", "subset", or "flag")
+- `root_core.sources[*].aggregation_method` - Method for aggregating cores ("median" recommended)
+- `heritability.threshold` - Minimum H² for trait retention (typical range: 0.3-0.6)
+
+### Release Process
+
+**Release Workflow:**
+1. Run tests: `uv run pytest`
+2. Check coverage: `uv run pytest --cov --cov-branch`
+3. Format code: `uv run black src/sleap_roots_analyze tests`
+4. Lint code: `uv run ruff check src/sleap_roots_analyze tests`
+5. Update version: `uv version --bump patch/minor/major`
+6. Update `docs/CHANGELOG.md`
+7. Create release via GitHub Actions or manually
+
+### Troubleshooting
+
+**Common Issues:**
+- **Import errors**: Run `uv sync --group dev` to install all dependencies
+- **Coverage not working**: Use full module paths with `--cov`
+- **Test data missing**: Ensure CSV files exist in `tests/data/`
+- **Black formatting**: Run `uv run black` to auto-format
+- **DataFrame fragmentation warnings**: Expected in tests, can be ignored
+
 ## Important Constraints
 
 ### Technical Constraints

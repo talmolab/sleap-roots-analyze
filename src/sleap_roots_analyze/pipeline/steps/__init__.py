@@ -6,7 +6,7 @@ Steps are organized alphabetically and exported for easy access.
 
 from __future__ import annotations
 
-# Root Core Processing Steps (Steps 0a-0e)
+# Root Core Processing Steps (Steps 0a-0f)
 from sleap_roots_analyze.pipeline.steps.aggregate_cores import AggregateCoresStep
 from sleap_roots_analyze.pipeline.steps.load_root_core_data import LoadRootCoreDataStep
 from sleap_roots_analyze.pipeline.steps.qc_core_level import QCCoreLevelStep
@@ -15,6 +15,9 @@ from sleap_roots_analyze.pipeline.steps.reshape_for_trait_qc import (
 )
 from sleap_roots_analyze.pipeline.steps.transform_depth_data import (
     TransformDepthDataStep,
+)
+from sleap_roots_analyze.pipeline.steps.visualize_depth_profiles import (
+    VisualizeDepthProfilesStep,
 )
 
 # QC Pipeline Steps
@@ -59,6 +62,17 @@ from sleap_roots_analyze.pipeline.steps.load_data_images import LoadDataAndImage
 from sleap_roots_analyze.pipeline.steps.pca_analysis import PCAAnalysisStep
 from sleap_roots_analyze.pipeline.steps.umap_analysis import UMAPAnalysisStep
 
+# Cross-Platform Analysis Steps
+from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+    CalculateCrossPlatformCorrelationsStep,
+)
+from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+    LoadCrossPlatformDataStep,
+)
+from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+    VisualizeCrossPlatformStep,
+)
+
 __all__ = [
     # Root Core Steps
     "AggregateCoresStep",
@@ -66,6 +80,7 @@ __all__ = [
     "QCCoreLevelStep",
     "ReshapeForTraitQCStep",
     "TransformDepthDataStep",
+    "VisualizeDepthProfilesStep",
     # QC Steps
     "CleanupTraitsStep",
     "DetectOutliersStep",
@@ -88,4 +103,8 @@ __all__ = [
     "LoadDataAndImagesStep",
     "PCAAnalysisStep",
     "UMAPAnalysisStep",
+    # Cross-Platform Steps
+    "CalculateCrossPlatformCorrelationsStep",
+    "LoadCrossPlatformDataStep",
+    "VisualizeCrossPlatformStep",
 ]

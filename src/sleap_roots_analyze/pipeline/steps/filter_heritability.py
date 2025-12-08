@@ -101,6 +101,7 @@ class FilterHeritabilityStep(BaseStep):
             )
 
             metadata = {
+                **prev_result.metadata,  # Preserve metadata from previous steps (e.g., pca_results)
                 "filtering_enabled": False,
                 "threshold": config.heritability.threshold,
                 "traits_retained": trait_cols,
@@ -333,6 +334,7 @@ class FilterHeritabilityStep(BaseStep):
 
         # Create metadata
         metadata = {
+            **prev_result.metadata,  # Preserve metadata from previous steps (e.g., pca_results)
             "filtering_enabled": True,
             "threshold": threshold,
             "traits_retained": high_h2_traits,

@@ -89,6 +89,247 @@ def _prepare_aligned_values(
     )
 
 
+def calculate_correlations(
+    x: np.ndarray, y: np.ndarray, method: str = "spearman"
+) -> Tuple[float, float]:
+    """Calculate correlation between two arrays using specified method.
+
+    This function provides a unified interface for computing correlations with
+    proper handling of edge cases (NaN values, insufficient data, etc.).
+
+    Args:
+        x: First array of values
+        y: Second array of values
+        method: Correlation method - one of 'spearman', 'pearson', or 'kendall'
+
+    Returns:
+        Tuple of (correlation_coefficient, p_value)
+        Returns (NaN, NaN) if:
+            - Arrays have different lengths
+            - Fewer than 3 valid paired samples after NaN removal
+            - Either array has zero variance (all constant values)
+
+    Raises:
+        ValueError: If method is not one of 'spearman', 'pearson', or 'kendall'
+        ValueError: If x and y have different lengths
+
+    Examples:
+        >>> x = np.array([1, 2, 3, 4, 5])
+        >>> y = np.array([2, 4, 6, 8, 10])
+        >>> r, p = calculate_correlations(x, y, method='pearson')
+        >>> r  # Should be 1.0 for perfect linear relationship
+        1.0
+    """
+    # Validate method
+    valid_methods = ["spearman", "pearson", "kendall"]
+    if method not in valid_methods:
+        raise ValueError(
+            f"method must be one of {valid_methods}, got '{method}'"
+        )
+
+    # Validate input lengths
+    if len(x) != len(y):
+        raise ValueError(
+            f"x and y must have the same length, got {len(x)} and {len(y)}"
+        )
+
+    # Remove NaN pairs
+    valid_mask = ~(np.isnan(x) | np.isnan(y))
+    x_clean = x[valid_mask]
+    y_clean = y[valid_mask]
+
+    # Check for insufficient data
+    if len(x_clean) < 3:
+        return np.nan, np.nan
+
+    # Check for constant values (zero variance)
+    if np.std(x_clean) == 0 or np.std(y_clean) == 0:
+        return np.nan, np.nan
+
+    # Calculate correlation based on method
+    if method == "spearman":
+        r, p = stats.spearmanr(x_clean, y_clean)
+    elif method == "pearson":
+        r, p = stats.pearsonr(x_clean, y_clean)
+    elif method == "kendall":
+        r, p = stats.kendalltau(x_clean, y_clean)
+
+    return r, p
+
+
+def create_correlation_summary_plot(
+    correlation_df: pd.DataFrame,
+    correlation_col: str = "correlation",
+    pvalue_col: str = "p_value",
+    exp1_trait_col: str = "exp1_trait",
+    exp2_trait_col: str = "exp2_trait",
+    figsize: tuple = (14, 12),
+    significance_threshold: float = 0.05,
+    top_n: int = 15,
+) -> plt.Figure:
+    """Create a 4-panel summary visualization of cross-platform correlations.
+
+    Creates a comprehensive summary figure with:
+    - Panel 1 (top-left): Distribution histogram of correlations
+    - Panel 2 (top-right): Volcano plot (correlation vs -log10(p-value))
+    - Panel 3 (bottom-left): Top positive correlations bar chart
+    - Panel 4 (bottom-right): Top negative correlations bar chart
+
+    Args:
+        correlation_df: DataFrame with correlation results
+        correlation_col: Column name containing correlation coefficients
+        pvalue_col: Column name containing p-values
+        exp1_trait_col: Column name for experiment 1 trait names
+        exp2_trait_col: Column name for experiment 2 trait names
+        figsize: Figure size as (width, height) tuple
+        significance_threshold: P-value threshold for significance lines
+        top_n: Number of top correlations to show in bar charts
+
+    Returns:
+        matplotlib Figure object
+
+    Raises:
+        ValueError: If correlation_df is empty or missing required columns
+
+    Examples:
+        >>> correlation_df = pd.DataFrame({
+        ...     'correlation': [0.8, -0.6, 0.4],
+        ...     'p_value': [0.01, 0.05, 0.10],
+        ...     'exp1_trait': ['trait1', 'trait2', 'trait3'],
+        ...     'exp2_trait': ['traitA', 'traitB', 'traitC']
+        ... })
+        >>> fig = create_correlation_summary_plot(correlation_df)
+    """
+    # Validate inputs
+    if len(correlation_df) == 0:
+        raise ValueError("correlation_df cannot be empty")
+
+    required_cols = [correlation_col, pvalue_col, exp1_trait_col, exp2_trait_col]
+    missing_cols = [col for col in required_cols if col not in correlation_df.columns]
+    if missing_cols:
+        raise ValueError(f"Column(s) {missing_cols} not found in correlation_df")
+
+    # Create figure with 2x2 subplots
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+
+    # Panel 1: Distribution of correlations
+    ax = axes[0, 0]
+    ax.hist(
+        correlation_df[correlation_col],
+        bins=50,
+        edgecolor="black",
+        alpha=0.7,
+        color="#2E6E73",
+    )
+    ax.axvline(0, color="red", linestyle="--", alpha=0.5)
+    ax.set_xlabel("Correlation Coefficient")
+    ax.set_ylabel("Count")
+    ax.set_title("Distribution of Correlations")
+
+    # Count significant correlations
+    n_significant = (correlation_df[pvalue_col] < significance_threshold).sum()
+    ax.text(
+        0.05,
+        0.95,
+        f"n = {len(correlation_df):,}\nSignificant: {n_significant}",
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+    )
+    ax.grid(True, alpha=0.3)
+
+    # Panel 2: Volcano plot
+    ax = axes[0, 1]
+    colors = [
+        "red"
+        if p < 0.01
+        else "orange"
+        if p < 0.05
+        else "gray"
+        for p in correlation_df[pvalue_col]
+    ]
+    ax.scatter(
+        correlation_df[correlation_col],
+        -np.log10(correlation_df[pvalue_col]),
+        c=colors,
+        alpha=0.5,
+        s=10,
+    )
+    ax.axhline(
+        -np.log10(0.05), color="orange", linestyle="--", alpha=0.5, label="p=0.05"
+    )
+    ax.axhline(
+        -np.log10(0.01), color="red", linestyle="--", alpha=0.5, label="p=0.01"
+    )
+    ax.axvline(0, color="black", linestyle="-", alpha=0.3)
+    ax.set_xlabel("Correlation Coefficient")
+    ax.set_ylabel("-log10(p-value)")
+    ax.set_title("Volcano Plot")
+    ax.legend(loc="upper right")
+    ax.grid(True, alpha=0.3)
+
+    # Panel 3: Top positive correlations
+    ax = axes[1, 0]
+    top_positive = correlation_df[correlation_df[correlation_col] > 0].head(top_n)
+
+    if len(top_positive) > 0:
+        y_pos = np.arange(len(top_positive))
+        ax.barh(y_pos, top_positive[correlation_col].values, color="#2E6E73", alpha=0.7)
+        ax.set_yticks(y_pos)
+        labels = [
+            f"{row[exp1_trait_col][:15]}...{row[exp2_trait_col][:15]}"
+            for _, row in top_positive.iterrows()
+        ]
+        ax.set_yticklabels(labels, fontsize=7)
+        ax.set_xlabel("Correlation Coefficient")
+        ax.set_title("Top Positive Correlations")
+        ax.invert_yaxis()
+        ax.grid(axis="x", alpha=0.3)
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "No positive correlations found",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+        ax.set_title("Top Positive Correlations")
+
+    # Panel 4: Top negative correlations
+    ax = axes[1, 1]
+    top_negative = correlation_df[correlation_df[correlation_col] < 0].head(top_n)
+
+    if len(top_negative) > 0:
+        y_pos = np.arange(len(top_negative))
+        ax.barh(y_pos, top_negative[correlation_col].values, color="#E8998D", alpha=0.7)
+        ax.set_yticks(y_pos)
+        labels = [
+            f"{row[exp1_trait_col][:15]}...{row[exp2_trait_col][:15]}"
+            for _, row in top_negative.iterrows()
+        ]
+        ax.set_yticklabels(labels, fontsize=7)
+        ax.set_xlabel("Correlation Coefficient")
+        ax.set_title("Top Negative Correlations")
+        ax.invert_yaxis()
+        ax.grid(axis="x", alpha=0.3)
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "No negative correlations found",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+        ax.set_title("Top Negative Correlations")
+
+    plt.tight_layout()
+
+    return fig
+
+
 def load_and_align_experiments(
     exp1_path: Path | str,
     exp2_path: Path | str,
@@ -118,8 +359,23 @@ def load_and_align_experiments(
     exp2_df = pd.read_csv(exp2_path)
 
     # Standardize column names
-    exp1_df = exp1_df.rename(columns={genotype_col1: "genotype", rep_col1: "replicate"})
-    exp2_df = exp2_df.rename(columns={genotype_col2: "genotype", rep_col2: "replicate"})
+    # Handle both provided rep column names and common variations
+    rep_renames_exp1 = {genotype_col1: "genotype"}
+    rep_renames_exp2 = {genotype_col2: "genotype"}
+
+    # Find and rename replicate column (try multiple common names)
+    for possible_rep_col in [rep_col1, "Replicate", "replicate", "Rep", "rep"]:
+        if possible_rep_col in exp1_df.columns and possible_rep_col != "replicate":
+            rep_renames_exp1[possible_rep_col] = "replicate"
+            break
+
+    for possible_rep_col in [rep_col2, "Replicate", "replicate", "Rep", "rep"]:
+        if possible_rep_col in exp2_df.columns and possible_rep_col != "replicate":
+            rep_renames_exp2[possible_rep_col] = "replicate"
+            break
+
+    exp1_df = exp1_df.rename(columns=rep_renames_exp1)
+    exp2_df = exp2_df.rename(columns=rep_renames_exp2)
 
     # Find common genotypes
     genotypes1 = set(exp1_df["genotype"].unique())

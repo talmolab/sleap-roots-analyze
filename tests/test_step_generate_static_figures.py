@@ -583,3 +583,244 @@ class TestGenerateStaticFiguresMetadata:
             assert (
                 file_path.exists()
             ), f"File in files_generated doesn't exist: {file_path}"
+
+
+class TestGenerateStaticFiguresGenotypeHighlighting:
+    """Test genotype highlighting parameter passing."""
+
+    def test_passes_genotypes_to_color_to_pca_biplot(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that genotypes_to_color is passed to create_pca_biplot."""
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Configure genotype highlighting
+        genotypes_to_color = ["GH_7401", "GH_7391", "GH_7361"]
+        static_viz_config_enabled.static_viz.genotypes_to_color = genotypes_to_color
+
+        # Mock the visualization functions at the module where they're used
+        mock_biplot = Mock(return_value=Mock())  # Returns a mock figure
+        monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
+
+        # Mock other visualization functions to avoid errors
+        mock_scree = Mock(return_value=Mock())
+        mock_heatmap = Mock(return_value=(Mock(), Mock()))
+        mock_boxplot = Mock(return_value=Mock())
+        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
+        )
+        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify create_pca_biplot was called with genotypes_to_color
+        assert mock_biplot.called
+        call_kwargs = mock_biplot.call_args.kwargs
+        assert (
+            "genotypes_to_color" in call_kwargs
+        ), "genotypes_to_color not passed to create_pca_biplot"
+        assert call_kwargs["genotypes_to_color"] == genotypes_to_color
+
+    def test_passes_highlight_genotypes_to_pca_biplot(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that highlight_genotypes is passed to create_pca_biplot."""
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Configure genotype highlighting
+        highlight_genotypes = ["GH_7401"]
+        static_viz_config_enabled.static_viz.highlight_genotypes = highlight_genotypes
+
+        # Mock functions
+        mock_biplot = Mock(return_value=Mock())
+        mock_scree = Mock(return_value=Mock())
+        mock_heatmap = Mock(return_value=(Mock(), Mock()))
+        mock_boxplot = Mock(return_value=Mock())
+        monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
+        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
+        )
+        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify create_pca_biplot was called with highlight_genotypes
+        assert mock_biplot.called
+        call_kwargs = mock_biplot.call_args.kwargs
+        assert (
+            "highlight_genotypes" in call_kwargs
+        ), "highlight_genotypes not passed to create_pca_biplot"
+        assert call_kwargs["highlight_genotypes"] == highlight_genotypes
+
+    def test_passes_highlight_genotypes_to_pc_boxplots(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that highlight_genotypes is passed to create_pc_genotype_boxplots."""
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Configure genotype highlighting
+        highlight_genotypes = ["GH_7401", "GH_7391"]
+        static_viz_config_enabled.static_viz.highlight_genotypes = highlight_genotypes
+
+        # Mock functions
+        mock_biplot = Mock(return_value=Mock())
+        mock_scree = Mock(return_value=Mock())
+        mock_heatmap = Mock(return_value=(Mock(), Mock()))
+        mock_boxplot = Mock(return_value=Mock())
+        monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
+        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
+        )
+        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify create_pc_genotype_boxplots was called with highlight_genotypes (if conditions met)
+        if mock_boxplot.called:
+            call_kwargs = mock_boxplot.call_args.kwargs
+            assert (
+                "highlight_genotypes" in call_kwargs
+            ), "highlight_genotypes not passed to create_pc_genotype_boxplots"
+            assert call_kwargs["highlight_genotypes"] == highlight_genotypes
+
+    def test_both_parameters_passed_together(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that both highlighting parameters work together."""
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Configure both highlighting parameters
+        genotypes_to_color = ["GH_7401", "GH_7391", "GH_7361"]
+        highlight_genotypes = ["GH_7401"]
+        static_viz_config_enabled.static_viz.genotypes_to_color = genotypes_to_color
+        static_viz_config_enabled.static_viz.highlight_genotypes = highlight_genotypes
+
+        # Mock functions
+        mock_biplot = Mock(return_value=Mock())
+        mock_scree = Mock(return_value=Mock())
+        mock_heatmap = Mock(return_value=(Mock(), Mock()))
+        mock_boxplot = Mock(return_value=Mock())
+        monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
+        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
+        )
+        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify both parameters passed to PCA biplot
+        biplot_kwargs = mock_biplot.call_args.kwargs
+        assert biplot_kwargs["genotypes_to_color"] == genotypes_to_color
+        assert biplot_kwargs["highlight_genotypes"] == highlight_genotypes
+
+        # Verify highlight_genotypes passed to boxplots (if conditions met)
+        if mock_boxplot.called:
+            boxplot_kwargs = mock_boxplot.call_args.kwargs
+            assert boxplot_kwargs["highlight_genotypes"] == highlight_genotypes
+
+    def test_none_values_passed_when_not_configured(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that None is passed when highlighting not configured (backward compat)."""
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Ensure highlighting is None (default)
+        assert static_viz_config_enabled.static_viz.genotypes_to_color is None
+        assert static_viz_config_enabled.static_viz.highlight_genotypes is None
+
+        # Mock functions
+        mock_biplot = Mock(return_value=Mock())
+        mock_scree = Mock(return_value=Mock())
+        mock_heatmap = Mock(return_value=(Mock(), Mock()))
+        mock_boxplot = Mock(return_value=Mock())
+        monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
+        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
+        )
+        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify None values passed (backward compatibility)
+        biplot_kwargs = mock_biplot.call_args.kwargs
+        assert biplot_kwargs["genotypes_to_color"] is None
+        assert biplot_kwargs["highlight_genotypes"] is None
+
+        if mock_boxplot.called:
+            boxplot_kwargs = mock_boxplot.call_args.kwargs
+            assert boxplot_kwargs["highlight_genotypes"] is None

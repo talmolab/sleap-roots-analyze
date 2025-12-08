@@ -3672,3 +3672,199 @@ def create_test_root_core_data():
         "c_30_40_2": [5, 9, 3, 9, 5, 10],
     }
     return pd.DataFrame(data)
+
+
+# ============================================================================
+# CROSS-PLATFORM ANALYSIS FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def cross_platform_exp1_df():
+    """Generate experiment 1 DataFrame for cross-platform analysis testing.
+
+    Simulates cylinder experiment data with:
+    - 18 genotypes (15 common + 3 unique)
+    - 4-6 replicates per genotype
+    - 50 numeric traits
+    - Some NaN values to test handling
+
+    Returns:
+        pd.DataFrame: Experiment 1 data with genotype, replicate, and trait columns
+    """
+    np.random.seed(42)
+
+    # Common genotypes across experiments
+    common_genotypes = [f"Geno{i:02d}" for i in range(1, 16)]
+    # Unique to exp1
+    unique_genotypes = ["GenoX1", "GenoX2", "GenoX3"]
+    all_genotypes = common_genotypes + unique_genotypes
+
+    data = []
+    for geno in all_genotypes:
+        n_reps = np.random.randint(4, 7)  # 4-6 replicates
+        for rep in range(1, n_reps + 1):
+            row = {
+                "plant_qr_code": f"{geno}_R{rep}",
+                "Geno": geno,
+                "rep": rep,
+            }
+
+            # Add 50 numeric traits with genotype-specific means
+            geno_idx = all_genotypes.index(geno)
+            for trait_idx in range(50):
+                # Create traits with genotype effects and some correlation
+                base_value = 100 + geno_idx * 5 + trait_idx * 2
+                noise = np.random.normal(0, 10)
+                value = base_value + noise
+
+                # Add some NaN values (5% chance)
+                if np.random.random() < 0.05:
+                    value = np.nan
+
+                row[f"exp1_trait_{trait_idx:02d}"] = value
+
+            data.append(row)
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def cross_platform_exp2_df():
+    """Generate experiment 2 DataFrame for cross-platform analysis testing.
+
+    Simulates turface experiment data with:
+    - 18 genotypes (15 common + 3 unique)
+    - 3-5 replicates per genotype
+    - 12 numeric traits (fewer than exp1)
+    - Some NaN values to test handling
+
+    Returns:
+        pd.DataFrame: Experiment 2 data with genotype, replicate, and trait columns
+    """
+    np.random.seed(123)
+
+    # Common genotypes across experiments (same as exp1)
+    common_genotypes = [f"Geno{i:02d}" for i in range(1, 16)]
+    # Unique to exp2
+    unique_genotypes = ["GenoY1", "GenoY2", "GenoY3"]
+    all_genotypes = common_genotypes + unique_genotypes
+
+    data = []
+    for geno in all_genotypes:
+        n_reps = np.random.randint(3, 6)  # 3-5 replicates
+        for rep in range(1, n_reps + 1):
+            row = {
+                "Barcode": f"{geno}_T{rep}",
+                "geno": geno,
+                "rep": rep,
+            }
+
+            # Add 12 numeric traits with genotype-specific means
+            # Some traits correlated with exp1, some uncorrelated
+            geno_idx = all_genotypes.index(geno)
+            for trait_idx in range(12):
+                if trait_idx < 6:
+                    # Positively correlated with exp1 traits
+                    base_value = 100 + geno_idx * 5 + trait_idx * 2
+                else:
+                    # Uncorrelated or negatively correlated
+                    base_value = 200 - geno_idx * 3 + trait_idx
+
+                noise = np.random.normal(0, 8)
+                value = base_value + noise
+
+                # Add some NaN values (5% chance)
+                if np.random.random() < 0.05:
+                    value = np.nan
+
+                row[f"exp2_trait_{trait_idx:02d}"] = value
+
+            data.append(row)
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def cross_platform_config_dict():
+    """Generate valid configuration dictionary for cross-platform analysis.
+
+    Returns:
+        dict: Configuration with all required fields for CrossPlatformConfig
+    """
+    return {
+        "exp1_data_path": "exp1_data.csv",
+        "exp1_name": "Cylinder",
+        "exp1_genotype_col": "Geno",
+        "exp2_data_path": "exp2_data.csv",
+        "exp2_name": "Turface",
+        "exp2_genotype_col": "geno",
+        "correlation_method": "spearman",
+        "min_samples_per_genotype": 3,
+        "significance_level": 0.05,
+        "top_n_correlations": 20,
+        "top_n_joint_plots": 6,
+        "top_n_boxplots": 6,
+        "figsize_summary": (14, 12),
+        "figsize_joint": (10, 10),
+        "figsize_boxplot": (14, 6),
+    }
+
+
+@pytest.fixture
+def cross_platform_correlation_results():
+    """Generate sample correlation results DataFrame for testing visualizations.
+
+    Returns:
+        pd.DataFrame: Correlation results with traits, correlation values, and p-values
+    """
+    np.random.seed(42)
+
+    n_correlations = 100
+    data = []
+
+    for i in range(n_correlations):
+        # Generate realistic correlation values
+        rho = np.random.uniform(-0.5, 0.5)
+
+        # P-values tend to be larger for small correlations
+        if abs(rho) < 0.2:
+            p_value = np.random.uniform(0.1, 0.9)
+        elif abs(rho) < 0.35:
+            p_value = np.random.uniform(0.01, 0.2)
+        else:
+            p_value = np.random.uniform(0.0001, 0.05)
+
+        data.append(
+            {
+                "cylinder_trait": f"exp1_trait_{i % 50:02d}",
+                "turface_trait": f"exp2_trait_{i % 12:02d}",
+                "spearman_r": rho,
+                "spearman_p": p_value,
+                "n_genotypes": 15,
+                "abs_spearman": abs(rho),
+            }
+        )
+
+    df = pd.DataFrame(data)
+    return df.sort_values("abs_spearman", ascending=False).reset_index(drop=True)
+
+
+@pytest.fixture(scope="session")
+def cross_platform_turface_df(test_data_dir):
+    """Load Turface_all_traits_2024.csv for real cross-platform testing.
+
+    Returns:
+        pd.DataFrame: Real turface experiment data with root traits
+    """
+    return pd.read_csv(test_data_dir / "Turface_all_traits_2024.csv")
+
+
+@pytest.fixture(scope="session")
+def cross_platform_field_df(test_data_dir):
+    """Load Field_2024_clean.csv for real cross-platform testing.
+
+    Returns:
+        pd.DataFrame: Real field experiment data with above-ground and root core data
+    """
+    return pd.read_csv(test_data_dir / "Field_2024_clean.csv")
