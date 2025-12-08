@@ -393,6 +393,13 @@ class StaticVisualizationConfig:
         pca_n_components: Number of principal components to show in PC boxplots (default: 3).
         histogram_batch_size: Number of traits per histogram figure (default: 9).
         boxplot_batch_size: Number of traits per boxplot figure (default: 6).
+        genotypes_to_color: Optional list of genotype names to color distinctly in PCA plots.
+            If provided, only these genotypes will be colored with distinct colors in PCA biplots
+            and PC boxplots, while all other genotypes will be gray. If None (default), all
+            genotypes are colored.
+        highlight_genotypes: Optional list of genotype names to highlight with special formatting
+            (larger points, edge colors in PCA biplot; bold labels, gold color in PC boxplots).
+            Works independently of genotypes_to_color.
         title_fontsize: Font size for plot titles.
         label_fontsize: Font size for axis labels.
         tick_fontsize: Font size for tick labels.
@@ -417,6 +424,9 @@ class StaticVisualizationConfig:
     pca_n_components: int = 3
     histogram_batch_size: int = 9
     boxplot_batch_size: int = 6
+    # Genotype highlighting
+    genotypes_to_color: Optional[List[str]] = None
+    highlight_genotypes: Optional[List[str]] = None
     # Font sizes
     title_fontsize: int = 14
     label_fontsize: int = 12
@@ -577,6 +587,12 @@ class RootCoreSourceConfig:
             Default: "median"
         depth_mapping: Manual depth mapping for biomass data {column_name: depth_cm}.
             Required for data_type="biomass", optional for data_type="counting" (auto-parsed).
+            Maps depth range labels to midpoint values (e.g., {"0-30": 15.0, "30-60": 45.0}).
+        depth_range_mapping: Optional mapping from depth midpoints to range labels for display.
+            Used to show actual measurement ranges in outputs instead of midpoint values.
+            Example: {15.0: "0-30", 45.0: "30-60"} will display "Root Biomass DW (g) 0-30cm"
+            instead of "Rootdw 15Cm". Improves scientific clarity in visualizations.
+            Default: None (midpoint notation used)
         genotype_column: Name of genotype column in CSV (default: "geno"). If the CSV uses
             a different column name (e.g., "salk_geno"), specify it here and it will be
             renamed to "geno" for standardization across all sources.
@@ -588,6 +604,7 @@ class RootCoreSourceConfig:
     value_column_name: str = "Value"
     aggregation_method: str = "median"  # Robust to outliers and measurement errors
     depth_mapping: Optional[dict] = None
+    depth_range_mapping: Optional[dict] = None  # Maps midpoints to ranges for display
     genotype_column: str = "geno"  # Column name for genotype, will be renamed to "geno"
 
 
@@ -595,25 +612,62 @@ class RootCoreSourceConfig:
 class CoreQCConfig:
     """Configuration for core-level quality control.
 
-    NOTE: Statistical outlier detection (e.g., Mahalanobis distance) is NOT recommended
-    at the core level due to insufficient sample sizes. Root core datasets typically have
-    only 3 cores per plot, but statistical methods require 30+ samples for reliability.
+    This step performs measurement error detection (quality control), NOT statistical
+    hypothesis testing. It uses per-group analysis to detect gross errors (damaged cores,
+    typos, sampling failures) before aggregation.
 
-    Instead, use:
-    1. Missing data filtering (max_missing_proportion) to remove incomplete cores
-    2. Median aggregation (aggregation_method: "median") for robustness to outliers
-    3. Trait-level outlier detection (Step 5) on aggregated plot data (60+ samples)
+    **Statistical Framework:**
+    - QC paradigm: Fixed threshold (30% deviation) based on domain knowledge
+    - Per-group detection: Respects nested structure (cores within plots)
+    - Sample size: Works with N=3 (non-parametric, no variance estimation)
+    - Independence: Analyzes each plot independently (satisfies i.i.d. assumption)
+
+    **Why not population-level methods?**
+    Cores within plots are NOT independent (share genotype, soil, spatial location).
+    Population-level outlier detection (Mahalanobis, Isolation Forest) would violate
+    independence assumptions and confound plot effects with measurement errors.
+
+    **Missing Data Detection:**
+    Flags cores with excessive missing depths (>50% NaN). This catches incomplete
+    or damaged samples before aggregation.
+
+    **Value Outlier Detection (Optional, Opt-In):**
+    Flags cores with anomalous values using percent deviation from within-group median.
+    Formula: |value - median| / median > threshold (e.g., 0.30 = 30%).
+
+    Example: GH_7371 Rep 1 had cores [0.76g, 0.71g, 0.31g]. Core 2 (56% deviation)
+    was a measurement error that destroyed heritability (H²: 0.27→0.50 after removal).
+
+    **Publication-Quality Methods Section:**
+    "Quality control of core-level data was performed within each plot-depth group
+    (n=3 cores). Cores with biomass values deviating >30% from the within-group
+    median were flagged as potential measurement errors and excluded prior to
+    aggregation. This threshold was chosen conservatively to remove gross errors
+    while preserving natural biological variation (typically <20% within plots)."
 
     Attributes:
-        enabled: Whether to perform core-level QC (typically should be False).
-        max_missing_proportion: Maximum proportion of missing depths allowed per core.
-                                Cores exceeding this are flagged and optionally removed.
+        enabled: Whether to perform core-level QC.
+        max_missing_proportion: Maximum proportion of missing depths per core (0-1).
+                                Cores exceeding this are flagged.
         remove_outliers: Whether to remove flagged cores before aggregation.
+        detect_value_outliers: Enable value-based outlier detection (opt-in).
+                               Default: False (disabled for backward compatibility).
+        max_deviation_from_median: Threshold for percent deviation (0-1).
+                                   Cores exceeding this are flagged as value outliers.
+                                   Default: 0.30 (30% - conservative, minimal false positives).
+        min_cores_after_qc: Minimum cores to keep per group (safety mechanism).
+                            Prevents removing all cores if all are flagged.
+                            Default: 1 (always keep at least one core).
     """
 
-    enabled: bool = False  # Default to disabled - use median aggregation instead
+    enabled: bool = False  # Default to disabled
     max_missing_proportion: float = 0.5  # Flag cores with >50% missing depths
     remove_outliers: bool = True  # Remove flagged cores if enabled
+    detect_value_outliers: bool = False  # Opt-in: value-based outlier detection
+    max_deviation_from_median: float = 0.30  # 30% threshold (conservative)
+    min_cores_after_qc: int = (
+        1  # Safety: keep at least 1 core per group  # Remove flagged cores if enabled
+    )
 
 
 @dataclass
@@ -643,8 +697,65 @@ class RootCoreConfig:
         sources: List of root core data sources (biomass, counting, or both).
         core_qc: Configuration for core-level quality control.
         merge_traits: Configuration for merging with above-ground traits (optional).
+        generate_depth_profiles: Whether to generate depth profile visualizations.
     """
 
     sources: List[RootCoreSourceConfig] = field(default_factory=list)
     core_qc: CoreQCConfig = field(default_factory=CoreQCConfig)
     merge_traits: Optional[MergeTraitsConfig] = None
+    generate_depth_profiles: bool = True
+
+
+@dataclass(frozen=True)
+class CrossPlatformConfig:
+    """Cross-platform analysis configuration.
+
+    Configuration for comparing trait data across different experimental platforms
+    (e.g., cylinder vs turface, field vs growth chamber).
+
+    Attributes:
+        exp1_data_path: Path to experiment 1 cleaned traits CSV.
+        exp1_name: Display name for experiment 1 (e.g., "Cylinder").
+        exp1_genotype_col: Column name containing genotype identifiers in experiment 1.
+        exp2_data_path: Path to experiment 2 cleaned traits CSV.
+        exp2_name: Display name for experiment 2 (e.g., "Turface").
+        exp2_genotype_col: Column name containing genotype identifiers in experiment 2.
+        correlation_method: Statistical correlation method ("spearman", "pearson", "kendall").
+        min_samples_per_genotype: Minimum samples required per genotype for analysis.
+        significance_level: P-value threshold for significance testing.
+        top_n_correlations: Number of top correlations to display in summary.
+        top_n_joint_plots: Number of joint plots to generate for top correlations.
+        top_n_boxplots: Number of boxplots to generate for top correlations.
+        figsize_summary: Figure size for summary visualization (width, height).
+        figsize_joint: Figure size for joint plots (width, height).
+        figsize_boxplot: Figure size for boxplots (width, height).
+    """
+
+    # Required parameters
+    exp1_data_path: str
+    exp1_name: str
+    exp1_genotype_col: str
+    exp2_data_path: str
+    exp2_name: str
+    exp2_genotype_col: str
+
+    # Optional parameters with defaults
+    correlation_method: str = "spearman"
+    min_samples_per_genotype: int = 3
+    significance_level: float = 0.05
+    top_n_correlations: int = 20
+    top_n_joint_plots: int = 6
+    top_n_boxplots: int = 6
+    figsize_summary: tuple = (14, 12)
+    figsize_joint: tuple = (10, 10)
+    figsize_boxplot: tuple = (14, 6)
+
+    def __post_init__(self):
+        """Validate configuration parameters."""
+        # Validate correlation method
+        valid_methods = ["spearman", "pearson", "kendall"]
+        if self.correlation_method not in valid_methods:
+            raise ValueError(
+                f"correlation_method must be one of {valid_methods}, "
+                f"got '{self.correlation_method}'"
+            )
