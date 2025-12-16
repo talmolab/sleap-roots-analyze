@@ -1,0 +1,43 @@
+# Cross-Platform Analysis Configuration
+# Comparing Turface 150 Genotypes vs 19 Genotypes Experiments
+# Updated: 2025-12-15
+# Purpose: Correlate trait measurements between two Turface experiments to assess
+#          measurement consistency and identify the most reproducible traits
+
+# Experiment 1: Turface 150 Genotypes (larger experiment) - QC'd but NOT heritability filtered
+exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_150genotypes_qc_20251215_133424/07_data_outliers_removed.csv"
+exp1_name: "Turface 150 Genotypes (QC'd)"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Turface 19 Genotypes (smaller experiment) - QC'd but NOT heritability filtered
+exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_19genotypes_qc_20251215_133523/07_data_outliers_removed.csv"
+exp2_name: "Turface 19 Genotypes (QC'd)"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman recommended for robustness to outliers and non-linear relationships
+min_samples_per_genotype: 3     # Minimum biological replicates per genotype
+significance_level: 0.05        # Standard p-value threshold
+
+# Visualization Parameters
+top_n_correlations: 20          # Number of top correlations to display in summary
+top_n_joint_plots: 6            # Generate joint plots for all common trait pairs
+top_n_boxplots: 6               # Generate boxplots for top trait comparisons
+figsize_summary: [14, 12]       # Summary heatmap figure size (width, height)
+figsize_joint: [10, 10]         # Joint plot figure size
+figsize_boxplot: [14, 6]        # Boxplot figure size
+
+# Analysis Notes:
+# - 19 genotypes overlap between experiments (all from Dataset 2 are in Dataset 1)
+# - 6 common traits available for correlation:
+#   1. Holes
+#   2. Network Area (mm²)
+#   3. Perimeter (mm)
+#   4. Surface Area (mm²)
+#   5. Total Root Length (mm)
+#   6. Volume (mm³)
+# - Biomass traits excluded due to unit differences (g vs mg)
+# - Dataset 1: 890 samples, 156 genotypes, 13 traits (H² ≥ 0.4)
+# - Dataset 2: 153 samples, 19 genotypes, 8 traits (H² ≥ 0.6)
+# - Expected strong correlations for morphological traits (Network Area, Surface Area, etc.)
+# - May see weaker correlations for texture-based traits (Holes)
