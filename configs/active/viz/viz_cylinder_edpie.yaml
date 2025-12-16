@@ -55,12 +55,12 @@ statistics:
 pca:
   n_components: 0.75             # Keep components explaining 75% variance (PCA_EXPLAINED_VARIANCE_THRESHOLD)
   standardize: true
-  feature_selection_strategy: "top_variance"
-  n_top_features: 15             # Show more features due to large trait count
+  feature_selection_strategy: "extreme"
+  n_top_features: 1             # Show more features due to large trait count
 
 # UMAP configuration (disabled by default)
 umap:
-  enabled: false
+  enabled: true
   n_neighbors: 15
   min_dist: 0.1
   metric: "euclidean"
@@ -109,7 +109,7 @@ static_viz:
     - pdf
   dpi: 300
   create_pca_plots: true
-  create_umap_plots: false
+  create_umap_plots: true
   create_cluster_plots: false
   create_trait_distributions: true
   create_trait_correlations: true
@@ -132,7 +132,7 @@ static_viz:
 interactive_viz:
   enabled: true
   create_pca_plots: true
-  create_umap_plots: false
+  create_umap_plots: true
   create_cluster_plots: false
   show_images_on_hover: true   # Requires image_dir
 

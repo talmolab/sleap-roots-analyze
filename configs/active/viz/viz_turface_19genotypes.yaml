@@ -41,8 +41,8 @@ statistics:
 pca:
   n_components: 0.95             # Keep components explaining 95% variance
   standardize: true
-  feature_selection_strategy: "top_variance"
-  n_top_features: 10
+  feature_selection_strategy: "extreme"
+  n_top_features: 1
 
 # UMAP configuration (disabled by default)
 umap:
