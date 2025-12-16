@@ -128,13 +128,21 @@ def qc(
         sleap-roots-analyze qc myconfig.yaml -o /data/results --verbose
         sleap-roots-analyze qc myconfig.yaml --dry-run
     """
-    setup_logging(verbose, quiet, log_file)
-    logger = logging.getLogger(__name__)
-
     try:
-        # Load and validate config
+        # Load config first to get logging settings
         console.print(f"[cyan]Loading configuration:[/cyan] {config}")
         cfg = load_qc_config(config)
+
+        # Resolve log file: CLI flag overrides config
+        effective_log_file = log_file
+        if effective_log_file is None and cfg.logging.log_to_file:
+            log_path = output_dir / cfg.logging.log_file
+            # Create parent directories if needed (for paths like "logs/qc.log")
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            effective_log_file = str(log_path)
+
+        setup_logging(verbose, quiet, effective_log_file)
+        logger = logging.getLogger(__name__)
 
         # Display config summary
         console.print(f"[cyan]Pipeline:[/cyan] {cfg.pipeline_name}")
@@ -324,13 +332,21 @@ def viz(
         sleap-roots-analyze viz myconfig.yaml -o /data/figures --verbose
         sleap-roots-analyze viz myconfig.yaml --dry-run
     """
-    setup_logging(verbose, quiet, log_file)
-    logger = logging.getLogger(__name__)
-
     try:
-        # Load and validate config
+        # Load config first to get logging settings
         console.print(f"[cyan]Loading configuration:[/cyan] {config}")
         cfg = load_viz_config(config)
+
+        # Resolve log file: CLI flag overrides config
+        effective_log_file = log_file
+        if effective_log_file is None and cfg.logging.log_to_file:
+            log_path = output_dir / cfg.logging.log_file
+            # Create parent directories if needed (for paths like "logs/viz.log")
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            effective_log_file = str(log_path)
+
+        setup_logging(verbose, quiet, effective_log_file)
+        logger = logging.getLogger(__name__)
 
         # Display config summary
         console.print(f"[cyan]Pipeline:[/cyan] {cfg.pipeline_name}")
@@ -497,9 +513,7 @@ def cross_platform(
             # Show key configuration
             console.print("\n[cyan]Key Configuration:[/cyan]")
             console.print(f"  Correlation method: {cfg.correlation_method}")
-            console.print(
-                f"  Min samples per genotype: {cfg.min_samples_per_genotype}"
-            )
+            console.print(f"  Min samples per genotype: {cfg.min_samples_per_genotype}")
             console.print(f"  Significance level: {cfg.significance_level}")
             console.print(f"  Top correlations to display: {cfg.top_n_correlations}")
             console.print(f"  Joint plots: {cfg.top_n_joint_plots}")
@@ -532,6 +546,168 @@ def cross_platform(
     except Exception as e:
         logger.error(f"Pipeline execution failed: {e}", exc_info=True)
         console.print(f"[red]Error: Pipeline failed - {e}[/red]")
+        sys.exit(1)
+
+
+@cli.command(name="run-all")
+@click.option(
+    "--manifest",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default="configs/active/run_manifest.yaml",
+    help="Path to run manifest file (default: configs/active/run_manifest.yaml)",
+)
+@click.option(
+    "-o",
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default="pipeline_runs",
+    help="Output directory for pipeline runs (default: pipeline_runs)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Validate manifest and show execution plan without running",
+)
+@click.option(
+    "--qc-only",
+    is_flag=True,
+    help="Run only QC pipelines",
+)
+@click.option(
+    "--viz-only",
+    is_flag=True,
+    help="Run only Viz pipelines (requires existing QC outputs)",
+)
+@click.option(
+    "--cross-only",
+    is_flag=True,
+    help="Run only Cross-Platform pipelines (requires existing QC outputs)",
+)
+@click.option(
+    "--no-summary",
+    is_flag=True,
+    help="Skip summary generation",
+)
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose output",
+)
+def run_all(
+    manifest: Path,
+    output_dir: Path,
+    dry_run: bool,
+    qc_only: bool,
+    viz_only: bool,
+    cross_only: bool,
+    no_summary: bool,
+    verbose: bool,
+):
+    """Run all pipelines defined in a manifest file.
+
+    This command orchestrates execution of QC, Viz, and Cross-Platform pipelines
+    with automatic path updates between dependent pipelines and comprehensive
+    summary generation.
+
+    The manifest file specifies which configs to run and how they depend on each other.
+    Pipelines are executed in the correct order: QC first, then Viz and Cross-Platform.
+
+    Examples:
+        sleap-roots-analyze run-all
+        sleap-roots-analyze run-all --manifest my_manifest.yaml
+        sleap-roots-analyze run-all --dry-run
+        sleap-roots-analyze run-all --qc-only
+        sleap-roots-analyze run-all -o /data/pipeline_runs --verbose
+    """
+    from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+    try:
+        console.print(f"[cyan]Loading manifest:[/cyan] {manifest}")
+        runner = PipelineRunner(
+            manifest_path=manifest,
+            output_dir=output_dir,
+            verbose=verbose,
+        )
+
+        if dry_run:
+            plan = runner.dry_run()
+            console.print(f"\n[cyan]Run Name:[/cyan] {plan['run_name']}")
+            console.print(f"[cyan]Output Directory:[/cyan] {plan['output_dir']}")
+            console.print(f"[cyan]Timestamp:[/cyan] {plan['timestamp']}")
+
+            if plan["validation_errors"]:
+                console.print("\n[red]Validation Errors:[/red]")
+                for error in plan["validation_errors"]:
+                    console.print(f"  - {error}")
+                sys.exit(1)
+
+            console.print("\n[cyan]Execution Plan:[/cyan]")
+            exec_plan = plan["execution_plan"]
+
+            console.print(
+                f"\n  [cyan]QC Configs ({len(exec_plan['qc_configs'])}):[/cyan]"
+            )
+            for cfg in exec_plan["qc_configs"]:
+                console.print(f"    - {cfg}")
+
+            console.print(
+                f"\n  [cyan]Viz Configs ({len(exec_plan['viz_configs'])}):[/cyan]"
+            )
+            for cfg in exec_plan["viz_configs"]:
+                console.print(f"    - {cfg}")
+
+            console.print(
+                f"\n  [cyan]Cross-Platform Configs ({len(exec_plan['cross_platform_configs'])}):[/cyan]"
+            )
+            for cfg in exec_plan["cross_platform_configs"]:
+                console.print(f"    - {cfg}")
+
+            console.print("\n[green]Manifest is valid [OK][/green]")
+            return
+
+        # Run pipelines
+        console.print(
+            f"\n[cyan]Starting pipeline run:[/cyan] {runner.manifest.get('run_name', 'Unnamed')}"
+        )
+        console.print(f"[cyan]Output directory:[/cyan] {runner.run_dir}")
+
+        results = runner.run_all(
+            qc_only=qc_only,
+            viz_only=viz_only,
+            cross_only=cross_only,
+            no_summary=no_summary,
+        )
+
+        # Summary
+        total_qc = len(results.get("qc", {}))
+        total_viz = len(results.get("viz", {}))
+        total_cross = len(results.get("cross_platform", {}))
+
+        success_qc = sum(1 for r in results.get("qc", {}).values() if r.get("success"))
+        success_viz = sum(
+            1 for r in results.get("viz", {}).values() if r.get("success")
+        )
+        success_cross = sum(
+            1 for r in results.get("cross_platform", {}).values() if r.get("success")
+        )
+
+        console.print("\n" + "=" * 60)
+        console.print("[green]Pipeline Run Complete![/green]")
+        console.print("=" * 60)
+        console.print(f"  QC:             {success_qc}/{total_qc} succeeded")
+        console.print(f"  Viz:            {success_viz}/{total_viz} succeeded")
+        console.print(f"  Cross-Platform: {success_cross}/{total_cross} succeeded")
+        console.print(f"\n  Output: {runner.run_dir}")
+
+        if not no_summary:
+            console.print(f"  Summary: {runner.run_dir / 'SUMMARY.md'}")
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Error: File not found - {e}[/red]")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
         sys.exit(1)
 
 

@@ -1,0 +1,85 @@
+# QC Pipeline Configuration: Field_2024_clean.csv (Pre-aggregated Data)
+#
+# This config uses the pre-processed Field_2024_clean.csv file directly,
+# skipping core-level processing since data was already aggregated/curated
+# by the data provider.
+#
+# Use case: When you have pre-aggregated data and just need trait-level QC
+# Steps: Load → Cleanup → Outlier Detection → Heritability → Final CSV
+
+# Pipeline metadata
+pipeline_name: "Field 2024 Clean (Pre-aggregated)"
+version: "1.0"
+
+# ============================================================================
+# DATA SOURCE (Pre-aggregated - skip root_core processing)
+# ============================================================================
+data:
+  # Use Field_2024_clean.csv directly - already has root + above-ground traits merged
+  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/field/Field_2024_clean.csv"
+  image_dir: null
+
+  # No additional columns to exclude - all columns are traits or identifiers
+  additional_exclude_cols: []
+
+# Column names
+columns:
+  barcode: "plant_identifier"  # Plant identifier is the barcode
+  genotype: "geno"
+  replicate: "Rep"
+
+# ============================================================================
+# TRAIT-LEVEL QC (Standard Pipeline Steps 1-10)
+# ============================================================================
+
+# Data cleanup thresholds
+cleanup:
+  max_zeros_per_trait: 0.5   # Remove traits with >50% zeros
+  max_nans_per_trait: 0.2    # Remove traits with >20% NaNs
+  max_nan_fraction: 0.0      # Remove samples with ANY NaN values
+  min_samples_per_trait: 10
+
+# Outlier detection (replicate-level)
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+# Outlier removal
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 10
+
+# Heritability filtering
+heritability:
+  enabled: true
+  threshold: 0.5
+  generate_diagnostics: true
+
+# Visualization
+visualization:
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  create_outlier_plots: true
+  interactive: false
+  dpi: 300
+  figsize: [10, 8]
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "field_2024_clean_qc.log"

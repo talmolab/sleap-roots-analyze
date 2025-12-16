@@ -1,7 +1,7 @@
-# Visualization Pipeline Configuration: Turface 19 Genotypes
+# Visualization Pipeline Configuration: Field 2024 Clean (Pre-aggregated)
 #
-# Platform: Turface greenhouse system (19 genotypes panel)
-# Input: Cleaned trait data from QC pipeline (qc_turface_19genotypes)
+# Platform: Field trials with pre-aggregated root + above-ground traits
+# Input: Cleaned trait data from QC pipeline (qc_field_2024_clean)
 #
 # Features:
 # - PCA analysis with top feature identification
@@ -10,19 +10,28 @@
 # - Interesting genotype identification
 # - Trait distributions and correlations
 #
-# Source: QC pipeline output from qc_turface_19genotypes.yaml
+# Notes:
+# - Data was pre-aggregated by data provider (Field_2024_clean.csv)
+# - Includes both root (below-ground) and above-ground traits
+# - Uses same parameters as root coring viz for consistency
+#
+# Source: QC pipeline output from qc_field_2024_clean.yaml
 
 # Pipeline metadata
-pipeline_name: "viz_turface_19genotypes"
+pipeline_name: "viz_field_2024_clean"
 version: "1.0"
 
 # Data configuration
 data:
   # Path to cleaned trait data from QC pipeline
-  csv_path: "qc_runs/turface_19genotypes_qc_20251215_121336/10_final_data.csv"
+  # NOTE: Update this path after running the QC pipeline
+  csv_path: "qc_runs/Field 2024 Clean (Pre-aggregated)_20251215_122042/10_final_data.csv"
 
   # Optional: Directory containing root images for hover visualization
   image_dir: null
+
+  # Exclude additional metadata columns from trait analysis
+  additional_exclude_cols: ["plant_identifier"]
 
 # Column names (post-sanitization from QC pipeline)
 columns:
@@ -37,17 +46,17 @@ statistics:
   calculate_heritability: true
   alpha: 0.05
 
-# PCA configuration
+# PCA configuration (matching field data analysis)
 pca:
-  n_components: 0.95             # Keep components explaining 95% variance
+  n_components: 0.75             # Keep components explaining 75% variance
   standardize: true
-  feature_selection_strategy: "top_variance"
-  n_top_features: 10
+  feature_selection_strategy: "extreme"  # Show extreme loadings
+  n_top_features: 1              # Top features for biplot
 
 # UMAP configuration (disabled by default)
 umap:
   enabled: false
-  n_neighbors: 15
+  n_neighbors: 8
   min_dist: 0.1
   metric: "euclidean"
   random_state: 42
@@ -58,8 +67,8 @@ clustering:
 
 # Heritability filtering (optional - traits already filtered by QC)
 heritability:
-  enabled: false               # Traits already filtered at H² > 0.40 by QC pipeline
-  threshold: 0.40
+  enabled: false               # Traits already filtered by QC pipeline
+  threshold: 0.50              # Matches QC config heritability threshold
 
 # Interesting genotypes identification
 interesting_genotypes:
@@ -68,11 +77,11 @@ interesting_genotypes:
     - pc_extreme               # Extreme in PC space
     - trait_extreme            # Extreme per-trait values
     - heritable_extreme        # Extreme + heritable traits
-  pc_threshold: 2.0            # Z-score threshold for PC extremes
+  pc_threshold: 2.5            # Z-score threshold for PC extremes
   trait_percentile: 95.0       # Percentile for trait extremes
-  min_heritability: 0.40       # Minimum H² for heritable extremes (matching QC threshold)
-  max_genotypes: 5             # Max genotypes per method (smaller panel)
-  generate_image_grids: true   # Create image grids (requires image_dir)
+  min_heritability: 0.50       # Minimum H^2 for heritable extremes
+  max_genotypes: 10            # Max genotypes per method
+  generate_image_grids: false  # No images available
   images_per_genotype: 9       # Images per genotype in grid
 
 # Adaptive figure sizing
@@ -102,13 +111,20 @@ static_viz:
   create_heritability_plots: true
   create_genotype_comparisons: true
 
+  # PCA biplot feature control
+  pca_biplot_top_features: 1  # Show extreme loadings for both PC1 and PC2
+
+  # Genotype highlighting (optional) - set after identifying interesting genotypes
+  genotypes_to_color: null  # Set to list of genotypes to color distinctly
+  highlight_genotypes: null  # Set to list of genotypes to emphasize
+
 # Interactive visualization settings
 interactive_viz:
   enabled: true
   create_pca_plots: true
   create_umap_plots: false
   create_cluster_plots: false
-  show_images_on_hover: true   # Requires image_dir
+  show_images_on_hover: false  # No images available
 
 # Dashboard generation (disabled by default)
 dashboard:
@@ -125,4 +141,4 @@ summary:
 logging:
   level: "INFO"
   log_to_file: true
-  log_file: "viz_pipeline.log"
+  log_file: "viz_field_2024_clean.log"

@@ -20,7 +20,7 @@ version: "1.0"
 # Data configuration
 data:
   # Path to cleaned trait data from QC pipeline
-  csv_path: "C:/repos/sleap-roots-analyze/qc_runs/turface_150genotypes_qc_20251205_113305/10_final_data.csv"
+  csv_path: "qc_runs/turface_150genotypes_qc_20251215_121233/10_final_data.csv"
 
   # Optional: Directory containing root images for hover visualization
   image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/turface_150_genotypes_rhizovision_processed_images"

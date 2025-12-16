@@ -123,9 +123,7 @@ def calculate_correlations(
     # Validate method
     valid_methods = ["spearman", "pearson", "kendall"]
     if method not in valid_methods:
-        raise ValueError(
-            f"method must be one of {valid_methods}, got '{method}'"
-        )
+        raise ValueError(f"method must be one of {valid_methods}, got '{method}'")
 
     # Validate input lengths
     if len(x) != len(y):
@@ -242,11 +240,7 @@ def create_correlation_summary_plot(
     # Panel 2: Volcano plot
     ax = axes[0, 1]
     colors = [
-        "red"
-        if p < 0.01
-        else "orange"
-        if p < 0.05
-        else "gray"
+        "red" if p < 0.01 else "orange" if p < 0.05 else "gray"
         for p in correlation_df[pvalue_col]
     ]
     ax.scatter(
@@ -259,9 +253,7 @@ def create_correlation_summary_plot(
     ax.axhline(
         -np.log10(0.05), color="orange", linestyle="--", alpha=0.5, label="p=0.05"
     )
-    ax.axhline(
-        -np.log10(0.01), color="red", linestyle="--", alpha=0.5, label="p=0.01"
-    )
+    ax.axhline(-np.log10(0.01), color="red", linestyle="--", alpha=0.5, label="p=0.01")
     ax.axvline(0, color="black", linestyle="-", alpha=0.3)
     ax.set_xlabel("Correlation Coefficient")
     ax.set_ylabel("-log10(p-value)")

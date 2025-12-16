@@ -101,9 +101,7 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 y = exp2_means[trait2].values
 
                 # Calculate correlation
-                r, p = calculate_correlations(
-                    x, y, method=config.correlation_method
-                )
+                r, p = calculate_correlations(x, y, method=config.correlation_method)
 
                 # Count valid genotypes (non-NaN in both traits)
                 valid_mask = ~(np.isnan(x) | np.isnan(y))

@@ -33,7 +33,7 @@ version: "1.0"
 # Data configuration
 data:
   # Path to cleaned trait data from QC pipeline
-  csv_path: "qc_runs/cylinder_edpie_qc_20251204_120618/10_final_data.csv"
+  csv_path: "qc_runs/cylinder_edpie_qc_20251215_121413/10_final_data.csv"
 
   # Optional: Directory containing root images for hover visualization
   image_dir: null

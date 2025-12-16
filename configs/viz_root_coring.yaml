@@ -25,7 +25,7 @@ version: "1.0"
 # Data configuration
 data:
   # Path to cleaned trait data from QC pipeline
-  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/20251205_wheat_edpie/field/EDPIE Root Core Full QC_20251205_135133/10_final_data.csv"
+  csv_path: "qc_runs/EDPIE Root Core Full QC_20251215_121943/10_final_data.csv"
 
   # Optional: Directory containing root images for hover visualization
   image_dir: null

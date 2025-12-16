@@ -237,6 +237,9 @@ test_run_*/
 biomass_correlation_analysis/
 cross_platform_runs/
 
+# Pipeline run outputs (timestamped runs from run-all command)
+pipeline_runs/
+
 # User-specific scripts and analysis
 scripts/
 

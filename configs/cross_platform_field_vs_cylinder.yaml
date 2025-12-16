@@ -1,0 +1,47 @@
+# Cross-Platform Analysis Configuration
+# Comparing Field 2024 Clean vs Cylinder (SLEAP Roots)
+# Updated: 2025-12-15
+# Purpose: Correlate field root counts with greenhouse SLEAP Roots traits
+#          to identify lab-measurable predictors of field root architecture
+
+# Experiment 1: Field 2024 Clean (Pre-aggregated field data)
+# Note: Using clean data because core-level data is aggregated per plot
+#       and cores are not independent within plots
+exp1_data_path: "qc_runs/Field 2024 Clean (Pre-aggregated)_20251215_122042/10_final_data.csv"
+exp1_name: "Field 2024 Clean"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Cylinder (SLEAP Roots imaging)
+exp2_data_path: "qc_runs/cylinder_edpie_qc_20251215_121413/10_final_data.csv"
+exp2_name: "Cylinder EDPIE"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman for robustness
+min_samples_per_genotype: 2     # Lower threshold for field data
+significance_level: 0.05        # Standard p-value threshold
+
+# Visualization Parameters
+top_n_correlations: 50          # More correlations (high-dimensional cylinder data)
+top_n_joint_plots: 15           # Joint plots for top correlations
+top_n_boxplots: 15              # Boxplots for top comparisons
+figsize_summary: [18, 16]       # Larger summary plot
+figsize_joint: [10, 10]         # Joint plot figure size
+figsize_boxplot: [16, 6]        # Boxplot figure size
+
+# Analysis Notes:
+# - 20 genotypes from Field, 19 genotypes from Cylinder
+# - Overlapping genotypes to be determined at runtime
+# - Dataset 1 (Field): 57 samples, 20 genotypes, 23 traits (H² >= 0.5)
+#   * Root counting: C 0 10, C 0 30, C 30 60, C 50 60 2 (aggregated depths)
+#   * Above-ground phenology and yield traits
+# - Dataset 2 (Cylinder): 123 samples, 19 genotypes, 588 traits (H² >= 0.6)
+#   * SLEAP Roots depth-profiled traits at 11 DAG
+#   * Seminal root angles, lengths, counts
+#   * Network and spatial distribution metrics
+# - Expected output: 23 x 588 = 13,524 total trait pair correlations
+# - Key questions:
+#   * Do cylinder seminal root angles predict field root distribution?
+#   * Which SLEAP traits correlate with field root counts at specific depths?
+#   * Can greenhouse depth profiles predict field depth profiles?
+# - Important for identifying SLEAP Roots traits predictive of field performance

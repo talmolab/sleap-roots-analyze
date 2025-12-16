@@ -94,8 +94,8 @@ def sample_trait_data():
     return pd.DataFrame(
         {
             "Barcode": [f"sample_{i}" for i in range(n_samples)],
-            "geno": [f"geno_{i%n_genotypes}" for i in range(n_samples)],
-            "rep": [i % 3 + 1 for i in range(n_samples)],
+            "Genotype": [f"geno_{i%n_genotypes}" for i in range(n_samples)],
+            "Replicate": [i % 3 + 1 for i in range(n_samples)],
             "trait1": np.random.randn(n_samples) * 10 + 50,
             "trait2": np.random.randn(n_samples) * 5 + 20,
             "trait3": np.random.randn(n_samples) * 2 + 100,
@@ -252,7 +252,7 @@ def prev_result_with_pca(sample_trait_data, mock_pca_results):
             "trait_names": trait_cols,
             "valid_trait_names": trait_cols,
             "trait_cols": trait_cols,
-            "metadata_cols": ["Barcode", "geno", "rep"],
+            "metadata_cols": ["Barcode", "Genotype", "Replicate"],
             "pca_results": mock_pca_results,
         },
     )
@@ -286,7 +286,7 @@ def prev_result_with_all_viz_data(
             "trait_names": trait_cols,
             "valid_trait_names": trait_cols,
             "trait_cols": trait_cols,
-            "metadata_cols": ["Barcode", "geno", "rep"],
+            "metadata_cols": ["Barcode", "Genotype", "Replicate"],
             "pca_results": mock_pca_results,
             "heritability_results": mock_heritability_results,
             "umap_results": mock_umap_results,

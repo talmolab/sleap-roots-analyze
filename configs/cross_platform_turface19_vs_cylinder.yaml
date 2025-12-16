@@ -1,16 +1,16 @@
 # Cross-Platform Analysis Configuration
 # Comparing Turface 19 Genotypes (RhizoVision) vs Cylinder (SLEAP Roots)
-# Generated: 2025-12-05
+# Updated: 2025-12-15
 # Purpose: Identify which traits from different imaging platforms
 #          capture similar genetic variation patterns
 
 # Experiment 1: Turface 19 Genotypes (RhizoVision imaging)
-exp1_data_path: "C:/Users/Elizabeth/Desktop/phenotyping/20251205_wheat_edpie/turface_19_genotypes/turface_19genotypes_qc_20251205_131123/10_final_data.csv"
+exp1_data_path: "qc_runs/turface_19genotypes_qc_20251215_121336/10_final_data.csv"
 exp1_name: "Turface 19 Genotypes"
 exp1_genotype_col: "Genotype"
 
 # Experiment 2: Cylinder (SLEAP Roots imaging)
-exp2_data_path: "C:/Users/Elizabeth/Desktop/phenotyping/20251205_wheat_edpie/cylinder/cylinder_edpie_qc_20251205_131506/10_final_data.csv"
+exp2_data_path: "qc_runs/cylinder_edpie_qc_20251215_121413/10_final_data.csv"
 exp2_name: "Cylinder EDPIE"
 exp2_genotype_col: "Genotype"
 
@@ -29,13 +29,13 @@ figsize_boxplot: [16, 6]        # Boxplot figure size
 
 # Analysis Notes:
 # - 19 genotypes present in both experiments
-# - Dataset 1 (Turface): 153 samples, 19 genotypes, 15 traits (H² ≥ 0.6)
+# - Different developmental stages: Turface (washed roots) vs Cylinder (11 DAG seedlings)
+# - Dataset 1 (Turface): 153 samples, 19 genotypes, 8 traits (H² ≥ 0.6)
 #   * RhizoVision measurements at single timepoint
 #   * Morphological traits: Network Area, Surface Area, Volume, etc.
-# - Dataset 2 (Cylinder): 123 samples, 19 genotypes, 649 traits (H² ≥ 0.6)
-#   * SLEAP Roots measurements at single timepoint
+# - Dataset 2 (Cylinder): 123 samples, 19 genotypes, 588 traits (H² ≥ 0.6)
+#   * SLEAP Roots measurements at 11 DAG
 #   * Rich spatial trait data across different root zones
-# - Expected output: 15 × 649 = 9,735 total trait pair correlations
-# - Goal: Discover which traits from different platforms correlate
-# - Different imaging platforms and trait extraction methods
-# - Enables validation of SLEAP Roots measurements against RhizoVision
+# - Expected output: 8 × 588 = 4,704 total trait pair correlations
+# - Goal: Discover which traits from different platforms and stages correlate
+# - Key question: Do early seedling traits predict mature root architecture?
