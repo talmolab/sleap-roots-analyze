@@ -1,9 +1,6 @@
-# Visualization Pipeline
+# Visualization Pipeline - Genotype Highlighting
 
-## Purpose
-Provides configurable static and interactive visualization generation for trait analysis data, including PCA plots, UMAP visualizations, trait distributions, and genotype comparisons.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Genotype Highlighting Configuration
 The `StaticVisualizationConfig` dataclass SHALL provide optional `genotypes_to_color` and `highlight_genotypes` parameters to enable selective genotype highlighting in PCA plots.
