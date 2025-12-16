@@ -51,6 +51,7 @@ class PipelineSummary:
         config: Configuration used for this run.
         environment: Environment information (git commit, package versions, etc.).
         output_directory: Directory where outputs were saved.
+        data_source: Input data path(s) used for this run.
     """
 
     pipeline_name: str
@@ -63,6 +64,7 @@ class PipelineSummary:
     config: Dict[str, Any] = field(default_factory=dict)
     environment: Dict[str, Any] = field(default_factory=dict)
     output_directory: str = ""
+    data_source: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert summary to dictionary.

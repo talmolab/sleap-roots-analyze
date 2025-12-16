@@ -6,11 +6,14 @@ for running analysis pipelines.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
+
+from omegaconf import DictConfig, OmegaConf
 
 from sleap_roots_analyze.pipeline.dag import DAGExecutor
 from sleap_roots_analyze.pipeline.summary import PipelineSummary, StepSummary
@@ -120,6 +123,101 @@ class BasePipeline(ABC):
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
 
+    def _config_to_dict(self) -> Dict[str, Any]:
+        """Convert config to a JSON-serializable dictionary.
+
+        Handles various config types: dict, dataclass, OmegaConf DictConfig.
+
+        Returns:
+            Dictionary representation of the config.
+        """
+        config = self.config
+
+        # Handle OmegaConf DictConfig
+        if isinstance(config, DictConfig):
+            return OmegaConf.to_container(config, resolve=True)
+
+        # Handle dataclass
+        if dataclasses.is_dataclass(config) and not isinstance(config, type):
+            return self._dataclass_to_dict(config)
+
+        # Handle plain dict
+        if isinstance(config, dict):
+            return self._serialize_dict(config)
+
+        # Try to convert using OmegaConf (works for structured configs)
+        try:
+            omega_conf = OmegaConf.structured(config)
+            return OmegaConf.to_container(omega_conf, resolve=True)
+        except Exception:
+            # Last resort: try to get __dict__
+            if hasattr(config, "__dict__"):
+                return self._serialize_dict(vars(config))
+            return {"_config_type": str(type(config))}
+
+    def _dataclass_to_dict(self, obj: Any) -> Dict[str, Any]:
+        """Recursively convert a dataclass to a dict with Path serialization.
+
+        Args:
+            obj: Dataclass object to convert.
+
+        Returns:
+            Dictionary with all values serialized.
+        """
+        result = {}
+        for field in dataclasses.fields(obj):
+            value = getattr(obj, field.name)
+            result[field.name] = self._serialize_value(value)
+        return result
+
+    def _serialize_dict(self, d: Dict[str, Any]) -> Dict[str, Any]:
+        """Serialize a dictionary, converting Path objects to strings.
+
+        Args:
+            d: Dictionary to serialize.
+
+        Returns:
+            Serialized dictionary.
+        """
+        return {k: self._serialize_value(v) for k, v in d.items()}
+
+    def _serialize_value(self, value: Any) -> Any:
+        """Serialize a single value, handling Path and nested structures.
+
+        Args:
+            value: Value to serialize.
+
+        Returns:
+            Serialized value.
+        """
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, dict):
+            return self._serialize_dict(value)
+        if isinstance(value, (list, tuple)):
+            return [self._serialize_value(v) for v in value]
+        if dataclasses.is_dataclass(value) and not isinstance(value, type):
+            return self._dataclass_to_dict(value)
+        return value
+
+    def _save_config(self) -> Path:
+        """Save the resolved configuration to the run directory.
+
+        Saves the config as config.yaml in the run directory for reproducibility.
+
+        Returns:
+            Path to the saved config file.
+        """
+        config_path = self.run_dir / "config.yaml"
+
+        # Convert config to OmegaConf for saving
+        config_dict = self._config_to_dict()
+        omega_conf = OmegaConf.create(config_dict)
+        OmegaConf.save(omega_conf, config_path)
+
+        self.logger.info(f"Config saved to {config_path}")
+        return config_path
+
     @abstractmethod
     def create_tasks(self) -> List[Task]:
         """Create and return the list of tasks for this pipeline.
@@ -144,6 +242,12 @@ class BasePipeline(ABC):
         """
         self.logger.info(f"Starting pipeline: {self.pipeline_name}")
         self.summary.start_time = datetime.now().isoformat()
+
+        # Save config for provenance (do this early so it's saved even on failure)
+        self._save_config()
+
+        # Populate summary.config for JSON summary
+        self.summary.config = self._config_to_dict()
 
         try:
             # Create tasks
