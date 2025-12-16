@@ -7,7 +7,7 @@
 # Steps: Core-level QC → Aggregate → Merge → Trait-level QC → Final CSV
 
 # Pipeline metadata
-pipeline_name: "EDPIE Root Core Full QC"
+pipeline_name: "edpie_root_core_qc"
 version: "1.0"
 
 # ============================================================================

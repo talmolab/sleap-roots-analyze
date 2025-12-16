@@ -8,7 +8,7 @@
 # Steps: Load → Cleanup → Outlier Detection → Heritability → Final CSV
 
 # Pipeline metadata
-pipeline_name: "Field 2024 Clean (Pre-aggregated)"
+pipeline_name: "field_2024_clean_qc"
 version: "1.0"
 
 # ============================================================================
