@@ -76,6 +76,7 @@ The system SHALL generate a comprehensive markdown summary document after each r
 - **AND** the summary SHALL include generation timestamp
 - **AND** the summary SHALL include git commit hash
 - **AND** the summary SHALL include manifest file reference
+- **AND** the file SHALL be written with UTF-8 encoding to properly display Unicode characters (H², mm², etc.)
 
 #### Scenario: QC results in summary
 
@@ -83,6 +84,7 @@ The system SHALL generate a comprehensive markdown summary document after each r
 - **THEN** the summary SHALL include a table with columns: Dataset, Samples, Traits, Genotypes, H² Threshold, Mean H², Status, Run Path
 - **AND** for each QC run, the summary SHALL read `10_pipeline_summary.json` to extract scientific metrics
 - **AND** the summary SHALL include a "Removed Traits" subsection listing traits filtered by heritability threshold for each dataset
+- **AND** each removed trait SHALL display its heritability value in parentheses (e.g., "Depth (mm) (H²=0.32)")
 
 #### Scenario: QC results with failed pipeline
 
@@ -95,7 +97,8 @@ The system SHALL generate a comprehensive markdown summary document after each r
 
 - **WHEN** Viz pipelines complete
 - **THEN** the summary SHALL include a table with columns: Dataset, Figures Generated, Interactive Plots, Status, Time, Run Path
-- **AND** the summary SHALL extract figure counts from the output directory
+- **AND** the summary SHALL count static figures from the `static_figures/` directory
+- **AND** the summary SHALL count interactive plots from the `pca/` and `umap/` directories
 
 #### Scenario: Cross-Platform results in summary
 
@@ -103,6 +106,7 @@ The system SHALL generate a comprehensive markdown summary document after each r
 - **THEN** the summary SHALL include a table with columns: Comparison, Common Genotypes, Exp1 Samples, Exp1 Traits, Exp2 Samples, Exp2 Traits, Top Correlation, Status, Run Path
 - **AND** the summary SHALL read `cross_platform_alignment_summary.csv` or `pipeline_summary.json` to extract alignment metrics
 - **AND** the summary SHALL read `cross_platform_correlations.csv` to extract the top correlation value
+- **AND** the CSV parser SHALL use the actual column names: `genotype`, `exp1_sample_count`, `exp2_sample_count`
 
 #### Scenario: Cross-Platform results with missing data
 
@@ -116,7 +120,22 @@ The system SHALL generate a comprehensive markdown summary document after each r
 - **THEN** the summary SHALL include a "## Methods" section with publication-ready template text
 - **AND** the template SHALL describe the QC pipeline methodology (cleanup, outlier detection, heritability filtering)
 - **AND** the template SHALL describe the Viz pipeline methodology (statistical analysis, visualization generation)
-- **AND** the template SHALL include placeholders for dataset-specific values (e.g., `{n_samples}`, `{n_traits}`)
+- **AND** all placeholders SHALL be replaced with actual config values (e.g., `{h2_threshold}` becomes "0.4")
+- **AND** if configs differ across datasets, the Methods section SHALL note "varied by dataset" with a footnote
+
+#### Scenario: Summary statistics figure generated
+
+- **WHEN** QC pipelines complete with at least 2 datasets
+- **THEN** the summary directory SHALL contain a `summary_statistics.png` bar chart
+- **AND** the chart SHALL show sample count, trait count, and genotype count per dataset
+- **AND** the chart SHALL use a grouped bar layout for easy comparison
+
+#### Scenario: Heritability distribution figure generated
+
+- **WHEN** QC pipelines complete with heritability filtering enabled
+- **THEN** the summary directory SHALL contain a `heritability_distribution.png` visualization
+- **AND** the visualization SHALL show H² distributions for retained vs. removed traits
+- **AND** the visualization SHALL include the threshold line
 
 ### Requirement: CLI Command Interface
 The system SHALL provide a CLI command `sleap-roots-analyze run-all` for executing the pipeline runner.

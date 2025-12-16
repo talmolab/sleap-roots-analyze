@@ -79,11 +79,11 @@ class BasePipeline(ABC):
         self.pipeline_name = pipeline_name
         self.version = version
 
-        # Set up logging
-        self.logger = self._setup_logger()
-
-        # Create run directory with timestamp
+        # Create run directory first (needed for file logging)
         self.run_dir = self._create_run_directory()
+
+        # Set up logging (after run_dir exists for file handler)
+        self.logger = self._setup_logger()
 
         # Initialize summary
         self.summary = PipelineSummary(
@@ -95,20 +95,38 @@ class BasePipeline(ABC):
     def _setup_logger(self) -> logging.Logger:
         """Set up logger for the pipeline.
 
+        Creates both a StreamHandler for console output and a FileHandler
+        for per-run logging to {run_dir}/pipeline.log.
+
         Returns:
             Configured logger instance.
         """
         logger = logging.getLogger(f"{self.pipeline_name}")
         logger.setLevel(logging.INFO)
 
-        # Only add handler if logger doesn't already have one
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+
+        # Add StreamHandler for console output if not already present
+        has_stream_handler = any(
+            isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+            for h in logger.handlers
+        )
+        if not has_stream_handler:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(formatter)
+            logger.addHandler(stream_handler)
+
+        # Add FileHandler for per-run log file
+        # Each run gets its own log file in run_dir
+        log_file_path = self.run_dir / "pipeline.log"
+        file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        # Store reference to close handler later if needed
+        self._file_handler = file_handler
 
         return logger
 
@@ -292,6 +310,9 @@ class BasePipeline(ABC):
             self.summary.save(summary_path)
             self.logger.info(f"Summary saved to {summary_path}")
 
+            # Close file handler to release file lock
+            self._close_file_handler()
+
             return results
 
         except Exception as e:
@@ -302,7 +323,21 @@ class BasePipeline(ABC):
             summary_path = self.run_dir / "pipeline_summary.json"
             self.summary.save(summary_path)
 
+            # Close file handler to release file lock
+            self._close_file_handler()
+
             raise
+
+    def _close_file_handler(self) -> None:
+        """Close the per-run file handler to release file lock.
+
+        This is called after pipeline completion to allow file cleanup
+        (especially important on Windows where open files can't be deleted).
+        """
+        if hasattr(self, "_file_handler") and self._file_handler:
+            self._file_handler.close()
+            self.logger.removeHandler(self._file_handler)
+            self._file_handler = None
 
     def get_summary(self) -> PipelineSummary:
         """Get the current pipeline summary.

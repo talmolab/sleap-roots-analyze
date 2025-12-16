@@ -156,6 +156,32 @@ def create_code_archive(output_path: str | Path) -> Path:
     return output_path
 
 
+def _get_dependency_versions() -> Dict[str, str]:
+    """Get versions of key scientific dependencies.
+
+    Returns:
+        Dictionary mapping package names to version strings.
+        Packages that are not installed return "not installed".
+    """
+    key_packages = [
+        "pandas",
+        "numpy",
+        "scipy",
+        "scikit-learn",
+        "matplotlib",
+        "seaborn",
+        "statsmodels",
+        "umap-learn",
+    ]
+
+    versions = {}
+    for pkg in key_packages:
+        version = get_package_version(pkg)
+        versions[pkg] = version if version else "not installed"
+
+    return versions
+
+
 def get_code_snapshot(
     run_dir: Path, create_archive_if_dirty: bool = True
 ) -> Dict[str, any]:
@@ -165,6 +191,7 @@ def get_code_snapshot(
     1. Try to get git information
     2. If git is dirty or unavailable, optionally create code archive
     3. Always capture package version and Python version
+    4. Capture versions of key scientific dependencies
 
     Args:
         run_dir: Directory to save code archive if needed.
@@ -179,6 +206,7 @@ def get_code_snapshot(
             - git_is_dirty: Whether there are uncommitted changes
             - code_archive: Path to code archive (if created)
             - python_version: Python version string
+            - dependencies: Dictionary of key package versions
 
     Example:
         >>> snapshot = get_code_snapshot(Path("./run_20241021"))
@@ -189,7 +217,8 @@ def get_code_snapshot(
         >>> #     'git_remote': 'https://github.com/...',
         >>> #     'git_is_dirty': False,
         >>> #     'code_archive': None,
-        >>> #     'python_version': '3.11.0 ...'
+        >>> #     'python_version': '3.11.0 ...',
+        >>> #     'dependencies': {'pandas': '2.0.0', 'numpy': '1.24.0', ...}
         >>> # }
     """
     import sys
@@ -202,6 +231,7 @@ def get_code_snapshot(
         "git_remote": get_git_remote_url(),
         "git_is_dirty": is_git_dirty(),
         "code_archive": None,
+        "dependencies": _get_dependency_versions(),
     }
 
     # Create archive if git is dirty or unavailable

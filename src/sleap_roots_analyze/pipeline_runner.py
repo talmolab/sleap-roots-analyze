@@ -513,6 +513,7 @@ class PipelineRunner:
 
         Reads pipeline summary JSON from each run to extract sample counts,
         trait counts, genotype counts, heritability threshold, and mean H².
+        Also reads heritability CSV to get H² values for removed traits.
         """
         lines = [
             "## QC Pipeline Results",
@@ -536,6 +537,7 @@ class PipelineRunner:
             mean_h2 = "N/A"
 
             if result.get("success") and output != "N/A":
+                output_path = Path(output)
                 # Read pipeline summary for metrics
                 summary = self._read_pipeline_summary(output)
 
@@ -559,10 +561,19 @@ class PipelineRunner:
                         if mean_val is not None:
                             mean_h2 = f"{mean_val:.2f}"
 
-                        # Collect removed traits for later section
+                        # Collect removed traits with their H² values
                         removed_names = h2_filter.get("removed_trait_names", [])
                         if removed_names:
-                            removed_traits_data.append((config, removed_names))
+                            # Try to read heritability values from CSV
+                            h2_values = self._read_heritability_values(output_path)
+                            removed_with_h2 = []
+                            for trait in removed_names:
+                                h2_val = h2_values.get(trait)
+                                if h2_val is not None:
+                                    removed_with_h2.append((trait, h2_val))
+                                else:
+                                    removed_with_h2.append((trait, None))
+                            removed_traits_data.append((config, removed_with_h2))
                     else:
                         h2_threshold = "Disabled"
                         mean_h2 = "N/A"
@@ -580,12 +591,12 @@ class PipelineRunner:
         return lines
 
     def _format_removed_traits_section(
-        self, removed_traits_data: list[tuple[str, list[str]]]
+        self, removed_traits_data: list[tuple[str, list[tuple[str, float | None]]]]
     ) -> list[str]:
-        """Format the removed traits subsection.
+        """Format the removed traits subsection with heritability values.
 
         Args:
-            removed_traits_data: List of (config_name, removed_trait_names) tuples
+            removed_traits_data: List of (config_name, [(trait_name, h2_value), ...]) tuples
 
         Returns:
             List of markdown lines
@@ -597,11 +608,14 @@ class PipelineRunner:
             lines.extend(["", ""])
             return lines
 
-        for config, removed_names in removed_traits_data:
-            if removed_names:
-                lines.append(f"**{config}** ({len(removed_names)} traits removed):")
-                for trait in removed_names:
-                    lines.append(f"- {trait}")
+        for config, removed_traits in removed_traits_data:
+            if removed_traits:
+                lines.append(f"**{config}** ({len(removed_traits)} traits removed):")
+                for trait, h2_val in removed_traits:
+                    if h2_val is not None:
+                        lines.append(f"- {trait} (H²={h2_val:.2f})")
+                    else:
+                        lines.append(f"- {trait}")
                 lines.append("")
             else:
                 lines.append(f"**{config}**: No traits removed")
@@ -776,6 +790,58 @@ class PipelineRunner:
         return {}
 
     @staticmethod
+    def _read_heritability_values(run_dir: Path) -> dict[str, float]:
+        """Read heritability values from the heritability results CSV.
+
+        Args:
+            run_dir: Path to the pipeline run directory
+
+        Returns:
+            Dictionary mapping trait names to their H² values
+        """
+        h2_values: dict[str, float] = {}
+
+        # Try different possible heritability CSV locations
+        h2_paths = [
+            run_dir / "08_heritability_results.csv",
+            run_dir / "09_heritability_full.csv",
+            run_dir / "heritability_results.csv",
+        ]
+
+        for h2_path in h2_paths:
+            if h2_path.exists():
+                try:
+                    import pandas as pd
+
+                    h2_df = pd.read_csv(h2_path)
+                    # Handle different column naming conventions
+                    trait_col = None
+                    h2_col = None
+
+                    for col in ["trait", "Trait", "trait_name"]:
+                        if col in h2_df.columns:
+                            trait_col = col
+                            break
+
+                    for col in ["heritability", "Heritability", "H2", "h2"]:
+                        if col in h2_df.columns:
+                            h2_col = col
+                            break
+
+                    if trait_col and h2_col:
+                        for _, row in h2_df.iterrows():
+                            trait = row[trait_col]
+                            h2_val = row[h2_col]
+                            if pd.notna(h2_val):
+                                h2_values[trait] = float(h2_val)
+                        break  # Found valid CSV, stop searching
+
+                except Exception:
+                    pass
+
+        return h2_values
+
+    @staticmethod
     def _count_files(directory: Path, pattern: str) -> int:
         """Count files matching a pattern in a directory.
 
@@ -813,9 +879,27 @@ class PipelineRunner:
     def _format_methods_section(self) -> list[str]:
         """Generate publication-ready methods section template.
 
+        Extracts actual config values from QC runs to fill in placeholders.
+
         Returns:
             List of markdown lines for methods section
         """
+        # Collect config values from QC runs
+        config_values = self._collect_qc_config_values()
+
+        # Format values, handling cases where configs differ
+        max_nan = self._format_config_value(config_values.get("max_nan_fraction", []))
+        max_zeros = self._format_config_value(
+            config_values.get("max_zeros_per_trait", [])
+        )
+        max_nans = self._format_config_value(
+            config_values.get("max_nans_per_trait", [])
+        )
+        h2_threshold = self._format_config_value(config_values.get("h2_threshold", []))
+        chi2_percentile = self._format_config_value(
+            config_values.get("chi2_percentile", []), default="97.5"
+        )
+
         lines = [
             "## Methods",
             "",
@@ -824,16 +908,16 @@ class PipelineRunner:
             "Phenotypic trait data underwent quality control using the sleap-roots-analyze "
             "pipeline. The QC process included:",
             "",
-            "1. **Data Cleanup**: Samples with excessive missing values (>{max_nan_fraction}% NaN) "
-            "were removed. Traits with high zero frequency (>{max_zeros_per_trait}%) or "
-            "excessive missing data (>{max_nans_per_trait}%) were excluded.",
+            f"1. **Data Cleanup**: Samples with excessive missing values (>{max_nan}% NaN) "
+            f"were removed. Traits with high zero frequency (>{max_zeros}%) or "
+            f"excessive missing data (>{max_nans}%) were excluded.",
             "",
-            "2. **Outlier Detection**: Multivariate outliers were identified using Mahalanobis "
-            "distance on PCA-transformed data, with outliers defined as samples exceeding "
-            "the {chi2_percentile}th percentile of the chi-squared distribution.",
+            f"2. **Outlier Detection**: Multivariate outliers were identified using Mahalanobis "
+            f"distance on PCA-transformed data, with outliers defined as samples exceeding "
+            f"the {chi2_percentile}th percentile of the chi-squared distribution.",
             "",
-            "3. **Heritability Filtering**: Broad-sense heritability (H²) was calculated for each "
-            "trait using mixed-effects models. Traits with H² < {h2_threshold} were excluded "
+            f"3. **Heritability Filtering**: Broad-sense heritability (H²) was calculated for each "
+            f"trait using mixed-effects models. Traits with H² < {h2_threshold} were excluded "
             "from downstream analysis to focus on genetically heritable phenotypes.",
             "",
             "### Visualization",
@@ -850,11 +934,83 @@ class PipelineRunner:
             "",
             "---",
             "",
-            "*Note: Replace placeholder values (e.g., {h2_threshold}) with actual values from "
-            "your analysis configuration.*",
-            "",
         ]
         return lines
+
+    def _collect_qc_config_values(self) -> dict[str, list[Any]]:
+        """Collect config values from all QC run summaries.
+
+        Returns:
+            Dictionary mapping config keys to lists of values from each run
+        """
+        values: dict[str, list[Any]] = {
+            "max_nan_fraction": [],
+            "max_zeros_per_trait": [],
+            "max_nans_per_trait": [],
+            "h2_threshold": [],
+            "chi2_percentile": [],
+        }
+
+        for _config, result in self.run_results.get("qc", {}).items():
+            if not result.get("success"):
+                continue
+            output = result.get("output_path")
+            if not output:
+                continue
+
+            summary = self._read_pipeline_summary(output)
+            config_data = summary.get("configuration", {})
+
+            # Extract cleanup config
+            cleanup = config_data.get("cleanup", {})
+            if "max_nan_fraction" in cleanup:
+                values["max_nan_fraction"].append(cleanup["max_nan_fraction"])
+            if "max_zeros_per_trait" in cleanup:
+                values["max_zeros_per_trait"].append(cleanup["max_zeros_per_trait"])
+            if "max_nans_per_trait" in cleanup:
+                values["max_nans_per_trait"].append(cleanup["max_nans_per_trait"])
+
+            # Extract heritability config
+            h2_config = config_data.get("heritability", {})
+            if h2_config.get("enabled", True) and "threshold" in h2_config:
+                values["h2_threshold"].append(h2_config["threshold"])
+
+            # Extract outlier detection chi2 percentile if available
+            outlier_config = config_data.get("outlier_detection", {})
+            if "chi2_percentile" in outlier_config:
+                values["chi2_percentile"].append(outlier_config["chi2_percentile"])
+
+        return values
+
+    def _format_config_value(self, values: list[Any], default: str = "N/A") -> str:
+        """Format config values, handling multiple different values.
+
+        Args:
+            values: List of values from different configs
+            default: Default value if list is empty
+
+        Returns:
+            Formatted string - single value if all same, or "varied" notation
+        """
+        if not values:
+            return default
+
+        # Convert to strings and get unique values
+        str_values = [str(v) for v in values]
+        unique = set(str_values)
+
+        if len(unique) == 1:
+            # All values are the same
+            val = values[0]
+            if isinstance(val, float):
+                # Format percentage values nicely
+                if val < 1:
+                    return f"{val * 100:.0f}"
+                return f"{val:.2f}".rstrip("0").rstrip(".")
+            return str(val)
+        else:
+            # Values differ across configs
+            return f"varied ({', '.join(sorted(unique))})"
 
 
 def run_all_pipelines(

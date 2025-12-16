@@ -6,6 +6,7 @@ analysis steps in a NetworkX-based DAG for reproducible, automated cross-experim
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, List
 
@@ -47,11 +48,38 @@ class CrossPlatformPipeline(BasePipeline):
             config: CrossPlatformConfig with experiment paths and analysis parameters
             output_dir: Base directory for output (default: "./cross_platform_runs")
         """
+        # Sanitize experiment names for safe folder naming
+        exp1_safe = self._sanitize_folder_name(config.exp1_name)
+        exp2_safe = self._sanitize_folder_name(config.exp2_name)
+
         super().__init__(
             config=config,
             output_dir=Path(output_dir),
-            pipeline_name=f"cross_platform_{config.exp1_name}_vs_{config.exp2_name}",
+            pipeline_name=f"cross_platform_{exp1_safe}_vs_{exp2_safe}",
         )
+
+    @staticmethod
+    def _sanitize_folder_name(name: str) -> str:
+        """Sanitize a name for safe use in folder paths.
+
+        Replaces spaces with underscores and removes special characters that
+        may cause issues on Windows, macOS, or Linux filesystems.
+
+        Args:
+            name: The name to sanitize
+
+        Returns:
+            Sanitized name safe for folder paths
+        """
+        # Replace spaces with underscores
+        sanitized = name.replace(" ", "_")
+        # Remove parentheses and their contents (e.g., "(QC'd)" -> "")
+        sanitized = re.sub(r"\s*\([^)]*\)", "", sanitized)
+        # Remove any remaining special characters (keep alphanumeric, underscore, hyphen)
+        sanitized = re.sub(r"[^\w\-]", "", sanitized)
+        # Remove any trailing underscores
+        sanitized = sanitized.rstrip("_")
+        return sanitized
 
     def create_tasks(self) -> List[Task]:
         """Create the cross-platform analysis task graph with 3 steps.
