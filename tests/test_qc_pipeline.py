@@ -220,9 +220,9 @@ class TestQCPipelineIntegration:
         - After heritability filtering (H²≥0.62): 12 traits (23 removed)
         """
         # Use test data path
-        assert turface_rsr_csv_path.exists(), (
-            f"Test data not found: {turface_rsr_csv_path}"
-        )
+        assert (
+            turface_rsr_csv_path.exists()
+        ), f"Test data not found: {turface_rsr_csv_path}"
 
         # Load qc_mahalanobis preset and configure for Turface data
         config = get_default_qc_config()
@@ -297,9 +297,9 @@ class TestQCPipelineIntegration:
         # Step 1: Load Data
         load_result = results["01_load_data"].data
         df_loaded = load_result.data
-        assert len(df_loaded) == 187, (
-            f"Expected 187 samples loaded, got {len(df_loaded)}"
-        )
+        assert (
+            len(df_loaded) == 187
+        ), f"Expected 187 samples loaded, got {len(df_loaded)}"
         assert len(load_result.metadata["trait_names"]) == 35, f"Expected 35 traits"
         print(
             f"OK Step 1: Loaded {len(df_loaded)} samples, {len(load_result.metadata['trait_names'])} traits"
@@ -309,12 +309,12 @@ class TestQCPipelineIntegration:
         cleanup_result = results["02_cleanup_traits"].data
         df_cleaned = cleanup_result.data
         # Notebook: 158 samples after NaN removal (MAX_NAN_FRACTION=0.0 removes 29 samples)
-        assert len(df_cleaned) == 158, (
-            f"Expected 158 samples after cleanup, got {len(df_cleaned)}"
-        )
-        assert len(cleanup_result.metadata["trait_names"]) == 35, (
-            f"Expected 35 traits retained"
-        )
+        assert (
+            len(df_cleaned) == 158
+        ), f"Expected 158 samples after cleanup, got {len(df_cleaned)}"
+        assert (
+            len(cleanup_result.metadata["trait_names"]) == 35
+        ), f"Expected 35 traits retained"
         print(f"OK Step 2: {len(df_cleaned)} samples after NaN removal (29 removed)")
 
         # Step 3: Validate Clean
@@ -360,17 +360,17 @@ class TestQCPipelineIntegration:
         assert "mahalanobis" in outlier_results, "Mahalanobis results missing"
         mahal_outliers = outlier_results["mahalanobis"]["outlier_indices"]
         # Notebook: 6 outliers detected by Mahalanobis
-        assert len(mahal_outliers) == 6, (
-            f"Expected 6 Mahalanobis outliers, got {len(mahal_outliers)}"
-        )
+        assert (
+            len(mahal_outliers) == 6
+        ), f"Expected 6 Mahalanobis outliers, got {len(mahal_outliers)}"
         print(f"OK Step 5: Detected {len(mahal_outliers)} outliers (Mahalanobis)")
 
         # Step 6: Visualize Outliers
         viz_result = results["06_visualize_outliers"].data
         assert "figures_generated" in viz_result.metadata
-        assert viz_result.metadata["figures_generated"] > 0, (
-            "No outlier figures created"
-        )
+        assert (
+            viz_result.metadata["figures_generated"] > 0
+        ), "No outlier figures created"
         print(
             f"OK Step 6: Created {viz_result.metadata['figures_generated']} outlier visualizations"
         )
@@ -379,9 +379,9 @@ class TestQCPipelineIntegration:
         remove_result = results["07_remove_outliers"].data
         df_outliers_removed = remove_result.data
         # Notebook: 152 samples after removing 6 outliers
-        assert len(df_outliers_removed) == 152, (
-            f"Expected 152 samples after outlier removal, got {len(df_outliers_removed)}"
-        )
+        assert (
+            len(df_outliers_removed) == 152
+        ), f"Expected 152 samples after outlier removal, got {len(df_outliers_removed)}"
         assert remove_result.metadata["outliers_removed"] == 6
         print(
             f"OK Step 7: {len(df_outliers_removed)} samples after outlier removal (6 removed)"
@@ -399,9 +399,9 @@ class TestQCPipelineIntegration:
             for r in anova_results.values()
             if isinstance(r, dict) and r.get("significant", False)
         )
-        assert n_significant >= 20, (
-            f"Expected ~26 significant traits, got {n_significant}"
-        )
+        assert (
+            n_significant >= 20
+        ), f"Expected ~26 significant traits, got {n_significant}"
         print(f"OK Step 8: {n_significant} traits with significant genotype effects")
 
         # Step 9: Filter Heritability
@@ -409,12 +409,12 @@ class TestQCPipelineIntegration:
         df_h2_filtered = h2_filter_result.data
         final_traits = h2_filter_result.metadata["trait_names"]
         # Notebook: 12 traits after H²≥0.62 filtering (23 removed)
-        assert len(final_traits) == 12, (
-            f"Expected 12 traits after H² filtering, got {len(final_traits)}"
-        )
-        assert len(df_h2_filtered) == 152, (
-            "Sample count should not change in heritability filtering"
-        )
+        assert (
+            len(final_traits) == 12
+        ), f"Expected 12 traits after H² filtering, got {len(final_traits)}"
+        assert (
+            len(df_h2_filtered) == 152
+        ), "Sample count should not change in heritability filtering"
         print(
             f"OK Step 9: {len(final_traits)} traits after heritability filtering (23 removed)"
         )
@@ -423,9 +423,9 @@ class TestQCPipelineIntegration:
         threshold_plot = (
             pipeline.run_dir / "figures" / "09_heritability_threshold_analysis.png"
         )
-        assert threshold_plot.exists(), (
-            f"Heritability threshold plot not found: {threshold_plot}"
-        )
+        assert (
+            threshold_plot.exists()
+        ), f"Heritability threshold plot not found: {threshold_plot}"
         print("OK Step 9: Heritability threshold analysis plot generated")
 
         # Step 10: Generate Summary
@@ -457,9 +457,9 @@ class TestQCPipelineIntegration:
         import warnings
 
         # Use test data path
-        assert turface_rsr_csv_path.exists(), (
-            f"Test data not found: {turface_rsr_csv_path}"
-        )
+        assert (
+            turface_rsr_csv_path.exists()
+        ), f"Test data not found: {turface_rsr_csv_path}"
 
         # Configure pipeline with NO outlier detection methods
         config = get_default_qc_config()
@@ -497,17 +497,13 @@ class TestQCPipelineIntegration:
             assert any(
                 "No outlier detection methods configured" in msg
                 for msg in warning_messages
-            ), (
-                f"Expected warning about no outlier methods. Got warnings: {warning_messages}"
-            )
+            ), f"Expected warning about no outlier methods. Got warnings: {warning_messages}"
 
             # Should have warning from VisualizeOutliersStep
             assert any(
                 "No outlier detection methods were run" in msg
                 for msg in warning_messages
-            ), (
-                f"Expected warning about no methods run. Got warnings: {warning_messages}"
-            )
+            ), f"Expected warning about no methods run. Got warnings: {warning_messages}"
 
         # Verify pipeline still completes successfully
         assert len(results) == 10  # QC pipeline has 10 steps

@@ -371,9 +371,9 @@ class TestGenerateInteractiveManifest:
         manifest = result.metadata["interactive_figures_manifest"]
         for file_path in manifest["files"]:
             full_path = tmp_path / file_path
-            assert full_path.exists(), (
-                f"File listed in manifest doesn't exist: {file_path}"
-            )
+            assert (
+                full_path.exists()
+            ), f"File listed in manifest doesn't exist: {file_path}"
 
 
 class TestGenerateInteractiveHTMLValidity:
@@ -488,6 +488,6 @@ class TestGenerateInteractiveMetadata:
 
         # Check all files in list exist
         for file_path in result.files_generated:
-            assert file_path.exists(), (
-                f"File in files_generated doesn't exist: {file_path}"
-            )
+            assert (
+                file_path.exists()
+            ), f"File in files_generated doesn't exist: {file_path}"

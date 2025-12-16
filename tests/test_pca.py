@@ -1314,9 +1314,9 @@ class TestPerFeatureVariance:
         total_explained = fractions.sum()
         n_features = len(metrics_df)
         # When all components are used, total should be close to number of features
-        assert total_explained <= n_features + 0.01, (
-            f"Total explained {total_explained} > {n_features}"
-        )
+        assert (
+            total_explained <= n_features + 0.01
+        ), f"Total explained {total_explained} > {n_features}"
 
         # For standardized data, all features should have variance close to 1
         variances = metrics_df["variance_total"].values
@@ -1610,9 +1610,9 @@ class TestRunPCAAndExportArtifacts:
 
         # Verify fractional contributions sum to 1
         total_frac = trait_contrib["trait_fractional_contrib"].sum()
-        assert np.allclose(total_frac, 1.0), (
-            f"Fractional contributions sum to {total_frac}, not 1.0"
-        )
+        assert np.allclose(
+            total_frac, 1.0
+        ), f"Fractional contributions sum to {total_frac}, not 1.0"
 
         # Check PC scores include metadata
         pc_scores = result["pc_scores_df"]
@@ -1841,9 +1841,9 @@ class TestRunPCAAndExportArtifacts:
         )
 
         contrib = result["trait_contrib_df"]["trait_fractional_contrib"].to_numpy()
-        assert np.isclose(contrib.sum(), 1.0, atol=1e-9), (
-            f"Fractional contributions sum to {contrib.sum():.12f}, expected ~1.0"
-        )
+        assert np.isclose(
+            contrib.sum(), 1.0, atol=1e-9
+        ), f"Fractional contributions sum to {contrib.sum():.12f}, expected ~1.0"
 
     def test_fractional_contrib_sum_with_threshold(self, pca_export_data, tmp_path):
         """Test that fractional contributions sum to 1 with variance threshold."""
@@ -1862,9 +1862,9 @@ class TestRunPCAAndExportArtifacts:
         )
 
         contrib = result["trait_contrib_df"]["trait_fractional_contrib"].to_numpy()
-        assert np.isclose(contrib.sum(), 1.0, atol=1e-9), (
-            f"Fractional contributions sum to {contrib.sum():.12f}, expected ~1.0"
-        )
+        assert np.isclose(
+            contrib.sum(), 1.0, atol=1e-9
+        ), f"Fractional contributions sum to {contrib.sum():.12f}, expected ~1.0"
 
     def test_metadata_handling_with_trait_cols_none(self, tmp_path):
         """Test that auto-detection includes all numeric columns when trait_cols=None."""
@@ -1899,12 +1899,12 @@ class TestRunPCAAndExportArtifacts:
         loadings_idx = set(result["loadings_df"].index)
 
         # String columns should not be in loadings
-        assert "Barcode" not in loadings_idx, (
-            "String metadata 'Barcode' should not be in loadings"
-        )
-        assert "geno" not in loadings_idx, (
-            "String metadata 'geno' should not be in loadings"
-        )
+        assert (
+            "Barcode" not in loadings_idx
+        ), "String metadata 'Barcode' should not be in loadings"
+        assert (
+            "geno" not in loadings_idx
+        ), "String metadata 'geno' should not be in loadings"
 
         # All numeric columns (including rep and batch) will be included
         assert "trait_1" in loadings_idx
@@ -1916,9 +1916,9 @@ class TestRunPCAAndExportArtifacts:
         assert (
             "batch" in loadings_idx
         )  # Numeric metadata is included when trait_cols=None
-        assert len(loadings_idx) == 5, (
-            f"Expected 5 numeric columns, got {len(loadings_idx)}"
-        )
+        assert (
+            len(loadings_idx) == 5
+        ), f"Expected 5 numeric columns, got {len(loadings_idx)}"
 
         # To exclude metadata, users should explicitly specify trait_cols
         result2 = run_pca_and_export_artifacts(
@@ -2183,9 +2183,9 @@ class TestPCAMathematicalValidation:
 
         # Check monotonicity
         for i in range(1, len(errors)):
-            assert errors[i] <= errors[i - 1] + 1e-10, (
-                f"Error not decreasing: {errors[i]} > {errors[i - 1]}"
-            )
+            assert (
+                errors[i] <= errors[i - 1] + 1e-10
+            ), f"Error not decreasing: {errors[i]} > {errors[i - 1]}"
 
 
 class TestVisualizationDataConsistency:
@@ -2228,17 +2228,17 @@ class TestVisualizationDataConsistency:
 
         if fractions is not None:
             # Traits 1 & 2 should have high fraction explained (>0.9)
-            assert fractions[0] > 0.9, (
-                f"Trait 1 fraction {fractions[0]} should be > 0.9"
-            )
-            assert fractions[1] > 0.9, (
-                f"Trait 2 fraction {fractions[1]} should be > 0.9"
-            )
+            assert (
+                fractions[0] > 0.9
+            ), f"Trait 1 fraction {fractions[0]} should be > 0.9"
+            assert (
+                fractions[1] > 0.9
+            ), f"Trait 2 fraction {fractions[1]} should be > 0.9"
 
             # Trait 3 should have low fraction explained (<0.5)
-            assert fractions[2] < 0.5, (
-                f"Trait 3 fraction {fractions[2]} should be < 0.5"
-            )
+            assert (
+                fractions[2] < 0.5
+            ), f"Trait 3 fraction {fractions[2]} should be < 0.5"
 
     def test_visualization_data_consistency(self):
         """Ensure visualization uses correct data source for feature variance."""

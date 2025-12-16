@@ -588,14 +588,14 @@ def test_qc_cli_log_file_overrides_config(runner, qc_config_with_logging, tmp_pa
 
     assert result.exit_code == 0
     # CLI log file should exist
-    assert custom_log.exists(), (
-        f"CLI-specified log file should be created at {custom_log}"
-    )
+    assert (
+        custom_log.exists()
+    ), f"CLI-specified log file should be created at {custom_log}"
     # Config log file should NOT exist (CLI overrides)
     config_log = output_dir / "pipeline.log"
-    assert not config_log.exists(), (
-        f"Config log file should NOT be created when CLI overrides"
-    )
+    assert (
+        not config_log.exists()
+    ), f"Config log file should NOT be created when CLI overrides"
 
 
 def test_qc_no_log_file_when_log_to_file_false(
@@ -619,9 +619,9 @@ def test_qc_no_log_file_when_log_to_file_false(
     assert result.exit_code == 0
     # No log file should be created
     potential_log = output_dir / "should_not_be_created.log"
-    assert not potential_log.exists(), (
-        "Log file should NOT be created when log_to_file is false"
-    )
+    assert (
+        not potential_log.exists()
+    ), "Log file should NOT be created when log_to_file is false"
 
 
 def test_qc_config_log_file_with_subdirectory(runner, tmp_path):

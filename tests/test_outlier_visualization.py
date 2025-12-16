@@ -571,9 +571,9 @@ class TestCreateMahalanobisOutlierPlots:
                 gof_text_found = True
                 break
 
-        assert not gof_text_found, (
-            "GOF text box should not be present for distance threshold"
-        )
+        assert (
+            not gof_text_found
+        ), "GOF text box should not be present for distance threshold"
 
         plt.close("all")
 

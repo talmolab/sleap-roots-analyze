@@ -1856,9 +1856,9 @@ class TestCrossMethodConsistency:
         pca_found = [pos for pos in clear_outlier_positions if pos in pca_outliers]
 
         # Mahalanobis should find at least 1 of the clear outliers
-        assert len(mahal_found) >= 1, (
-            f"Mahalanobis only found {mahal_found} of {clear_outlier_positions}"
-        )
+        assert (
+            len(mahal_found) >= 1
+        ), f"Mahalanobis only found {mahal_found} of {clear_outlier_positions}"
 
         # PCA should find SOME outliers (may not be the same ones)
         # PCA reconstruction is less sensitive to extreme values in all dimensions
@@ -2961,9 +2961,9 @@ class TestCombineOutlierMethods:
                 f"For 3 methods with threshold {threshold}: "
                 f"expected {expected_min}, got {actual_min}"
             )
-            assert actual_total == 3, (
-                f"Total methods mismatch: expected 3, got {actual_total}"
-            )
+            assert (
+                actual_total == 3
+            ), f"Total methods mismatch: expected 3, got {actual_total}"
 
         # Test with 2 methods (no Mahalanobis)
         for threshold, expected_min in test_cases_2_methods:
@@ -2988,6 +2988,6 @@ class TestCombineOutlierMethods:
                 f"For 2 methods with threshold {threshold}: "
                 f"expected {expected_min}, got {actual_min}"
             )
-            assert actual_total == 2, (
-                f"Total methods mismatch: expected 2, got {actual_total}"
-            )
+            assert (
+                actual_total == 2
+            ), f"Total methods mismatch: expected 2, got {actual_total}"

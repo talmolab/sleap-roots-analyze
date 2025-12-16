@@ -578,7 +578,9 @@ class TestWithRealData:
             for col in turface_traits_df.columns
             if col not in ["Barcode", "geno", "rep", "wave_name"]
             and turface_traits_df[col].dtype in [np.float64, np.int64]
-        ][:5]  # Use first 5 traits for testing
+        ][
+            :5
+        ]  # Use first 5 traits for testing
 
         if len(trait_cols) > 0:
             # Test histogram creation
@@ -1023,7 +1025,9 @@ class TestEDAIntegration:
             for col in turface_traits_df.columns
             if col not in ["Barcode", "geno", "rep", "wave_name"]
             and turface_traits_df[col].dtype in [np.float64, np.int64]
-        ][:10]  # Use first 10 traits for testing
+        ][
+            :10
+        ]  # Use first 10 traits for testing
 
         if len(trait_cols) > 0:
             figures = create_trait_eda_plots(
@@ -1460,9 +1464,9 @@ class TestPCAVisualization:
         # Check that old field names are NOT present (to catch regressions)
         old_fields = ["explained_variance", "cumulative_variance"]
         for old_field in old_fields:
-            assert old_field not in pca_viz_results, (
-                f"Old field name '{old_field}' should not be present. Use '{old_field}_ratio' instead."
-            )
+            assert (
+                old_field not in pca_viz_results
+            ), f"Old field name '{old_field}' should not be present. Use '{old_field}_ratio' instead."
 
         # Verify types
         assert isinstance(pca_viz_results["explained_variance_ratio"], np.ndarray)
@@ -2029,12 +2033,12 @@ class TestPCAVisualization:
         n_colored_samples = sum(pca_viz_dataframe["geno"].isin(genos_to_color))
         n_other_samples = total_points - n_colored_samples
 
-        assert colored_points == n_colored_samples, (
-            f"Expected {n_colored_samples} colored points, got {colored_points}"
-        )
-        assert gray_points == n_other_samples, (
-            f"Expected {n_other_samples} gray points, got {gray_points}"
-        )
+        assert (
+            colored_points == n_colored_samples
+        ), f"Expected {n_colored_samples} colored points, got {colored_points}"
+        assert (
+            gray_points == n_other_samples
+        ), f"Expected {n_other_samples} gray points, got {gray_points}"
 
         plt.close("all")
 

@@ -460,6 +460,6 @@ class TestGenerateDashboardsMetadata:
 
         # Check all files in list exist
         for file_path in result.files_generated:
-            assert file_path.exists(), (
-                f"File in files_generated doesn't exist: {file_path}"
-            )
+            assert (
+                file_path.exists()
+            ), f"File in files_generated doesn't exist: {file_path}"

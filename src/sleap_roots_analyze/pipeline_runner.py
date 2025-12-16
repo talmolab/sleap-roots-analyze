@@ -477,8 +477,8 @@ class PipelineRunner:
         # Methods Section
         lines.extend(self._format_methods_section())
 
-        # Write summary
-        with open(summary_path, "w") as f:
+        # Write summary with UTF-8 encoding for proper Unicode character display
+        with open(summary_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
         print(f"\nSummary written to: {summary_path}")
@@ -613,7 +613,8 @@ class PipelineRunner:
     def _format_viz_summary(self) -> list[str]:
         """Format Viz results for summary with figure counts.
 
-        Counts PNG figures in the output directory and HTML interactive files.
+        Counts PNG figures from static_figures directory and HTML interactive files
+        from interactive_figures, pca, and umap directories.
         """
         lines = [
             "## Visualization Pipeline Results",
@@ -634,14 +635,24 @@ class PipelineRunner:
             if result.get("success") and output != "N/A":
                 output_path = Path(output)
 
-                # Count PNG files in figures subdirectory and root
+                # Count PNG files in static_figures directory (primary location)
+                static_figures_dir = output_path / "static_figures"
+                png_count = self._count_files(static_figures_dir, "*.png")
+                # Also check figures/ for backwards compatibility
                 figures_dir = output_path / "figures"
-                png_count = self._count_files(figures_dir, "*.png")
+                png_count += self._count_files(figures_dir, "*.png")
+                # Count any PNG in root as well
                 png_count += self._count_files(output_path, "*.png")
                 figure_count = str(png_count) if png_count > 0 else "0"
 
-                # Count interactive HTML files
-                html_count = self._count_files(output_path, "*.html")
+                # Count interactive HTML files from multiple locations
+                interactive_figures_dir = output_path / "interactive_figures"
+                html_count = self._count_files(interactive_figures_dir, "*.html")
+                # Also check pca/ and umap/ directories
+                pca_dir = output_path / "pca"
+                html_count += self._count_files(pca_dir, "*.html")
+                umap_dir = output_path / "umap"
+                html_count += self._count_files(umap_dir, "*.html")
                 interactive_count = str(html_count) if html_count > 0 else "0"
 
             lines.append(
@@ -686,8 +697,18 @@ class PipelineRunner:
                         import pandas as pd
 
                         align_df = pd.read_csv(alignment_path)
-                        # Handle both row-based and column-based formats
-                        if "metric" in align_df.columns and "value" in align_df.columns:
+                        # Handle the actual CSV format: genotype, exp1_samples, exp2_samples
+                        # where each row is one genotype
+                        if "genotype" in align_df.columns:
+                            common_genos = str(len(align_df))
+                            if "exp1_samples" in align_df.columns:
+                                exp1_samples = str(int(align_df["exp1_samples"].sum()))
+                            if "exp2_samples" in align_df.columns:
+                                exp2_samples = str(int(align_df["exp2_samples"].sum()))
+                        # Also handle metric/value format for backwards compatibility
+                        elif (
+                            "metric" in align_df.columns and "value" in align_df.columns
+                        ):
                             metrics = dict(zip(align_df["metric"], align_df["value"]))
                             common_genos = str(int(metrics.get("common_genotypes", 0)))
                             exp1_samples = str(int(metrics.get("exp1_samples", 0)))
