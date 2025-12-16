@@ -478,6 +478,9 @@ class PipelineRunner:
         if self.run_results["cross_platform"]:
             lines.extend(self._format_cross_platform_summary())
 
+        # Methods Section
+        lines.extend(self._format_methods_section())
+
         # Write summary
         with open(summary_path, "w") as f:
             f.write("\n".join(lines))
@@ -510,57 +513,332 @@ class PipelineRunner:
         return info
 
     def _format_qc_summary(self) -> list[str]:
-        """Format QC results for summary."""
+        """Format QC results for summary with scientific metrics.
+
+        Reads pipeline summary JSON from each run to extract sample counts,
+        trait counts, genotype counts, heritability threshold, and mean H².
+        """
         lines = [
             "## QC Pipeline Results",
             "",
-            "| Config | Status | Time | Output Path |",
-            "|--------|--------|------|-------------|",
+            "| Config | Status | Samples | Traits | Genotypes | H² Threshold | Mean H² | Time | Output Path |",
+            "|--------|--------|---------|--------|-----------|--------------|---------|------|-------------|",
         ]
+
+        removed_traits_data = []
 
         for config, result in self.run_results["qc"].items():
             status = "Success" if result.get("success") else "Failed"
             time_str = f"{result.get('elapsed_seconds', 0):.1f}s"
             output = result.get("output_path", "N/A")
-            lines.append(f"| {config} | {status} | {time_str} | `{output}` |")
+
+            # Default values for failed runs
+            n_samples = "N/A"
+            n_traits = "N/A"
+            n_genotypes = "N/A"
+            h2_threshold = "N/A"
+            mean_h2 = "N/A"
+
+            if result.get("success") and output != "N/A":
+                # Read pipeline summary for metrics
+                summary = self._read_pipeline_summary(output)
+
+                if summary:
+                    final_data = summary.get("final_data", {})
+                    n_samples = str(final_data.get("n_samples", "N/A"))
+                    n_traits = str(final_data.get("n_traits", "N/A"))
+                    n_genotypes = str(final_data.get("n_genotypes", "N/A"))
+
+                    # Get heritability info
+                    config_data = summary.get("configuration", {})
+                    h2_config = config_data.get("heritability", {})
+
+                    if h2_config.get("enabled", True):
+                        h2_threshold = str(h2_config.get("threshold", "N/A"))
+
+                        # Get mean heritability from step summaries
+                        step_summaries = summary.get("step_summaries", {})
+                        h2_filter = step_summaries.get("heritability_filter", {})
+                        mean_val = h2_filter.get("mean_heritability_retained")
+                        if mean_val is not None:
+                            mean_h2 = f"{mean_val:.2f}"
+
+                        # Collect removed traits for later section
+                        removed_names = h2_filter.get("removed_trait_names", [])
+                        if removed_names:
+                            removed_traits_data.append((config, removed_names))
+                    else:
+                        h2_threshold = "Disabled"
+                        mean_h2 = "N/A"
+
+            lines.append(
+                f"| {config} | {status} | {n_samples} | {n_traits} | {n_genotypes} | "
+                f"{h2_threshold} | {mean_h2} | {time_str} | `{output}` |"
+            )
 
         lines.extend(["", ""])
+
+        # Add removed traits section
+        lines.extend(self._format_removed_traits_section(removed_traits_data))
+
+        return lines
+
+    def _format_removed_traits_section(
+        self, removed_traits_data: list[tuple[str, list[str]]]
+    ) -> list[str]:
+        """Format the removed traits subsection.
+
+        Args:
+            removed_traits_data: List of (config_name, removed_trait_names) tuples
+
+        Returns:
+            List of markdown lines
+        """
+        lines = ["### Removed Traits by Dataset", ""]
+
+        if not removed_traits_data:
+            lines.append("No traits were removed by heritability filtering.")
+            lines.extend(["", ""])
+            return lines
+
+        for config, removed_names in removed_traits_data:
+            if removed_names:
+                lines.append(f"**{config}** ({len(removed_names)} traits removed):")
+                for trait in removed_names:
+                    lines.append(f"- {trait}")
+                lines.append("")
+            else:
+                lines.append(f"**{config}**: No traits removed")
+                lines.append("")
+
+        lines.append("")
         return lines
 
     def _format_viz_summary(self) -> list[str]:
-        """Format Viz results for summary."""
+        """Format Viz results for summary with figure counts.
+
+        Counts PNG figures in the output directory and HTML interactive files.
+        """
         lines = [
             "## Visualization Pipeline Results",
             "",
-            "| Config | Status | Time | Output Path |",
-            "|--------|--------|------|-------------|",
+            "| Config | Status | Figures | Interactive | Time | Output Path |",
+            "|--------|--------|---------|-------------|------|-------------|",
         ]
 
         for config, result in self.run_results["viz"].items():
             status = "Success" if result.get("success") else "Failed"
             time_str = f"{result.get('elapsed_seconds', 0):.1f}s"
             output = result.get("output_path", "N/A")
-            lines.append(f"| {config} | {status} | {time_str} | `{output}` |")
+
+            # Default counts
+            figure_count = "N/A"
+            interactive_count = "N/A"
+
+            if result.get("success") and output != "N/A":
+                output_path = Path(output)
+
+                # Count PNG files in figures subdirectory and root
+                figures_dir = output_path / "figures"
+                png_count = self._count_files(figures_dir, "*.png")
+                png_count += self._count_files(output_path, "*.png")
+                figure_count = str(png_count) if png_count > 0 else "0"
+
+                # Count interactive HTML files
+                html_count = self._count_files(output_path, "*.html")
+                interactive_count = str(html_count) if html_count > 0 else "0"
+
+            lines.append(
+                f"| {config} | {status} | {figure_count} | {interactive_count} | "
+                f"{time_str} | `{output}` |"
+            )
 
         lines.extend(["", ""])
         return lines
 
     def _format_cross_platform_summary(self) -> list[str]:
-        """Format Cross-Platform results for summary."""
+        """Format Cross-Platform results for summary with alignment metrics.
+
+        Reads alignment CSV and correlations CSV to extract common genotypes,
+        sample/trait counts, and top correlation value.
+        """
         lines = [
             "## Cross-Platform Analysis Results",
             "",
-            "| Config | Status | Time | Output Path |",
-            "|--------|--------|------|-------------|",
+            "| Config | Status | Common Genotypes | Exp1 Samples | Exp2 Samples | Top Correlation | Time | Output Path |",
+            "|--------|--------|------------------|--------------|--------------|-----------------|------|-------------|",
         ]
 
         for config, result in self.run_results["cross_platform"].items():
             status = "Success" if result.get("success") else "Failed"
             time_str = f"{result.get('elapsed_seconds', 0):.1f}s"
             output = result.get("output_path", "N/A")
-            lines.append(f"| {config} | {status} | {time_str} | `{output}` |")
+
+            # Default values
+            common_genos = "N/A"
+            exp1_samples = "N/A"
+            exp2_samples = "N/A"
+            top_corr = "N/A"
+
+            if result.get("success") and output != "N/A":
+                output_path = Path(output)
+
+                # Try to read alignment summary CSV
+                alignment_path = output_path / "cross_platform_alignment_summary.csv"
+                if alignment_path.exists():
+                    try:
+                        import pandas as pd
+
+                        align_df = pd.read_csv(alignment_path)
+                        # Handle both row-based and column-based formats
+                        if "metric" in align_df.columns and "value" in align_df.columns:
+                            metrics = dict(
+                                zip(align_df["metric"], align_df["value"])
+                            )
+                            common_genos = str(int(metrics.get("common_genotypes", 0)))
+                            exp1_samples = str(int(metrics.get("exp1_samples", 0)))
+                            exp2_samples = str(int(metrics.get("exp2_samples", 0)))
+                        elif "common_genotypes" in align_df.columns:
+                            common_genos = str(align_df["common_genotypes"].iloc[0])
+                    except Exception:
+                        pass
+
+                # Try to read correlations CSV for top correlation
+                corr_path = output_path / "cross_platform_correlations.csv"
+                if corr_path.exists():
+                    try:
+                        import pandas as pd
+
+                        corr_df = pd.read_csv(corr_path)
+                        if "correlation" in corr_df.columns and len(corr_df) > 0:
+                            # Get top absolute correlation
+                            top_val = corr_df["correlation"].abs().max()
+                            top_corr = f"{top_val:.2f}"
+                    except Exception:
+                        pass
+
+            lines.append(
+                f"| {config} | {status} | {common_genos} | {exp1_samples} | {exp2_samples} | "
+                f"{top_corr} | {time_str} | `{output}` |"
+            )
 
         lines.extend(["", ""])
+        return lines
+
+    @staticmethod
+    def _read_pipeline_summary(run_dir: Path | str) -> dict[str, Any]:
+        """Read and parse a pipeline summary JSON file.
+
+        Safely reads the pipeline summary from a run directory, handling
+        missing files and malformed JSON gracefully.
+
+        Args:
+            run_dir: Path to the pipeline run directory
+
+        Returns:
+            Dictionary with parsed summary contents, or empty dict if not found/invalid
+        """
+        run_dir = Path(run_dir)
+
+        # Try QC summary first (10_pipeline_summary.json), then generic
+        summary_paths = [
+            run_dir / "10_pipeline_summary.json",
+            run_dir / "pipeline_summary.json",
+        ]
+
+        for summary_path in summary_paths:
+            if summary_path.exists():
+                try:
+                    with open(summary_path) as f:
+                        return json.load(f)
+                except json.JSONDecodeError:
+                    print(f"  Warning: Malformed JSON in {summary_path}")
+                    return {}
+                except Exception as e:
+                    print(f"  Warning: Error reading {summary_path}: {e}")
+                    return {}
+
+        return {}
+
+    @staticmethod
+    def _count_files(directory: Path, pattern: str) -> int:
+        """Count files matching a pattern in a directory.
+
+        Args:
+            directory: Directory to search
+            pattern: Glob pattern (e.g., '*.png')
+
+        Returns:
+            Count of matching files
+        """
+        if not directory.exists():
+            return 0
+        return len(list(directory.glob(pattern)))
+
+    @staticmethod
+    def _read_csv_safe(csv_path: Path) -> dict[str, Any]:
+        """Read a CSV file safely and return as dict.
+
+        Args:
+            csv_path: Path to CSV file
+
+        Returns:
+            Dictionary with CSV data or empty dict if not found
+        """
+        if not csv_path.exists():
+            return {}
+        try:
+            import pandas as pd
+
+            df = pd.read_csv(csv_path)
+            return df.to_dict(orient="list")
+        except Exception:
+            return {}
+
+    def _format_methods_section(self) -> list[str]:
+        """Generate publication-ready methods section template.
+
+        Returns:
+            List of markdown lines for methods section
+        """
+        lines = [
+            "## Methods",
+            "",
+            "### Data Quality Control",
+            "",
+            "Phenotypic trait data underwent quality control using the sleap-roots-analyze "
+            "pipeline. The QC process included:",
+            "",
+            "1. **Data Cleanup**: Samples with excessive missing values (>{max_nan_fraction}% NaN) "
+            "were removed. Traits with high zero frequency (>{max_zeros_per_trait}%) or "
+            "excessive missing data (>{max_nans_per_trait}%) were excluded.",
+            "",
+            "2. **Outlier Detection**: Multivariate outliers were identified using Mahalanobis "
+            "distance on PCA-transformed data, with outliers defined as samples exceeding "
+            "the {chi2_percentile}th percentile of the chi-squared distribution.",
+            "",
+            "3. **Heritability Filtering**: Broad-sense heritability (H²) was calculated for each "
+            "trait using mixed-effects models. Traits with H² < {h2_threshold} were excluded "
+            "from downstream analysis to focus on genetically heritable phenotypes.",
+            "",
+            "### Visualization",
+            "",
+            "Publication-quality visualizations were generated including trait distributions, "
+            "correlation heatmaps, PCA biplots, and genotype comparison plots. Interactive "
+            "HTML visualizations were created for exploratory analysis.",
+            "",
+            "### Cross-Platform Analysis",
+            "",
+            "Cross-platform trait correlations were calculated using Spearman rank correlation "
+            "on genotype means. Significance was assessed using permutation testing with "
+            "Bonferroni correction for multiple comparisons.",
+            "",
+            "---",
+            "",
+            "*Note: Replace placeholder values (e.g., {h2_threshold}) with actual values from "
+            "your analysis configuration.*",
+            "",
+        ]
         return lines
 
 

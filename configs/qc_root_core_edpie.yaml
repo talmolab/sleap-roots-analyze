@@ -97,8 +97,8 @@ root_core:
     remove_outliers: true  # Remove flagged cores before aggregation
 
     # Value outlier detection (opt-in, disabled by default for backward compatibility)
-    detect_value_outliers: false  # Set to true to enable measurement error detection
-    max_deviation_from_median: 0.30  # 30% threshold (conservative, minimal false positives)
+    detect_value_outliers: false  # Disabled - too aggressive, removes too much valid variation
+    max_deviation_from_median: 0.50  # 50% threshold (very conservative, only extreme errors)
     min_cores_after_qc: 1  # Safety: always keep at least 1 core per group
 
   # Depth profile visualization (Step 00f)
