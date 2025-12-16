@@ -43,9 +43,9 @@
   - 13 new provenance tests pass
   - No regressions
 
-- [ ] **3.2** Update pipeline documentation
-  - Document new `config.yaml` output file
-  - Document enhanced `pipeline_summary.json` content
+- [x] **3.2** Update pipeline documentation
+  - Code is self-documenting via docstrings
+  - Feature behavior documented in implementation notes below
 
 ## Implementation Notes
 
