@@ -1,0 +1,68 @@
+# QC Pipeline Configuration: Mahalanobis (Fast Single Method)
+#
+# This preset uses only the Mahalanobis distance method for outlier detection.
+# Best for: Quick QC runs, well-behaved datasets, rapid prototyping
+#
+# Performance: ~2-3x faster than multi-method approaches
+# Robustness: Moderate (single method may miss some outliers)
+
+# Pipeline metadata
+pipeline_name: "qc_mahalanobis"
+version: "1.0"
+
+# Data configuration
+data:
+  csv_path: ???  # REQUIRED: Path to your trait CSV file
+  image_dir: null  # Optional: Directory containing root images
+
+# Column names (update if your data uses different names)
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+# Data cleanup thresholds
+cleanup:
+  max_zeros_per_trait: 0.5      # Remove traits with >50% zeros
+  max_nans_per_trait: 0.3        # Remove traits with >30% NaNs
+  max_nan_fraction: 0.1          # Remove samples with >10% NaNs
+  min_samples_per_trait: 10      # Require at least 10 samples per trait
+
+# Outlier detection - SINGLE METHOD (Mahalanobis)
+outlier_detection:
+  traditional_methods:
+    - mahalanobis  # Fast, parametric method based on PCA + Mahalanobis distance
+  clustering_methods: []  # No clustering methods (faster)
+
+  # Mahalanobis-specific settings
+  mahalanobis:
+    variance_threshold: 0.95    # Keep components explaining 95% variance
+    use_chi_squared: true       # Use chi-squared distribution for threshold
+    chi2_percentile: 99.0       # 99th percentile threshold
+
+# Outlier removal - Use single method results
+outlier_removal:
+  strategy: "single"     # Remove outliers from single method
+  method: "mahalanobis"  # Use Mahalanobis results
+
+# PCA configuration
+pca:
+  n_components: 0.95  # Keep components explaining 95% variance
+  feature_selection_strategy: "top_variance"
+
+# Heritability filtering
+heritability:
+  enabled: true
+  threshold: 0.5       # Keep traits with h² >= 0.5
+  generate_diagnostics: false  # Generate detailed diagnostic plots and CSV for removed traits
+
+# Visualization settings
+visualization:
+  dpi: 300
+  figsize: [10, 8]
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

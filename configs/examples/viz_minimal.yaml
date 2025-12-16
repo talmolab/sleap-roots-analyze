@@ -1,0 +1,102 @@
+# Visualization Pipeline Configuration: Minimal
+#
+# This preset provides quick, essential visualizations only:
+# - Basic statistics (no heritability calculation)
+# - PCA analysis only (no UMAP, no clustering)
+# - Static PNG plots only
+# - No interactive plots
+# - No interesting genotype identification
+#
+# Best for: Quick checks, initial data exploration, fast iteration
+# Output formats: PNG, Markdown summary
+# Performance: Fastest configuration (~3-5x faster than comprehensive)
+
+# Pipeline metadata
+pipeline_name: "viz_minimal"
+version: "1.0"
+
+# Data configuration
+data:
+  csv_path: ???  # REQUIRED: Path to your trait CSV file
+  image_dir: null
+
+# Column names
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+# Statistics configuration (minimal)
+statistics:
+  calculate_anova: true
+  calculate_heritability: false  # Skip for speed
+  alpha: 0.05
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 5  # Fewer features for speed
+
+# UMAP configuration (DISABLED)
+umap:
+  enabled: false
+
+# Clustering configuration (DISABLED)
+clustering:
+  enabled: false
+
+# Heritability filtering (DISABLED)
+heritability:
+  enabled: false
+
+# Interesting genotypes (DISABLED)
+interesting_genotypes:
+  enabled: false
+
+# Adaptive figure sizing (with smaller sizes)
+adaptive_sizing:
+  enabled: true
+  base_width: 6.0   # Smaller figures
+  base_height: 5.0
+  width_per_item: 1.5
+  height_per_item: 1.5
+  min_width: 5.0
+  max_width: 15.0
+  min_height: 4.0
+  max_height: 12.0
+
+# Static visualization settings (minimal set)
+static_viz:
+  enabled: true
+  formats:
+    - png  # PNG only for speed
+  dpi: 150  # Lower DPI for speed
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  create_trait_distributions: true  # Keep histograms
+  create_trait_correlations: true   # Keep correlation matrix
+  create_heritability_plots: false
+  create_genotype_comparisons: false
+
+# Interactive visualization (DISABLED)
+interactive_viz:
+  enabled: false
+
+# Dashboard generation (DISABLED)
+dashboard:
+  enabled: false
+
+# Summary report (markdown only)
+summary:
+  enabled: true
+  formats:
+    - markdown
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

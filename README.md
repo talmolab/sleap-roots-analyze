@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 ![Coverage: 88%](https://img.shields.io/badge/Coverage-88%25-brightgreen)
-![Tests: 150+](https://img.shields.io/badge/Tests-150%2B-brightgreen)
+![Tests: 1300+](https://img.shields.io/badge/Tests-1300%2B-brightgreen)
 ![Python: 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)
 
 Statistical analysis tools for root trait data from [SLEAP Roots](https://github.com/talmolab/sleap-roots).
@@ -36,6 +36,9 @@ sleap-roots-analyze config validate configs/qc_turface_150genotypes.yaml
 
 # List example configs
 sleap-roots-analyze config list
+
+# Run all pipelines from a manifest
+sleap-roots-analyze run-all configs/active/run_manifest.yaml
 
 # Get help
 sleap-roots-analyze --help
@@ -277,6 +280,7 @@ uv run pytest --cov --cov-branch
 ```
 sleap-roots-analyze/
 ├── src/sleap_roots_analyze/
+│   ├── cli.py                        # Command-line interface
 │   ├── data_cleanup.py               # Data loading and cleaning
 │   ├── statistics.py                 # Statistical analysis
 │   ├── pca.py                        # PCA analysis
@@ -285,9 +289,15 @@ sleap-roots-analyze/
 │   ├── outlier_visualization.py      # Outlier-specific plots
 │   ├── interactive_visualization.py  # Interactive Plotly visualizations
 │   ├── cross_experiment_analysis.py  # Cross-experiment comparisons
+│   ├── depth_profile_plots.py        # Depth profile visualizations
+│   ├── pipeline_runner.py            # Pipeline orchestration (run-all)
 │   ├── umap.py                       # UMAP dimensionality reduction
-│   └── data_utils.py                 # Utility functions
-├── tests/                       # Test suite (150+ tests)
+│   ├── data_utils.py                 # Utility functions
+│   └── pipeline/                     # QC/Viz pipeline steps
+├── configs/                     # Pipeline configurations
+│   ├── active/                  # Active run manifests
+│   └── examples/                # Example configs for different use cases
+├── tests/                       # Test suite (1300+ tests)
 ├── docs/                        # Documentation
 └── pyproject.toml              # Project configuration
 ```

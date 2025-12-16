@@ -1,0 +1,82 @@
+# QC Pipeline Configuration: Clustering Strict (Clustering Methods Only)
+#
+# This preset uses only the 3 clustering-based outlier detection methods.
+# Best for: Non-parametric outlier detection, complex trait distributions
+#
+# Performance: Moderate (~3x detection time vs single method)
+# Robustness: High (requires 2 out of 3 clustering methods to agree)
+
+# Pipeline metadata
+pipeline_name: "qc_clustering_strict"
+version: "1.0"
+
+# Data configuration
+data:
+  csv_path: ???  # REQUIRED: Path to your trait CSV file
+  image_dir: null
+
+# Column names
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+# Data cleanup thresholds
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.3
+  max_nan_fraction: 0.1
+  min_samples_per_trait: 10
+
+# Outlier detection - CLUSTERING METHODS ONLY
+outlier_detection:
+  traditional_methods: []  # No traditional methods
+
+  # Clustering methods (3)
+  clustering_methods:
+    - kmeans               # K-Means outlier detection
+    - gmm                  # Gaussian Mixture Model
+    - hierarchical         # Hierarchical clustering
+
+  # Method-specific settings
+  kmeans:
+    n_clusters: null       # Auto-optimize
+    max_clusters: 10
+    distance_threshold: 2.0
+
+  gmm:
+    n_components: null     # Auto-select via BIC
+    max_components: 5
+    percentile_threshold: 99.0
+
+  hierarchical:
+    n_clusters: null       # Auto-optimize
+    linkage_method: "ward"
+    distance_threshold: 2.0
+
+# Outlier removal - STRICT CONSENSUS (2 out of 3)
+outlier_removal:
+  strategy: "subset"
+  min_methods: 2             # Remove if ≥2 out of 3 methods agree (67%)
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  feature_selection_strategy: "top_variance"
+
+# Heritability filtering
+heritability:
+  enabled: true
+  threshold: 0.5
+  generate_diagnostics: false  # Generate detailed diagnostic plots and CSV for removed traits
+
+# Visualization settings
+visualization:
+  dpi: 300
+  figsize: [10, 8]
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

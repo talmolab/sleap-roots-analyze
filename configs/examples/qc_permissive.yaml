@@ -1,0 +1,66 @@
+# QC Pipeline Configuration: Permissive (Lenient Thresholds)
+#
+# This preset uses relaxed cleanup thresholds and outlier detection settings.
+# Best for: Exploratory analysis, small sample sizes, preserving maximum data
+#
+# Performance: Fast (single method)
+# Robustness: Lower (more permissive = fewer samples/traits removed)
+
+# Pipeline metadata
+pipeline_name: "qc_permissive"
+version: "1.0"
+
+# Data configuration
+data:
+  csv_path: ???  # REQUIRED: Path to your trait CSV file
+  image_dir: null
+
+# Column names
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+# Data cleanup thresholds - LENIENT
+cleanup:
+  max_zeros_per_trait: 0.7      # Allow up to 70% zeros (more permissive)
+  max_nans_per_trait: 0.5        # Allow up to 50% NaNs (more permissive)
+  max_nan_fraction: 0.2          # Allow samples with up to 20% NaNs
+  min_samples_per_trait: 5       # Only require 5 samples per trait (lower bar)
+
+# Outlier detection - SINGLE METHOD (Isolation Forest)
+outlier_detection:
+  traditional_methods:
+    - isolation_forest  # Non-parametric, robust to distributions
+  clustering_methods: []
+
+  # Isolation Forest settings - more permissive
+  isolation_forest:
+    contamination: 0.05  # Expect only 5% outliers (more conservative)
+
+# Outlier removal - Use single method
+outlier_removal:
+  strategy: "single"
+  method: "isolation_forest"
+
+# PCA configuration
+pca:
+  n_components: 0.90           # Lower variance threshold (90%)
+  feature_selection_strategy: "top_variance"
+
+# Heritability filtering - LENIENT
+heritability:
+  enabled: true
+  threshold: 0.4       # Lower threshold (h² >= 0.4) keeps more traits
+  generate_diagnostics: false  # Generate detailed diagnostic plots and CSV for removed traits
+
+# Visualization settings
+visualization:
+  dpi: 300
+  figsize: [10, 8]
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"
