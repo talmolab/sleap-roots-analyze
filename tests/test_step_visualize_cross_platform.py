@@ -68,13 +68,15 @@ def correlation_result(cross_platform_exp1_df, cross_platform_exp2_df, tmp_path)
     correlation_data = []
     for i, trait1 in enumerate(exp1_traits[:10]):  # Use first 10 traits
         for j, trait2 in enumerate(exp2_traits[:5]):  # Use first 5 traits
-            correlation_data.append({
-                "exp1_trait": trait1,
-                "exp2_trait": trait2,
-                "correlation": np.random.randn() * 0.5,
-                "p_value": np.random.rand(),
-                "n_genotypes": len(common_genotypes),
-            })
+            correlation_data.append(
+                {
+                    "exp1_trait": trait1,
+                    "exp2_trait": trait2,
+                    "correlation": np.random.randn() * 0.5,
+                    "p_value": np.random.rand(),
+                    "n_genotypes": len(common_genotypes),
+                }
+            )
 
     correlation_df = pd.DataFrame(correlation_data)
     # Sort by absolute correlation
@@ -231,27 +233,33 @@ def test_visualize_cross_platform_step_minimal_correlations(tmp_path):
     )
 
     # Create minimal correlation data
-    correlation_df = pd.DataFrame({
-        "exp1_trait": ["trait1", "trait2"],
-        "exp2_trait": ["trait_a", "trait_b"],
-        "correlation": [0.8, -0.7],
-        "p_value": [0.01, 0.02],
-        "n_genotypes": [10, 10],
-    })
+    correlation_df = pd.DataFrame(
+        {
+            "exp1_trait": ["trait1", "trait2"],
+            "exp2_trait": ["trait_a", "trait_b"],
+            "correlation": [0.8, -0.7],
+            "p_value": [0.01, 0.02],
+            "n_genotypes": [10, 10],
+        }
+    )
 
-    exp1_df = pd.DataFrame({
-        "genotype": ["A", "B", "C"] * 3,
-        "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
-        "trait1": np.random.randn(9),
-        "trait2": np.random.randn(9),
-    })
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait1": np.random.randn(9),
+            "trait2": np.random.randn(9),
+        }
+    )
 
-    exp2_df = pd.DataFrame({
-        "genotype": ["A", "B", "C"] * 3,
-        "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
-        "trait_a": np.random.randn(9),
-        "trait_b": np.random.randn(9),
-    })
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait_a": np.random.randn(9),
+            "trait_b": np.random.randn(9),
+        }
+    )
 
     prev_result = StepResult(
         data={

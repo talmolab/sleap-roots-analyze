@@ -437,12 +437,12 @@ class TestHeritabilityNumericalAccuracy:
         h2_low = results["trait_low_h2"]["heritability"]
 
         # Test relative ordering: high > moderate > low
-        assert (
-            h2_high > h2_mod
-        ), f"High H² ({h2_high:.3f}) should be > moderate ({h2_mod:.3f})"
-        assert (
-            h2_mod > h2_low
-        ), f"Moderate H² ({h2_mod:.3f}) should be > low ({h2_low:.3f})"
+        assert h2_high > h2_mod, (
+            f"High H² ({h2_high:.3f}) should be > moderate ({h2_mod:.3f})"
+        )
+        assert h2_mod > h2_low, (
+            f"Moderate H² ({h2_mod:.3f}) should be > low ({h2_low:.3f})"
+        )
 
         # All should be valid heritabilities
         assert 0 <= h2_high <= 1, f"High H² out of bounds: {h2_high}"
@@ -453,9 +453,9 @@ class TestHeritabilityNumericalAccuracy:
         assert h2_high > 0.7, f"High H² too low: {h2_high:.3f}"
 
         # Low heritability should be relatively lower than high
-        assert (
-            h2_low < h2_high
-        ), f"Low H² ({h2_low:.3f}) should be < high ({h2_high:.3f})"
+        assert h2_low < h2_high, (
+            f"Low H² ({h2_low:.3f}) should be < high ({h2_high:.3f})"
+        )
 
     def test_perfect_heritability(self, heritability_perfect_data):
         """Test that perfect genetic determination gives H² = 1.0."""
@@ -717,9 +717,9 @@ class TestHeritabilityThresholds:
 
         # Traits removed should increase monotonically as threshold increases
         for i in range(1, len(thresholds)):
-            assert (
-                analysis["traits_removed"][i] >= analysis["traits_removed"][i - 1]
-            ), f"Traits removed should increase: {analysis['traits_removed']}"
+            assert analysis["traits_removed"][i] >= analysis["traits_removed"][i - 1], (
+                f"Traits removed should increase: {analysis['traits_removed']}"
+            )
 
     def test_identify_high_heritability(self, heritability_data_known_h2):
         """Test identification of high heritability traits.
@@ -910,9 +910,9 @@ def assert_diagnostic_result_structure(result):
     """
     assert isinstance(result, dict), "Result must be a dictionary"
     assert "n_observations" in result, "Must include n_observations"
-    assert isinstance(
-        result["n_observations"], (int, np.integer)
-    ), "n_observations must be integer"
+    assert isinstance(result["n_observations"], (int, np.integer)), (
+        "n_observations must be integer"
+    )
 
 
 class TestAnalyzeTraitVariance:

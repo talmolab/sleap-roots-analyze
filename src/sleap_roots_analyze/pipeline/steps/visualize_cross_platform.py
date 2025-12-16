@@ -131,7 +131,7 @@ class VisualizeCrossPlatformStep(BaseStep):
 
             joint_output = (
                 run_dir
-                / f"cross_platform_joint_{i+1:02d}_{trait1_clean}_vs_{trait2_clean}.png"
+                / f"cross_platform_joint_{i + 1:02d}_{trait1_clean}_vs_{trait2_clean}.png"
             )
             fig.savefig(joint_output, dpi=300, bbox_inches="tight")
             plt.close(fig)
@@ -161,7 +161,7 @@ class VisualizeCrossPlatformStep(BaseStep):
 
             boxplot_output = (
                 run_dir
-                / f"cross_platform_boxplot_{i+1:02d}_{trait1_clean}_vs_{trait2_clean}.png"
+                / f"cross_platform_boxplot_{i + 1:02d}_{trait1_clean}_vs_{trait2_clean}.png"
             )
             fig.savefig(boxplot_output, dpi=300, bbox_inches="tight")
             plt.close(fig)

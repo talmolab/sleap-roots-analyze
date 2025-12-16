@@ -518,4 +518,3 @@ def load_cross_platform_config(config_path: str | Path) -> CrossPlatformConfig:
     structured = OmegaConf.structured(CrossPlatformConfig)
     merged = OmegaConf.merge(structured, omega_conf)
     return OmegaConf.to_object(merged)
-

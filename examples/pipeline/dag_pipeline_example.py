@@ -155,9 +155,7 @@ class ParallelFilterPipeline(BasePipeline):
         logger.info("Filtering outliers (> 3 std from mean)")
 
         # Calculate z-scores
-        z_scores = (df[numeric_cols] - df[numeric_cols].mean()) / df[
-            numeric_cols
-        ].std()
+        z_scores = (df[numeric_cols] - df[numeric_cols].mean()) / df[numeric_cols].std()
 
         # Keep rows where at least one value is an outlier
         mask = (z_scores.abs() > 3).any(axis=1)

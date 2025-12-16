@@ -180,13 +180,11 @@ class PipelineRunner:
 
         for config_rel in self.manifest.get("qc_configs", []):
             config_path = base_dir / config_rel
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Running QC: {config_rel}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
-            result = self._run_pipeline_command(
-                "qc", config_path, qc_output_dir
-            )
+            result = self._run_pipeline_command("qc", config_path, qc_output_dir)
 
             # Track output path
             if result.get("success"):
@@ -202,12 +200,14 @@ class PipelineRunner:
 
         for config_rel in self.manifest.get("viz_configs", []):
             config_path = base_dir / config_rel
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Running Viz: {config_rel}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             # Update config with new QC output path if mapping exists
-            updated_config = self._update_viz_config(config_path, config_rel, qc_mapping)
+            updated_config = self._update_viz_config(
+                config_path, config_rel, qc_mapping
+            )
 
             result = self._run_pipeline_command(
                 "viz", updated_config or config_path, viz_output_dir
@@ -226,9 +226,9 @@ class PipelineRunner:
 
         for config_rel in self.manifest.get("cross_platform_configs", []):
             config_path = base_dir / config_rel
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Running Cross-Platform: {config_rel}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             # Update config with new QC output paths if mapping exists
             updated_config = self._update_cross_platform_config(
@@ -408,9 +408,7 @@ class PipelineRunner:
                 "error": str(e),
             }
 
-    def _find_pipeline_output(
-        self, output_dir: Path, config_path: Path
-    ) -> Path | None:
+    def _find_pipeline_output(self, output_dir: Path, config_path: Path) -> Path | None:
         """Find the most recent pipeline output directory."""
         # Look for directories created after we started
         if not output_dir.exists():
@@ -434,9 +432,7 @@ class PipelineRunner:
                 latest_path.unlink()
 
             # Create new symlink (use relative path)
-            latest_path.symlink_to(
-                self.run_timestamp, target_is_directory=True
-            )
+            latest_path.symlink_to(self.run_timestamp, target_is_directory=True)
             print(f"\nUpdated symlink: latest -> {self.run_timestamp}")
         except OSError as e:
             # Symlinks may not work on some Windows configurations
@@ -692,9 +688,7 @@ class PipelineRunner:
                         align_df = pd.read_csv(alignment_path)
                         # Handle both row-based and column-based formats
                         if "metric" in align_df.columns and "value" in align_df.columns:
-                            metrics = dict(
-                                zip(align_df["metric"], align_df["value"])
-                            )
+                            metrics = dict(zip(align_df["metric"], align_df["value"]))
                             common_genos = str(int(metrics.get("common_genotypes", 0)))
                             exp1_samples = str(int(metrics.get("exp1_samples", 0)))
                             exp2_samples = str(int(metrics.get("exp2_samples", 0)))

@@ -38,7 +38,7 @@ def sample_data():
     return pd.DataFrame(
         {
             "Barcode": [f"sample_{i}" for i in range(10)],
-            "geno": [f"geno_{i%3}" for i in range(10)],
+            "geno": [f"geno_{i % 3}" for i in range(10)],
             "rep": [i % 2 + 1 for i in range(10)],
             "trait1": range(10),
             "trait2": range(10, 20),

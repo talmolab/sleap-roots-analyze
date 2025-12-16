@@ -69,7 +69,7 @@ class TestDetectOutliersMahalanobis:
         # Should detect at least 60% of the true outliers
         overlap = detected.intersection(expected)
         recall = len(overlap) / len(expected)
-        assert recall >= 0.6, f"Only detected {recall*100:.1f}% of true outliers"
+        assert recall >= 0.6, f"Only detected {recall * 100:.1f}% of true outliers"
 
     def test_chi_squared_threshold(self, outlier_data_with_known_outliers):
         """Test chi-squared threshold calculation."""
@@ -1856,9 +1856,9 @@ class TestCrossMethodConsistency:
         pca_found = [pos for pos in clear_outlier_positions if pos in pca_outliers]
 
         # Mahalanobis should find at least 1 of the clear outliers
-        assert (
-            len(mahal_found) >= 1
-        ), f"Mahalanobis only found {mahal_found} of {clear_outlier_positions}"
+        assert len(mahal_found) >= 1, (
+            f"Mahalanobis only found {mahal_found} of {clear_outlier_positions}"
+        )
 
         # PCA should find SOME outliers (may not be the same ones)
         # PCA reconstruction is less sensitive to extreme values in all dimensions
@@ -1893,10 +1893,12 @@ class TestEdgeCasesIndexHandling:
         X = np.random.randn(30, 4) * 0.1
 
         result_mahal = detect_outliers_mahalanobis(
-            X, chi2_percentile=99.9  # Very high threshold
+            X,
+            chi2_percentile=99.9,  # Very high threshold
         )
         result_pca = detect_outliers_pca(
-            X, outlier_threshold=5.0  # Very high threshold
+            X,
+            outlier_threshold=5.0,  # Very high threshold
         )
 
         # Should return empty lists
@@ -1915,7 +1917,8 @@ class TestEdgeCasesIndexHandling:
         result_mahal = detect_outliers_mahalanobis(X, chi2_percentile=10.0)  # Very low
 
         result_pca = detect_outliers_pca(
-            X, outlier_threshold=0.01  # Even lower threshold
+            X,
+            outlier_threshold=0.01,  # Even lower threshold
         )
 
         # Should find some outliers with these low thresholds
@@ -2958,9 +2961,9 @@ class TestCombineOutlierMethods:
                 f"For 3 methods with threshold {threshold}: "
                 f"expected {expected_min}, got {actual_min}"
             )
-            assert (
-                actual_total == 3
-            ), f"Total methods mismatch: expected 3, got {actual_total}"
+            assert actual_total == 3, (
+                f"Total methods mismatch: expected 3, got {actual_total}"
+            )
 
         # Test with 2 methods (no Mahalanobis)
         for threshold, expected_min in test_cases_2_methods:
@@ -2985,6 +2988,6 @@ class TestCombineOutlierMethods:
                 f"For 2 methods with threshold {threshold}: "
                 f"expected {expected_min}, got {actual_min}"
             )
-            assert (
-                actual_total == 2
-            ), f"Total methods mismatch: expected 2, got {actual_total}"
+            assert actual_total == 2, (
+                f"Total methods mismatch: expected 2, got {actual_total}"
+            )

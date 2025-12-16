@@ -142,7 +142,7 @@ class ExploratoryAnalysisStep(BaseStep):
                 batch_size=config.visualization.batch_size,
             )
             for i, fig in enumerate(hist_figs):
-                all_figures[f"04_trait_histograms_batch_{i+1}"] = fig
+                all_figures[f"04_trait_histograms_batch_{i + 1}"] = fig
 
             # Batched boxplots by genotype
             box_figs = create_trait_boxplots_by_genotype_batched(
@@ -152,7 +152,7 @@ class ExploratoryAnalysisStep(BaseStep):
                 batch_size=config.visualization.batch_size,
             )
             for i, fig in enumerate(box_figs):
-                all_figures[f"04_trait_boxplots_batch_{i+1}"] = fig
+                all_figures[f"04_trait_boxplots_batch_{i + 1}"] = fig
 
         # Save all figures
         files = []

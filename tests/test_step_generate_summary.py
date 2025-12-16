@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -18,13 +19,13 @@ from sleap_roots_analyze.pipeline.steps import GenerateSummaryStep
 
 @pytest.fixture
 def sample_data():
-    """Create sample data."""
+    """Create sample data with standardized column names (as after CleanupTraitsStep)."""
     np.random.seed(42)
     return pd.DataFrame(
         {
             "Barcode": [f"plant{i}" for i in range(15)],
-            "geno": ["A"] * 5 + ["B"] * 5 + ["C"] * 5,
-            "rep": [1, 2, 3] * 5,
+            "Genotype": ["A"] * 5 + ["B"] * 5 + ["C"] * 5,
+            "Replicate": [1, 2, 3] * 5,
             "trait1": np.random.randn(15) * 10 + 50,
             "trait2": np.random.randn(15) * 5 + 25,
         }
@@ -33,10 +34,12 @@ def sample_data():
 
 @pytest.fixture
 def config():
-    """Create config."""
+    """Create config with standardized column names."""
     return QCPipelineConfig(
         pipeline_name="test_qc",
-        columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+        columns=ColumnConfig(
+            barcode="Barcode", genotype="Genotype", replicate="Replicate"
+        ),
         data=DataConfig(csv_path="dummy.csv"),
     )
 

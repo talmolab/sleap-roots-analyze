@@ -170,10 +170,14 @@ class VisualizeDepthProfilesStep(BaseStep):
                     barplot_path = (
                         figures_dir / f"00f_depth_profile_{data_type}_barplot.png"
                     )
-                    
+
                     # Use same aggregation method as core aggregation for consistency
-                    estimator = source.aggregation_method if hasattr(source, 'aggregation_method') else "median"
-                    
+                    estimator = (
+                        source.aggregation_method
+                        if hasattr(source, "aggregation_method")
+                        else "median"
+                    )
+
                     plot_biomass_depth_barplot(
                         df=df,
                         depth_col="Depth_cm",

@@ -359,7 +359,7 @@ def build_feature_metrics_df(
     if include_loadings:
         n_components = loadings.shape[1]
         for k in range(n_components):
-            data[f"{loading_prefix}{k+1}"] = np.abs(loadings[:, k])
+            data[f"{loading_prefix}{k + 1}"] = np.abs(loadings[:, k])
 
     # Create DataFrame and sort
     df = pd.DataFrame(data)
@@ -457,7 +457,7 @@ def run_pca_and_export_artifacts(
     # (1) Loadings matrix (unit vectors)
     loadings_df = pd.DataFrame(
         loadings,
-        columns=[f"PC{i+1}" for i in range(n_used)],
+        columns=[f"PC{i + 1}" for i in range(n_used)],
         index=features,
     )
 
@@ -474,7 +474,7 @@ def run_pca_and_export_artifacts(
     trait_contrib_df = (
         pd.DataFrame(
             trait_pc_variance_contrib,
-            columns=[f"PC{i+1}_variance_contrib" for i in range(n_used)],
+            columns=[f"PC{i + 1}_variance_contrib" for i in range(n_used)],
             index=features,
         )
         .assign(
@@ -488,7 +488,7 @@ def run_pca_and_export_artifacts(
     # Reorder columns
     cols_order = (
         ["trait"]
-        + [f"PC{i+1}_variance_contrib" for i in range(n_used)]
+        + [f"PC{i + 1}_variance_contrib" for i in range(n_used)]
         + ["trait_total_variance_contrib", "trait_fractional_contrib"]
     )
     trait_contrib_df = trait_contrib_df[cols_order]
@@ -500,7 +500,7 @@ def run_pca_and_export_artifacts(
     # (3) Per-PC variance explained (ratios → %)
     variance_df = pd.DataFrame(
         {
-            "PC": [f"PC{i+1}" for i in range(len(evr))],
+            "PC": [f"PC{i + 1}" for i in range(len(evr))],
             "Explained Variance (%)": evr * 100.0,
             "Cumulative Variance (%)": cvr * 100.0,
         }
@@ -508,7 +508,7 @@ def run_pca_and_export_artifacts(
 
     # (4) PC scores + metadata
     scores = pca_results["transformed_data"][:, :n_used]
-    pc_cols = [f"PC{i+1}" for i in range(n_used)]
+    pc_cols = [f"PC{i + 1}" for i in range(n_used)]
     scores_df = pd.DataFrame(scores, columns=pc_cols)
 
     # Add metadata if present
@@ -857,7 +857,7 @@ def perform_pca_analysis(
     # Add per-PC variance contributions
     for i in range(n_components):
         pc_contribution = eigenvalues[i] * loadings[:, i] ** 2
-        contrib_dict[f"PC{i+1}_variance_contrib"] = pc_contribution
+        contrib_dict[f"PC{i + 1}_variance_contrib"] = pc_contribution
 
     feature_contributions = pd.DataFrame(contrib_dict, index=feature_names)
     feature_contributions = feature_contributions.sort_values(

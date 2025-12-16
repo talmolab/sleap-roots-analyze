@@ -65,7 +65,7 @@ class CleanupTraitsStep(BaseStep):
 
         # Get trait columns from previous step
         trait_cols = prev_result.metadata["trait_column_names"]
-        
+
         # Extract depth_range_mapping from previous step (if available from ReshapeForTraitQCStep)
         depth_range_mapping = prev_result.metadata.get("depth_range_mapping", None)
 
@@ -208,8 +208,10 @@ class CleanupTraitsStep(BaseStep):
 
         # Create metadata
         # Only include trait name mapping if names actually changed
-        names_changed = {old: new for old, new in trait_name_mapping.items() if old != new}
-        
+        names_changed = {
+            old: new for old, new in trait_name_mapping.items() if old != new
+        }
+
         metadata = {
             "samples_original": cleanup_log["original_samples"],
             "samples_removed": len(cleanup_log.get("removed_samples_detail", [])),
@@ -224,8 +226,8 @@ class CleanupTraitsStep(BaseStep):
             "nan_validation_passed": True,
             # Add column mapping for downstream steps to use sanitized names
             "column_mapping": {
-                "barcode": barcode_col,      # "barcode" -> "Barcode"
-                "genotype": genotype_col,    # "genotype" -> "Genotype"
+                "barcode": barcode_col,  # "barcode" -> "Barcode"
+                "genotype": genotype_col,  # "genotype" -> "Genotype"
                 "replicate": replicate_col,  # "replicate" -> "Replicate"
             },
         }

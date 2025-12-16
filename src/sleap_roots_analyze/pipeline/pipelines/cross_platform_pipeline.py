@@ -36,7 +36,11 @@ class CrossPlatformPipeline(BasePipeline):
     variation patterns.
     """
 
-    def __init__(self, config: CrossPlatformConfig, output_dir: Path | str = "./cross_platform_runs"):
+    def __init__(
+        self,
+        config: CrossPlatformConfig,
+        output_dir: Path | str = "./cross_platform_runs",
+    ):
         """Initialize CrossPlatformPipeline.
 
         Args:
@@ -96,7 +100,9 @@ class CrossPlatformPipeline(BasePipeline):
         """Execute Step 1: Load Cross-Platform Data."""
         logger.info("Step 1/3: Loading and aligning cross-platform data...")
         step = LoadCrossPlatformDataStep()
-        result = step.execute(data=None, config=config, run_dir=run_dir, prev_result=None)
+        result = step.execute(
+            data=None, config=config, run_dir=run_dir, prev_result=None
+        )
         return result
 
     def _run_calculate_correlations(self, config, run_dir, logger, **kwargs):

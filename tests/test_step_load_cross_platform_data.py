@@ -264,7 +264,9 @@ def test_load_cross_platform_data_step_alignment_summary(
     )
 
     step = LoadCrossPlatformDataStep()
-    step.execute(data=None, config=cross_platform_config, run_dir=tmp_path, prev_result=None)
+    step.execute(
+        data=None, config=cross_platform_config, run_dir=tmp_path, prev_result=None
+    )
 
     # Read alignment summary
     summary_path = tmp_path / "cross_platform_alignment_summary.csv"

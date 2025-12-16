@@ -269,18 +269,22 @@ def test_calculate_cross_platform_correlations_step_nan_handling(tmp_path):
     from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
 
     # Create data with some NaN values
-    exp1_df = pd.DataFrame({
-        "genotype": ["A", "A", "B", "B", "C", "C"],
-        "replicate": [1, 2, 1, 2, 1, 2],
-        "trait1": [1.0, 2.0, np.nan, 4.0, 5.0, 6.0],
-        "trait2": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
-    })
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "A", "B", "B", "C", "C"],
+            "replicate": [1, 2, 1, 2, 1, 2],
+            "trait1": [1.0, 2.0, np.nan, 4.0, 5.0, 6.0],
+            "trait2": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
+        }
+    )
 
-    exp2_df = pd.DataFrame({
-        "genotype": ["A", "A", "B", "B", "C", "C"],
-        "replicate": [1, 2, 1, 2, 1, 2],
-        "trait_a": [100.0, 200.0, 300.0, np.nan, 500.0, 600.0],
-    })
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "A", "B", "B", "C", "C"],
+            "replicate": [1, 2, 1, 2, 1, 2],
+            "trait_a": [100.0, 200.0, 300.0, np.nan, 500.0, 600.0],
+        }
+    )
 
     prev_result = StepResult(
         data={

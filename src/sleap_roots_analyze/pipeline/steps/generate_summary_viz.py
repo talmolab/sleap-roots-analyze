@@ -139,7 +139,9 @@ class GenerateSummaryStep(BaseStep):
                 heritability_summary = summary["heritability_summary"]
                 results["heritability"] = {
                     "mean_h2": heritability_summary.get("mean_heritability", 0),
-                    "n_high_h2": heritability_summary.get("high_heritability_traits_h60", 0),
+                    "n_high_h2": heritability_summary.get(
+                        "high_heritability_traits_h60", 0
+                    ),
                 }
 
         if "n_traits_removed_by_heritability" in metadata:

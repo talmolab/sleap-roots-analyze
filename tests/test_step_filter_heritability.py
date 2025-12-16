@@ -22,13 +22,13 @@ from sleap_roots_analyze.pipeline.steps import FilterHeritabilityStep
 
 @pytest.fixture
 def sample_data():
-    """Create sample data."""
+    """Create sample data with standardized column names (as after CleanupTraitsStep)."""
     np.random.seed(42)
     return pd.DataFrame(
         {
             "Barcode": [f"plant{i}" for i in range(20)],
-            "geno": ["A"] * 10 + ["B"] * 10,
-            "rep": [1, 2] * 10,
+            "Genotype": ["A"] * 10 + ["B"] * 10,
+            "Replicate": [1, 2] * 10,
             "high_h2_trait": np.random.randn(20) * 10 + 50,
             "med_h2_trait": np.random.randn(20) * 5 + 25,
             "low_h2_trait": np.random.randn(20) * 3 + 15,
@@ -38,10 +38,12 @@ def sample_data():
 
 @pytest.fixture
 def config():
-    """Create config."""
+    """Create config with standardized column names."""
     return QCPipelineConfig(
         pipeline_name="test_qc",
-        columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+        columns=ColumnConfig(
+            barcode="Barcode", genotype="Genotype", replicate="Replicate"
+        ),
         data=DataConfig(csv_path="dummy.csv"),
         heritability=HeritabilityConfig(threshold=0.3),
     )
@@ -116,11 +118,14 @@ class TestFilterHeritabilityStepBasic:
 class TestFilterHeritabilityStepEdgeCases:
     """Test edge cases."""
 
-    def test_all_traits_pass(self, sample_data, tmp_path):
+    def test_all_traits_pass(self, sample_data, config, tmp_path):
         """Test when all traits pass threshold."""
+        # Override threshold to 0.0 so all traits pass
         config = QCPipelineConfig(
             pipeline_name="test_qc",
-            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
             data=DataConfig(csv_path="dummy.csv"),
             heritability=HeritabilityConfig(threshold=0.0),  # All pass
         )
@@ -171,10 +176,13 @@ class TestFilterHeritabilityStepDiagnostics:
         """Test that enabling diagnostics generates expected files."""
         config = QCPipelineConfig(
             pipeline_name="test_qc",
-            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
             data=DataConfig(csv_path="dummy.csv"),
             heritability=HeritabilityConfig(
-                threshold=0.3, generate_diagnostics=True  # Enable diagnostics
+                threshold=0.3,
+                generate_diagnostics=True,  # Enable diagnostics
             ),
         )
 
@@ -203,7 +211,9 @@ class TestFilterHeritabilityStepDiagnostics:
         """Test that diagnostic files are added to files_generated list."""
         config = QCPipelineConfig(
             pipeline_name="test_qc",
-            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
             data=DataConfig(csv_path="dummy.csv"),
             heritability=HeritabilityConfig(threshold=0.3, generate_diagnostics=True),
         )
@@ -223,7 +233,9 @@ class TestFilterHeritabilityStepDiagnostics:
         """Test that diagnostics are not generated if no traits are removed."""
         config = QCPipelineConfig(
             pipeline_name="test_qc",
-            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
             data=DataConfig(csv_path="dummy.csv"),
             heritability=HeritabilityConfig(
                 threshold=0.0,  # All traits pass
@@ -257,7 +269,9 @@ class TestFilterHeritabilityStepDiagnostics:
         """Test that diagnostic results in metadata have expected structure."""
         config = QCPipelineConfig(
             pipeline_name="test_qc",
-            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
             data=DataConfig(csv_path="dummy.csv"),
             heritability=HeritabilityConfig(threshold=0.3, generate_diagnostics=True),
         )
@@ -279,13 +293,13 @@ class TestFilterHeritabilityStepDiagnostics:
 
     def test_diagnostics_with_many_removed_traits(self, tmp_path):
         """Test that boxplots are limited to top 10 when many traits are removed."""
-        # Create data with 15 traits
+        # Create data with 15 traits using standardized column names
         np.random.seed(42)
         data = pd.DataFrame(
             {
                 "Barcode": [f"plant{i}" for i in range(20)],
-                "geno": ["A"] * 10 + ["B"] * 10,
-                "rep": [1, 2] * 10,
+                "Genotype": ["A"] * 10 + ["B"] * 10,
+                "Replicate": [1, 2] * 10,
             }
         )
         # Add 15 traits, all with low heritability
@@ -294,7 +308,9 @@ class TestFilterHeritabilityStepDiagnostics:
 
         config = QCPipelineConfig(
             pipeline_name="test_qc",
-            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
             data=DataConfig(csv_path="dummy.csv"),
             heritability=HeritabilityConfig(threshold=0.8, generate_diagnostics=True),
         )

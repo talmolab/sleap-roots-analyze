@@ -331,7 +331,7 @@ class GenerateStaticFiguresStep(BaseStep):
             files.extend(
                 self._save_figure(
                     subfig,
-                    f"trait_histograms_batch{i+1}",
+                    f"trait_histograms_batch{i + 1}",
                     output_dir,
                     formats,
                     dpi,
@@ -355,7 +355,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 files.extend(
                     self._save_figure(
                         subfig,
-                        f"trait_boxplots_by_genotype_batch{i+1}",
+                        f"trait_boxplots_by_genotype_batch{i + 1}",
                         output_dir,
                         formats,
                         dpi,

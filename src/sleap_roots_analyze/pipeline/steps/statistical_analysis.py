@@ -239,22 +239,28 @@ class StatisticalAnalysisStep(BaseStep):
 
         # Use adaptive sizing if enabled
         # Handle both QC and Viz pipeline configs
-        viz_config = getattr(config, 'visualization', getattr(config, 'static_viz', None))
-        
+        viz_config = getattr(
+            config, "visualization", getattr(config, "static_viz", None)
+        )
+
         # Get figure format and savefig parameters compatible with both config types
-        if hasattr(viz_config, 'figure_format'):
+        if hasattr(viz_config, "figure_format"):
             # QC config: VisualizationConfig
             figure_format = viz_config.figure_format
-            figsize = tuple(viz_config.figsize) if not (config.adaptive_sizing and config.adaptive_sizing.enabled) else None
+            figsize = (
+                tuple(viz_config.figsize)
+                if not (config.adaptive_sizing and config.adaptive_sizing.enabled)
+                else None
+            )
             facecolor = viz_config.facecolor
             edgecolor = viz_config.edgecolor
         else:
             # Viz config: StaticVisualizationConfig
             figure_format = viz_config.formats[0]  # Use first format from list
             figsize = (10, 6)  # Default figsize for viz pipeline
-            facecolor = 'white'
-            edgecolor = 'none'
-        
+            facecolor = "white"
+            edgecolor = "none"
+
         if config.adaptive_sizing and config.adaptive_sizing.enabled:
             h2_figsize = calculate_barplot_size(
                 n_items=len(heritability_results),
@@ -270,8 +276,7 @@ class StatisticalAnalysisStep(BaseStep):
             figsize=h2_figsize,
         )
         heritability_plot_path = (
-            figures_dir
-            / f"08_heritability_analysis.{figure_format}"
+            figures_dir / f"08_heritability_analysis.{figure_format}"
         )
         fig.savefig(
             heritability_plot_path,

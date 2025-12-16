@@ -310,7 +310,7 @@ def create_mahalanobis_outlier_plots(
             # Chi-squared threshold is already squared
             plot_threshold = threshold_value
             chi2_percentile = mahal_results.get("chi2_percentile", 95.0)
-            threshold_label = rf"$\chi^2_{{{chi2_percentile/100:.2f}}}({n_components}) = {threshold_value:.2f}$"
+            threshold_label = rf"$\chi^2_{{{chi2_percentile / 100:.2f}}}({n_components}) = {threshold_value:.2f}$"
         else:
             # For distance threshold, plot raw distances
             plot_distances = distances
@@ -546,7 +546,7 @@ def create_mahalanobis_outlier_plots(
         if threshold_type == "chi_squared":
             chi2_percentile = mahal_results.get("chi2_percentile", 95.0)
             fig.suptitle(
-                rf"Mahalanobis Outlier Detection ($\chi^2_{{{chi2_percentile/100:.2f}}}$ threshold with {n_components} PCs)",
+                rf"Mahalanobis Outlier Detection ($\chi^2_{{{chi2_percentile / 100:.2f}}}$ threshold with {n_components} PCs)",
                 fontsize=14,
             )
         else:
@@ -740,7 +740,8 @@ def create_mahalanobis_outlier_plots(
             ax1.text(
                 p,
                 y_pos,
-                rf"$\chi^2_{{{p/100:.2f}}}({n_components})$" + f"\n= {threshold_p:.2f}",
+                rf"$\chi^2_{{{p / 100:.2f}}}({n_components})$"
+                + f"\n= {threshold_p:.2f}",
                 ha="center",
                 va="top",
                 fontsize=9,
@@ -786,7 +787,7 @@ def create_mahalanobis_outlier_plots(
         ax1_twin.set_ylabel("Outlier Percentage (%)")
         ax1_twin.set_yticks(ax1.get_yticks())
         ax1_twin.set_yticklabels(
-            [f"{(y/total_samples*100):.1f}" for y in ax1.get_yticks()]
+            [f"{(y / total_samples * 100):.1f}" for y in ax1.get_yticks()]
         )
 
         # Add legend
@@ -1131,7 +1132,6 @@ def create_comprehensive_outlier_comparison(outlier_results: Dict) -> plt.Figure
     methods = sorted(methods)
 
     if methods:
-
         # Create overlap matrix
         overlap_data = []
         for i, method1 in enumerate(methods):
@@ -1525,7 +1525,7 @@ def create_gmm_outlier_plots(
             ax.set_ylabel("Component")
             ax.set_title("GMM Soft Cluster Assignments\n(Probability Heatmap)")
             ax.set_yticks(range(n_components))
-            ax.set_yticklabels([f"Component {i+1}" for i in range(n_components)])
+            ax.set_yticklabels([f"Component {i + 1}" for i in range(n_components)])
 
             # Add colorbar
             cbar = plt.colorbar(im, ax=ax)

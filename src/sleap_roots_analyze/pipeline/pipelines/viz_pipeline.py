@@ -413,7 +413,7 @@ class VizPipeline(BasePipeline):
         # Primary input from genotype aggregation
         prev_task_result = kwargs.get("08_genotype_aggregation")
         prev_step_result = prev_task_result.data
-        
+
         # CRITICAL FIX: Merge PCA results into metadata
         # The static figures step needs PCA results, but they're on a different
         # branch of the DAG (PCA → interesting_genotypes vs statistics → heritability → aggregation)
@@ -427,7 +427,9 @@ class VizPipeline(BasePipeline):
                 "pca_results": pca_step_result.metadata.get("pca_results"),
                 "top_features": pca_step_result.metadata.get("top_features"),
                 "n_pca_components": pca_step_result.metadata.get("n_pca_components"),
-                "pca_explained_variance": pca_step_result.metadata.get("pca_explained_variance"),
+                "pca_explained_variance": pca_step_result.metadata.get(
+                    "pca_explained_variance"
+                ),
             }
             # Create combined result with merged metadata
             combined_result = StepResult(
@@ -438,7 +440,7 @@ class VizPipeline(BasePipeline):
         else:
             # Fallback if PCA not available (shouldn't happen given dependencies)
             combined_result = prev_step_result
-        
+
         result = self.step_9_generate_static_figures.execute(
             data=combined_result.data,
             config=config,

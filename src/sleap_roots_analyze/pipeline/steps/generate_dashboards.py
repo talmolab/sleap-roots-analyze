@@ -267,7 +267,7 @@ class GenerateDashboardsStep(BaseStep):
     <div class="container">
         <h1>🔬 Visualization Pipeline Dashboard</h1>
         <p class="timestamp">Generated: {
-            pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+            pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
         }</p>
 
         <div class="summary-stats">
@@ -305,11 +305,7 @@ class GenerateDashboardsStep(BaseStep):
         <div class="section" id="interactive">
             <h2>🎨 Interactive Visualizations</h2>
             <div class="figure-grid">
-{
-                    self._generate_figure_cards(
-                        interactive_figures, run_dir, "interactive"
-                    )
-                }
+{self._generate_figure_cards(interactive_figures, run_dir, "interactive")}
             </div>
         </div>
 

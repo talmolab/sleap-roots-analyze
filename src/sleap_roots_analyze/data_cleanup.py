@@ -862,7 +862,7 @@ def inspect_nan_samples(
 
             # Log summary statistics
             logger.info(
-                f"Summary: {len(inspection_df)} samples with NaN values out of {len(df)} total samples ({len(inspection_df)/len(df)*100:.1f}%)"
+                f"Summary: {len(inspection_df)} samples with NaN values out of {len(df)} total samples ({len(inspection_df) / len(df) * 100:.1f}%)"
             )
 
         # Save to CSV if path provided

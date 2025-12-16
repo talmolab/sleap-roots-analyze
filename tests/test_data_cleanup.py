@@ -231,9 +231,9 @@ class TestGetTraitColumns:
         assert "RootDW_15cm" in trait_cols
         assert "RootDW_45cm" in trait_cols
         assert "RootCount_0cm" in trait_cols
-        assert (
-            len(trait_cols) == 3
-        ), f"Should have 3 traits, got {len(trait_cols)}: {trait_cols}"
+        assert len(trait_cols) == 3, (
+            f"Should have 3 traits, got {len(trait_cols)}: {trait_cols}"
+        )
 
 
 class TestLinkRhizovisionImagesToSamples:

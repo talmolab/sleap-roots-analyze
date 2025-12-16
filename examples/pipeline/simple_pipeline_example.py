@@ -105,9 +105,7 @@ class SimpleAnalysisPipeline(BasePipeline):
         n_missing = df.isna().sum().sum()
         df_clean = df.dropna()
 
-        logger.info(
-            f"Removed {n_missing} missing values, new shape: {df_clean.shape}"
-        )
+        logger.info(f"Removed {n_missing} missing values, new shape: {df_clean.shape}")
 
         # Save cleaned data
         output_file = run_dir / "cleaned_data.csv"

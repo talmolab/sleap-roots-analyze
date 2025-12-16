@@ -520,9 +520,9 @@ class TestGenerateStaticFiguresManifest:
         manifest = result.metadata["static_figures_manifest"]
         for file_path in manifest["files"]:
             full_path = tmp_path / file_path
-            assert (
-                full_path.exists()
-            ), f"File listed in manifest doesn't exist: {file_path}"
+            assert full_path.exists(), (
+                f"File listed in manifest doesn't exist: {file_path}"
+            )
 
 
 class TestGenerateStaticFiguresMetadata:
@@ -580,9 +580,9 @@ class TestGenerateStaticFiguresMetadata:
 
         # Check all files in list exist
         for file_path in result.files_generated:
-            assert (
-                file_path.exists()
-            ), f"File in files_generated doesn't exist: {file_path}"
+            assert file_path.exists(), (
+                f"File in files_generated doesn't exist: {file_path}"
+            )
 
 
 class TestGenerateStaticFiguresGenotypeHighlighting:
@@ -612,11 +612,15 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         mock_scree = Mock(return_value=Mock())
         mock_heatmap = Mock(return_value=(Mock(), Mock()))
         mock_boxplot = Mock(return_value=Mock())
-        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pca_scree_plot", mock_scree
+        )
         monkeypatch.setattr(
             generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
         )
-        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot
+        )
 
         setup_matplotlib_backend()
         step = GenerateStaticFiguresStep()
@@ -631,9 +635,9 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         # Verify create_pca_biplot was called with genotypes_to_color
         assert mock_biplot.called
         call_kwargs = mock_biplot.call_args.kwargs
-        assert (
-            "genotypes_to_color" in call_kwargs
-        ), "genotypes_to_color not passed to create_pca_biplot"
+        assert "genotypes_to_color" in call_kwargs, (
+            "genotypes_to_color not passed to create_pca_biplot"
+        )
         assert call_kwargs["genotypes_to_color"] == genotypes_to_color
 
     def test_passes_highlight_genotypes_to_pca_biplot(
@@ -658,11 +662,15 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         mock_heatmap = Mock(return_value=(Mock(), Mock()))
         mock_boxplot = Mock(return_value=Mock())
         monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
-        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pca_scree_plot", mock_scree
+        )
         monkeypatch.setattr(
             generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
         )
-        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot
+        )
 
         setup_matplotlib_backend()
         step = GenerateStaticFiguresStep()
@@ -677,9 +685,9 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         # Verify create_pca_biplot was called with highlight_genotypes
         assert mock_biplot.called
         call_kwargs = mock_biplot.call_args.kwargs
-        assert (
-            "highlight_genotypes" in call_kwargs
-        ), "highlight_genotypes not passed to create_pca_biplot"
+        assert "highlight_genotypes" in call_kwargs, (
+            "highlight_genotypes not passed to create_pca_biplot"
+        )
         assert call_kwargs["highlight_genotypes"] == highlight_genotypes
 
     def test_passes_highlight_genotypes_to_pc_boxplots(
@@ -704,11 +712,15 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         mock_heatmap = Mock(return_value=(Mock(), Mock()))
         mock_boxplot = Mock(return_value=Mock())
         monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
-        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pca_scree_plot", mock_scree
+        )
         monkeypatch.setattr(
             generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
         )
-        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot
+        )
 
         setup_matplotlib_backend()
         step = GenerateStaticFiguresStep()
@@ -723,9 +735,9 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         # Verify create_pc_genotype_boxplots was called with highlight_genotypes (if conditions met)
         if mock_boxplot.called:
             call_kwargs = mock_boxplot.call_args.kwargs
-            assert (
-                "highlight_genotypes" in call_kwargs
-            ), "highlight_genotypes not passed to create_pc_genotype_boxplots"
+            assert "highlight_genotypes" in call_kwargs, (
+                "highlight_genotypes not passed to create_pc_genotype_boxplots"
+            )
             assert call_kwargs["highlight_genotypes"] == highlight_genotypes
 
     def test_both_parameters_passed_together(
@@ -752,11 +764,15 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         mock_heatmap = Mock(return_value=(Mock(), Mock()))
         mock_boxplot = Mock(return_value=Mock())
         monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
-        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pca_scree_plot", mock_scree
+        )
         monkeypatch.setattr(
             generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
         )
-        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot
+        )
 
         setup_matplotlib_backend()
         step = GenerateStaticFiguresStep()
@@ -800,11 +816,15 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         mock_heatmap = Mock(return_value=(Mock(), Mock()))
         mock_boxplot = Mock(return_value=Mock())
         monkeypatch.setattr(generate_static_figures, "create_pca_biplot", mock_biplot)
-        monkeypatch.setattr(generate_static_figures, "create_pca_scree_plot", mock_scree)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pca_scree_plot", mock_scree
+        )
         monkeypatch.setattr(
             generate_static_figures, "create_feature_contribution_heatmap", mock_heatmap
         )
-        monkeypatch.setattr(generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot)
+        monkeypatch.setattr(
+            generate_static_figures, "create_pc_genotype_boxplots", mock_boxplot
+        )
 
         setup_matplotlib_backend()
         step = GenerateStaticFiguresStep()

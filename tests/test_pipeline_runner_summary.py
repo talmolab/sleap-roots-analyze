@@ -129,7 +129,10 @@ def setup_mock_qc_run(tmp_path, mock_qc_summary) -> Path:
 
 @pytest.fixture
 def setup_mock_cross_platform_run(
-    tmp_path, mock_cross_platform_summary, mock_alignment_csv_data, mock_correlations_csv_data
+    tmp_path,
+    mock_cross_platform_summary,
+    mock_alignment_csv_data,
+    mock_correlations_csv_data,
 ) -> Path:
     """Set up a mock cross-platform run directory."""
     cp_run_dir = tmp_path / "cross_platform" / "test_cp_run"
@@ -594,7 +597,11 @@ class TestGenerateSummaryIntegration:
     """Integration tests for full summary generation."""
 
     def test_generate_summary_includes_all_sections(
-        self, tmp_path, setup_mock_qc_run, setup_mock_viz_run, setup_mock_cross_platform_run
+        self,
+        tmp_path,
+        setup_mock_qc_run,
+        setup_mock_viz_run,
+        setup_mock_cross_platform_run,
     ):
         """Test full summary includes QC, Viz, Cross-Platform, and Methods."""
         from sleap_roots_analyze.pipeline_runner import PipelineRunner

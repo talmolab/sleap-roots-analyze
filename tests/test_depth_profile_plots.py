@@ -122,8 +122,9 @@ class TestPlotDepthProfileFaceted:
 
             # Check file was created
             assert output_path.exists()
-            assert fig is not None
-            plt.close(fig)
+            # Note: fig is None when output_path is provided because
+            # the figure is closed after rotation and saving
+            assert fig is None
 
     def test_custom_styling_kwargs(self, aggregated_depth_data):
         """Test passing custom styling kwargs to lineplot."""
@@ -197,8 +198,9 @@ class TestPlotDepthProfileReplicates:
 
             # Check file was created
             assert output_path.exists()
-            assert fig is not None
-            plt.close(fig)
+            # Note: fig is None when output_path is provided because
+            # the figure is closed after rotation and saving
+            assert fig is None
 
     def test_custom_alpha(self, aggregated_depth_data):
         """Test custom transparency for overlapping lines."""

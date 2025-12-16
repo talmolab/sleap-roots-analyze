@@ -29,7 +29,7 @@ def mock_pca_results():
     # Create mock PC scores
     pc_scores = pd.DataFrame(
         np.random.randn(n_samples, n_components),
-        columns=[f"PC{i+1}" for i in range(n_components)],
+        columns=[f"PC{i + 1}" for i in range(n_components)],
     )
 
     # Create mock loadings
@@ -47,7 +47,7 @@ def mock_pca_results():
         "explained_variance_ratio": np.array([0.45, 0.30, 0.15]),
         "cumulative_variance_ratio": np.array([0.45, 0.75, 0.90]),
         "eigenvalues": np.array([3.5, 1.8, 0.9]),  # Same as explained_variance
-        "feature_names": [f"trait{i+1}" for i in range(n_features)],
+        "feature_names": [f"trait{i + 1}" for i in range(n_features)],
         "n_components": n_components,
         "total_variance_explained": 0.90,
     }
@@ -94,7 +94,7 @@ def sample_trait_data():
     return pd.DataFrame(
         {
             "Barcode": [f"sample_{i}" for i in range(n_samples)],
-            "Genotype": [f"geno_{i%n_genotypes}" for i in range(n_samples)],
+            "Genotype": [f"geno_{i % n_genotypes}" for i in range(n_samples)],
             "Replicate": [i % 3 + 1 for i in range(n_samples)],
             "trait1": np.random.randn(n_samples) * 10 + 50,
             "trait2": np.random.randn(n_samples) * 5 + 20,
@@ -113,13 +113,17 @@ def sample_trait_data():
 
 @pytest.fixture
 def static_viz_config_enabled():
-    """QCPipelineConfig with static visualization enabled."""
+    """QCPipelineConfig with static visualization enabled and standardized column names."""
     from sleap_roots_analyze.pipeline.config import (
+        ColumnConfig,
         QCPipelineConfig,
         StaticVisualizationConfig,
     )
 
     config = QCPipelineConfig(pipeline_name="test_static_viz")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
     config.data.csv_path = "dummy.csv"
     config.static_viz = StaticVisualizationConfig(
         enabled=True,
@@ -140,11 +144,15 @@ def static_viz_config_enabled():
 def static_viz_config_disabled():
     """QCPipelineConfig with static visualization disabled."""
     from sleap_roots_analyze.pipeline.config import (
+        ColumnConfig,
         QCPipelineConfig,
         StaticVisualizationConfig,
     )
 
     config = QCPipelineConfig(pipeline_name="test_static_viz_disabled")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
     config.data.csv_path = "dummy.csv"
     config.static_viz = StaticVisualizationConfig(enabled=False)
     return config
@@ -154,11 +162,15 @@ def static_viz_config_disabled():
 def static_viz_config_multiformat():
     """QCPipelineConfig with multiple output formats."""
     from sleap_roots_analyze.pipeline.config import (
+        ColumnConfig,
         QCPipelineConfig,
         StaticVisualizationConfig,
     )
 
     config = QCPipelineConfig(pipeline_name="test_static_viz_multiformat")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
     config.data.csv_path = "dummy.csv"
     config.static_viz = StaticVisualizationConfig(
         enabled=True,
@@ -173,13 +185,17 @@ def static_viz_config_multiformat():
 
 @pytest.fixture
 def interactive_viz_config_enabled():
-    """QCPipelineConfig with interactive visualization enabled."""
+    """QCPipelineConfig with interactive visualization enabled and standardized column names."""
     from sleap_roots_analyze.pipeline.config import (
-        QCPipelineConfig,
+        ColumnConfig,
         InteractiveVisualizationConfig,
+        QCPipelineConfig,
     )
 
     config = QCPipelineConfig(pipeline_name="test_interactive_viz")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
     config.data.csv_path = "dummy.csv"
     config.interactive_viz = InteractiveVisualizationConfig(
         enabled=True,
@@ -194,11 +210,15 @@ def interactive_viz_config_enabled():
 def interactive_viz_config_disabled():
     """QCPipelineConfig with interactive visualization disabled."""
     from sleap_roots_analyze.pipeline.config import (
-        QCPipelineConfig,
+        ColumnConfig,
         InteractiveVisualizationConfig,
+        QCPipelineConfig,
     )
 
     config = QCPipelineConfig(pipeline_name="test_interactive_viz_disabled")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
     config.data.csv_path = "dummy.csv"
     config.interactive_viz = InteractiveVisualizationConfig(enabled=False)
     return config
@@ -208,11 +228,15 @@ def interactive_viz_config_disabled():
 def dashboard_config_enabled():
     """QCPipelineConfig with dashboard generation enabled."""
     from sleap_roots_analyze.pipeline.config import (
-        QCPipelineConfig,
+        ColumnConfig,
         DashboardConfig,
+        QCPipelineConfig,
     )
 
     config = QCPipelineConfig(pipeline_name="test_dashboard")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
     config.data.csv_path = "dummy.csv"
     config.dashboard = DashboardConfig(
         enabled=True,
@@ -226,11 +250,15 @@ def dashboard_config_enabled():
 def dashboard_config_disabled():
     """QCPipelineConfig with dashboard generation disabled."""
     from sleap_roots_analyze.pipeline.config import (
-        QCPipelineConfig,
+        ColumnConfig,
         DashboardConfig,
+        QCPipelineConfig,
     )
 
     config = QCPipelineConfig(pipeline_name="test_dashboard_disabled")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
     config.data.csv_path = "dummy.csv"
     config.dashboard = DashboardConfig(enabled=False)
     return config

@@ -107,7 +107,7 @@ class PCAAnalysisStep(BaseStep):
         pc_scores_df = pd.DataFrame(
             pca_results["transformed_data"],
             index=data_clean.index,
-            columns=[f"PC{i+1}" for i in range(n_components)],
+            columns=[f"PC{i + 1}" for i in range(n_components)],
         )
         pc_scores_df.to_csv(pca_dir / "pc_scores.csv")
 
@@ -115,7 +115,7 @@ class PCAAnalysisStep(BaseStep):
         loadings_df = pd.DataFrame(
             pca_results["loadings"],
             index=trait_cols,
-            columns=[f"PC{i+1}" for i in range(n_components)],
+            columns=[f"PC{i + 1}" for i in range(n_components)],
         )
         loadings_df.to_csv(pca_dir / "loadings.csv")
 
@@ -126,7 +126,7 @@ class PCAAnalysisStep(BaseStep):
                 "explained_variance_ratio": pca_results["explained_variance_ratio"],
                 "cumulative_variance_ratio": pca_results["cumulative_variance_ratio"],
             },
-            index=[f"PC{i+1}" for i in range(n_components)],
+            index=[f"PC{i + 1}" for i in range(n_components)],
         )
         explained_var_df.to_csv(pca_dir / "explained_variance.csv")
 
