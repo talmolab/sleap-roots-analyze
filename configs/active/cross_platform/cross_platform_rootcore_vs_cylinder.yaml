@@ -11,9 +11,9 @@ exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/EDPIE Root Core Full QC_2025
 exp1_name: "Root Core EDPIE (QC'd)"
 exp1_genotype_col: "Genotype"
 
-# Experiment 2: Cylinder (SLEAP Roots imaging)
-exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/cylinder_edpie_qc_20251215_133553/10_final_data.csv"
-exp2_name: "Cylinder EDPIE"
+# Experiment 2: Cylinder (SLEAP Roots imaging) - QC'd but NOT heritability filtered
+exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/cylinder_edpie_qc_20251215_133553/07_data_outliers_removed.csv"
+exp2_name: "Cylinder EDPIE (QC'd)"
 exp2_genotype_col: "Genotype"
 
 # Correlation Analysis Parameters

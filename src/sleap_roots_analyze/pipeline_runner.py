@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -246,6 +247,56 @@ class PipelineRunner:
 
             self.run_results["cross_platform"][config_rel] = result
 
+    @staticmethod
+    def _extract_filename(path: str) -> str:
+        """Extract the filename from a path string.
+
+        Args:
+            path: A file path (can use forward or back slashes)
+
+        Returns:
+            The filename portion of the path
+        """
+        # Normalize path separators and extract filename
+        normalized = path.replace("\\", "/")
+        return Path(normalized).name
+
+    @staticmethod
+    def _update_yaml_path_preserving_structure(
+        content: str,
+        key_pattern: str,
+        new_dir: Path,
+        original_filename: str,
+    ) -> str:
+        """Update a path value in YAML content while preserving structure.
+
+        Uses regex substitution to update only the path value, preserving
+        comments, key ordering, and formatting.
+
+        Args:
+            content: The full YAML file content as a string
+            key_pattern: Regex pattern to match the key (e.g., 'exp1_data_path')
+            new_dir: The new directory to use
+            original_filename: The filename to preserve from the original path
+
+        Returns:
+            Updated YAML content with the new path
+        """
+        # Build the new path with forward slashes for consistency
+        new_path = (new_dir / original_filename).as_posix()
+
+        # Pattern matches: key: "value" or key: 'value' or key: value
+        # Captures: (key: )(optional quote)(path)(optional quote)
+        pattern = rf'({key_pattern}:\s*)(["\']?)([^"\'\n]+)(["\']?)'
+
+        def replacer(match: re.Match) -> str:
+            prefix = match.group(1)  # "key: " part
+            open_quote = match.group(2)  # opening quote if any
+            close_quote = match.group(4)  # closing quote if any
+            return f"{prefix}{open_quote}{new_path}{close_quote}"
+
+        return re.sub(pattern, replacer, content)
+
     def _update_viz_config(
         self,
         config_path: Path,
@@ -253,6 +304,10 @@ class PipelineRunner:
         qc_mapping: dict[str, Any],
     ) -> Path | None:
         """Update viz config with new QC output path.
+
+        Preserves the original filename choice and YAML structure (comments,
+        key ordering, formatting) by using regex substitution instead of
+        yaml.dump().
 
         Returns updated config path or None if no update needed.
         """
@@ -265,24 +320,45 @@ class PipelineRunner:
             return None
 
         qc_output_path = self.qc_outputs[qc_config_rel]
-        final_data_path = qc_output_path / "10_final_data.csv"
 
-        if not final_data_path.exists():
-            print(f"  Warning: QC final data not found: {final_data_path}")
-            return None
+        # Read original config to extract the filename choice
+        content = config_path.read_text(encoding="utf-8")
 
-        # Load and update config
+        # Parse YAML to get original csv_path and extract filename
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
-        config["data"]["csv_path"] = str(final_data_path)
+        original_path = config.get("data", {}).get("csv_path", "")
+        if not original_path:
+            print("  Warning: No data.csv_path found in config")
+            return None
 
-        # Write updated config to temp file
+        # Extract the filename the user chose (e.g., 07_data_outliers_removed.csv)
+        original_filename = self._extract_filename(original_path)
+
+        # Verify the file exists in the new QC output
+        new_data_path = qc_output_path / original_filename
+        if not new_data_path.exists():
+            print(f"  Warning: QC data not found: {new_data_path}")
+            # Fall back to 10_final_data.csv if original filename doesn't exist
+            new_data_path = qc_output_path / "10_final_data.csv"
+            if not new_data_path.exists():
+                print(f"  Warning: Fallback QC data not found: {new_data_path}")
+                return None
+            original_filename = "10_final_data.csv"
+            print(f"  Using fallback: {original_filename}")
+
+        # Update the path in YAML content while preserving structure
+        # Pattern for nested YAML: csv_path: "value" (with possible indentation)
+        updated_content = self._update_yaml_path_preserving_structure(
+            content, r"csv_path", qc_output_path, original_filename
+        )
+
+        # Write updated config
         updated_path = self.run_dir / "viz" / f"_updated_{config_path.name}"
-        with open(updated_path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False)
+        updated_path.write_text(updated_content, encoding="utf-8")
 
-        print(f"  Updated data.csv_path -> {final_data_path}")
+        print(f"  Updated data.csv_path -> {new_data_path}")
         return updated_path
 
     def _update_cross_platform_config(
@@ -293,6 +369,10 @@ class PipelineRunner:
     ) -> Path | None:
         """Update cross-platform config with new QC output paths.
 
+        Preserves the original filename choice for each experiment and YAML
+        structure (comments, key ordering, formatting) by using regex
+        substitution instead of yaml.dump().
+
         Returns updated config path or None if no update needed.
         """
         if config_rel not in qc_mapping:
@@ -302,39 +382,84 @@ class PipelineRunner:
         if not isinstance(mapping, dict):
             return None
 
-        # Load config
+        # Read original config content
+        content = config_path.read_text(encoding="utf-8")
+
+        # Parse YAML to get original paths
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
         updated = False
+        updated_content = content
 
         # Update exp1 path
         exp1_qc = mapping.get("exp1")
         if exp1_qc and exp1_qc in self.qc_outputs:
             qc_output = self.qc_outputs[exp1_qc]
-            final_data = qc_output / "10_final_data.csv"
-            if final_data.exists():
-                config["exp1_data_path"] = str(final_data)
-                print(f"  Updated exp1_data_path -> {final_data}")
-                updated = True
+            original_path = config.get("exp1_data_path", "")
+
+            if original_path:
+                # Extract the filename the user chose
+                original_filename = self._extract_filename(original_path)
+
+                # Verify the file exists in the new QC output
+                new_data_path = qc_output / original_filename
+                if not new_data_path.exists():
+                    # Fall back to 10_final_data.csv
+                    new_data_path = qc_output / "10_final_data.csv"
+                    if new_data_path.exists():
+                        original_filename = "10_final_data.csv"
+                        print(f"  exp1: Using fallback {original_filename}")
+                    else:
+                        print(f"  Warning: exp1 QC data not found: {new_data_path}")
+                        original_filename = None
+
+                if original_filename:
+                    updated_content = self._update_yaml_path_preserving_structure(
+                        updated_content, r"exp1_data_path", qc_output, original_filename
+                    )
+                    print(
+                        f"  Updated exp1_data_path -> {qc_output / original_filename}"
+                    )
+                    updated = True
 
         # Update exp2 path
         exp2_qc = mapping.get("exp2")
         if exp2_qc and exp2_qc in self.qc_outputs:
             qc_output = self.qc_outputs[exp2_qc]
-            final_data = qc_output / "10_final_data.csv"
-            if final_data.exists():
-                config["exp2_data_path"] = str(final_data)
-                print(f"  Updated exp2_data_path -> {final_data}")
-                updated = True
+            original_path = config.get("exp2_data_path", "")
+
+            if original_path:
+                # Extract the filename the user chose
+                original_filename = self._extract_filename(original_path)
+
+                # Verify the file exists in the new QC output
+                new_data_path = qc_output / original_filename
+                if not new_data_path.exists():
+                    # Fall back to 10_final_data.csv
+                    new_data_path = qc_output / "10_final_data.csv"
+                    if new_data_path.exists():
+                        original_filename = "10_final_data.csv"
+                        print(f"  exp2: Using fallback {original_filename}")
+                    else:
+                        print(f"  Warning: exp2 QC data not found: {new_data_path}")
+                        original_filename = None
+
+                if original_filename:
+                    updated_content = self._update_yaml_path_preserving_structure(
+                        updated_content, r"exp2_data_path", qc_output, original_filename
+                    )
+                    print(
+                        f"  Updated exp2_data_path -> {qc_output / original_filename}"
+                    )
+                    updated = True
 
         if not updated:
             return None
 
         # Write updated config
         updated_path = self.run_dir / "cross_platform" / f"_updated_{config_path.name}"
-        with open(updated_path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False)
+        updated_path.write_text(updated_content, encoding="utf-8")
 
         return updated_path
 

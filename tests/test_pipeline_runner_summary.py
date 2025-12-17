@@ -670,3 +670,356 @@ class TestGenerateSummaryIntegration:
                 # Count pipes - should have same number in header and divider
                 pipe_count = line.count("|")
                 assert pipe_count >= 2, f"Table row has too few columns: {line}"
+
+
+# =============================================================================
+# Phase 9: Tests for Config Preservation (fix-pipeline-runner-config-preservation)
+# =============================================================================
+
+
+class TestExtractFilename:
+    """Tests for _extract_filename helper function."""
+
+    def test_extract_filename_unix_path(self, tmp_path):
+        """Test extracting filename from Unix-style path."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        result = PipelineRunner._extract_filename(
+            "pipeline_runs/2025-12-15/qc/test_qc/07_data_outliers_removed.csv"
+        )
+        assert result == "07_data_outliers_removed.csv"
+
+    def test_extract_filename_windows_path(self, tmp_path):
+        """Test extracting filename from Windows-style path."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        result = PipelineRunner._extract_filename(
+            "pipeline_runs\\2025-12-15\\qc\\test_qc\\10_final_data.csv"
+        )
+        assert result == "10_final_data.csv"
+
+    def test_extract_filename_mixed_path(self, tmp_path):
+        """Test extracting filename from mixed separator path."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        result = PipelineRunner._extract_filename(
+            "pipeline_runs/2025-12-15\\qc/test_qc\\07_data_outliers_removed.csv"
+        )
+        assert result == "07_data_outliers_removed.csv"
+
+    def test_extract_filename_just_filename(self, tmp_path):
+        """Test extracting filename when path is just the filename."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        result = PipelineRunner._extract_filename("07_data_outliers_removed.csv")
+        assert result == "07_data_outliers_removed.csv"
+
+
+class TestUpdateYamlPathPreservingStructure:
+    """Tests for _update_yaml_path_preserving_structure helper function."""
+
+    def test_preserves_double_quoted_path(self, tmp_path):
+        """Test that double-quoted paths remain double-quoted."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        content = """# Comment preserved
+exp1_data_path: "old/path/to/07_data_outliers_removed.csv"
+exp1_name: "Test"
+"""
+        new_dir = Path("new/qc/output")
+        result = PipelineRunner._update_yaml_path_preserving_structure(
+            content, "exp1_data_path", new_dir, "07_data_outliers_removed.csv"
+        )
+
+        assert '"new/qc/output/07_data_outliers_removed.csv"' in result
+        assert "# Comment preserved" in result
+        assert 'exp1_name: "Test"' in result
+
+    def test_preserves_single_quoted_path(self, tmp_path):
+        """Test that single-quoted paths remain single-quoted."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        content = "csv_path: 'old/path/10_final_data.csv'\n"
+        new_dir = Path("new/output")
+        result = PipelineRunner._update_yaml_path_preserving_structure(
+            content, "csv_path", new_dir, "10_final_data.csv"
+        )
+
+        assert "'new/output/10_final_data.csv'" in result
+
+    def test_preserves_unquoted_path(self, tmp_path):
+        """Test that unquoted paths remain unquoted."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        content = "exp2_data_path: old/path/data.csv\n"
+        new_dir = Path("new/output")
+        result = PipelineRunner._update_yaml_path_preserving_structure(
+            content, "exp2_data_path", new_dir, "data.csv"
+        )
+
+        # Should not add quotes
+        assert "exp2_data_path: new/output/data.csv" in result
+        assert '"' not in result
+        assert "'" not in result
+
+    def test_preserves_comments_and_formatting(self, tmp_path):
+        """Test that all comments and blank lines are preserved."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        content = """# This is a header comment
+# Describing the config
+
+# Experiment 1: Important data
+exp1_data_path: "old/path/07_data_outliers_removed.csv"
+exp1_name: "Test Experiment"
+
+# More comments here
+other_key: value
+"""
+        new_dir = Path("new/qc/run_123")
+        result = PipelineRunner._update_yaml_path_preserving_structure(
+            content, "exp1_data_path", new_dir, "07_data_outliers_removed.csv"
+        )
+
+        # All comments preserved
+        assert "# This is a header comment" in result
+        assert "# Describing the config" in result
+        assert "# Experiment 1: Important data" in result
+        assert "# More comments here" in result
+
+        # Blank lines preserved
+        assert "\n\n" in result
+
+        # Other keys unchanged
+        assert 'exp1_name: "Test Experiment"' in result
+        assert "other_key: value" in result
+
+
+class TestConfigPreservation:
+    """Integration tests for config path preservation."""
+
+    def test_preserves_07_filename_in_cross_platform(self, tmp_path):
+        """Test that 07_data_outliers_removed.csv is preserved when specified."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        # Create manifest
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            """run_name: Test
+qc_configs: []
+cross_platform_configs:
+  - cross_platform/test.yaml
+qc_mapping:
+  cross_platform/test.yaml:
+    exp1: qc/exp1.yaml
+    exp2: qc/exp2.yaml
+"""
+        )
+
+        # Create cross-platform config with 07 files
+        cross_platform_dir = tmp_path / "cross_platform"
+        cross_platform_dir.mkdir()
+        config_path = cross_platform_dir / "test.yaml"
+        config_path.write_text(
+            """# Cross-Platform Analysis
+# Using QC'd but NOT heritability filtered data
+
+exp1_data_path: "old/path/qc/exp1/07_data_outliers_removed.csv"
+exp1_name: "Experiment 1 (QC'd)"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2 also uses 07 file
+exp2_data_path: "old/path/qc/exp2/07_data_outliers_removed.csv"
+exp2_name: "Experiment 2 (QC'd)"
+exp2_genotype_col: "Genotype"
+
+correlation_method: "spearman"
+"""
+        )
+
+        # Create mock QC outputs with both file types
+        runner = PipelineRunner(manifest_path, output_dir=tmp_path / "runs")
+
+        qc1_output = tmp_path / "runs" / runner.run_timestamp / "qc" / "exp1_run"
+        qc1_output.mkdir(parents=True)
+        (qc1_output / "07_data_outliers_removed.csv").write_text("col1,col2\n1,2")
+        (qc1_output / "10_final_data.csv").write_text("col1,col2\n1,2")
+
+        qc2_output = tmp_path / "runs" / runner.run_timestamp / "qc" / "exp2_run"
+        qc2_output.mkdir(parents=True)
+        (qc2_output / "07_data_outliers_removed.csv").write_text("col1,col2\n1,2")
+        (qc2_output / "10_final_data.csv").write_text("col1,col2\n1,2")
+
+        runner.qc_outputs = {
+            "qc/exp1.yaml": qc1_output,
+            "qc/exp2.yaml": qc2_output,
+        }
+
+        # Create output directories
+        (runner.run_dir / "cross_platform").mkdir(parents=True)
+
+        # Run the update
+        updated_path = runner._update_cross_platform_config(
+            config_path,
+            "cross_platform/test.yaml",
+            runner.manifest.get("qc_mapping", {}),
+        )
+
+        assert updated_path is not None
+        updated_content = updated_path.read_text()
+
+        # CRITICAL: Should preserve 07_data_outliers_removed.csv, NOT use 10_final_data.csv
+        assert "07_data_outliers_removed.csv" in updated_content
+        assert "10_final_data.csv" not in updated_content
+
+        # Comments should be preserved
+        assert "# Cross-Platform Analysis" in updated_content
+        assert "# Using QC'd but NOT heritability filtered data" in updated_content
+        assert "# Experiment 2 also uses 07 file" in updated_content
+
+    def test_preserves_mixed_filenames(self, tmp_path):
+        """Test that mixed filename choices (07 and 10) are both preserved."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        # Create manifest
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            """run_name: Test
+qc_configs: []
+cross_platform_configs:
+  - cross_platform/mixed.yaml
+qc_mapping:
+  cross_platform/mixed.yaml:
+    exp1: qc/exp1.yaml
+    exp2: qc/exp2.yaml
+"""
+        )
+
+        # Create config with MIXED filenames
+        cross_platform_dir = tmp_path / "cross_platform"
+        cross_platform_dir.mkdir()
+        config_path = cross_platform_dir / "mixed.yaml"
+        config_path.write_text(
+            """# Mixed filename example
+# exp1 uses 07 (all traits), exp2 uses 10 (filtered)
+
+exp1_data_path: "old/qc/exp1/07_data_outliers_removed.csv"
+exp1_name: "Exp1 (All Traits)"
+
+exp2_data_path: "old/qc/exp2/10_final_data.csv"
+exp2_name: "Exp2 (Filtered)"
+"""
+        )
+
+        runner = PipelineRunner(manifest_path, output_dir=tmp_path / "runs")
+
+        # Create mock QC outputs
+        qc1_output = tmp_path / "runs" / runner.run_timestamp / "qc" / "exp1_run"
+        qc1_output.mkdir(parents=True)
+        (qc1_output / "07_data_outliers_removed.csv").write_text("data")
+        (qc1_output / "10_final_data.csv").write_text("data")
+
+        qc2_output = tmp_path / "runs" / runner.run_timestamp / "qc" / "exp2_run"
+        qc2_output.mkdir(parents=True)
+        (qc2_output / "07_data_outliers_removed.csv").write_text("data")
+        (qc2_output / "10_final_data.csv").write_text("data")
+
+        runner.qc_outputs = {
+            "qc/exp1.yaml": qc1_output,
+            "qc/exp2.yaml": qc2_output,
+        }
+
+        (runner.run_dir / "cross_platform").mkdir(parents=True)
+
+        updated_path = runner._update_cross_platform_config(
+            config_path,
+            "cross_platform/mixed.yaml",
+            runner.manifest.get("qc_mapping", {}),
+        )
+
+        assert updated_path is not None
+        updated_content = updated_path.read_text()
+
+        # exp1 should use 07, exp2 should use 10
+        lines = updated_content.split("\n")
+        exp1_line = [l for l in lines if "exp1_data_path" in l][0]
+        exp2_line = [l for l in lines if "exp2_data_path" in l][0]
+
+        assert "07_data_outliers_removed.csv" in exp1_line
+        assert "10_final_data.csv" in exp2_line
+
+    def test_preserves_viz_config_structure(self, tmp_path):
+        """Test that viz config structure is preserved during update."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            """run_name: Test
+qc_configs: []
+viz_configs:
+  - viz/test.yaml
+qc_mapping:
+  viz/test.yaml: qc/source.yaml
+"""
+        )
+
+        # Create viz config with comments and specific filename
+        viz_dir = tmp_path / "viz"
+        viz_dir.mkdir()
+        config_path = viz_dir / "test.yaml"
+        config_path.write_text(
+            """# Visualization Pipeline Configuration
+# Using QC'd data (not heritability filtered for exploration)
+
+pipeline_name: "viz_test"
+version: "1.0"
+
+# Data configuration
+data:
+  csv_path: "old/qc/run/07_data_outliers_removed.csv"
+  image_dir: null
+
+# Column names
+columns:
+  barcode: "Barcode"
+  genotype: "Genotype"
+"""
+        )
+
+        runner = PipelineRunner(manifest_path, output_dir=tmp_path / "runs")
+
+        qc_output = tmp_path / "runs" / runner.run_timestamp / "qc" / "source_run"
+        qc_output.mkdir(parents=True)
+        (qc_output / "07_data_outliers_removed.csv").write_text("data")
+        (qc_output / "10_final_data.csv").write_text("data")
+
+        runner.qc_outputs = {"qc/source.yaml": qc_output}
+        (runner.run_dir / "viz").mkdir(parents=True)
+
+        updated_path = runner._update_viz_config(
+            config_path,
+            "viz/test.yaml",
+            runner.manifest.get("qc_mapping", {}),
+        )
+
+        assert updated_path is not None
+        updated_content = updated_path.read_text()
+
+        # Filename preserved
+        assert "07_data_outliers_removed.csv" in updated_content
+
+        # All comments preserved
+        assert "# Visualization Pipeline Configuration" in updated_content
+        assert (
+            "# Using QC'd data (not heritability filtered for exploration)"
+            in updated_content
+        )
+        assert "# Data configuration" in updated_content
+        assert "# Column names" in updated_content
+
+        # Structure preserved (version should still be "1.0" not '1.0')
+        assert 'version: "1.0"' in updated_content
+
+        # Other nested keys unchanged
+        assert "image_dir: null" in updated_content
+        assert 'barcode: "Barcode"' in updated_content
