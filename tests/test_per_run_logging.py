@@ -130,9 +130,9 @@ class TestPerRunLogFileCreation:
         log_path = pipeline.run_dir / "pipeline.log"
         log_content = log_path.read_text()
 
-        assert "Starting pipeline" in log_content, (
-            "Log should contain 'Starting pipeline'"
-        )
+        assert (
+            "Starting pipeline" in log_content
+        ), "Log should contain 'Starting pipeline'"
 
     def test_per_run_log_contains_task_messages(self, tmp_path):
         """Test that log contains task execution messages."""
@@ -166,7 +166,10 @@ class TestPerRunLogFileCreation:
         log_path = pipeline.run_dir / "pipeline.log"
         log_content = log_path.read_text()
 
-        assert "completed successfully" in log_content or "Pipeline completed" in log_content
+        assert (
+            "completed successfully" in log_content
+            or "Pipeline completed" in log_content
+        )
 
 
 # =============================================================================
@@ -274,18 +277,15 @@ class TestMultipleRunsIndependentLogs:
 
         # Run pipelines in parallel
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = [
-                executor.submit(run_pipeline, f"parallel_{i}")
-                for i in range(3)
-            ]
+            futures = [executor.submit(run_pipeline, f"parallel_{i}") for i in range(3)]
             results = [f.result() for f in futures]
 
         # Each log should exist and contain only its own messages
         for i, (log_path, log_content) in enumerate(results):
             assert log_path.exists(), f"Log for parallel_{i} should exist"
-            assert f"parallel_{i}" in log_content, (
-                f"Log for parallel_{i} should contain its own name"
-            )
+            assert (
+                f"parallel_{i}" in log_content
+            ), f"Log for parallel_{i} should contain its own name"
             # Should not contain other pipeline names
             for j in range(3):
                 if j != i:
