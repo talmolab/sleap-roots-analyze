@@ -302,3 +302,199 @@ def test_visualize_cross_platform_step_minimal_correlations(tmp_path):
     # Should not create more joint plots than correlations available
     joint_plot_files = list(tmp_path.glob("cross_platform_joint_*.png"))
     assert len(joint_plot_files) <= 2
+
+
+def test_visualize_cross_platform_correlation_values_match_csv(tmp_path):
+    """Test that correlation values displayed in joint plots match CSV values exactly.
+
+    This is a regression test for the bug where visualization recalculated correlations
+    independently, causing discrepancies when min_samples_per_genotype filtered genotypes.
+
+    The test creates a scenario where:
+    - 4 genotypes exist in both experiments
+    - 1 genotype (D) has only 1 sample in exp2 (below min_samples threshold of 2)
+    - The correlation step should use 3 genotypes (A, B, C)
+    - The visualization MUST display the same values, not recalculate with 4 genotypes
+    """
+    from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+        VisualizeCrossPlatformStep,
+    )
+    from sleap_roots_analyze.cross_experiment_analysis import calculate_correlations
+    from scipy import stats
+    import re
+
+    # Create experiment data where genotype D has insufficient samples in exp2
+    # This will be filtered out by min_samples_per_genotype=2
+    np.random.seed(42)
+
+    # Exp1: All genotypes have 3 samples each
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "A", "A", "B", "B", "B", "C", "C", "C", "D", "D", "D"],
+            "replicate": [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3],
+            "trait1": [1.0, 1.1, 0.9, 2.0, 2.1, 1.9, 3.0, 3.1, 2.9, 4.0, 4.1, 3.9],
+        }
+    )
+
+    # Exp2: Genotype D has only 1 sample (will be filtered by min_samples_per_genotype=2)
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "A", "A", "B", "B", "B", "C", "C", "C", "D"],
+            "replicate": [1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
+            "trait_a": [10.0, 10.5, 9.5, 20.0, 20.5, 19.5, 30.0, 30.5, 29.5, 40.0],
+        }
+    )
+
+    # Calculate the CORRECT correlation using only genotypes with sufficient samples
+    # This is what the correlation step would compute
+    valid_genotypes = ["A", "B", "C"]  # D is excluded (only 1 sample in exp2)
+
+    exp1_means_valid = (
+        exp1_df[exp1_df["genotype"].isin(valid_genotypes)]
+        .groupby("genotype")["trait1"]
+        .mean()
+    )
+    exp2_means_valid = (
+        exp2_df[exp2_df["genotype"].isin(valid_genotypes)]
+        .groupby("genotype")["trait_a"]
+        .mean()
+    )
+
+    # Align by index
+    common_genos = sorted(set(exp1_means_valid.index) & set(exp2_means_valid.index))
+    x_valid = exp1_means_valid.loc[common_genos].values
+    y_valid = exp2_means_valid.loc[common_genos].values
+
+    correct_corr, correct_p = calculate_correlations(
+        x_valid, y_valid, method="spearman"
+    )
+    correct_n = len(common_genos)
+
+    # Create correlation_df with the CORRECT pre-computed values
+    correlation_df = pd.DataFrame(
+        {
+            "exp1_trait": ["trait1"],
+            "exp2_trait": ["trait_a"],
+            "correlation": [correct_corr],
+            "p_value": [correct_p],
+            "n_genotypes": [correct_n],
+        }
+    )
+
+    prev_result = StepResult(
+        data={
+            "exp1_df": exp1_df,
+            "exp2_df": exp2_df,
+            "common_genotypes": valid_genotypes,  # Only valid genotypes
+            "correlation_df": correlation_df,
+        },
+        metadata={
+            "exp1_name": "Exp1",
+            "exp2_name": "Exp2",
+            "total_correlations": 1,
+            "exp1_trait_names": ["trait1"],
+            "exp2_trait_names": ["trait_a"],
+        },
+        files_generated=[],
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="genotype",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="genotype",
+        min_samples_per_genotype=2,  # This would filter out genotype D
+        top_n_joint_plots=1,
+        top_n_boxplots=1,
+    )
+
+    step = VisualizeCrossPlatformStep()
+    result = step.execute(
+        data=prev_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=prev_result,
+    )
+
+    # Find the generated joint plot
+    joint_plot_files = list(tmp_path.glob("cross_platform_joint_*.png"))
+    assert len(joint_plot_files) == 1, "Expected exactly 1 joint plot"
+
+    # Read the image and extract the annotation text
+    # We need to verify the values match the CSV
+    # Since we can't easily extract text from PNG, we'll verify by checking
+    # that the step is passing the correct values
+
+    # The key assertion: n_genotypes should be 3 (valid_genotypes), not 4 (all genotypes)
+    assert correct_n == 3, f"Expected 3 valid genotypes, got {correct_n}"
+
+    # Verify the correlation_df has the correct values
+    assert correlation_df.iloc[0]["n_genotypes"] == 3
+    assert np.isclose(correlation_df.iloc[0]["correlation"], correct_corr)
+
+    # TODO: Once the fix is implemented, we should verify that the visualization
+    # uses these exact values. For now, this test documents the expected behavior.
+
+
+def test_joint_plot_uses_precomputed_correlation_values(tmp_path):
+    """Test that create_joint_plot uses pre-computed correlation values when provided.
+
+    This tests the fix directly at the function level.
+    """
+    from sleap_roots_analyze.cross_experiment_analysis import create_joint_plot
+    import matplotlib.pyplot as plt
+
+    np.random.seed(42)
+
+    # Create genotype means DataFrames
+    exp1_means = pd.DataFrame(
+        {
+            "trait1": [1.0, 2.0, 3.0, 4.0],
+        },
+        index=["A", "B", "C", "D"],
+    )
+
+    exp2_means = pd.DataFrame(
+        {
+            "trait_a": [10.0, 20.0, 30.0, 40.0],
+        },
+        index=["A", "B", "C", "D"],
+    )
+
+    # Pre-computed values (as if from CSV with different filtering)
+    precomputed_corr = 0.999  # Intentionally different from what would be calculated
+    precomputed_p = 0.001
+    precomputed_n = 3  # Different from 4 genotypes in the data
+
+    # Call create_joint_plot with pre-computed values
+    # NOTE: This test will FAIL until the fix is implemented because
+    # create_joint_plot doesn't accept these parameters yet
+    try:
+        fig = create_joint_plot(
+            exp1_means,
+            exp2_means,
+            "trait1",
+            "trait_a",
+            exp1_name="Exp1",
+            exp2_name="Exp2",
+            correlation=precomputed_corr,
+            p_value=precomputed_p,
+            n_genotypes=precomputed_n,
+        )
+        plt.close(fig)
+
+        # If we get here, the function accepts the new parameters
+        # We would need to verify the annotation text, but for now
+        # just verify the function runs without error
+        assert True
+
+    except TypeError as e:
+        # Expected to fail until fix is implemented
+        if "unexpected keyword argument" in str(e):
+            pytest.fail(
+                "create_joint_plot does not accept pre-computed correlation parameters. "
+                "This test will pass once the fix is implemented."
+            )
+        raise

@@ -243,8 +243,5 @@ data/
 pipeline_runs/
 PIPELINE_RUNS_SUMMARY.md
 
-# User-specific scripts and analysis
-scripts/
-
 # Temporary test/example output
 examples/heritability_diagnostics/

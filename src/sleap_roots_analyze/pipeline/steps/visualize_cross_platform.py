@@ -108,12 +108,12 @@ class VisualizeCrossPlatformStep(BaseStep):
         )
 
         # 2. Create joint plots for top N correlations
+        # Pass pre-computed correlation values from CSV (single source of truth)
         n_joint_plots = min(config.top_n_joint_plots, len(correlation_df))
         for i in range(n_joint_plots):
             row = correlation_df.iloc[i]
             trait1 = row["exp1_trait"]
             trait2 = row["exp2_trait"]
-            corr = row["correlation"]
 
             fig = create_joint_plot(
                 exp1_means,
@@ -123,6 +123,10 @@ class VisualizeCrossPlatformStep(BaseStep):
                 exp1_name=exp1_name,
                 exp2_name=exp2_name,
                 figsize=config.figsize_joint,
+                # Pass pre-computed values from CSV to ensure consistency (DRY principle)
+                correlation=row["correlation"],
+                p_value=row["p_value"],
+                n_genotypes=row["n_genotypes"],
             )
 
             # Sanitize trait names for filename
