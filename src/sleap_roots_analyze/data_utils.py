@@ -50,6 +50,59 @@ def convert_to_json_serializable(obj):
         return obj
 
 
+def _detect_depth_suffix(col_name: str) -> Optional[float]:
+    """Extract numeric depth value from column name with _Ncm suffix.
+
+    Args:
+        col_name: Column name to check (e.g., "RootDW_15cm", "RootCount_7.5cm")
+
+    Returns:
+        Depth value as float if pattern matches, None otherwise
+
+    Examples:
+        >>> _detect_depth_suffix("RootDW_15cm")
+        15.0
+        >>> _detect_depth_suffix("RootCount_7.5cm")
+        7.5
+        >>> _detect_depth_suffix("Median.Number.of.Roots")
+        None
+    """
+    import re
+
+    # Match pattern: underscore followed by number (int or float) then "cm" at end
+    match = re.search(r"_(\d+\.?\d*)cm$", col_name)
+    return float(match.group(1)) if match else None
+
+
+def _format_depth_range(depth: float, mapping: Optional[Dict[float, str]]) -> str:
+    """Format depth value as range string using mapping or fallback to original.
+
+    Args:
+        depth: Numeric depth value (e.g., 15.0, 45.0)
+        mapping: Optional dict mapping depths to ranges (e.g., {15.0: "0-30"})
+
+    Returns:
+        Formatted depth string with "cm" suffix
+
+    Examples:
+        >>> _format_depth_range(15.0, {15.0: "0-30", 45.0: "30-60"})
+        '0-30cm'
+        >>> _format_depth_range(15.0, None)
+        '15cm'
+        >>> _format_depth_range(7.5, {})
+        '7.5cm'
+    """
+    if mapping and depth in mapping:
+        # Map to range notation
+        return f"{mapping[depth]}cm"
+    else:
+        # Fallback to original depth (format as int if whole number)
+        if depth == int(depth):
+            return f"{int(depth)}cm"
+        else:
+            return f"{depth}cm"
+
+
 def sanitize_trait_names(
     df: pd.DataFrame,
     trait_cols: List[str],
@@ -60,6 +113,7 @@ def sanitize_trait_names(
     replicate_col: Optional[str] = None,
     barcode_col: Optional[str] = None,
     custom_replacements: Optional[Dict[str, str]] = None,
+    depth_range_mapping: Optional[Dict[float, str]] = None,
 ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict[str, str]]]:
     """Sanitize trait column names and optionally metadata columns for better visualization.
 
@@ -75,6 +129,7 @@ def sanitize_trait_names(
     - Remove common filler words ("of", "the")
     - Convert units to parenthetical format with proper symbols
     - Optionally abbreviate common words
+    - Apply depth range mapping for biomass/root count columns
     - Title case the result
 
     Args:
@@ -89,6 +144,9 @@ def sanitize_trait_names(
         custom_replacements: Optional dict mapping old terms to new terms for
             domain-specific terminology (e.g., {"crown": "seminal"} to replace
             "crown" with "seminal" in trait names). Matching is case-insensitive.
+        depth_range_mapping: Optional dict mapping depth midpoints to depth ranges
+            (e.g., {15.0: "0-30", 45.0: "30-60"} maps RootDW_15cm to "0-30cm" range).
+            Used for biomass and root counting columns to show actual measurement ranges.
 
     Returns:
         If return_mapping=False: DataFrame with sanitized column names
@@ -110,6 +168,15 @@ def sanitize_trait_names(
         ... )
         >>> # "crown_length_mm" -> "Seminal Length (mm)"
         >>> # "primary.root.angle" -> "Main Root Angle"
+
+        >>> # With depth range mapping for biomass
+        >>> depth_map = {15.0: "0-30", 45.0: "30-60"}
+        >>> df = sanitize_trait_names(
+        ...     df, trait_cols,
+        ...     depth_range_mapping=depth_map
+        ... )
+        >>> # "RootDW_15cm" -> "Root Biomass DW (g) 0-30cm"
+        >>> # "RootDW_45cm" -> "Root Biomass DW (g) 30-60cm"
     """
     df_copy = df.copy()
     name_mapping = {}
@@ -179,8 +246,49 @@ def sanitize_trait_names(
                 new_name = new_name[: -len(old_unit)] + new_unit
                 break
 
-        # Split by dots, hyphens, and underscores
-        parts = new_name.replace(".", " ").replace("-", " ").replace("_", " ").split()
+        # Apply depth range mapping for biomass/root count columns (if provided)
+        # This must happen AFTER unit conversion but BEFORE splitting
+        # For depth ranges, we need special handling to preserve the range notation
+        depth_range_applied = False
+        depth = _detect_depth_suffix(new_name)
+        if depth is not None:
+            # This column has a depth suffix (_Ncm)
+            if depth_range_mapping and depth in depth_range_mapping:
+                # Depth is in mapping - this is a range (biomass)
+                range_str = depth_range_mapping[depth]  # e.g., "0-30"
+                # Extract prefix (e.g., "RootDW")
+                prefix = re.sub(r"_\d+\.?\d*cm$", "", new_name)
+                # Build final name with proper formatting
+                # Format: "Root Biomass DW (g) 0-30cm"
+                if "DW" in prefix or "dw" in prefix.lower():
+                    new_name = f"Root Biomass DW (g) {range_str}cm"
+                elif "Count" in prefix:
+                    new_name = f"Root Count {range_str}cm"
+                depth_range_applied = True
+            else:
+                # Depth suffix detected but not in mapping (or no mapping provided)
+                # Handle as single-depth measurement (root counting)
+                prefix = re.sub(r"_\d+\.?\d*cm$", "", new_name)
+                depth_str = _format_depth_range(
+                    depth, None
+                )  # Format as "5cm" or "7.5cm"
+                # Build final name for single-depth measurements
+                # Format: "Root Count 5cm"
+                if "Count" in prefix:
+                    new_name = f"Root Count {depth_str}"
+                    depth_range_applied = True
+                elif "DW" in prefix or "dw" in prefix.lower():
+                    # Single-depth biomass (fallback to standard processing)
+                    new_name = re.sub(r"_\d+\.?\d*cm$", f"_{depth_str}", new_name)
+
+        # Split by dots, hyphens, and underscores (only if depth range not already applied)
+        if depth_range_applied:
+            # Already formatted, skip splitting
+            parts = [new_name]
+        else:
+            parts = (
+                new_name.replace(".", " ").replace("-", " ").replace("_", " ").split()
+            )
 
         # Apply custom replacements (case-insensitive)
         if custom_replacements:
@@ -211,17 +319,23 @@ def sanitize_trait_names(
                 processed_parts.append(part)
 
         # Join and apply title case for consistent capitalization
-        new_name = " ".join(processed_parts)
-        new_name = new_name.strip().title()
+        # Skip if depth range was already applied (already properly formatted)
+        if not depth_range_applied:
+            new_name = " ".join(processed_parts)
+            new_name = new_name.strip().title()
 
-        # Fix units to be lowercase (e.g., "(G)" -> "(g)", "(Mm)" -> "(mm)")
-        # Keep scientific symbols correct
-        new_name = re.sub(r"\(Mm³\)", "(mm³)", new_name)
-        new_name = re.sub(r"\(Mm²\)", "(mm²)", new_name)
-        new_name = re.sub(r"\(Mm\)", "(mm)", new_name)
-        new_name = re.sub(r"\(G\)", "(g)", new_name)
-        new_name = re.sub(r"\(Mg\)", "(mg)", new_name)
-        # Keep degree symbol as-is
+            # Fix units to be lowercase (e.g., "(G)" -> "(g)", "(Mm)" -> "(mm)")
+            # Keep scientific symbols correct
+            new_name = re.sub(r"\(Mm³\)", "(mm³)", new_name)
+            new_name = re.sub(r"\(Mm²\)", "(mm²)", new_name)
+            new_name = re.sub(r"\(Mm\)", "(mm)", new_name)
+            new_name = re.sub(r"\(G\)", "(g)", new_name)
+            new_name = re.sub(r"\(Mg\)", "(mg)", new_name)
+            # Keep degree symbol as-is
+        else:
+            # Depth range already applied, name is already properly formatted
+            # Just use it as-is (processed_parts has single element with full name)
+            new_name = processed_parts[0] if processed_parts else new_name
 
         # Store mapping
         name_mapping[old_name] = new_name

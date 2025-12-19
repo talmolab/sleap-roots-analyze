@@ -26,6 +26,9 @@ root_core:
       depth_mapping:
         "0-30": 15.0   # Midpoint of 0-30 cm range
         "30-60": 45.0  # Midpoint of 30-60 cm range
+      depth_range_mapping:
+        15.0: "0-30"   # Display as "Root Biomass DW (g) 0-30cm" instead of "Rootdw 15Cm"
+        45.0: "30-60"  # Display as "Root Biomass DW (g) 30-60cm" instead of "Rootdw 45Cm"
 
     # Source 2: Root intersection counting (12 depths, auto-parsed)
     - csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/root_coring/root_counting_cimmyt_edited.csv"
@@ -37,22 +40,69 @@ root_core:
       # depth_mapping not needed - auto-calculated
 
   # Core-level QC (before aggregation)
-  # 
-  # RECOMMENDATION: Disable core-level QC and use median aggregation instead.
-  # 
-  # WHY: Statistical outlier detection (e.g., Mahalanobis distance) requires 30+ samples
-  # for reliable detection, but core-level data has only ~3 cores per plot. With such
-  # small sample sizes, statistical methods cannot reliably distinguish outliers from
-  # normal variation.
-  # 
-  # BETTER APPROACH:
-  # 1. Use median aggregation (aggregation_method: "median") - robust to outliers
-  # 2. Let trait-level QC (Step 5) detect outliers with 60+ plot samples
-  # 3. Median naturally handles typos, miscounts, and other core-level errors
+  #
+  # This step performs measurement error detection (quality control) at the core level,
+  # using per-group analysis to detect gross errors before aggregation.
+  #
+  # TWO DETECTION METHODS:
+  #
+  # 1. Missing Data Detection (always enabled if core_qc.enabled=True):
+  #    - Flags cores with excessive missing depths (>50% NaN)
+  #    - Catches incomplete or damaged samples
+  #
+  # 2. Value Outlier Detection (opt-in via detect_value_outliers=True):
+  #    - Flags cores with anomalous values using percent deviation from median
+  #    - Formula: |value - median| / median > threshold (e.g., 0.30 = 30%)
+  #    - Per-group analysis (within Plot-Rep-Geno-Depth)
+  #    - Conservative 30% default threshold minimizes false positives
+  #
+  # STATISTICAL FRAMEWORK:
+  # - Quality Control paradigm: Not statistical hypothesis testing
+  # - Per-group detection: Respects nested structure (cores within plots)
+  # - Works with N=3: Non-parametric, no variance estimation required
+  # - Independence: Each plot analyzed independently (satisfies i.i.d.)
+  #
+  # WHY NOT POPULATION-LEVEL METHODS?
+  # Population-level outlier detection (Mahalanobis, Isolation Forest on all 180 cores)
+  # would violate independence assumptions because cores within plots are NOT independent
+  # (share genotype, soil conditions, spatial location). This confounds plot effects with
+  # measurement errors and inflates Type I error rates.
+  #
+  # EXAMPLE (GH_7371 Rep 1):
+  # - Cores: [0.76g, 0.71g, 0.31g]
+  # - Median: 0.71g
+  # - Deviations: [8%, 0%, 56%]
+  # - Result: Core 2 flagged (56% > 30%), removed before aggregation
+  # - Impact: Heritability improved from 0.27 to >0.50 (biomass traits retained)
+  #
+  # WHEN TO ENABLE VALUE OUTLIER DETECTION:
+  # - Measurement errors expected (typos, damaged cores, sampling failures)
+  # - Median aggregation alone not sufficient (N=3 not robust enough)
+  # - Need to preserve heritability by removing gross errors
+  #
+  # THRESHOLD TUNING:
+  # - 20%: Aggressive (catches moderate errors, may remove natural variation)
+  # - 30%: Conservative (DEFAULT - catches extreme errors, minimal false positives)
+  # - 40%: Very conservative (only catches very extreme errors)
+  #
+  # PUBLICATION-QUALITY METHODS SECTION:
+  # "Quality control of core-level data was performed within each plot-depth group
+  # (n=3 cores). Cores with biomass values deviating >30% from the within-group
+  # median were flagged as potential measurement errors and excluded prior to
+  # aggregation. This threshold was chosen conservatively to remove gross errors
+  # while preserving natural biological variation (typically <20% within plots)."
   core_qc:
-    enabled: false  # Disabled - use median aggregation instead
-    max_missing_proportion: 0.5  # Flag cores with >50% missing depths (if enabled)
-    remove_outliers: true  # Remove flagged cores (if enabled)
+    enabled: true  # Enable core-level QC (missing data detection)
+    max_missing_proportion: 0.5  # Flag cores with >50% missing depths
+    remove_outliers: true  # Remove flagged cores before aggregation
+
+    # Value outlier detection (opt-in, disabled by default for backward compatibility)
+    detect_value_outliers: false  # Disabled - too aggressive, removes too much valid variation
+    max_deviation_from_median: 0.50  # 50% threshold (very conservative, only extreme errors)
+    min_cores_after_qc: 1  # Safety: always keep at least 1 core per group
+
+  # Depth profile visualization (Step 00f)
+  generate_depth_profiles: true  # Generate depth profile plots (faceted line + spaghetti)
 
   # Merge with above-ground traits (BEFORE trait-level QC)
   merge_traits:
@@ -92,10 +142,11 @@ columns:
   replicate: "Rep"
 
 # Data cleanup thresholds
+# UPDATED to match Nov 30 notebook settings (high heritability config)
 cleanup:
-  max_zeros_per_trait: 0.3  # Remove depths with >30% zeros
-  max_nans_per_trait: 0.3   # Remove depths with >30% NaNs
-  max_nan_fraction: 0.1     # Remove samples with >10% NaNs
+  max_zeros_per_trait: 0.5  # Remove depths with >50% zeros (was 0.3)
+  max_nans_per_trait: 0.2   # Remove depths with >20% NaNs (was 0.3) - STRICTER
+  max_nan_fraction: 0.0     # Remove samples with ANY NaN values (was 0.1) - STRICTER
   min_samples_per_trait: 10
 
 # Outlier detection (replicate-level, after aggregation)

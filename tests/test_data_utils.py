@@ -668,6 +668,182 @@ class TestSanitizeTraitNames:
         assert "geno" not in result.columns
         assert "crown.length" not in result.columns
 
+    # === Depth Range Sanitization Tests (TDD) ===
+
+    def test_biomass_depth_range_with_mapping(self):
+        """Test biomass columns with depth range mapping applied."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0, 2.8],
+                "RootDW_45cm": [1.2, 1.5, 1.3],
+                "geno": ["G1", "G2", "G3"],
+            }
+        )
+        trait_cols = ["RootDW_15cm", "RootDW_45cm"]
+        depth_mapping = {15.0: "0-30", 45.0: "30-60"}
+
+        result = sanitize_trait_names(
+            df, trait_cols, depth_range_mapping=depth_mapping, abbreviate=False
+        )
+
+        # Should convert to clear depth range labels
+        assert "Root Biomass DW (g) 0-30cm" in result.columns
+        assert "Root Biomass DW (g) 30-60cm" in result.columns
+        assert "RootDW_15cm" not in result.columns
+        assert "RootDW_45cm" not in result.columns
+
+    def test_biomass_depth_range_without_mapping(self):
+        """Test biomass columns without depth mapping (backward compatibility)."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0, 2.8],
+                "RootDW_45cm": [1.2, 1.5, 1.3],
+            }
+        )
+        trait_cols = ["RootDW_15cm", "RootDW_45cm"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # Without mapping, should use standard sanitization
+        assert "Rootdw 15Cm" in result.columns
+        assert "Rootdw 45Cm" in result.columns
+
+    def test_root_count_depth_single_depth(self):
+        """Test root counting columns at single depths."""
+        df = pd.DataFrame(
+            {
+                "RootCount_0cm": [10, 12, 11],
+                "RootCount_5cm": [8, 9, 7],
+                "RootCount_10cm": [6, 7, 5],
+            }
+        )
+        trait_cols = ["RootCount_0cm", "RootCount_5cm", "RootCount_10cm"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # Should format as clear single-depth labels
+        assert "Root Count 0cm" in result.columns
+        assert "Root Count 5cm" in result.columns
+        assert "Root Count 10cm" in result.columns
+
+    def test_depth_range_mapping_return_mapping(self):
+        """Test that depth range transformations are included in mapping dict."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0],
+                "RootDW_45cm": [1.2, 1.5],
+            }
+        )
+        trait_cols = ["RootDW_15cm", "RootDW_45cm"]
+        depth_mapping = {15.0: "0-30", 45.0: "30-60"}
+
+        result_df, mapping = sanitize_trait_names(
+            df,
+            trait_cols,
+            depth_range_mapping=depth_mapping,
+            return_mapping=True,
+            abbreviate=False,
+        )
+
+        # Mapping should track transformations
+        assert "RootDW_15cm" in mapping
+        assert mapping["RootDW_15cm"] == "Root Biomass DW (g) 0-30cm"
+        assert "RootDW_45cm" in mapping
+        assert mapping["RootDW_45cm"] == "Root Biomass DW (g) 30-60cm"
+
+    def test_depth_range_unmapped_depth_fallback(self):
+        """Test fallback for depths not in mapping."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0],
+                "RootDW_25cm": [1.8, 2.0],  # Not in mapping
+            }
+        )
+        trait_cols = ["RootDW_15cm", "RootDW_25cm"]
+        depth_mapping = {15.0: "0-30", 45.0: "30-60"}  # 25 not mapped
+
+        result = sanitize_trait_names(
+            df, trait_cols, depth_range_mapping=depth_mapping, abbreviate=False
+        )
+
+        # Mapped depth gets range label
+        assert "Root Biomass DW (g) 0-30cm" in result.columns
+        # Unmapped depth falls back to original notation
+        assert "Rootdw 25Cm" in result.columns
+
+    def test_depth_range_fractional_depth(self):
+        """Test handling of fractional depths."""
+        df = pd.DataFrame(
+            {
+                "RootCount_7.5cm": [5, 6, 4],
+            }
+        )
+        trait_cols = ["RootCount_7.5cm"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # Should preserve fractional depth
+        assert "Root Count 7.5cm" in result.columns
+
+    def test_depth_range_non_biomass_unchanged(self):
+        """Test that non-biomass columns are not affected by depth mapping."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0],
+                "Median.Number.of.Roots": [10, 12],
+                "Total.Root.Length.mm": [100, 120],
+            }
+        )
+        trait_cols = ["RootDW_15cm", "Median.Number.of.Roots", "Total.Root.Length.mm"]
+        depth_mapping = {15.0: "0-30"}
+
+        result = sanitize_trait_names(
+            df, trait_cols, depth_range_mapping=depth_mapping, abbreviate=False
+        )
+
+        # Biomass column gets depth range
+        assert "Root Biomass DW (g) 0-30cm" in result.columns
+        # Other columns use standard sanitization
+        assert "Median Number Roots" in result.columns
+        assert "Total Root Length (mm)" in result.columns
+
+    def test_depth_range_with_abbreviations(self):
+        """Test depth range with abbreviations enabled."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0],
+            }
+        )
+        trait_cols = ["RootDW_15cm"]
+        depth_mapping = {15.0: "0-30"}
+
+        result = sanitize_trait_names(
+            df, trait_cols, depth_range_mapping=depth_mapping, abbreviate=True
+        )
+
+        # Should still get clear depth range even with abbreviations
+        # Note: "DW" already short, but range should be clear
+        assert "Root Biomass DW (g) 0-30cm" in result.columns
+
+    def test_depth_range_backward_compatible_no_parameter(self):
+        """Test backward compatibility when depth_range_mapping not provided."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0],
+                "Median.Number.of.Roots": [10, 12],
+            }
+        )
+        trait_cols = ["RootDW_15cm", "Median.Number.of.Roots"]
+
+        # Call without depth_range_mapping parameter (as existing code would)
+        result = sanitize_trait_names(df, trait_cols)
+
+        # Should work without errors (backward compatibility)
+        assert "RootDW_15cm" not in result.columns
+        assert "Median.Number.of.Roots" not in result.columns
+        # Should have some sanitized columns (exact names depend on abbreviate default)
+        assert len(result.columns) >= 2
+
 
 class TestConvertToJsonSerializable:
     """Tests for convert_to_json_serializable function."""

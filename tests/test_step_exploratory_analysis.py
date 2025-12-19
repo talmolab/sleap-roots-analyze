@@ -53,7 +53,7 @@ def sample_data_many_traits():
     }
     # Add 20 traits to trigger batched plots
     for i in range(20):
-        data[f"trait{i+1}"] = np.random.randn(n_samples) * 10 + 50
+        data[f"trait{i + 1}"] = np.random.randn(n_samples) * 10 + 50
     return pd.DataFrame(data)
 
 
@@ -92,7 +92,7 @@ def prev_result(sample_data):
 @pytest.fixture
 def prev_result_many_traits(sample_data_many_traits):
     """Create mock previous step result with many traits."""
-    trait_cols = [f"trait{i+1}" for i in range(20)]
+    trait_cols = [f"trait{i + 1}" for i in range(20)]
     return StepResult(
         data=sample_data_many_traits,
         metadata={

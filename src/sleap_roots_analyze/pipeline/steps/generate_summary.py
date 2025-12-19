@@ -113,7 +113,8 @@ class GenerateSummaryStep(BaseStep):
             "final_data": {
                 "n_samples": len(df),
                 "n_traits": len(final_traits),
-                "n_genotypes": df[config.columns.genotype].nunique(),
+                # After CleanupTraitsStep (Step 02), columns are sanitized to "Genotype"
+                "n_genotypes": df["Genotype"].nunique(),
                 "trait_names": final_traits,
             },
             "steps_executed": {
@@ -160,7 +161,8 @@ class GenerateSummaryStep(BaseStep):
             "final_traits": final_traits,
             "final_n_samples": len(df),
             "final_n_traits": len(final_traits),
-            "final_n_genotypes": df[config.columns.genotype].nunique(),
+            # After CleanupTraitsStep (Step 02), columns are sanitized to "Genotype"
+            "final_n_genotypes": df["Genotype"].nunique(),
         }
 
         return StepResult(data=df, metadata=metadata, files_generated=files)

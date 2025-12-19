@@ -295,20 +295,20 @@ def create_interactive_pca_with_images(
 
     # Create dataframe for plotting
     plot_df = df.copy()
-    plot_df[f"PC{pc_x+1}"] = X_pca[:, pc_x]
-    plot_df[f"PC{pc_y+1}"] = X_pca[:, pc_y]
+    plot_df[f"PC{pc_x + 1}"] = X_pca[:, pc_x]
+    plot_df[f"PC{pc_y + 1}"] = X_pca[:, pc_y]
 
     # Default title
     if title is None:
         var_x = pca_results["explained_variance_ratio"][pc_x] * 100
         var_y = pca_results["explained_variance_ratio"][pc_y] * 100
-        title = f"PCA Plot - PC{pc_x+1} vs PC{pc_y+1} ({var_x:.1f}% vs {var_y:.1f}% variance)"
+        title = f"PCA Plot - PC{pc_x + 1} vs PC{pc_y + 1} ({var_x:.1f}% vs {var_y:.1f}% variance)"
 
     # Create scatter plot with images
     fig = create_interactive_scatter_with_images(
         plot_df,
-        x_col=f"PC{pc_x+1}",
-        y_col=f"PC{pc_y+1}",
+        x_col=f"PC{pc_x + 1}",
+        y_col=f"PC{pc_y + 1}",
         image_links=image_links,
         color_by=color_by,
         hover_data=hover_cols,
@@ -403,10 +403,10 @@ def create_interactive_pca_with_images(
 
     # Update axis labels with variance
     fig.update_xaxes(
-        title=f'PC{pc_x+1} ({pca_results["explained_variance_ratio"][pc_x]:.1%} variance)'
+        title=f"PC{pc_x + 1} ({pca_results['explained_variance_ratio'][pc_x]:.1%} variance)"
     )
     fig.update_yaxes(
-        title=f'PC{pc_y+1} ({pca_results["explained_variance_ratio"][pc_y]:.1%} variance)'
+        title=f"PC{pc_y + 1} ({pca_results['explained_variance_ratio'][pc_y]:.1%} variance)"
     )
 
     return fig
@@ -1164,10 +1164,10 @@ def create_interactive_image_gallery(
                 <img class="sample-image" src="{img_src}" alt="{sample_id}">
                 <div class="sample-info">
                     <strong>{sample_id}</strong>
-                    {'<br>Genotype: ' + str(row.get('geno', '')) if 'geno' in row else ''}
+                    {"<br>Genotype: " + str(row.get("geno", "")) if "geno" in row else ""}
                 </div>
                 <div class="trait-tooltip">
-                    {'<br>'.join(tooltip_parts)}
+                    {"<br>".join(tooltip_parts)}
                 </div>
             </div>
             """
@@ -1290,8 +1290,8 @@ def create_interactive_pca_plot(
 
     # Create dataframe for plotting
     plot_df = df.copy()
-    plot_df[f"PC{pc_x+1}"] = X_pca[:, pc_x]
-    plot_df[f"PC{pc_y+1}"] = X_pca[:, pc_y]
+    plot_df[f"PC{pc_x + 1}"] = X_pca[:, pc_x]
+    plot_df[f"PC{pc_y + 1}"] = X_pca[:, pc_y]
 
     # Create hover data
     if hover_cols is None:
@@ -1302,8 +1302,8 @@ def create_interactive_pca_plot(
     # Create figure
     fig = create_interactive_scatter_plot(
         plot_df,
-        x_col=f"PC{pc_x+1}",
-        y_col=f"PC{pc_y+1}",
+        x_col=f"PC{pc_x + 1}",
+        y_col=f"PC{pc_y + 1}",
         color_by=color_by,
         hover_data=hover_cols,
         image_links=image_links,
@@ -1397,10 +1397,10 @@ def create_interactive_pca_plot(
 
     # Update axis labels with explained variance
     fig.update_xaxes(
-        title=f'PC{pc_x+1} ({pca_results["explained_variance_ratio"][pc_x]:.1%} variance)'
+        title=f"PC{pc_x + 1} ({pca_results['explained_variance_ratio'][pc_x]:.1%} variance)"
     )
     fig.update_yaxes(
-        title=f'PC{pc_y+1} ({pca_results["explained_variance_ratio"][pc_y]:.1%} variance)'
+        title=f"PC{pc_y + 1} ({pca_results['explained_variance_ratio'][pc_y]:.1%} variance)"
     )
 
     return fig

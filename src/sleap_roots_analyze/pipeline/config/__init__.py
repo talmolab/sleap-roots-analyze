@@ -10,6 +10,7 @@ from sleap_roots_analyze.pipeline.config.components import (
     ClusteringConfig,
     ColumnConfig,
     CoreQCConfig,
+    CrossPlatformConfig,
     DashboardConfig,
     DataConfig,
     GMMOutlierConfig,
@@ -38,6 +39,7 @@ from sleap_roots_analyze.pipeline.config.qc_config import QCPipelineConfig
 from sleap_roots_analyze.pipeline.config.utils import (
     get_default_qc_config,
     get_default_viz_config,
+    load_cross_platform_config,
     load_qc_config,
     load_viz_config,
     merge_qc_configs,
@@ -55,6 +57,7 @@ __all__ = [
     "ClusteringConfig",
     "ColumnConfig",
     "CoreQCConfig",
+    "CrossPlatformConfig",
     "DashboardConfig",
     "DataConfig",
     "GMMOutlierConfig",
@@ -92,4 +95,6 @@ __all__ = [
     "save_viz_config",
     "get_default_viz_config",
     "validate_viz_config",
+    # Cross-platform config utilities
+    "load_cross_platform_config",
 ]

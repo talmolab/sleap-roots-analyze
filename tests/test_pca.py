@@ -699,7 +699,9 @@ class TestEdgeCasesForFullCoverage:
 
         # When threshold is very high (1.0), should use all available components
         n_components = select_n_components(
-            X, explained_variance_threshold=1.0, n_components=None  # Use all components
+            X,
+            explained_variance_threshold=1.0,
+            n_components=None,  # Use all components
         )
         assert n_components >= 4  # Should need most/all components for 100% variance
 
@@ -1765,7 +1767,7 @@ class TestRunPCAAndExportArtifacts:
         manual_total = manual_contrib.sum(axis=1)
 
         # Compare with function output (match trait ordering)
-        pc_contrib_cols = [f"PC{i+1}_variance_contrib" for i in range(n_used)]
+        pc_contrib_cols = [f"PC{i + 1}_variance_contrib" for i in range(n_used)]
 
         # Map traits to their indices in the original trait_cols
         trait_to_idx = {trait: i for i, trait in enumerate(trait_cols)}
@@ -2183,7 +2185,7 @@ class TestPCAMathematicalValidation:
         for i in range(1, len(errors)):
             assert (
                 errors[i] <= errors[i - 1] + 1e-10
-            ), f"Error not decreasing: {errors[i]} > {errors[i-1]}"
+            ), f"Error not decreasing: {errors[i]} > {errors[i - 1]}"
 
 
 class TestVisualizationDataConsistency:

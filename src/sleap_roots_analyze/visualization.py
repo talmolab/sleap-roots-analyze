@@ -255,7 +255,7 @@ def create_trait_histograms_batched(
             df, batch_traits, n_cols=n_cols, figsize=batch_figsize
         )
         fig.suptitle(
-            f"Trait Histograms (Traits {batch_start+1}-{batch_end} of {n_traits})",
+            f"Trait Histograms (Traits {batch_start + 1}-{batch_end} of {n_traits})",
             fontsize=14,
             y=0.995,
         )
@@ -316,7 +316,7 @@ def create_trait_boxplots_by_genotype_batched(
             figsize=batch_figsize,
         )
         fig.suptitle(
-            f"Trait Boxplots by Genotype (Traits {batch_start+1}-{batch_end} of {n_traits})",
+            f"Trait Boxplots by Genotype (Traits {batch_start + 1}-{batch_end} of {n_traits})",
             fontsize=14,
             y=0.995,
         )
@@ -913,7 +913,7 @@ def create_heritability_threshold_plot(
         ax2.text(
             current_threshold + 0.02,
             fraction_retained[idx] * 100 + y_offset,
-            f"{fraction_retained[idx]*100:.1f}%",
+            f"{fraction_retained[idx] * 100:.1f}%",
             verticalalignment="bottom",
         )
 
@@ -1565,7 +1565,9 @@ def create_feature_contribution_plot(
         if pc_contrib_cols:
             # We have per-PC contributions (from run_pca_and_export_artifacts)
             available_pcs = min(len(pc_contrib_cols), n_components)
-            pc_cols_to_use = [f"PC{i+1}_variance_contrib" for i in range(available_pcs)]
+            pc_cols_to_use = [
+                f"PC{i + 1}_variance_contrib" for i in range(available_pcs)
+            ]
 
             # Get top contributors
             top_features_df = trait_contrib_df.head(min(top_n, len(trait_contrib_df)))
@@ -1687,7 +1689,7 @@ def create_feature_contribution_plot(
             y_pos,
             contributions[:, i],
             left=left,
-            label=f"PC{i+1}",
+            label=f"PC{i + 1}",
             color=colors[i],
             edgecolor="black",
             linewidth=0.5,
@@ -2529,7 +2531,7 @@ def identify_extreme_genotypes_by_pc(
     pc_df[genotype_col] = df[genotype_col]
 
     for i in range(n_components):
-        pc_df[f"PC{i+1}"] = X_pca[:, i]
+        pc_df[f"PC{i + 1}"] = X_pca[:, i]
 
     # Calculate median PC scores by genotype
     median_scores = pc_df.groupby(genotype_col).median()
@@ -2539,7 +2541,7 @@ def identify_extreme_genotypes_by_pc(
 
     # For each PC, identify extreme genotypes
     for i in range(n_components):
-        pc_col = f"PC{i+1}"
+        pc_col = f"PC{i + 1}"
         pc_medians = median_scores[pc_col].sort_values()
 
         # Get n_extreme lowest and highest genotypes
@@ -2629,13 +2631,18 @@ def create_pc_genotype_boxplots(
     pc_df[genotype_col] = df[genotype_col]
 
     for i in range(n_components):
-        pc_df[f"PC{i+1}"] = X_pca[:, i]
+        pc_df[f"PC{i + 1}"] = X_pca[:, i]
 
     # Create subplots - stack vertically
     n_cols = 1
     n_rows = n_components
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+    # Make figure height adaptive based on number of components
+    # Use provided figsize width, but scale height by number of PCs
+    adaptive_height = max(figsize[1], n_components * 3)  # Minimum 3 inches per PC
+    adaptive_figsize = (figsize[0], adaptive_height)
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=adaptive_figsize)
     if n_components == 1:
         axes = [axes]
     else:
@@ -2653,7 +2660,7 @@ def create_pc_genotype_boxplots(
 
     for i in range(n_components):
         ax = axes[i] if n_components > 1 else axes[0]
-        pc_col = f"PC{i+1}"
+        pc_col = f"PC{i + 1}"
 
         # Get data for this PC
         pc_data = []
@@ -2704,7 +2711,7 @@ def create_pc_genotype_boxplots(
         ax.set_ylabel(f"{pc_col} Score")
         ax.set_xlabel("Genotype")
         ax.set_title(
-            f'{pc_col} ({pca_results["explained_variance_ratio"][i]:.1%} variance)',
+            f"{pc_col} ({pca_results['explained_variance_ratio'][i]:.1%} variance)",
             fontsize=12,
         )
         ax.tick_params(axis="x", rotation=90)
@@ -2724,7 +2731,7 @@ def create_pc_genotype_boxplots(
     # Main title
     fig.suptitle(
         f"PC Score Distributions by Genotype "
-        + f"(Using {n_components} PCs explaining {pca_results['cumulative_variance_ratio'][n_components-1]:.1%} variance)",
+        + f"(Using {n_components} PCs explaining {pca_results['cumulative_variance_ratio'][n_components - 1]:.1%} variance)",
         fontsize=title_fontsize,
     )
 
@@ -2798,6 +2805,7 @@ def create_feature_contribution_heatmap(
     # Get top features by total variance contribution
     top_indices = np.argsort(variance_contributions)[::-1][:n_features]
     top_feature_names = [feature_names[i] for i in top_indices]
+    n_features_actual = len(top_feature_names)  # Actual number of features plotted
 
     # Helper function to create a heatmap
     def create_heatmap(data, title, cbar_label):
@@ -2829,13 +2837,13 @@ def create_feature_contribution_heatmap(
             contributions = [
                 eigenvalues[i] * loadings[idx, i] ** 2 for idx in top_indices
             ]
-            variance_data[f"PC{i+1}"] = contributions
+            variance_data[f"PC{i + 1}"] = contributions
 
         variance_df = pd.DataFrame(variance_data, index=top_feature_names)
 
         variance_fig = create_heatmap(
             variance_df,
-            f"Top {n_features} Feature Variance Contributions to First {n_comp_to_show} PCs",
+            f"Top {n_features_actual} Feature Variance Contributions to First {n_comp_to_show} PCs",
             "Variance Contribution",
         )
 
@@ -2845,13 +2853,13 @@ def create_feature_contribution_heatmap(
         loadings_data = {}
         for i in range(n_comp_to_show):
             # Use raw loadings (eigenvectors) - these show correlations
-            loadings_data[f"PC{i+1}"] = [loadings[idx, i] for idx in top_indices]
+            loadings_data[f"PC{i + 1}"] = [loadings[idx, i] for idx in top_indices]
 
         loadings_df = pd.DataFrame(loadings_data, index=top_feature_names)
 
         loadings_fig = create_heatmap(
             loadings_df,
-            f"Top {n_features} Feature Loadings (Correlations) for First {n_comp_to_show} PCs",
+            f"Top {n_features_actual} Feature Loadings (Correlations) for First {n_comp_to_show} PCs",
             "Loading (Correlation)",
         )
 

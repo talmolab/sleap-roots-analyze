@@ -576,23 +576,23 @@ def print_goodness_of_fit_summary(
     print("╠" + "═" * (box_width - 2) + "╣")
 
     # Basic info
-    print(f"║ {'Sample Size:':<20} {str(n_samples) + ' samples':<{box_width-23}} ║")
+    print(f"║ {'Sample Size:':<20} {str(n_samples) + ' samples':<{box_width - 23}} ║")
     print(
-        f"║ {'PCA Components:':<20} {str(df_value) + ' components':<{box_width-23}} ║"
+        f"║ {'PCA Components:':<20} {str(df_value) + ' components':<{box_width - 23}} ║"
     )
-    print(f"║ {'Evaluation Method:':<20} {strategy_name:<{box_width-23}} ║")
+    print(f"║ {'Evaluation Method:':<20} {strategy_name:<{box_width - 23}} ║")
 
     print("╠" + "═" * (box_width - 2) + "╣")
 
     # Test results
-    print(f"║ {'K-S Statistic:':<20} {ks_stat:.4f}{'':<{box_width-28}} ║")
-    print(f"║ {'P-value:':<20} {p_val_str:<{box_width-23}} ║")
+    print(f"║ {'K-S Statistic:':<20} {ks_stat:.4f}{'':<{box_width - 28}} ║")
+    print(f"║ {'P-value:':<20} {p_val_str:<{box_width - 23}} ║")
 
     print("╠" + "═" * (box_width - 2) + "╣")
 
     # Fit assessment
-    print(f"║ {'Fit Quality:':<20} {quality_str:<{box_width-23}} ║")
-    print(f"║ {'Assumptions Valid:':<20} {valid_str:<{box_width-23}} ║")
+    print(f"║ {'Fit Quality:':<20} {quality_str:<{box_width - 23}} ║")
+    print(f"║ {'Assumptions Valid:':<20} {valid_str:<{box_width - 23}} ║")
 
     # Add warning or note if present
     if warning:
@@ -602,7 +602,7 @@ def print_goodness_of_fit_summary(
 
         wrapped_lines = textwrap.wrap(warning, width=box_width - 4)
         for line in wrapped_lines:
-            print(f"║ {line:<{box_width-3}} ║")
+            print(f"║ {line:<{box_width - 3}} ║")
     elif eval_strategy == "effect_size" and p_value < 0.05:
         # Add automatic note for large samples with low p-value
         print("╠" + "═" * (box_width - 2) + "╣")
@@ -612,7 +612,7 @@ def print_goodness_of_fit_summary(
         )
         wrapped_lines = textwrap.wrap(note, width=box_width - 4)
         for line in wrapped_lines:
-            print(f"║ {line:<{box_width-3}} ║")
+            print(f"║ {line:<{box_width - 3}} ║")
 
     print("╚" + "═" * (box_width - 2) + "╝")
 

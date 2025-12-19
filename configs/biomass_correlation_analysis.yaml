@@ -1,0 +1,134 @@
+# Biomass Correlation Analysis Configuration
+#
+# Analyzes correlations between root biomass at different depths and above-ground traits.
+# Designed for root coring data with depth-stratified biomass measurements.
+#
+# Usage:
+#   python scripts/analyze_biomass_depth_correlations.py --config configs/biomass_correlation_analysis.yaml
+#
+# Or with CLI override:
+#   python scripts/analyze_biomass_depth_correlations.py --config configs/biomass_correlation_analysis.yaml --data /path/to/data.csv
+
+# Pipeline metadata
+pipeline_name: "biomass_correlation_analysis"
+version: "2.0"
+
+# Data configuration
+data:
+  # Path to CSV file with biomass data (use step 07 data with biomass columns intact)
+  # This can be overridden with --data CLI argument
+  csv_path: null  # Required: set this or use --data
+
+  # Column mapping - supports both notebook-style and pipeline-style column names
+  # The script auto-detects which style is present, but you can override here
+  column_mapping:
+    # Notebook-style (from Nov 30 QC notebook)
+    notebook_style:
+      shallow_biomass: "c_0_30"
+      deep_biomass: "c_30_60"
+      yield: "GY_Calc_gm2"
+      stem_biomass: "StmDW_M_g"
+
+    # Pipeline-style (from QC pipeline output)
+    pipeline_style:
+      shallow_biomass: "Rootdw 15Cm"
+      deep_biomass: "Rootdw 45Cm"
+      yield: "Gy Calc Gm2"
+      stem_biomass: "Stmdw M (g)"
+
+# Publication settings
+publication:
+  # Enable publication-ready formatting
+  enabled: true
+
+  # Trait name sanitization
+  sanitize_trait_names: true
+  abbreviate: true  # Use abbreviations (Med, Avg, Max, etc.)
+
+  # Custom term replacements for domain-specific terminology
+  # Applied BEFORE standard sanitization
+  custom_replacements:
+    crown: "seminal"  # Wheat root terminology
+
+  # Publication-ready trait labels for figures
+  # Maps internal names to publication names
+  trait_labels:
+    biomass_0_30cm: "Root Biomass DW (g) 0-30cm"
+    biomass_30_60cm: "Root Biomass DW (g) 30-60cm"
+    grain_yield: "Grain Yield (g/m2)"
+    stem_biomass: "Stem Dry Weight (g)"
+
+# Figure settings
+figures:
+  # Output formats
+  formats:
+    - png
+    - pdf
+
+  # Resolution
+  dpi: 300
+
+  # Default figure size (width, height) in inches
+  figsize:
+    regression: [8, 8]
+    heatmap: [14, 14]
+
+  # Style settings
+  style:
+    font_family: "DejaVu Sans"
+    title_fontsize: 14
+    label_fontsize: 12
+    tick_fontsize: 10
+
+  # Facecolor for saved figures
+  facecolor: "white"
+
+# Analysis settings
+analysis:
+  # Significance threshold for correlation tests
+  alpha: 0.05
+
+  # Minimum samples required for regression
+  min_samples: 3
+
+  # Warn if more than this percentage of data is dropped due to NaN
+  nan_warning_threshold: 20.0
+
+# Output settings
+output:
+  # Base output directory (timestamped subdirectory will be created)
+  output_dir: "./biomass_correlation_analysis"
+
+  # Generate summary report
+  generate_summary: true
+
+  # Summary formats
+  summary_formats:
+    - markdown
+    - json
+
+# Analyses to run
+analyses:
+  # 1. Depth section independence (0-30cm vs 30-60cm)
+  depth_independence:
+    enabled: true
+    title: "Biomass Independence: Shallow (0-30cm) vs Deep (30-60cm)"
+
+  # 2. Correlation heatmap (below-ground vs above-ground)
+  correlation_heatmap:
+    enabled: true
+    include_root_counts: true  # Include Rootcount columns if available
+
+  # 3. Yield vs deep biomass regression
+  yield_vs_deep_biomass:
+    enabled: true
+    title: "Grain Yield vs Deep Root Biomass (30-60cm)"
+
+  # 4. Stem biomass vs deep roots regression
+  stem_vs_deep_roots:
+    enabled: true
+    title: "Stem Dry Weight vs Deep Root Biomass (30-60cm)"
+
+  # 5. Supplementary correlation tables
+  supplementary_tables:
+    enabled: true

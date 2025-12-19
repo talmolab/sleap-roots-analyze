@@ -1,0 +1,131 @@
+# QC Pipeline Configuration: Root Core with Manual Pre-QC
+#
+# This config uses the manually QC'd biomass data (bad cores removed based on
+# forensic analysis of Field_2024_clean.csv) with core-level QC DISABLED.
+#
+# Bad cores removed from rearranged_root_biomass_dw_qc.csv:
+# - GH_7371 Rep 1 Core 2 (0.31g outlier at 0-30cm)
+# - GH_7371 Rep 3 Core 0 (NaN at 0-30cm)
+# - GH_7371 Rep 3 Core 2 (0.36g - "Checar si se suma" annotation)
+#
+# Use case: Test if manual pre-QC achieves similar heritability to Field_2024_clean.csv
+
+# Pipeline metadata
+pipeline_name: "EDPIE Root Core (Manual Pre-QC)"
+version: "1.0"
+
+# ============================================================================
+# ROOT CORE PROCESSING (Steps 0a-0f)
+# ============================================================================
+root_core:
+  sources:
+    # Source 1: Root biomass - USING MANUALLY QC'd FILE
+    - csv_path: "C:/repos/sleap-roots-analyze/data/forensic_analysis/rearranged_root_biomass_dw_qc.csv"
+      data_type: "biomass"
+      depth_column_prefix: "RootDW"
+      value_column_name: "Root_DW_g"
+      aggregation_method: "mean"  # Use MEAN since bad cores already removed
+      genotype_column: "salk_geno"
+      depth_mapping:
+        "0-30": 15.0
+        "30-60": 45.0
+      depth_range_mapping:
+        15.0: "0-30"
+        45.0: "30-60"
+
+    # Source 2: Root intersection counting (unchanged)
+    - csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/root_coring/root_counting_cimmyt_edited.csv"
+      data_type: "counting"
+      depth_column_prefix: "RootCount"
+      value_column_name: "Root_Count"
+      aggregation_method: "median"
+      genotype_column: "geno"
+
+  # Core-level QC DISABLED - we already manually removed bad cores
+  core_qc:
+    enabled: false
+    max_missing_proportion: 0.5
+    remove_outliers: false
+    detect_value_outliers: false
+    max_deviation_from_median: 0.30
+    min_cores_after_qc: 1
+
+  generate_depth_profiles: true
+
+  # Merge with above-ground traits
+  merge_traits:
+    above_ground_csv: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/field/Field_2024_aboveground.csv"
+    join_keys: ["Rep", "geno"]
+    join_type: "inner"
+    duplicate_strategy: "fail"
+    output_path: "Field_2024_manual_qc.csv"
+
+# ============================================================================
+# TRAIT-LEVEL QC (Standard Pipeline Steps 1-10)
+# ============================================================================
+
+data:
+  csv_path: null
+  image_dir: null
+  additional_exclude_cols:
+    - "Ent"
+    - "Sub"
+    - "Cid"
+    - "Sid"
+    - "GID"
+    - "Cross name"
+    - "Sel_Hist"
+    - "Origin"
+    - "core_id"
+    - "plant_identifier"
+
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "Rep"
+
+# Match Nov 30 notebook settings
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 10
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 10
+
+heritability:
+  enabled: true
+  threshold: 0.5
+  generate_diagnostics: true
+
+visualization:
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  create_outlier_plots: true
+  interactive: false
+  dpi: 300
+  figsize: [10, 8]
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "root_core_manual_qc.log"

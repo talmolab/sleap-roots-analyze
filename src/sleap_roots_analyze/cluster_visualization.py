@@ -95,7 +95,7 @@ def create_cluster_scatter_pca(
             X_pca[cluster_mask, 0],
             X_pca[cluster_mask, 1],
             c=[colors[i]],
-            label=f"Cluster {i+1}",
+            label=f"Cluster {i + 1}",
             alpha=0.6,
             s=50,
         )

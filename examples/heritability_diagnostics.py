@@ -25,6 +25,7 @@ from sleap_roots_analyze.visualization import (
 # df = pd.read_csv("your_data.csv")
 # traits_to_diagnose = ['c_50_60_1', 'c_50_60_2']
 
+
 def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col="rep"):
     """Complete diagnostic workflow for heritability issues.
 
@@ -34,7 +35,6 @@ def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col
         genotype_col: Genotype column name
         replicate_col: Replicate column name
     """
-
     # Step 1: Calculate heritability for all traits
     print("=" * 80)
     print("STEP 1: Calculate Heritability")
@@ -67,14 +67,22 @@ def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col
         print(f"  Total observations: {var_analysis['n_observations']}")
         print(f"  Number of genotypes: {var_analysis['n_genotypes']}")
         print(f"  Overall variance: {var_analysis['overall_variance']:.6f}")
-        print(f"  Between-genotype variance: {var_analysis['between_genotype_variance']:.6f}")
-        print(f"  Within-genotype variance: {var_analysis['within_genotype_variance']:.6f}")
-        print(f"  % variance BETWEEN genotypes: {var_analysis['pct_variance_between_geno']:.1f}%")
+        print(
+            f"  Between-genotype variance: {var_analysis['between_genotype_variance']:.6f}"
+        )
+        print(
+            f"  Within-genotype variance: {var_analysis['within_genotype_variance']:.6f}"
+        )
+        print(
+            f"  % variance BETWEEN genotypes: {var_analysis['pct_variance_between_geno']:.1f}%"
+        )
         print(f"  Coefficient of variation: {var_analysis['trait_cv']:.1f}%")
 
         # KEY INSIGHT: Low % between-genotype variance = low heritability
-        if var_analysis['pct_variance_between_geno'] < 30:
-            print(f"  WARNING: Most variance is within-genotype (measurement noise/environment)")
+        if var_analysis["pct_variance_between_geno"] < 30:
+            print(
+                f"  WARNING: Most variance is within-genotype (measurement noise/environment)"
+            )
         else:
             print(f"  OK: Substantial variance is between-genotype (genetic control)")
 
@@ -96,14 +104,14 @@ def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col
         print(f"  Has issues: {diagnosis['has_issues']}")
         print(f"  Severity: {diagnosis['severity']}")
 
-        if diagnosis['issues']:
+        if diagnosis["issues"]:
             print(f"  Issues identified:")
-            for issue in diagnosis['issues']:
+            for issue in diagnosis["issues"]:
                 print(f"    - {issue}")
 
-        if diagnosis['recommendations']:
+        if diagnosis["recommendations"]:
             print(f"  Recommendations:")
-            for rec in diagnosis['recommendations']:
+            for rec in diagnosis["recommendations"]:
                 print(f"    - {rec}")
 
     # Step 4: Compare multiple traits side-by-side
@@ -121,8 +129,18 @@ def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col
     )
 
     print("\nComparison Table:")
-    print(comparison_df[['trait', 'heritability', 'pct_var_between',
-                        'var_genetic', 'var_residual', 'n_observations']])
+    print(
+        comparison_df[
+            [
+                "trait",
+                "heritability",
+                "pct_var_between",
+                "var_genetic",
+                "var_residual",
+                "n_observations",
+            ]
+        ]
+    )
 
     # Step 5: Create diagnostic visualizations
     print("\n" + "=" * 80)
@@ -135,8 +153,7 @@ def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col
     # Variance decomposition plot (4 panels)
     print("\nCreating variance decomposition plot...")
     fig1 = create_variance_decomposition_plot(
-        comparison_df,
-        output_path=output_dir / "variance_decomposition.png"
+        comparison_df, output_path=output_dir / "variance_decomposition.png"
     )
     print(f"Saved to {output_dir / 'variance_decomposition.png'}")
 
@@ -147,7 +164,7 @@ def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col
         traits=traits,
         heritability_results=h2_results,
         genotype_col=genotype_col,
-        output_path=output_dir / "trait_boxplots.png"
+        output_path=output_dir / "trait_boxplots.png",
     )
     print(f"- Saved to {output_dir / 'trait_boxplots.png'}")
 
@@ -158,7 +175,7 @@ def diagnose_heritability_example(df, traits, genotype_col="geno", replicate_col
         traits=traits,
         heritability_results=h2_results,
         comparison_df=comparison_df,
-        output_path=output_dir / "diagnostic_dashboard.png"
+        output_path=output_dir / "diagnostic_dashboard.png",
     )
     print(f"- Saved to {output_dir / 'diagnostic_dashboard.png'}")
 
@@ -195,16 +212,18 @@ if __name__ == "__main__":
             # c_50_60_2: Low measurement noise
             env_noise_2 = np.random.normal(0, 1)  # Small environmental noise
 
-            data.append({
-                'geno': f'G{g+1:02d}',
-                'rep': r + 1,
-                'Barcode': f'BC{g*n_reps + r:04d}',
-                'c_50_60_1': 100 + genetic_effect_1 + env_noise_1,
-                'c_50_60_2': 50 + genetic_effect_2 + env_noise_2,
-            })
+            data.append(
+                {
+                    "geno": f"G{g + 1:02d}",
+                    "rep": r + 1,
+                    "Barcode": f"BC{g * n_reps + r:04d}",
+                    "c_50_60_1": 100 + genetic_effect_1 + env_noise_1,
+                    "c_50_60_2": 50 + genetic_effect_2 + env_noise_2,
+                }
+            )
 
     df = pd.DataFrame(data)
-    traits = ['c_50_60_1', 'c_50_60_2']
+    traits = ["c_50_60_1", "c_50_60_2"]
 
     print("Running example diagnostic workflow with simulated data...\n")
     h2_results, comparison = diagnose_heritability_example(df, traits)

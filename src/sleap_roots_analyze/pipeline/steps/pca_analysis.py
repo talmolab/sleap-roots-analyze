@@ -47,13 +47,28 @@ class PCAAnalysisStep(BaseStep):
         Returns:
             StepResult with DataFrame and PCA results metadata.
         """
-        trait_cols = prev_result.metadata["trait_cols"]
+        # Try multiple metadata keys for trait columns (compatibility with different pipeline stages)
+        trait_cols = (
+            prev_result.metadata.get("trait_names")
+            or prev_result.metadata.get("valid_trait_names")
+            or prev_result.metadata.get("trait_cols")
+        )
+        if trait_cols is None:
+            raise KeyError(
+                "Could not find trait column names in previous step metadata. "
+                "Expected 'trait_names', 'valid_trait_names', or 'trait_cols'."
+            )
 
         logger.info(f"Performing PCA on {len(trait_cols)} traits")
 
+        # Clean data before PCA (drop rows with NaN in trait columns)
+        # This ensures we have matching indices for PC scores
+        data_clean = data[trait_cols].dropna()
+        logger.info(f"Using {len(data_clean)} samples after dropping NaN values")
+
         # Perform PCA analysis (only on trait columns)
         pca_results = perform_pca_analysis(
-            data[trait_cols],
+            data_clean,
             standardize=config.pca.standardize,
             explained_variance_threshold=(
                 config.pca.n_components if config.pca.n_components < 1 else None
@@ -88,11 +103,11 @@ class PCAAnalysisStep(BaseStep):
         pca_dir = run_dir / "pca"
         pca_dir.mkdir(exist_ok=True)
 
-        # Save PC scores
+        # Save PC scores (use cleaned data index)
         pc_scores_df = pd.DataFrame(
             pca_results["transformed_data"],
-            index=data.index,
-            columns=[f"PC{i+1}" for i in range(n_components)],
+            index=data_clean.index,
+            columns=[f"PC{i + 1}" for i in range(n_components)],
         )
         pc_scores_df.to_csv(pca_dir / "pc_scores.csv")
 
@@ -100,7 +115,7 @@ class PCAAnalysisStep(BaseStep):
         loadings_df = pd.DataFrame(
             pca_results["loadings"],
             index=trait_cols,
-            columns=[f"PC{i+1}" for i in range(n_components)],
+            columns=[f"PC{i + 1}" for i in range(n_components)],
         )
         loadings_df.to_csv(pca_dir / "loadings.csv")
 
@@ -111,7 +126,7 @@ class PCAAnalysisStep(BaseStep):
                 "explained_variance_ratio": pca_results["explained_variance_ratio"],
                 "cumulative_variance_ratio": pca_results["cumulative_variance_ratio"],
             },
-            index=[f"PC{i+1}" for i in range(n_components)],
+            index=[f"PC{i + 1}" for i in range(n_components)],
         )
         explained_var_df.to_csv(pca_dir / "explained_variance.csv")
 

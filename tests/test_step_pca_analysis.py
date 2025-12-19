@@ -43,7 +43,7 @@ def sample_data():
     return pd.DataFrame(
         {
             "Barcode": [f"sample_{i}" for i in range(n_samples)],
-            "geno": [f"geno_{i%5}" for i in range(n_samples)],
+            "geno": [f"geno_{i % 5}" for i in range(n_samples)],
             "rep": [i % 3 + 1 for i in range(n_samples)],
             "trait1": np.random.randn(n_samples),
             "trait2": np.random.randn(n_samples) * 2,

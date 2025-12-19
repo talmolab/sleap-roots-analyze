@@ -17,14 +17,14 @@ from sleap_roots_analyze.pipeline.steps import StatisticalAnalysisStep
 
 @pytest.fixture
 def sample_data():
-    """Create sample data with sufficient genotypes and replicates."""
+    """Create sample data with standardized column names (as after CleanupTraitsStep)."""
     np.random.seed(42)
     n_samples = 30
     return pd.DataFrame(
         {
             "Barcode": [f"plant{i}" for i in range(n_samples)],
-            "geno": (["A"] * 10 + ["B"] * 10 + ["C"] * 10),
-            "rep": [1, 2, 3] * 10,
+            "Genotype": ["A"] * 10 + ["B"] * 10 + ["C"] * 10,
+            "Replicate": [1, 2, 3] * 10,
             "trait1": np.random.randn(n_samples) * 10 + 50,
             "trait2": np.random.randn(n_samples) * 5 + 25,
             "trait3": np.random.randn(n_samples) * 3 + 15,
@@ -34,10 +34,12 @@ def sample_data():
 
 @pytest.fixture
 def config():
-    """Create config."""
+    """Create config with standardized column names."""
     return QCPipelineConfig(
         pipeline_name="test_qc",
-        columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+        columns=ColumnConfig(
+            barcode="Barcode", genotype="Genotype", replicate="Replicate"
+        ),
         data=DataConfig(csv_path="dummy.csv"),
     )
 

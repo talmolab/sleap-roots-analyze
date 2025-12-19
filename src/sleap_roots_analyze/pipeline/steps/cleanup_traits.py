@@ -8,6 +8,7 @@ from typing import Any, Optional
 import pandas as pd
 
 from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+from sleap_roots_analyze.data_utils import sanitize_trait_names
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
 
@@ -65,6 +66,31 @@ class CleanupTraitsStep(BaseStep):
         # Get trait columns from previous step
         trait_cols = prev_result.metadata["trait_column_names"]
 
+        # Extract depth_range_mapping from previous step (if available from ReshapeForTraitQCStep)
+        depth_range_mapping = prev_result.metadata.get("depth_range_mapping", None)
+
+        # Sanitize trait names (abbreviate + custom replacements + depth ranges)
+        df, trait_name_mapping = sanitize_trait_names(
+            df=df,
+            trait_cols=trait_cols,
+            abbreviate=True,
+            return_mapping=True,
+            sanitize_metadata=True,
+            genotype_col=config.columns.genotype,
+            replicate_col=config.columns.replicate,
+            barcode_col=config.columns.barcode,
+            custom_replacements=config.cleanup.custom_replacements,
+            depth_range_mapping=depth_range_mapping,
+        )
+
+        # Update column references to use sanitized names
+        barcode_col = "Barcode"
+        genotype_col = "Genotype"
+        replicate_col = "Replicate"
+
+        # Update trait columns list with sanitized names
+        trait_cols = [trait_name_mapping.get(col, col) for col in trait_cols]
+
         # Apply cleanup filters (optimal interleaving of trait/sample removal)
         df_clean, cleanup_log = apply_data_cleanup_filters(
             df,
@@ -120,7 +146,7 @@ class CleanupTraitsStep(BaseStep):
             removed_samples_df = pd.DataFrame(cleanup_log["removed_samples_detail"])
         else:
             removed_samples_df = pd.DataFrame(
-                columns=["index", config.columns.barcode, "nan_count", "nan_fraction"]
+                columns=["index", barcode_col, "nan_count", "nan_fraction"]
             )
 
         # Reorder columns before saving: metadata first, then traits (sorted)
@@ -181,6 +207,11 @@ class CleanupTraitsStep(BaseStep):
             )
 
         # Create metadata
+        # Only include trait name mapping if names actually changed
+        names_changed = {
+            old: new for old, new in trait_name_mapping.items() if old != new
+        }
+
         metadata = {
             "samples_original": cleanup_log["original_samples"],
             "samples_removed": len(cleanup_log.get("removed_samples_detail", [])),
@@ -190,8 +221,15 @@ class CleanupTraitsStep(BaseStep):
             "traits_final": cleanup_log["final_traits"],
             "trait_names": traits_after_cleanup,  # Primary key (standardized)
             "valid_trait_names": traits_after_cleanup,  # For consistency
+            "trait_name_mapping": names_changed if names_changed else None,
             "cleanup_log": cleanup_log,
             "nan_validation_passed": True,
+            # Add column mapping for downstream steps to use sanitized names
+            "column_mapping": {
+                "barcode": barcode_col,  # "barcode" -> "Barcode"
+                "genotype": genotype_col,  # "genotype" -> "Genotype"
+                "replicate": replicate_col,  # "replicate" -> "Replicate"
+            },
         }
 
         return StepResult(data=df_clean, metadata=metadata, files_generated=files)

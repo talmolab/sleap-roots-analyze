@@ -12,6 +12,7 @@ from typing import List
 
 from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
+from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.config import (
     VizPipelineConfig,
     validate_viz_config,
@@ -412,11 +413,39 @@ class VizPipeline(BasePipeline):
         # Primary input from genotype aggregation
         prev_task_result = kwargs.get("08_genotype_aggregation")
         prev_step_result = prev_task_result.data
+
+        # CRITICAL FIX: Merge PCA results into metadata
+        # The static figures step needs PCA results, but they're on a different
+        # branch of the DAG (PCA → interesting_genotypes vs statistics → heritability → aggregation)
+        # So we explicitly grab PCA results from kwargs and merge them in
+        pca_task_result = kwargs.get("03_pca_analysis")
+        if pca_task_result:
+            pca_step_result = pca_task_result.data
+            # Merge PCA metadata into the combined result
+            combined_metadata = {
+                **prev_step_result.metadata,
+                "pca_results": pca_step_result.metadata.get("pca_results"),
+                "top_features": pca_step_result.metadata.get("top_features"),
+                "n_pca_components": pca_step_result.metadata.get("n_pca_components"),
+                "pca_explained_variance": pca_step_result.metadata.get(
+                    "pca_explained_variance"
+                ),
+            }
+            # Create combined result with merged metadata
+            combined_result = StepResult(
+                data=prev_step_result.data,
+                metadata=combined_metadata,
+                files_generated=prev_step_result.files_generated,
+            )
+        else:
+            # Fallback if PCA not available (shouldn't happen given dependencies)
+            combined_result = prev_step_result
+
         result = self.step_9_generate_static_figures.execute(
-            data=prev_step_result.data,
+            data=combined_result.data,
             config=config,
             run_dir=run_dir,
-            prev_result=prev_step_result,
+            prev_result=combined_result,
         )
         return result
 

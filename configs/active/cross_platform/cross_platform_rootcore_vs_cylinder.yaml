@@ -1,0 +1,46 @@
+# Cross-Platform Analysis Configuration
+# Comparing Root Core EDPIE (QC'd, all traits) vs Cylinder (SLEAP Roots)
+# Updated: 2025-12-15
+# Purpose: Correlate field root coring measurements with greenhouse SLEAP Roots traits
+#          to identify lab-measurable predictors of field root architecture
+
+# Experiment 1: Root Core EDPIE (Field root coring data - QC'd but NOT heritability filtered)
+# Note: Using 07_data_outliers_removed.csv which has all 12 depth intervals + biomass
+#       This is QC'd (trait cleanup, sample cleanup, outlier removal) but keeps all traits
+exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/EDPIE Root Core Full QC_20251215_134134/07_data_outliers_removed.csv"
+exp1_name: "Root Core EDPIE (QC'd)"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Cylinder (SLEAP Roots imaging) - QC'd but NOT heritability filtered
+exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/cylinder_edpie_qc_20251215_133553/07_data_outliers_removed.csv"
+exp2_name: "Cylinder EDPIE (QC'd)"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman for robustness
+min_samples_per_genotype: 2     # Lower threshold for field data
+significance_level: 0.05        # Standard p-value threshold
+
+# Visualization Parameters
+top_n_correlations: 50          # More correlations (high-dimensional cylinder data)
+top_n_joint_plots: 15           # Joint plots for top correlations
+top_n_boxplots: 15              # Boxplots for top comparisons
+figsize_summary: [18, 16]       # Larger summary plot
+figsize_joint: [10, 10]         # Joint plot figure size
+figsize_boxplot: [16, 6]        # Boxplot figure size
+
+# Analysis Notes:
+# - Root Core data (07_data_outliers_removed.csv) includes:
+#   * Root counts at ALL 12 depth intervals (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 cm)
+#   * Root biomass (Rootdw 15Cm, Rootdw 45Cm)
+#   * Above-ground phenology and yield traits
+#   * 58 samples, ~36 traits (QC'd but NOT heritability filtered)
+# - Cylinder data includes:
+#   * SLEAP Roots depth-profiled traits at 11 DAG
+#   * Seminal root angles, lengths, counts
+#   * Network and spatial distribution metrics
+# - Key questions:
+#   * Do cylinder seminal root angles predict field root distribution?
+#   * Which SLEAP traits correlate with field root counts/biomass at specific depths?
+#   * Can greenhouse depth profiles predict field depth profiles?
+# - Important for identifying SLEAP Roots traits predictive of field performance

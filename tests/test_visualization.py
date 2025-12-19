@@ -876,7 +876,9 @@ class TestCreateTraitEDAPlots:
     def test_no_traits(self, viz_eda_sample_data, viz_eda_thresholds):
         """Test with empty trait list."""
         figures = create_trait_eda_plots(
-            viz_eda_sample_data, [], viz_eda_thresholds  # No traits
+            viz_eda_sample_data,
+            [],
+            viz_eda_thresholds,  # No traits
         )
 
         assert isinstance(figures, dict)

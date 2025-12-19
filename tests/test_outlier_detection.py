@@ -69,7 +69,7 @@ class TestDetectOutliersMahalanobis:
         # Should detect at least 60% of the true outliers
         overlap = detected.intersection(expected)
         recall = len(overlap) / len(expected)
-        assert recall >= 0.6, f"Only detected {recall*100:.1f}% of true outliers"
+        assert recall >= 0.6, f"Only detected {recall * 100:.1f}% of true outliers"
 
     def test_chi_squared_threshold(self, outlier_data_with_known_outliers):
         """Test chi-squared threshold calculation."""
@@ -1893,10 +1893,12 @@ class TestEdgeCasesIndexHandling:
         X = np.random.randn(30, 4) * 0.1
 
         result_mahal = detect_outliers_mahalanobis(
-            X, chi2_percentile=99.9  # Very high threshold
+            X,
+            chi2_percentile=99.9,  # Very high threshold
         )
         result_pca = detect_outliers_pca(
-            X, outlier_threshold=5.0  # Very high threshold
+            X,
+            outlier_threshold=5.0,  # Very high threshold
         )
 
         # Should return empty lists
@@ -1915,7 +1917,8 @@ class TestEdgeCasesIndexHandling:
         result_mahal = detect_outliers_mahalanobis(X, chi2_percentile=10.0)  # Very low
 
         result_pca = detect_outliers_pca(
-            X, outlier_threshold=0.01  # Even lower threshold
+            X,
+            outlier_threshold=0.01,  # Even lower threshold
         )
 
         # Should find some outliers with these low thresholds

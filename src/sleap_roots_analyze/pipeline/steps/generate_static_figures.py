@@ -214,7 +214,11 @@ class GenerateStaticFiguresStep(BaseStep):
         files = []
 
         # Scree plot
-        fig = create_pca_scree_plot(pca_results)
+        # Pass the variance threshold from config to ensure plot matches PCA analysis
+        variance_threshold = (
+            config.pca.n_components if config.pca.n_components < 1 else 0.95
+        )
+        fig = create_pca_scree_plot(pca_results, variance_threshold=variance_threshold)
         files.extend(
             self._save_figure(
                 fig,
@@ -229,13 +233,17 @@ class GenerateStaticFiguresStep(BaseStep):
         plt.close(fig)
 
         # Biplot
-        genotype_col = config.columns.genotype
+        # Use hardcoded sanitized column name (data from QC pipeline already sanitized)
+        genotype_col = "Genotype"
         fig = create_pca_biplot(
             pca_results,
             df=df,
             trait_names=trait_cols,
             color_by=genotype_col,
             top_n_features=config.static_viz.pca_biplot_top_features,
+            feature_selection=config.pca.feature_selection_strategy,  # Pass feature selection method from config
+            genotypes_to_color=config.static_viz.genotypes_to_color,
+            highlight_genotypes=config.static_viz.highlight_genotypes,
         )
         files.extend(
             self._save_figure(
@@ -280,12 +288,13 @@ class GenerateStaticFiguresStep(BaseStep):
         plt.close(loadings_fig)
 
         # PC boxplots by genotype
-        if "pc_scores" in pca_results and genotype_col in df.columns:
+        if "transformed_data" in pca_results and genotype_col in df.columns:
             fig = create_pc_genotype_boxplots(
                 pca_results,
                 df,
                 genotype_col=genotype_col,
                 n_components=config.static_viz.pca_n_components,
+                highlight_genotypes=config.static_viz.highlight_genotypes,
             )
             files.extend(
                 self._save_figure(
@@ -322,7 +331,7 @@ class GenerateStaticFiguresStep(BaseStep):
             files.extend(
                 self._save_figure(
                     subfig,
-                    f"trait_histograms_batch{i+1}",
+                    f"trait_histograms_batch{i + 1}",
                     output_dir,
                     formats,
                     dpi,
@@ -333,7 +342,8 @@ class GenerateStaticFiguresStep(BaseStep):
             plt.close(subfig)
 
         # Boxplots by genotype (batched)
-        genotype_col = config.columns.genotype
+        # Use hardcoded sanitized column name (data from QC pipeline already sanitized)
+        genotype_col = "Genotype"
         if genotype_col in df.columns:
             fig = create_trait_boxplots_by_genotype_batched(
                 df,
@@ -345,7 +355,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 files.extend(
                     self._save_figure(
                         subfig,
-                        f"trait_boxplots_by_genotype_batch{i+1}",
+                        f"trait_boxplots_by_genotype_batch{i + 1}",
                         output_dir,
                         formats,
                         dpi,

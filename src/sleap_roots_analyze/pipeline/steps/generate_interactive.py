@@ -191,7 +191,7 @@ class GenerateInteractiveStep(BaseStep):
         barcode_col = config.columns.barcode
 
         # Interactive PCA scatter (basic)
-        if "pc_scores" in pca_results:
+        if "transformed_data" in pca_results:
             fig = create_interactive_pca_plot(
                 pca_results,
                 df,
@@ -205,10 +205,10 @@ class GenerateInteractiveStep(BaseStep):
         if (
             config.interactive_viz.show_images_on_hover
             and image_paths is not None
-            and "pc_scores" in pca_results
+            and "transformed_data" in pca_results
         ):
             fig = create_interactive_pca_with_images(
-                pca_results["pc_scores"],
+                pca_results["transformed_data"],
                 df,
                 image_paths,
                 genotype_col=genotype_col,

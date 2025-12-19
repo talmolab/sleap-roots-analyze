@@ -13,6 +13,7 @@ from omegaconf import MISSING, OmegaConf
 
 from sleap_roots_analyze.pipeline.config.qc_config import QCPipelineConfig
 from sleap_roots_analyze.pipeline.config.viz_config import VizPipelineConfig
+from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
 
 
 # ============================================================================
@@ -493,3 +494,27 @@ def validate_viz_config(config: VizPipelineConfig) -> None:
     valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     if config.logging.level not in valid_log_levels:
         raise ValueError(f"logging.level must be one of {valid_log_levels}")
+
+
+# ============================================================================
+# Cross-Platform Pipeline Configuration Utilities
+# ============================================================================
+
+
+def load_cross_platform_config(config_path: str | Path) -> CrossPlatformConfig:
+    """Load cross-platform analysis configuration from a YAML file.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+
+    Returns:
+        CrossPlatformConfig object with loaded configuration.
+
+    Example:
+        >>> config = load_cross_platform_config("cross_platform_analysis.yaml")
+    """
+    config_path = Path(config_path)
+    omega_conf = OmegaConf.load(config_path)
+    structured = OmegaConf.structured(CrossPlatformConfig)
+    merged = OmegaConf.merge(structured, omega_conf)
+    return OmegaConf.to_object(merged)

@@ -417,3 +417,280 @@ def test_qc_command_conflicting_flags(runner, sample_qc_config):
     result = runner.invoke(cli, ["qc", str(sample_qc_config), "-v", "-q", "--dry-run"])
     # Should still work (one flag takes precedence)
     assert result.exit_code == 0
+
+
+# =============================================================================
+# Config-based log file tests (TDD for fix-config-log-file-ignored)
+# =============================================================================
+
+
+@pytest.fixture
+def qc_config_with_logging(tmp_path):
+    """Create a QC config file with logging.log_file enabled."""
+    config_content = """
+pipeline_name: "test_qc_logging"
+
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+data:
+  csv_path: "test_data.csv"
+
+outlier_detection:
+  traditional_methods: []
+  clustering_methods: []
+
+outlier_removal:
+  strategy: "union"
+  method: "all"
+
+heritability:
+  enabled: false
+
+visualization:
+  dpi: 100
+  figsize: [10, 8]
+  figure_format: "png"
+  title_fontsize: 14
+  label_fontsize: 12
+  tick_fontsize: 10
+  legend_fontsize: 10
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"
+"""
+    config_path = tmp_path / "test_qc_config_logging.yaml"
+    config_path.write_text(config_content)
+
+    # Create sample data file
+    data = {
+        "Barcode": ["plant1", "plant2", "plant3"],
+        "geno": ["A", "B", "A"],
+        "rep": [1, 1, 2],
+        "trait1": [10.5, 12.3, 11.8],
+        "trait2": [5.2, 6.1, 5.8],
+    }
+    df = pd.DataFrame(data)
+    csv_path = tmp_path / "test_data.csv"
+    df.to_csv(csv_path, index=False)
+
+    return config_path
+
+
+@pytest.fixture
+def qc_config_logging_disabled(tmp_path):
+    """Create a QC config file with logging.log_to_file disabled."""
+    config_content = """
+pipeline_name: "test_qc_no_logging"
+
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+data:
+  csv_path: "test_data.csv"
+
+outlier_detection:
+  traditional_methods: []
+  clustering_methods: []
+
+outlier_removal:
+  strategy: "union"
+  method: "all"
+
+heritability:
+  enabled: false
+
+visualization:
+  dpi: 100
+  figsize: [10, 8]
+  figure_format: "png"
+  title_fontsize: 14
+  label_fontsize: 12
+  tick_fontsize: 10
+  legend_fontsize: 10
+
+logging:
+  level: "INFO"
+  log_to_file: false
+  log_file: "should_not_be_created.log"
+"""
+    config_path = tmp_path / "test_qc_config_no_logging.yaml"
+    config_path.write_text(config_content)
+
+    # Create sample data file
+    data = {
+        "Barcode": ["plant1", "plant2", "plant3"],
+        "geno": ["A", "B", "A"],
+        "rep": [1, 1, 2],
+        "trait1": [10.5, 12.3, 11.8],
+        "trait2": [5.2, 6.1, 5.8],
+    }
+    df = pd.DataFrame(data)
+    csv_path = tmp_path / "test_data.csv"
+    df.to_csv(csv_path, index=False)
+
+    return config_path
+
+
+def test_qc_uses_config_log_file_when_cli_not_specified(
+    runner, qc_config_with_logging, tmp_path
+):
+    """Test that QC command uses config's log_file when --log-file not provided.
+
+    Scenario: Config log file used when CLI flag omitted
+    - GIVEN a config file with logging.log_to_file: true and logging.log_file: "pipeline.log"
+    - WHEN the user runs sleap-roots-analyze qc config.yaml -o ./output without --log-file
+    - THEN a log file SHALL be created at ./output/pipeline.log
+    """
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    result = runner.invoke(
+        cli,
+        ["qc", str(qc_config_with_logging), "-o", str(output_dir), "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    expected_log = output_dir / "pipeline.log"
+    assert expected_log.exists(), f"Log file should be created at {expected_log}"
+
+
+def test_qc_cli_log_file_overrides_config(runner, qc_config_with_logging, tmp_path):
+    """Test that --log-file CLI flag overrides config's log_file.
+
+    Scenario: CLI flag overrides config
+    - GIVEN a config file with logging.log_file: "pipeline.log"
+    - WHEN the user runs sleap-roots-analyze qc config.yaml -o ./output --log-file ./custom.log
+    - THEN the log file SHALL be created at ./custom.log (not ./output/pipeline.log)
+    """
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    custom_log = tmp_path / "custom.log"
+
+    result = runner.invoke(
+        cli,
+        [
+            "qc",
+            str(qc_config_with_logging),
+            "-o",
+            str(output_dir),
+            "--log-file",
+            str(custom_log),
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    # CLI log file should exist
+    assert (
+        custom_log.exists()
+    ), f"CLI-specified log file should be created at {custom_log}"
+    # Config log file should NOT exist (CLI overrides)
+    config_log = output_dir / "pipeline.log"
+    assert (
+        not config_log.exists()
+    ), f"Config log file should NOT be created when CLI overrides"
+
+
+def test_qc_no_log_file_when_log_to_file_false(
+    runner, qc_config_logging_disabled, tmp_path
+):
+    """Test that no log file is created when config has log_to_file: false.
+
+    Scenario: No log file when log_to_file is false
+    - GIVEN a config file with logging.log_to_file: false
+    - WHEN the user runs sleap-roots-analyze qc config.yaml -o ./output without --log-file
+    - THEN no log file SHALL be created
+    """
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    result = runner.invoke(
+        cli,
+        ["qc", str(qc_config_logging_disabled), "-o", str(output_dir), "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    # No log file should be created
+    potential_log = output_dir / "should_not_be_created.log"
+    assert (
+        not potential_log.exists()
+    ), "Log file should NOT be created when log_to_file is false"
+
+
+def test_qc_config_log_file_with_subdirectory(runner, tmp_path):
+    """Test that config log_file with subdirectory path works correctly.
+
+    Scenario: Log file path resolved relative to output directory
+    - GIVEN a config file with logging.log_file: "logs/qc.log" (relative path)
+    - WHEN the user runs sleap-roots-analyze qc config.yaml -o /data/results
+    - THEN the log file SHALL be created at /data/results/logs/qc.log
+    """
+    config_content = """
+pipeline_name: "test_qc_subdir_logging"
+
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+data:
+  csv_path: "test_data.csv"
+
+outlier_detection:
+  traditional_methods: []
+  clustering_methods: []
+
+outlier_removal:
+  strategy: "union"
+  method: "all"
+
+heritability:
+  enabled: false
+
+visualization:
+  dpi: 100
+  figsize: [10, 8]
+  figure_format: "png"
+  title_fontsize: 14
+  label_fontsize: 12
+  tick_fontsize: 10
+  legend_fontsize: 10
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "logs/qc.log"
+"""
+    config_path = tmp_path / "test_qc_config_subdir.yaml"
+    config_path.write_text(config_content)
+
+    # Create sample data file
+    data = {
+        "Barcode": ["plant1", "plant2", "plant3"],
+        "geno": ["A", "B", "A"],
+        "rep": [1, 1, 2],
+        "trait1": [10.5, 12.3, 11.8],
+        "trait2": [5.2, 6.1, 5.8],
+    }
+    df = pd.DataFrame(data)
+    csv_path = tmp_path / "test_data.csv"
+    df.to_csv(csv_path, index=False)
+
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    result = runner.invoke(
+        cli,
+        ["qc", str(config_path), "-o", str(output_dir), "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    expected_log = output_dir / "logs" / "qc.log"
+    assert expected_log.exists(), f"Log file should be created at {expected_log}"

@@ -1,0 +1,112 @@
+# QC Pipeline Configuration: Turface 150 Genotypes
+#
+# This configuration replicates the analysis from trait_qc_150_genotypes_turface_20251024.ipynb
+# Dataset: EDPIE Wheat turface root trait data with 150 genotypes
+#
+# Key Settings:
+# - Strict NaN removal (0% tolerance)
+# - Mahalanobis outlier detection (fast, reliable)
+# - Heritability threshold 0.40 (moderate stringency)
+
+# Pipeline metadata
+pipeline_name: "turface_150genotypes_qc"
+version: "1.0"
+enable_parallel: false
+
+# Data configuration
+data:
+  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/all_EDPIE.whole.root_raw_RSR_diameter_angle_traits_removed.csv"
+  image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/turface_150_genotypes_rhizovision_processed_images"
+  additional_exclude_cols:
+    - "File.me"
+    - "region"
+    - "set"
+    - "Salk_geno"
+    - "Entry"
+    - "GID"
+    - "scanner"
+
+# Column names (turface data)
+columns:
+  barcode: "barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+# Data cleanup thresholds (matching notebook)
+cleanup:
+  max_zeros_per_trait: 0.5       # MAX_ZEROS_PER_TRAIT = 0.5
+  max_nans_per_trait: 0.2        # MAX_NANS_PER_TRAIT = 0.2
+  max_nan_fraction: 0.0          # MAX_NAN_FRACTION = 0.0 (strict - remove any sample with NaN)
+  min_samples_per_trait: 10      # MIN_SAMPLES_PER_TRAIT = 10
+
+# Outlier detection - Mahalanobis only (matching notebook)
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []  # Not used in notebook
+
+  # Mahalanobis settings (matching notebook parameters)
+  mahalanobis:
+    variance_threshold: 0.95     # MAHAL_VARIANCE_THRESHOLD = 0.95
+    use_chi_squared: true        # MAHAL_USE_CHI_SQUARED = True
+    chi2_percentile: 99.0        # MAHAL_CHI2_PERCENTILE = 99
+
+# Outlier removal strategy (matching notebook OUTLIER_REMOVAL_METHOD = "mahalanobis")
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+# PCA configuration (for consistency with outlier detection)
+pca:
+  n_components: 0.95              # EXPLAINED_VARIANCE = 0.95
+  feature_selection_strategy: "top_variance"
+
+# Heritability filtering (matching notebook)
+heritability:
+  enabled: true                   # REMOVE_LOW_HERITABILITY_TRAITS = True
+  threshold: 0.40                 # HERITABILITY_THRESHOLD = 0.40
+  generate_diagnostics: true      # Generate detailed diagnostic plots and CSV for removed traits
+
+# Visualization settings (matching notebook)
+visualization:
+  dpi: 100                       # FIGURE_DPI = 300
+  figsize: [12, 8]
+
+  # Font sizes (explicit configuration)
+  title_fontsize: 16
+  label_fontsize: 14
+  tick_fontsize: 12
+  legend_fontsize: 12
+
+  # Figure format
+  figure_format: "png"
+
+  # Savefig parameters
+  bbox_inches: "tight"            # Standard tight bounding box
+  transparent: false              # Opaque background
+
+  # Batched plot configuration (for datasets with many traits)
+  enable_batched_plots: true      # Set to false to disable batch plots
+  batched_plot_threshold: 16      # Create batches when > this many traits
+  batch_size: 16                  # Traits per batch figure
+
+# Adaptive figure sizing (optional - improves legibility for datasets with varying numbers of traits)
+adaptive_sizing:
+  enabled: true                  # Set to true to enable automatic figure scaling based on content
+  base_width: 8.0                # Base width for single-column figures (inches)
+  base_height: 6.0               # Base height for single-row figures (inches)
+  width_per_item: 2.0            # Width increment per additional column/item (inches)
+  height_per_item: 2.0           # Height increment per additional row/item (inches)
+  min_width: 6.0                 # Minimum figure width (inches)
+  max_width: 20.0                # Maximum figure width (inches)
+  min_height: 4.0                # Minimum figure height (inches)
+  max_height: 16.0               # Maximum figure height (inches)
+  # When enabled, figures automatically scale based on number of traits/items
+  # Example: Correlation heatmap with 50 traits → 20x20 instead of fixed 12x8
+  # Example: Heritability plot with 100 traits → scales height to fit all bars
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

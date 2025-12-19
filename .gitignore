@@ -208,7 +208,8 @@ marimo/_lsp/
 __marimo__/
 
 # Claude
-.serena/
+# Track .serena config but not cache
+.serena/cache/
 .claude/settings.local.json
 
 # Project-specific: Analysis notebooks and scratch files
@@ -234,6 +235,16 @@ heritability_diagnostics/
 test_explicit_args_run/
 test_run/
 test_run_*/
+biomass_correlation_analysis/
+cross_platform_runs/
+data/
+
+# Pipeline run outputs (timestamped runs from run-all command)
+pipeline_runs/
+PIPELINE_RUNS_SUMMARY.md
+
+# User-specific scripts and analysis
+scripts/
 
 # Temporary test/example output
 examples/heritability_diagnostics/

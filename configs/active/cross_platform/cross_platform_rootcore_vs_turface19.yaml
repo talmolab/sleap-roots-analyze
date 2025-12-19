@@ -1,0 +1,44 @@
+# Cross-Platform Analysis Configuration
+# Comparing Root Core EDPIE vs Turface 19 Genotypes
+# Updated: 2025-12-15
+# Purpose: Correlate field root coring measurements with greenhouse RhizoVision traits
+#          to identify lab-measurable predictors of field root architecture
+
+# Experiment 1: Root Core EDPIE (Field root coring data - QC'd but NOT heritability filtered)
+# Note: Using 07_data_outliers_removed.csv which has all 12 depth intervals + biomass
+exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/EDPIE Root Core Full QC_20251215_134134/07_data_outliers_removed.csv"
+exp1_name: "Root Core EDPIE (QC'd)"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Turface 19 Genotypes (RhizoVision imaging) - QC'd but NOT heritability filtered
+exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_19genotypes_qc_20251215_133523/07_data_outliers_removed.csv"
+exp2_name: "Turface 19 Genotypes (QC'd)"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman for robustness
+min_samples_per_genotype: 2     # Lower threshold for field data
+significance_level: 0.05        # Standard p-value threshold
+
+# Visualization Parameters
+top_n_correlations: 30          # Display top correlations
+top_n_joint_plots: 10           # Joint plots for top correlations
+top_n_boxplots: 10              # Boxplots for top comparisons
+figsize_summary: [16, 14]       # Summary heatmap figure size
+figsize_joint: [10, 10]         # Joint plot figure size
+figsize_boxplot: [14, 6]        # Boxplot figure size
+
+# Analysis Notes:
+# - Root Core data (07_data_outliers_removed.csv) includes:
+#   * Root counts at ALL 12 depth intervals (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 cm)
+#   * Root biomass (Rootdw 15Cm, Rootdw 45Cm)
+#   * Above-ground phenology and yield traits
+#   * 58 samples, ~36 traits (QC'd but NOT heritability filtered)
+# - Turface 19 data includes:
+#   * RhizoVision washed root scans
+#   * Morphological traits: Network Area, Surface Area, Volume, etc.
+#   * 153 samples, 27 traits
+# - Key questions:
+#   * Do RhizoVision root morphology traits predict field root distribution?
+#   * Which greenhouse traits correlate with field root counts/biomass at specific depths?
+#   * Is greenhouse root biomass predictive of field root architecture?

@@ -1,0 +1,41 @@
+# Cross-Platform Analysis Configuration
+# Comparing Turface 19 Genotypes (RhizoVision) vs Cylinder (SLEAP Roots)
+# Updated: 2025-12-15
+# Purpose: Identify which traits from different imaging platforms
+#          capture similar genetic variation patterns
+
+# Experiment 1: Turface 19 Genotypes (RhizoVision imaging)
+exp1_data_path: "qc_runs/turface_19genotypes_qc_20251215_121336/10_final_data.csv"
+exp1_name: "Turface 19 Genotypes"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Cylinder (SLEAP Roots imaging)
+exp2_data_path: "qc_runs/cylinder_edpie_qc_20251215_121413/10_final_data.csv"
+exp2_name: "Cylinder EDPIE"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman recommended for cross-platform robustness
+min_samples_per_genotype: 3     # Minimum biological replicates per genotype
+significance_level: 0.05        # Standard p-value threshold
+
+# Visualization Parameters
+top_n_correlations: 30          # Display top 30 correlations (more traits in cylinder)
+top_n_joint_plots: 10           # Generate joint plots for top 10 correlations
+top_n_boxplots: 10              # Generate boxplots for top 10 trait comparisons
+figsize_summary: [16, 14]       # Larger summary plot (many correlations)
+figsize_joint: [10, 10]         # Joint plot figure size
+figsize_boxplot: [16, 6]        # Boxplot figure size
+
+# Analysis Notes:
+# - 19 genotypes present in both experiments
+# - Different developmental stages: Turface (washed roots) vs Cylinder (11 DAG seedlings)
+# - Dataset 1 (Turface): 153 samples, 19 genotypes, 8 traits (H² ≥ 0.6)
+#   * RhizoVision measurements at single timepoint
+#   * Morphological traits: Network Area, Surface Area, Volume, etc.
+# - Dataset 2 (Cylinder): 123 samples, 19 genotypes, 588 traits (H² ≥ 0.6)
+#   * SLEAP Roots measurements at 11 DAG
+#   * Rich spatial trait data across different root zones
+# - Expected output: 8 × 588 = 4,704 total trait pair correlations
+# - Goal: Discover which traits from different platforms and stages correlate
+# - Key question: Do early seedling traits predict mature root architecture?

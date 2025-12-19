@@ -221,9 +221,9 @@ def heritability_data_known_h2():
 
             data.append(
                 {
-                    "geno": f"G{g+1:02d}",
+                    "geno": f"G{g + 1:02d}",
                     "rep": r + 1,
-                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "Barcode": f"BC{g * n_reps + r:04d}",
                     "trait_high_h2": 100 + g_effect_high + e_high,
                     "trait_moderate_h2": 50 + g_effect_mod + e_mod,
                     "trait_low_h2": 25 + g_effect_low + e_low,
@@ -253,9 +253,9 @@ def heritability_perfect_data():
         for r in range(n_reps):
             data.append(
                 {
-                    "geno": f"G{g+1:02d}",
+                    "geno": f"G{g + 1:02d}",
                     "rep": r + 1,
-                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "Barcode": f"BC{g * n_reps + r:04d}",
                     "trait_perfect": genetic_value,  # No environmental noise
                 }
             )
@@ -280,9 +280,9 @@ def heritability_zero_data():
             # All variation is environmental, no genetic effects
             data.append(
                 {
-                    "geno": f"G{g+1:02d}",
+                    "geno": f"G{g + 1:02d}",
                     "rep": r + 1,
-                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "Barcode": f"BC{g * n_reps + r:04d}",
                     "trait_zero": 50
                     + np.random.normal(0, 5),  # Only environmental noise
                 }
@@ -313,9 +313,9 @@ def heritability_diagnostic_zero_variance():
         for r in range(n_reps):
             data.append(
                 {
-                    "geno": f"G{g+1:02d}",
+                    "geno": f"G{g + 1:02d}",
                     "rep": r + 1,
-                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "Barcode": f"BC{g * n_reps + r:04d}",
                     "trait_zero_var": constant_mean + np.random.normal(0, 2),
                 }
             )
@@ -346,9 +346,9 @@ def heritability_diagnostic_high_within_variance():
 
             data.append(
                 {
-                    "geno": f"G{g+1:02d}",
+                    "geno": f"G{g + 1:02d}",
                     "rep": r + 1,
-                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "Barcode": f"BC{g * n_reps + r:04d}",
                     "trait_high_within": 50 + genetic_effect + environmental_noise,
                 }
             )
@@ -373,9 +373,9 @@ def heritability_diagnostic_low_sample_size():
         for r in range(n_reps):
             data.append(
                 {
-                    "geno": f"G{g+1:02d}",
+                    "geno": f"G{g + 1:02d}",
                     "rep": r + 1,
-                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "Barcode": f"BC{g * n_reps + r:04d}",
                     "trait_low_sample": genetic_value + np.random.normal(0, 1),
                 }
             )
@@ -406,9 +406,9 @@ def heritability_diagnostic_mixed_quality():
 
             data.append(
                 {
-                    "geno": f"G{g+1:02d}",
+                    "geno": f"G{g + 1:02d}",
                     "rep": r + 1,
-                    "Barcode": f"BC{g*n_reps + r:04d}",
+                    "Barcode": f"BC{g * n_reps + r:04d}",
                     "trait_good": 100 + genetic_high + env_noise,
                     "trait_poor": 50 + genetic_low + env_noise * 5,
                     "trait_constant": 25 + genetic_zero + env_noise,
@@ -518,7 +518,7 @@ def edge_case_nan_patterns():
     datasets["all_nan"] = pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(n)],
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 3 + 1 for i in range(n)],
             "trait_all_nan": np.full(n, np.nan),
             "trait_normal": np.random.randn(n),
@@ -531,7 +531,7 @@ def edge_case_nan_patterns():
     datasets["high_nan"] = pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(n)],
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 3 + 1 for i in range(n)],
             "trait_high_nan": high_nan_trait,
             "trait_normal": np.random.randn(n),
@@ -546,7 +546,7 @@ def edge_case_nan_patterns():
     datasets["genotype_nan"] = pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(n)],
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 3 + 1 for i in range(n)],
             "trait_geno_nan": geno_nan_trait,
             "trait_normal": np.random.randn(n),
@@ -570,7 +570,7 @@ def edge_case_zero_patterns():
     datasets["all_zeros"] = pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(n)],
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 4 + 1 for i in range(n)],
             "trait_all_zero": np.zeros(n),
             "trait_normal": np.random.randn(n),
@@ -583,7 +583,7 @@ def edge_case_zero_patterns():
     datasets["high_zeros"] = pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(n)],
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 4 + 1 for i in range(n)],
             "trait_high_zero": high_zero_trait,
             "trait_normal": np.random.randn(n),
@@ -596,7 +596,7 @@ def edge_case_zero_patterns():
     datasets["borderline_zeros"] = pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(n)],
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 4 + 1 for i in range(n)],
             "trait_borderline_zero": borderline_zero_trait,
             "trait_normal": np.random.randn(n),
@@ -617,7 +617,7 @@ def edge_case_extreme_values():
 
     data = {
         "Barcode": [f"BC{i:04d}" for i in range(n)],
-        "geno": [f"G{i%5+1}" for i in range(n)],
+        "geno": [f"G{i % 5 + 1}" for i in range(n)],
         "rep": [i % 4 + 1 for i in range(n)],
         "trait_normal": np.random.normal(100, 15, n),
         "trait_inf": np.random.normal(50, 10, n),
@@ -668,7 +668,7 @@ def edge_case_insufficient_data():
     datasets["no_replicates"] = pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(5)],
-            "geno": [f"G{i+1}" for i in range(5)],
+            "geno": [f"G{i + 1}" for i in range(5)],
             "rep": [1] * 5,
             "trait1": np.random.randn(5),
         }
@@ -698,11 +698,11 @@ def outlier_data_with_known_indices():
 
     # Generate normal data
     data = np.random.normal(0, 1, (n, n_features))
-    df = pd.DataFrame(data, columns=[f"feature_{i+1}" for i in range(n_features)])
+    df = pd.DataFrame(data, columns=[f"feature_{i + 1}" for i in range(n_features)])
 
     # Add metadata
     df["Barcode"] = [f"BC{i:04d}" for i in range(n)]
-    df["geno"] = [f"G{i%5+1}" for i in range(n)]
+    df["geno"] = [f"G{i % 5 + 1}" for i in range(n)]
 
     # Insert known outliers
     outlier_indices = [10, 25, 50, 75, 90]
@@ -735,7 +735,7 @@ def outlier_data_bimodal():
             "trait_normal": np.random.normal(0, 1, n),
             "Barcode": [f"BC{i:04d}" for i in range(n)],
             "geno": [
-                f"G{i%2+1}" for i in range(n)
+                f"G{i % 2 + 1}" for i in range(n)
             ],  # Two genotypes corresponding to modes
         }
     )
@@ -763,7 +763,7 @@ def distribution_normal():
     df = pd.DataFrame(
         {
             "value": np.random.normal(mean, std, n),
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 10 + 1 for i in range(n)],
         }
     )
@@ -788,7 +788,7 @@ def distribution_lognormal():
     df = pd.DataFrame(
         {
             "value": np.random.lognormal(mu, sigma, n),
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 10 + 1 for i in range(n)],
         }
     )
@@ -812,7 +812,7 @@ def distribution_exponential():
     df = pd.DataFrame(
         {
             "value": np.random.exponential(scale, n),
-            "geno": [f"G{i%5+1}" for i in range(n)],
+            "geno": [f"G{i % 5 + 1}" for i in range(n)],
             "rep": [i % 10 + 1 for i in range(n)],
         }
     )
@@ -3032,7 +3032,7 @@ def pca_results_with_feature_importance():
     feature_importance = pd.DataFrame(
         loadings[:, :5],  # First 5 components
         index=feature_names,
-        columns=[f"PC{i+1}" for i in range(5)],
+        columns=[f"PC{i + 1}" for i in range(5)],
     )
 
     # Add total contribution
@@ -3142,7 +3142,7 @@ def pca_export_data():
 
     # Add metadata columns
     df["Barcode"] = [f"Sample_{i:03d}" for i in range(n_samples)]
-    df["geno"] = [f"G{i%5}" for i in range(n_samples)]  # 5 genotypes
+    df["geno"] = [f"G{i % 5}" for i in range(n_samples)]  # 5 genotypes
     df["rep"] = [(i // 5) % 3 + 1 for i in range(n_samples)]  # 3 replicates
 
     # Reorder to put metadata first
@@ -3281,7 +3281,7 @@ def sample_trait_data():
 
     # Add trait columns
     for i in range(n_traits):
-        data[f"trait_{i+1}"] = np.random.normal(100 + i * 10, 10, n_samples)
+        data[f"trait_{i + 1}"] = np.random.normal(100 + i * 10, 10, n_samples)
 
     # Add some metadata columns
     data["QC_status"] = "pass"
@@ -3672,3 +3672,199 @@ def create_test_root_core_data():
         "c_30_40_2": [5, 9, 3, 9, 5, 10],
     }
     return pd.DataFrame(data)
+
+
+# ============================================================================
+# CROSS-PLATFORM ANALYSIS FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def cross_platform_exp1_df():
+    """Generate experiment 1 DataFrame for cross-platform analysis testing.
+
+    Simulates cylinder experiment data with:
+    - 18 genotypes (15 common + 3 unique)
+    - 4-6 replicates per genotype
+    - 50 numeric traits
+    - Some NaN values to test handling
+
+    Returns:
+        pd.DataFrame: Experiment 1 data with genotype, replicate, and trait columns
+    """
+    np.random.seed(42)
+
+    # Common genotypes across experiments
+    common_genotypes = [f"Geno{i:02d}" for i in range(1, 16)]
+    # Unique to exp1
+    unique_genotypes = ["GenoX1", "GenoX2", "GenoX3"]
+    all_genotypes = common_genotypes + unique_genotypes
+
+    data = []
+    for geno in all_genotypes:
+        n_reps = np.random.randint(4, 7)  # 4-6 replicates
+        for rep in range(1, n_reps + 1):
+            row = {
+                "plant_qr_code": f"{geno}_R{rep}",
+                "Geno": geno,
+                "rep": rep,
+            }
+
+            # Add 50 numeric traits with genotype-specific means
+            geno_idx = all_genotypes.index(geno)
+            for trait_idx in range(50):
+                # Create traits with genotype effects and some correlation
+                base_value = 100 + geno_idx * 5 + trait_idx * 2
+                noise = np.random.normal(0, 10)
+                value = base_value + noise
+
+                # Add some NaN values (5% chance)
+                if np.random.random() < 0.05:
+                    value = np.nan
+
+                row[f"exp1_trait_{trait_idx:02d}"] = value
+
+            data.append(row)
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def cross_platform_exp2_df():
+    """Generate experiment 2 DataFrame for cross-platform analysis testing.
+
+    Simulates turface experiment data with:
+    - 18 genotypes (15 common + 3 unique)
+    - 3-5 replicates per genotype
+    - 12 numeric traits (fewer than exp1)
+    - Some NaN values to test handling
+
+    Returns:
+        pd.DataFrame: Experiment 2 data with genotype, replicate, and trait columns
+    """
+    np.random.seed(123)
+
+    # Common genotypes across experiments (same as exp1)
+    common_genotypes = [f"Geno{i:02d}" for i in range(1, 16)]
+    # Unique to exp2
+    unique_genotypes = ["GenoY1", "GenoY2", "GenoY3"]
+    all_genotypes = common_genotypes + unique_genotypes
+
+    data = []
+    for geno in all_genotypes:
+        n_reps = np.random.randint(3, 6)  # 3-5 replicates
+        for rep in range(1, n_reps + 1):
+            row = {
+                "Barcode": f"{geno}_T{rep}",
+                "geno": geno,
+                "rep": rep,
+            }
+
+            # Add 12 numeric traits with genotype-specific means
+            # Some traits correlated with exp1, some uncorrelated
+            geno_idx = all_genotypes.index(geno)
+            for trait_idx in range(12):
+                if trait_idx < 6:
+                    # Positively correlated with exp1 traits
+                    base_value = 100 + geno_idx * 5 + trait_idx * 2
+                else:
+                    # Uncorrelated or negatively correlated
+                    base_value = 200 - geno_idx * 3 + trait_idx
+
+                noise = np.random.normal(0, 8)
+                value = base_value + noise
+
+                # Add some NaN values (5% chance)
+                if np.random.random() < 0.05:
+                    value = np.nan
+
+                row[f"exp2_trait_{trait_idx:02d}"] = value
+
+            data.append(row)
+
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def cross_platform_config_dict():
+    """Generate valid configuration dictionary for cross-platform analysis.
+
+    Returns:
+        dict: Configuration with all required fields for CrossPlatformConfig
+    """
+    return {
+        "exp1_data_path": "exp1_data.csv",
+        "exp1_name": "Cylinder",
+        "exp1_genotype_col": "Geno",
+        "exp2_data_path": "exp2_data.csv",
+        "exp2_name": "Turface",
+        "exp2_genotype_col": "geno",
+        "correlation_method": "spearman",
+        "min_samples_per_genotype": 3,
+        "significance_level": 0.05,
+        "top_n_correlations": 20,
+        "top_n_joint_plots": 6,
+        "top_n_boxplots": 6,
+        "figsize_summary": (14, 12),
+        "figsize_joint": (10, 10),
+        "figsize_boxplot": (14, 6),
+    }
+
+
+@pytest.fixture
+def cross_platform_correlation_results():
+    """Generate sample correlation results DataFrame for testing visualizations.
+
+    Returns:
+        pd.DataFrame: Correlation results with traits, correlation values, and p-values
+    """
+    np.random.seed(42)
+
+    n_correlations = 100
+    data = []
+
+    for i in range(n_correlations):
+        # Generate realistic correlation values
+        rho = np.random.uniform(-0.5, 0.5)
+
+        # P-values tend to be larger for small correlations
+        if abs(rho) < 0.2:
+            p_value = np.random.uniform(0.1, 0.9)
+        elif abs(rho) < 0.35:
+            p_value = np.random.uniform(0.01, 0.2)
+        else:
+            p_value = np.random.uniform(0.0001, 0.05)
+
+        data.append(
+            {
+                "cylinder_trait": f"exp1_trait_{i % 50:02d}",
+                "turface_trait": f"exp2_trait_{i % 12:02d}",
+                "spearman_r": rho,
+                "spearman_p": p_value,
+                "n_genotypes": 15,
+                "abs_spearman": abs(rho),
+            }
+        )
+
+    df = pd.DataFrame(data)
+    return df.sort_values("abs_spearman", ascending=False).reset_index(drop=True)
+
+
+@pytest.fixture(scope="session")
+def cross_platform_turface_df(test_data_dir):
+    """Load Turface_all_traits_2024.csv for real cross-platform testing.
+
+    Returns:
+        pd.DataFrame: Real turface experiment data with root traits
+    """
+    return pd.read_csv(test_data_dir / "Turface_all_traits_2024.csv")
+
+
+@pytest.fixture(scope="session")
+def cross_platform_field_df(test_data_dir):
+    """Load Field_2024_clean.csv for real cross-platform testing.
+
+    Returns:
+        pd.DataFrame: Real field experiment data with above-ground and root core data
+    """
+    return pd.read_csv(test_data_dir / "Field_2024_clean.csv")

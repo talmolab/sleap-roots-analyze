@@ -106,12 +106,12 @@ def test_cleanup_traits_step_removes_bad_traits(
     assert result.metadata["traits_removed"] == 3
     assert result.metadata["traits_final"] == 2  # Only good_trait1, good_trait2
 
-    # Check which traits remain
-    assert "good_trait1" in result.metadata["valid_trait_names"]
-    assert "good_trait2" in result.metadata["valid_trait_names"]
-    assert "zero_inflated" not in result.metadata["valid_trait_names"]
-    assert "high_nan_trait" not in result.metadata["valid_trait_names"]
-    assert "low_sample_trait" not in result.metadata["valid_trait_names"]
+    # Check which traits remain (trait names are now sanitized)
+    assert "Good Trait1" in result.metadata["valid_trait_names"]
+    assert "Good Trait2" in result.metadata["valid_trait_names"]
+    assert "Zero Inflated" not in result.metadata["valid_trait_names"]
+    assert "High Nan Trait" not in result.metadata["valid_trait_names"]
+    assert "Low Sample Trait" not in result.metadata["valid_trait_names"]
 
 
 def test_cleanup_traits_step_removes_bad_samples(
@@ -192,10 +192,10 @@ def test_cleanup_traits_step_removed_traits_detail(
     removed_traits = pd.read_csv(tmp_path / "01_removed_traits_detail.csv")
     assert len(removed_traits) == 3
 
-    # Check that the right traits were removed
-    assert "zero_inflated" in removed_traits["trait"].values
-    assert "high_nan_trait" in removed_traits["trait"].values
-    assert "low_sample_trait" in removed_traits["trait"].values
+    # Check that the right traits were removed (trait names are now sanitized)
+    assert "Zero Inflated" in removed_traits["trait"].values
+    assert "High Nan Trait" in removed_traits["trait"].values
+    assert "Low Sample Trait" in removed_traits["trait"].values
 
 
 def test_validate_clean_step_initialization():
@@ -309,3 +309,57 @@ def test_full_cleanup_and_validate_workflow(
     # Validation should pass
     assert validate_result.metadata["validation_passed"] is True
     assert validate_result.metadata["total_nans_in_traits"] == 0
+
+
+def test_cleanup_traits_step_with_custom_replacements(config, tmp_path):
+    """Test that CleanupTraitsStep applies custom_replacements to trait names."""
+    # Create test data with wheat-specific terminology (15 samples to pass min_samples_per_trait=10)
+    df = pd.DataFrame(
+        {
+            "Barcode": [f"p{i}" for i in range(15)],
+            "geno": ["A"] * 5 + ["B"] * 5 + ["C"] * 5,
+            "rep": [1, 2, 3, 4, 5] * 3,
+            "crown_length_mm": [10.5 + i * 0.1 for i in range(15)],
+            "crown_count": [5 + (i % 3) for i in range(15)],
+            "primary_root_angle_deg": [45.0 + i * 0.5 for i in range(15)],
+        }
+    )
+
+    prev_result = StepResult(
+        data=df,
+        metadata={
+            "trait_column_names": [
+                "crown_length_mm",
+                "crown_count",
+                "primary_root_angle_deg",
+            ],
+            "metadata_column_names": ["Barcode", "geno", "rep"],
+        },
+        files_generated=[],
+    )
+
+    # Add custom replacements to config (wheat terminology)
+    config.cleanup.custom_replacements = {"crown": "seminal", "primary": "main"}
+
+    step = CleanupTraitsStep()
+    result = step.execute(
+        data=df, config=config, run_dir=tmp_path, prev_result=prev_result
+    )
+
+    # Check that trait names were transformed with custom replacements
+    assert "Seminal Length (mm)" in result.metadata["trait_names"]
+    assert "Seminal Count" in result.metadata["trait_names"]
+    assert "Main Root Angle (°)" in result.metadata["trait_names"]
+
+    # Check that mapping is tracked in metadata
+    assert result.metadata["trait_name_mapping"] is not None
+    mapping = result.metadata["trait_name_mapping"]
+    assert "crown_length_mm" in mapping
+    assert mapping["crown_length_mm"] == "Seminal Length (mm)"
+    assert mapping["crown_count"] == "Seminal Count"
+    assert mapping["primary_root_angle_deg"] == "Main Root Angle (°)"
+
+    # Check that DataFrame has sanitized column names
+    assert "Seminal Length (mm)" in result.data.columns
+    assert "Seminal Count" in result.data.columns
+    assert "Main Root Angle (°)" in result.data.columns
