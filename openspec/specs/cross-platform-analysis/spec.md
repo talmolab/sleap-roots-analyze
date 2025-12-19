@@ -43,33 +43,22 @@ And the following optional parameters with defaults:
 
 ### Requirement: Load and Align Cross-Platform Data
 
-The system SHALL load and align data from two experimental platforms through `LoadCrossPlatformDataStep` with the following behavior:
+The system SHALL load and align data from two experimental platforms with the following **additional** column validation behavior:
 
-- Load CSV files from both experiment data paths
-- Identify common genotypes between experiments using specified genotype columns
-- Extract numeric trait columns using existing `get_trait_columns()` function
-- Validate that each genotype meets minimum sample requirements
-- Store aligned DataFrames and metadata for downstream steps
+- **Replicate column detection**: When searching for replicate columns, if multiple variants are found (e.g., both "Replicate" and "rep"), the system SHALL issue a UserWarning indicating which column will be used.
+- **Default argument safety**: Functions with default list parameters (e.g., `calculate_genotype_statistics`) SHALL use `None` as default with runtime initialization to prevent mutable default argument bugs.
 
-#### Scenario: Successful data loading with common genotypes
+#### Scenario: Multiple replicate column variants
 
-- **WHEN** both experiment CSV files exist with 15 common genotypes and 3+ samples per genotype
-- **THEN** step loads both datasets, identifies 15 common genotypes, and stores aligned data in pipeline metadata
+- **WHEN** a DataFrame has both "Replicate" and "rep" columns
+- **THEN** load_and_align_experiments issues a UserWarning indicating which column will be used
+- **AND** the first matching column variant is used consistently
 
-#### Scenario: No common genotypes found
+#### Scenario: Mutable default argument protection
 
-- **WHEN** experiment datasets have no overlapping genotypes
-- **THEN** step fails with error message indicating no common genotypes and listing available genotypes from each experiment
-
-#### Scenario: Insufficient samples per genotype
-
-- **WHEN** common genotypes exist but fewer than `min_samples_per_genotype` samples available
-- **THEN** step excludes those genotypes and warns user, proceeding only with genotypes meeting threshold
-
-#### Scenario: Missing or invalid file paths
-
-- **WHEN** one or both experiment data paths do not exist
-- **THEN** step fails immediately with FileNotFoundError indicating which path is missing
+- **WHEN** calculate_genotype_statistics is called without statistics parameter
+- **THEN** the default statistics list is created fresh for each call
+- **AND** mutations to the returned statistics do not affect future calls
 
 ### Requirement: Calculate Cross-Platform Correlations
 
@@ -149,29 +138,16 @@ The system SHALL generate publication-quality visualizations through `VisualizeC
 
 ### Requirement: Cross-Platform Pipeline Integration
 
-The system SHALL integrate cross-platform analysis steps into the existing pipeline infrastructure with the following characteristics:
+The system SHALL integrate cross-platform analysis steps into the existing pipeline infrastructure with the following **additional** error handling:
 
-- Steps implement standard pipeline step interface (execute method, metadata passing)
-- Configuration loaded through existing OmegaConf pipeline config system
-- Output directory follows existing pipeline convention (timestamped run directories)
-- Steps can be run independently or chained in sequence
-- Progress logged to pipeline log file
-- Failures provide actionable error messages with context
+- **Log directory failures**: When the CLI attempts to create a log directory and encounters an OSError, it SHALL catch the error, display a user-friendly warning, and continue with console-only logging.
 
-#### Scenario: Run complete cross-platform pipeline
+#### Scenario: Log directory creation failure
 
-- **WHEN** user provides valid configuration and executes all three steps in sequence
-- **THEN** pipeline loads data, calculates correlations, generates visualizations, and saves all outputs to timestamped run directory
-
-#### Scenario: Resume from intermediate step
-
-- **WHEN** user runs LoadCrossPlatformDataStep first, then separately runs CalculateCrossPlatformCorrelationsStep
-- **THEN** second step loads metadata from first step and continues analysis without re-loading data
-
-#### Scenario: Pipeline failure with recovery
-
-- **WHEN** CalculateCrossPlatformCorrelationsStep fails due to insufficient data
-- **THEN** pipeline logs detailed error with data statistics, does not corrupt metadata, and allows user to adjust config and retry
+- **WHEN** an invalid or inaccessible log file path is configured
+- **THEN** an OSError is caught during directory creation
+- **AND** a warning message is displayed to the user
+- **AND** the pipeline continues with console-only logging
 
 ### Requirement: Statistical Method Flexibility
 
