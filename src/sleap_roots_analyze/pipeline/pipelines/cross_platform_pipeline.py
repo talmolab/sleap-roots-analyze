@@ -41,12 +41,15 @@ class CrossPlatformPipeline(BasePipeline):
         self,
         config: CrossPlatformConfig,
         output_dir: Path | str = "./cross_platform_runs",
+        log_filename: str | None = None,
     ):
         """Initialize CrossPlatformPipeline.
 
         Args:
             config: CrossPlatformConfig with experiment paths and analysis parameters
             output_dir: Base directory for output (default: "./cross_platform_runs")
+            log_filename: Custom log filename for run directory. If None, uses
+                "pipeline.log".
         """
         # Sanitize experiment names for safe folder naming
         exp1_safe = self._sanitize_folder_name(config.exp1_name)
@@ -56,6 +59,7 @@ class CrossPlatformPipeline(BasePipeline):
             config=config,
             output_dir=Path(output_dir),
             pipeline_name=f"cross_platform_{exp1_safe}_vs_{exp2_safe}",
+            log_filename=log_filename,
         )
 
     @staticmethod

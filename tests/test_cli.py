@@ -541,12 +541,16 @@ logging:
 def test_qc_uses_config_log_file_when_cli_not_specified(
     runner, qc_config_with_logging, tmp_path
 ):
-    """Test that QC command uses config's log_file when --log-file not provided.
+    """Test that QC command does NOT create log file in output_dir (dry-run).
 
-    Scenario: Config log file used when CLI flag omitted
+    With the fix for cli-log-path-to-run-dir, config's log_file now goes to
+    run_dir instead of output_dir. In dry-run mode, no run_dir is created,
+    so no log file should be created.
+
+    Scenario: Config log file NOT created in dry-run mode
     - GIVEN a config file with logging.log_to_file: true and logging.log_file: "pipeline.log"
-    - WHEN the user runs sleap-roots-analyze qc config.yaml -o ./output without --log-file
-    - THEN a log file SHALL be created at ./output/pipeline.log
+    - WHEN the user runs sleap-roots-analyze qc config.yaml -o ./output --dry-run
+    - THEN no log file SHALL be created at ./output/pipeline.log (fixed behavior)
     """
     output_dir = tmp_path / "output"
     output_dir.mkdir()
@@ -557,8 +561,12 @@ def test_qc_uses_config_log_file_when_cli_not_specified(
     )
 
     assert result.exit_code == 0
-    expected_log = output_dir / "pipeline.log"
-    assert expected_log.exists(), f"Log file should be created at {expected_log}"
+    # With the fix, no log file should be created in output_dir
+    # Config's log_file now goes to run_dir (which doesn't exist in dry-run)
+    stray_log = output_dir / "pipeline.log"
+    assert not stray_log.exists(), (
+        f"Log file should NOT be created at {stray_log} in dry-run mode"
+    )
 
 
 def test_qc_cli_log_file_overrides_config(runner, qc_config_with_logging, tmp_path):
@@ -692,5 +700,168 @@ logging:
     )
 
     assert result.exit_code == 0
-    expected_log = output_dir / "logs" / "qc.log"
-    assert expected_log.exists(), f"Log file should be created at {expected_log}"
+    # With the fix, no log file should be created in output_dir in dry-run mode
+    # Config's log_file now goes to run_dir (which doesn't exist in dry-run)
+    stray_log = output_dir / "logs" / "qc.log"
+    assert not stray_log.exists(), (
+        f"Log file should NOT be created at {stray_log} in dry-run mode"
+    )
+
+
+# =============================================================================
+# TDD Tests for fix-cli-log-path-to-run-dir
+# Config-based log files should go to run_dir, not output_dir
+# =============================================================================
+
+
+class TestConfigLogFileInRunDir:
+    """Tests for config-based log file creation in run_dir (not output_dir).
+
+    These tests verify the fix for the bug where config's logging.log_file
+    was being created in output_dir instead of the run-specific directory.
+    """
+
+    @pytest.fixture
+    def qc_config_with_custom_log(self, tmp_path):
+        """Create a QC config file with custom log filename."""
+        # Create sample data file first to get the path
+        data = {
+            "Barcode": ["p1", "p2", "p3", "p4", "p5", "p6"],
+            "geno": ["A", "B", "A", "B", "C", "C"],
+            "rep": [1, 1, 2, 2, 1, 2],
+            "trait1": [10.5, 12.3, 11.8, 13.1, 9.8, 10.2],
+            "trait2": [5.2, 6.1, 5.8, 6.5, 4.9, 5.1],
+        }
+        df = pd.DataFrame(data)
+        csv_path = tmp_path / "test_data.csv"
+        df.to_csv(csv_path, index=False)
+
+        config_content = f"""
+pipeline_name: "test_qc_run_dir_logging"
+
+columns:
+  barcode: "Barcode"
+  genotype: "geno"
+  replicate: "rep"
+
+data:
+  csv_path: "{csv_path.as_posix()}"
+
+outlier_detection:
+  traditional_methods: []
+  clustering_methods: []
+
+outlier_removal:
+  strategy: "union"
+  method: "all"
+
+heritability:
+  enabled: false
+
+visualization:
+  dpi: 100
+  figsize: [10, 8]
+  figure_format: "png"
+  title_fontsize: 14
+  label_fontsize: 12
+  tick_fontsize: 10
+  legend_fontsize: 10
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "custom_pipeline.log"
+"""
+        config_path = tmp_path / "test_qc_config_custom_log.yaml"
+        config_path.write_text(config_content)
+
+        return config_path
+
+    def test_config_log_file_not_created_in_output_dir_dry_run(
+        self, runner, qc_config_with_custom_log, tmp_path
+    ):
+        """Test that config log file is NOT created in output_dir.
+
+        Scenario: Config log file NOT created in dry-run mode
+        - GIVEN a config with logging.log_to_file: true and logging.log_file: "custom.log"
+        - WHEN the user runs sleap-roots-analyze qc config.yaml -o ./output --dry-run
+        - THEN no log file SHALL be created at ./output/custom.log
+        - (The log would go to run_dir when actually running, not dry-run)
+        """
+        output_dir = tmp_path / "output"
+        output_dir.mkdir(parents=True)
+
+        # Run dry-run (doesn't create run_dir)
+        result = runner.invoke(
+            cli,
+            ["qc", str(qc_config_with_custom_log), "-o", str(output_dir), "--dry-run"],
+        )
+
+        assert result.exit_code == 0, f"Pipeline failed: {result.output}"
+
+        # Check that NO log file exists directly in output_dir
+        # With the fix, config's log_file goes to run_dir (not created in dry-run)
+        stray_log = output_dir / "custom_pipeline.log"
+        assert not stray_log.exists(), (
+            f"Log file should NOT be created at {stray_log} (output_dir). "
+            "Config's log_file now goes to run_dir instead."
+        )
+
+    def test_no_stray_log_files_in_output_dir_dry_run(
+        self, runner, qc_config_with_custom_log, tmp_path
+    ):
+        """Test that no stray log files are created in output_dir.
+
+        This verifies the main bug is fixed: log files should only exist
+        inside run directories, not in the base output directory.
+        """
+        output_dir = tmp_path / "output"
+        output_dir.mkdir(parents=True)
+
+        result = runner.invoke(
+            cli,
+            ["qc", str(qc_config_with_custom_log), "-o", str(output_dir), "--dry-run"],
+        )
+
+        assert result.exit_code == 0, f"Pipeline failed: {result.output}"
+
+        # Check for any .log files directly in output_dir (not in subdirs)
+        stray_logs = list(output_dir.glob("*.log"))
+        assert len(stray_logs) == 0, (
+            f"Found stray log files in output_dir: {stray_logs}. "
+            "All log files should be inside run directories."
+        )
+
+    def test_cli_log_file_flag_still_works_with_absolute_path(
+        self, runner, qc_config_with_custom_log, tmp_path
+    ):
+        """Test that --log-file CLI flag with absolute path still works.
+
+        Scenario: CLI flag overrides config with absolute path
+        - GIVEN a config with logging.log_file: "pipeline.log"
+        - WHEN the user runs with --log-file /tmp/custom.log --dry-run
+        - THEN the log file SHALL be created at /tmp/custom.log
+        """
+        output_dir = tmp_path / "output"
+        output_dir.mkdir(parents=True)
+        cli_log_file = tmp_path / "cli_specified.log"
+
+        result = runner.invoke(
+            cli,
+            [
+                "qc",
+                str(qc_config_with_custom_log),
+                "-o",
+                str(output_dir),
+                "--log-file",
+                str(cli_log_file),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, f"Pipeline failed: {result.output}"
+
+        # CLI-specified log should exist
+        assert (
+            cli_log_file.exists()
+        ), f"CLI-specified log file should exist at {cli_log_file}"

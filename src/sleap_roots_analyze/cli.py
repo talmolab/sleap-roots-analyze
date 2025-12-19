@@ -133,22 +133,9 @@ def qc(
         console.print(f"[cyan]Loading configuration:[/cyan] {config}")
         cfg = load_qc_config(config)
 
-        # Resolve log file: CLI flag overrides config
-        effective_log_file = log_file
-        if effective_log_file is None and cfg.logging.log_to_file:
-            log_path = output_dir / cfg.logging.log_file
-            # Create parent directories if needed (for paths like "logs/qc.log")
-            try:
-                log_path.parent.mkdir(parents=True, exist_ok=True)
-                effective_log_file = str(log_path)
-            except OSError as e:
-                console.print(
-                    f"[yellow]Warning: Could not create log directory: {e}[/yellow]"
-                )
-                console.print("[yellow]Logging to console only.[/yellow]")
-                effective_log_file = None
-
-        setup_logging(verbose, quiet, effective_log_file)
+        # CLI --log-file flag creates log at specified path (for backwards compatibility)
+        # Config's log_file setting is passed to pipeline to create in run_dir
+        setup_logging(verbose, quiet, log_file)
         logger = logging.getLogger(__name__)
 
         # Display config summary
@@ -254,7 +241,11 @@ def qc(
 
         # Create and run pipeline
         console.print("\n[cyan]Initializing QC pipeline...[/cyan]")
-        pipeline = QCPipeline(config=cfg, output_dir=output_dir)
+        # Pass config's log filename to pipeline (creates log in run_dir)
+        log_filename = cfg.logging.log_file if cfg.logging.log_to_file else None
+        pipeline = QCPipeline(
+            config=cfg, output_dir=output_dir, log_filename=log_filename
+        )
 
         console.print("[cyan]Running pipeline...[/cyan]")
         results = pipeline.run()
@@ -344,22 +335,9 @@ def viz(
         console.print(f"[cyan]Loading configuration:[/cyan] {config}")
         cfg = load_viz_config(config)
 
-        # Resolve log file: CLI flag overrides config
-        effective_log_file = log_file
-        if effective_log_file is None and cfg.logging.log_to_file:
-            log_path = output_dir / cfg.logging.log_file
-            # Create parent directories if needed (for paths like "logs/viz.log")
-            try:
-                log_path.parent.mkdir(parents=True, exist_ok=True)
-                effective_log_file = str(log_path)
-            except OSError as e:
-                console.print(
-                    f"[yellow]Warning: Could not create log directory: {e}[/yellow]"
-                )
-                console.print("[yellow]Logging to console only.[/yellow]")
-                effective_log_file = None
-
-        setup_logging(verbose, quiet, effective_log_file)
+        # CLI --log-file flag creates log at specified path (for backwards compatibility)
+        # Config's log_file setting is passed to pipeline to create in run_dir
+        setup_logging(verbose, quiet, log_file)
         logger = logging.getLogger(__name__)
 
         # Display config summary
@@ -397,7 +375,11 @@ def viz(
 
         # Create and run pipeline
         console.print("\n[cyan]Initializing Viz pipeline...[/cyan]")
-        pipeline = VizPipeline(config=cfg, output_dir=output_dir)
+        # Pass config's log filename to pipeline (creates log in run_dir)
+        log_filename = cfg.logging.log_file if cfg.logging.log_to_file else None
+        pipeline = VizPipeline(
+            config=cfg, output_dir=output_dir, log_filename=log_filename
+        )
 
         console.print("[cyan]Running pipeline...[/cyan]")
         results = pipeline.run()

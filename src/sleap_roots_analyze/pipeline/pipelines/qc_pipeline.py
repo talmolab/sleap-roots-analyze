@@ -99,6 +99,7 @@ class QCPipeline(BasePipeline):
         config: QCPipelineConfig,
         output_dir: str | Path = "./qc_runs",
         validate: bool = True,
+        log_filename: str | None = None,
     ):
         """Initialize the QC pipeline.
 
@@ -106,6 +107,8 @@ class QCPipeline(BasePipeline):
             config: QCPipelineConfig object.
             output_dir: Directory for pipeline outputs.
             validate: Whether to validate config before execution.
+            log_filename: Custom log filename for run directory. If None, uses
+                "pipeline.log".
 
         Raises:
             ValueError: If config validation fails.
@@ -120,6 +123,7 @@ class QCPipeline(BasePipeline):
             output_dir=output_dir,
             pipeline_name=config.pipeline_name,
             version=config.version,
+            log_filename=log_filename,
         )
 
         # Store config for use in create_tasks

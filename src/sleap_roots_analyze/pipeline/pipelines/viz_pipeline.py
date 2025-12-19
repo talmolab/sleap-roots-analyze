@@ -83,6 +83,7 @@ class VizPipeline(BasePipeline):
         config: VizPipelineConfig,
         output_dir: str | Path = "./viz_runs",
         validate: bool = True,
+        log_filename: str | None = None,
     ):
         """Initialize the visualization pipeline.
 
@@ -90,6 +91,8 @@ class VizPipeline(BasePipeline):
             config: VizPipelineConfig object.
             output_dir: Directory for pipeline outputs.
             validate: Whether to validate config before execution.
+            log_filename: Custom log filename for run directory. If None, uses
+                "pipeline.log".
 
         Raises:
             ValueError: If config validation fails.
@@ -104,6 +107,7 @@ class VizPipeline(BasePipeline):
             output_dir=output_dir,
             pipeline_name=config.pipeline_name,
             version=config.version,
+            log_filename=log_filename,
         )
 
         # Store config for use in create_tasks
