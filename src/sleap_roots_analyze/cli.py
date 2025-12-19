@@ -138,8 +138,15 @@ def qc(
         if effective_log_file is None and cfg.logging.log_to_file:
             log_path = output_dir / cfg.logging.log_file
             # Create parent directories if needed (for paths like "logs/qc.log")
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            effective_log_file = str(log_path)
+            try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                effective_log_file = str(log_path)
+            except OSError as e:
+                console.print(
+                    f"[yellow]Warning: Could not create log directory: {e}[/yellow]"
+                )
+                console.print("[yellow]Logging to console only.[/yellow]")
+                effective_log_file = None
 
         setup_logging(verbose, quiet, effective_log_file)
         logger = logging.getLogger(__name__)
@@ -342,8 +349,15 @@ def viz(
         if effective_log_file is None and cfg.logging.log_to_file:
             log_path = output_dir / cfg.logging.log_file
             # Create parent directories if needed (for paths like "logs/viz.log")
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            effective_log_file = str(log_path)
+            try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                effective_log_file = str(log_path)
+            except OSError as e:
+                console.print(
+                    f"[yellow]Warning: Could not create log directory: {e}[/yellow]"
+                )
+                console.print("[yellow]Logging to console only.[/yellow]")
+                effective_log_file = None
 
         setup_logging(verbose, quiet, effective_log_file)
         logger = logging.getLogger(__name__)

@@ -109,8 +109,12 @@ class BasePipeline(ABC):
         )
 
         # Add StreamHandler for console output if not already present
+        # Note: FileHandler inherits from StreamHandler, so we explicitly exclude it
+        # to avoid counting file handlers as console handlers. This check prevents
+        # duplicate console output in interactive sessions (notebooks, REPL).
         has_stream_handler = any(
-            isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+            isinstance(h, logging.StreamHandler)
+            and not isinstance(h, logging.FileHandler)
             for h in logger.handlers
         )
         if not has_stream_handler:

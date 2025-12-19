@@ -15,7 +15,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
-from scipy.stats import spearmanr
 
 
 def _calculate_correlations(
@@ -31,7 +30,7 @@ def _calculate_correlations(
         Tuple of (pearson_r, pearson_p, spearman_r, spearman_p)
     """
     pearson_r, pearson_p = stats.pearsonr(values1, values2)
-    spearman_r, spearman_p = spearmanr(values1, values2)
+    spearman_r, spearman_p = stats.spearmanr(values1, values2)
     return pearson_r, pearson_p, spearman_r, spearman_p
 
 
@@ -356,15 +355,33 @@ def load_and_align_experiments(
     rep_renames_exp2 = {genotype_col2: "genotype"}
 
     # Find and rename replicate column (try multiple common names)
-    for possible_rep_col in [rep_col1, "Replicate", "replicate", "Rep", "rep"]:
-        if possible_rep_col in exp1_df.columns and possible_rep_col != "replicate":
-            rep_renames_exp1[possible_rep_col] = "replicate"
-            break
+    # Warn if multiple variants exist to avoid ambiguity
+    rep_candidates = [rep_col1, "Replicate", "replicate", "Rep", "rep"]
+    found_rep_cols_exp1 = [
+        c for c in rep_candidates if c in exp1_df.columns and c != "replicate"
+    ]
+    if len(found_rep_cols_exp1) > 1:
+        warnings.warn(
+            f"Experiment 1: Multiple replicate column variants found: {found_rep_cols_exp1}. "
+            f"Using '{found_rep_cols_exp1[0]}'.",
+            UserWarning,
+        )
+    if found_rep_cols_exp1:
+        rep_renames_exp1[found_rep_cols_exp1[0]] = "replicate"
 
-    for possible_rep_col in [rep_col2, "Replicate", "replicate", "Rep", "rep"]:
-        if possible_rep_col in exp2_df.columns and possible_rep_col != "replicate":
-            rep_renames_exp2[possible_rep_col] = "replicate"
-            break
+    found_rep_cols_exp2 = [
+        c
+        for c in [rep_col2, "Replicate", "replicate", "Rep", "rep"]
+        if c in exp2_df.columns and c != "replicate"
+    ]
+    if len(found_rep_cols_exp2) > 1:
+        warnings.warn(
+            f"Experiment 2: Multiple replicate column variants found: {found_rep_cols_exp2}. "
+            f"Using '{found_rep_cols_exp2[0]}'.",
+            UserWarning,
+        )
+    if found_rep_cols_exp2:
+        rep_renames_exp2[found_rep_cols_exp2[0]] = "replicate"
 
     exp1_df = exp1_df.rename(columns=rep_renames_exp1)
     exp2_df = exp2_df.rename(columns=rep_renames_exp2)
@@ -411,7 +428,7 @@ def calculate_genotype_statistics(
     df: pd.DataFrame,
     trait_cols: List[str],
     genotype_col: str = "genotype",
-    statistics: List[str] = ["mean", "median", "min", "max", "std"],
+    statistics: Optional[List[str]] = None,
 ) -> Dict[str, pd.DataFrame]:
     """Calculate multiple statistics per genotype for all traits.
 
@@ -419,11 +436,15 @@ def calculate_genotype_statistics(
         df: DataFrame with trait data
         trait_cols: List of trait columns to aggregate
         genotype_col: Name of genotype column
-        statistics: List of statistics to compute
+        statistics: List of statistics to compute.
+            Default: ["mean", "median", "min", "max", "std"]
 
     Returns:
         Dictionary with statistic name as key and DataFrame as value
     """
+    if statistics is None:
+        statistics = ["mean", "median", "min", "max", "std"]
+
     results = {}
 
     # Group by genotype
