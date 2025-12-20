@@ -75,7 +75,8 @@ def correlation_result(cross_platform_exp1_df, cross_platform_exp2_df, tmp_path)
                     "exp2_trait": trait2,
                     "spearman_r": spearman_r,
                     "spearman_p": np.random.rand(),
-                    "pearson_r": spearman_r + np.random.randn() * 0.1,  # Slightly different
+                    "pearson_r": spearman_r
+                    + np.random.randn() * 0.1,  # Slightly different
                     "pearson_p": np.random.rand(),
                     "n_genotypes": len(common_genotypes),
                 }

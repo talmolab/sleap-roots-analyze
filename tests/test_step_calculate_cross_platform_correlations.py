@@ -367,7 +367,9 @@ def test_csv_contains_both_pearson_and_spearman_columns(
     assert "pearson_p" in corr_df.columns, "Missing pearson_p column"
 
     # Old generic columns should not exist
-    assert "correlation" not in corr_df.columns, "Old 'correlation' column should be removed"
+    assert (
+        "correlation" not in corr_df.columns
+    ), "Old 'correlation' column should be removed"
     assert "p_value" not in corr_df.columns, "Old 'p_value' column should be removed"
 
 
