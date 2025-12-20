@@ -599,6 +599,9 @@ class PipelineRunner:
         if self.run_results["cross_platform"]:
             lines.extend(self._format_cross_platform_summary())
 
+        # Configuration Comparison Section
+        lines.extend(self._format_config_comparison())
+
         # Methods Section
         lines.extend(self._format_methods_section())
 
@@ -1106,6 +1109,202 @@ class PipelineRunner:
                 values["chi2_percentile"].append(outlier_config["chi2_percentile"])
 
         return values
+
+    @staticmethod
+    def _flatten_config_dict(
+        config: dict[str, Any],
+        prefix: str = "",
+        exclude_keys: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Flatten a nested dictionary to dot-notation keys.
+
+        Args:
+            config: The nested dictionary to flatten
+            prefix: Current key prefix for recursion
+            exclude_keys: Top-level keys to exclude from flattening
+
+        Returns:
+            Flattened dictionary with dot-notation keys
+        """
+        exclude_keys = exclude_keys or []
+        result: dict[str, Any] = {}
+
+        for key, value in config.items():
+            # Skip excluded top-level keys
+            if not prefix and key in exclude_keys:
+                continue
+
+            full_key = f"{prefix}.{key}" if prefix else key
+
+            if isinstance(value, dict):
+                # Recursively flatten nested dicts
+                result.update(
+                    PipelineRunner._flatten_config_dict(value, full_key, exclude_keys)
+                )
+            else:
+                # Leaf value - add to result
+                result[full_key] = value
+
+        return result
+
+    @staticmethod
+    def _extract_all_config_params(config_path: Path | str) -> dict[str, Any]:
+        """Extract ALL parameters from a config file.
+
+        Loads a YAML config file and flattens it to dot-notation keys,
+        excluding environment-specific paths.
+
+        Args:
+            config_path: Path to the YAML config file
+
+        Returns:
+            Flattened dictionary of all config parameters
+        """
+        config_path = Path(config_path)
+
+        if not config_path.exists():
+            return {}
+
+        try:
+            with open(config_path) as f:
+                config = yaml.safe_load(f) or {}
+        except Exception:
+            return {}
+
+        # Exclude environment-specific keys that aren't useful for comparison
+        exclude_keys = [
+            "data",  # Contains file paths
+            "columns",  # Column names vary by dataset
+        ]
+
+        return PipelineRunner._flatten_config_dict(config, exclude_keys=exclude_keys)
+
+    @staticmethod
+    def _format_value_for_table(value: Any) -> str:
+        """Format a config value for display in a markdown table.
+
+        Args:
+            value: The value to format
+
+        Returns:
+            String representation suitable for markdown table
+        """
+        if value is None:
+            return "N/A"
+        elif isinstance(value, list):
+            if len(value) == 0:
+                return "(none)"
+            return ", ".join(str(v) for v in value)
+        elif isinstance(value, bool):
+            return str(value).lower()
+        elif isinstance(value, float):
+            # Format floats nicely
+            if value == int(value):
+                return str(int(value))
+            return f"{value:.4g}"
+        else:
+            return str(value)
+
+    @staticmethod
+    def _format_comparison_table(configs: dict[str, dict[str, Any]]) -> list[str]:
+        """Format config parameters as a markdown comparison table.
+
+        Args:
+            configs: Dictionary mapping config names to their flattened parameters
+
+        Returns:
+            List of markdown lines for the table
+        """
+        if not configs:
+            return ["No configurations to compare.", ""]
+
+        # Get all unique parameters across all configs
+        all_params: set[str] = set()
+        for params in configs.values():
+            all_params.update(params.keys())
+
+        # Sort parameters for consistent ordering
+        sorted_params = sorted(all_params)
+        config_names = list(configs.keys())
+
+        # Build table header
+        header = "| Parameter | " + " | ".join(config_names) + " |"
+        separator = "|" + "|".join(["---"] * (len(config_names) + 1)) + "|"
+
+        lines = [header, separator]
+
+        # Build table rows
+        for param in sorted_params:
+            row_values = []
+            for config_name in config_names:
+                value = configs[config_name].get(param)
+                if value is None and param not in configs[config_name]:
+                    row_values.append("N/A")
+                else:
+                    row_values.append(PipelineRunner._format_value_for_table(value))
+
+            row = f"| {param} | " + " | ".join(row_values) + " |"
+            lines.append(row)
+
+        lines.append("")
+        return lines
+
+    def _format_config_comparison(self) -> list[str]:
+        """Generate the configuration comparison section for the summary.
+
+        Reads all config files from the manifest and generates comparison tables
+        for QC, Viz, and Cross-Platform pipelines.
+
+        Returns:
+            List of markdown lines for the configuration comparison section
+        """
+        lines = ["## Configuration Comparison", ""]
+        base_dir = self.manifest_path.parent
+
+        # QC Pipeline Configuration
+        qc_configs = self.manifest.get("qc_configs", [])
+        if qc_configs:
+            lines.extend(["### QC Pipeline Configuration", ""])
+            config_params = {}
+            for config_rel in qc_configs:
+                config_path = base_dir / config_rel
+                params = self._extract_all_config_params(config_path)
+                if params:
+                    # Use a short name for the column header
+                    short_name = Path(config_rel).stem
+                    config_params[short_name] = params
+            if config_params:
+                lines.extend(self._format_comparison_table(config_params))
+
+        # Visualization Pipeline Configuration
+        viz_configs = self.manifest.get("viz_configs", [])
+        if viz_configs:
+            lines.extend(["### Visualization Pipeline Configuration", ""])
+            config_params = {}
+            for config_rel in viz_configs:
+                config_path = base_dir / config_rel
+                params = self._extract_all_config_params(config_path)
+                if params:
+                    short_name = Path(config_rel).stem
+                    config_params[short_name] = params
+            if config_params:
+                lines.extend(self._format_comparison_table(config_params))
+
+        # Cross-Platform Pipeline Configuration
+        cross_configs = self.manifest.get("cross_platform_configs", [])
+        if cross_configs:
+            lines.extend(["### Cross-Platform Pipeline Configuration", ""])
+            config_params = {}
+            for config_rel in cross_configs:
+                config_path = base_dir / config_rel
+                params = self._extract_all_config_params(config_path)
+                if params:
+                    short_name = Path(config_rel).stem
+                    config_params[short_name] = params
+            if config_params:
+                lines.extend(self._format_comparison_table(config_params))
+
+        return lines
 
     def _format_config_value(self, values: list[Any], default: str = "N/A") -> str:
         """Format config values, handling multiple different values.
