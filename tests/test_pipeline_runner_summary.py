@@ -1254,7 +1254,10 @@ class TestFormatComparisonTable:
 
         configs = {
             "config1": {
-                "outlier_detection.traditional_methods": ["mahalanobis", "isolation_forest"],
+                "outlier_detection.traditional_methods": [
+                    "mahalanobis",
+                    "isolation_forest",
+                ],
             }
         }
 
@@ -1262,7 +1265,10 @@ class TestFormatComparisonTable:
         table_text = "\n".join(lines)
 
         # Lists should be comma-separated
-        assert "mahalanobis, isolation_forest" in table_text or "mahalanobis,isolation_forest" in table_text
+        assert (
+            "mahalanobis, isolation_forest" in table_text
+            or "mahalanobis,isolation_forest" in table_text
+        )
 
     def test_format_table_empty_list(self):
         """Test that empty lists are formatted correctly."""

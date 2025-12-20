@@ -428,7 +428,9 @@ def test_visualize_cross_platform_correlation_values_match_csv(tmp_path):
     # that the step is passing the correct values
 
     # The key assertion: n_genotypes should be 3 (valid_genotypes), not 4 (all genotypes)
-    assert expected_n_genotypes == 3, f"Expected 3 valid genotypes, got {expected_n_genotypes}"
+    assert (
+        expected_n_genotypes == 3
+    ), f"Expected 3 valid genotypes, got {expected_n_genotypes}"
 
     # Verify the correlation_df has the correct values
     assert correlation_df.iloc[0]["n_genotypes"] == 3

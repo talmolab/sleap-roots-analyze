@@ -564,9 +564,9 @@ def test_qc_uses_config_log_file_when_cli_not_specified(
     # With the fix, no log file should be created in output_dir
     # Config's log_file now goes to run_dir (which doesn't exist in dry-run)
     stray_log = output_dir / "pipeline.log"
-    assert not stray_log.exists(), (
-        f"Log file should NOT be created at {stray_log} in dry-run mode"
-    )
+    assert (
+        not stray_log.exists()
+    ), f"Log file should NOT be created at {stray_log} in dry-run mode"
 
 
 def test_qc_cli_log_file_overrides_config(runner, qc_config_with_logging, tmp_path):
@@ -703,9 +703,9 @@ logging:
     # With the fix, no log file should be created in output_dir in dry-run mode
     # Config's log_file now goes to run_dir (which doesn't exist in dry-run)
     stray_log = output_dir / "logs" / "qc.log"
-    assert not stray_log.exists(), (
-        f"Log file should NOT be created at {stray_log} in dry-run mode"
-    )
+    assert (
+        not stray_log.exists()
+    ), f"Log file should NOT be created at {stray_log} in dry-run mode"
 
 
 # =============================================================================

@@ -1,4 +1,4 @@
-"""Analyze correlations between biomass at different depths and above-ground traits.
+r"""Analyze correlations between biomass at different depths and above-ground traits.
 
 This script performs correlation and regression analyses for root coring data:
 1. Depth section independence: 0-30cm vs 30-60cm biomass
@@ -14,8 +14,8 @@ Usage:
     python scripts/analyze_biomass_depth_correlations.py --data <path_to_csv> --output <output_dir>
 
 Example:
-    python scripts/analyze_biomass_depth_correlations.py \\
-        --config configs/biomass_correlation_analysis.yaml \\
+    python scripts/analyze_biomass_depth_correlations.py \
+        --config configs/biomass_correlation_analysis.yaml \
         --data "qc_runs/EDPIE_field_qc_20251215/07_data_outliers_removed.csv"
 """
 
@@ -183,7 +183,9 @@ def load_and_validate_data(
         column_mapping = pipeline_style_current
         data_source = "QC pipeline"
     elif all(col in df.columns for col in pipeline_style_legacy.values()):
-        print("  [OK] Detected legacy pipeline-style columns (Rootdw 15Cm, Rootdw 45Cm)")
+        print(
+            "  [OK] Detected legacy pipeline-style columns (Rootdw 15Cm, Rootdw 45Cm)"
+        )
         column_mapping = pipeline_style_legacy
         data_source = "QC pipeline (legacy)"
     else:
@@ -311,19 +313,21 @@ def analyze_depth_independence(
 
     # Get title from config or use default
     analysis_config = config.get("analyses", {}).get("depth_independence", {})
-    title = analysis_config.get(
-        "title", f"{y_label} vs {x_label}"
-    )
+    title = analysis_config.get("title", f"{y_label} vs {x_label}")
 
     # Get figure size
-    figsize = tuple(config.get("figures", {}).get("figsize", {}).get("regression", [8, 8]))
+    figsize = tuple(
+        config.get("figures", {}).get("figsize", {}).get("regression", [8, 8])
+    )
 
     # Create a copy with publication labels for plotting
     plot_df = df[["biomass_0_30cm", "biomass_30_60cm"]].copy()
-    plot_df = plot_df.rename(columns={
-        "biomass_0_30cm": x_label,
-        "biomass_30_60cm": y_label,
-    })
+    plot_df = plot_df.rename(
+        columns={
+            "biomass_0_30cm": x_label,
+            "biomass_30_60cm": y_label,
+        }
+    )
 
     # Create regression plot
     fig = create_regression_plot(
@@ -424,7 +428,9 @@ def create_biomass_rootcount_correlation_heatmap(
     plot_df = plot_df.rename(columns=rename_for_plot)
 
     # Get figure size
-    figsize = tuple(config.get("figures", {}).get("figsize", {}).get("heatmap", [14, 14]))
+    figsize = tuple(
+        config.get("figures", {}).get("figsize", {}).get("heatmap", [14, 14])
+    )
 
     # Create correlation heatmap
     fig = create_correlation_heatmap(
@@ -442,7 +448,10 @@ def create_biomass_rootcount_correlation_heatmap(
 
     print("  [OK] Saved correlation heatmap and matrix")
 
-    return corr_matrix, output_dir / "figures" / "biomass_rootcount_correlation_heatmap.png"
+    return (
+        corr_matrix,
+        output_dir / "figures" / "biomass_rootcount_correlation_heatmap.png",
+    )
 
 
 def analyze_yield_vs_deep_biomass(
@@ -473,14 +482,18 @@ def analyze_yield_vs_deep_biomass(
     title = analysis_config.get("title", f"{y_label} vs {x_label}")
 
     # Get figure size
-    figsize = tuple(config.get("figures", {}).get("figsize", {}).get("regression", [8, 8]))
+    figsize = tuple(
+        config.get("figures", {}).get("figsize", {}).get("regression", [8, 8])
+    )
 
     # Create a copy with publication labels for plotting
     plot_df = df[["biomass_30_60cm", "grain_yield"]].copy()
-    plot_df = plot_df.rename(columns={
-        "biomass_30_60cm": x_label,
-        "grain_yield": y_label,
-    })
+    plot_df = plot_df.rename(
+        columns={
+            "biomass_30_60cm": x_label,
+            "grain_yield": y_label,
+        }
+    )
 
     # Create regression plot
     fig = create_regression_plot(
@@ -548,14 +561,18 @@ def analyze_stem_biomass_vs_deep_roots(
     title = analysis_config.get("title", f"{y_label} vs {x_label}")
 
     # Get figure size
-    figsize = tuple(config.get("figures", {}).get("figsize", {}).get("regression", [8, 8]))
+    figsize = tuple(
+        config.get("figures", {}).get("figsize", {}).get("regression", [8, 8])
+    )
 
     # Create a copy with publication labels for plotting
     plot_df = df[["biomass_30_60cm", "stem_biomass"]].copy()
-    plot_df = plot_df.rename(columns={
-        "biomass_30_60cm": x_label,
-        "stem_biomass": y_label,
-    })
+    plot_df = plot_df.rename(
+        columns={
+            "biomass_30_60cm": x_label,
+            "stem_biomass": y_label,
+        }
+    )
 
     # Create regression plot
     fig = create_regression_plot(
@@ -621,7 +638,9 @@ def generate_supplementary_correlation_table(
 
     # Extract below-ground vs above-ground subset
     # Use publication labels for detection
-    below_ground = [col for col in corr_matrix.columns if "Root" in col or "Biomass" in col]
+    below_ground = [
+        col for col in corr_matrix.columns if "Root" in col or "Biomass" in col
+    ]
     above_ground = [
         col
         for col in corr_matrix.columns
@@ -631,7 +650,9 @@ def generate_supplementary_correlation_table(
     # Create subset showing cross-correlations
     if below_ground and above_ground:
         subset = corr_matrix.loc[below_ground, above_ground]
-        subset_path = output_dir / "tables" / "correlation_belowground_vs_aboveground.csv"
+        subset_path = (
+            output_dir / "tables" / "correlation_belowground_vs_aboveground.csv"
+        )
         subset.to_csv(subset_path, float_format="%.3f")
 
         print(f"  [OK] Saved full correlation table: {full_table_path.name}")
@@ -665,7 +686,9 @@ def generate_summary_report(
         f.write("# Biomass Depth Correlation Analysis Summary\n\n")
         f.write(f"**Analysis Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"**Input Data:** `{data_path}`\n")
-        f.write(f"**Config:** `{config.get('pipeline_name', 'biomass_correlation_analysis')}`\n\n")
+        f.write(
+            f"**Config:** `{config.get('pipeline_name', 'biomass_correlation_analysis')}`\n\n"
+        )
 
         f.write("## Key Findings\n\n")
 
@@ -677,9 +700,13 @@ def generate_summary_report(
             f.write(f"- **Sample size:** {result['n_samples']}\n")
 
             if result["p_value"] > alpha:
-                f.write(f"- **Interpretation:** No significant correlation (p > {alpha})\n")
+                f.write(
+                    f"- **Interpretation:** No significant correlation (p > {alpha})\n"
+                )
             else:
-                f.write(f"- **Interpretation:** Significant correlation (p < {alpha})\n")
+                f.write(
+                    f"- **Interpretation:** Significant correlation (p < {alpha})\n"
+                )
 
             f.write("\n")
 
@@ -688,20 +715,32 @@ def generate_summary_report(
         dpi = config.get("figures", {}).get("dpi", 300)
 
         f.write("## Output Files\n\n")
-        f.write(f"### Figures ({', '.join(fmt.upper() for fmt in formats)}, {dpi} DPI)\n")
-        f.write("- `depth_independence_regression` - Shallow vs deep biomass correlation\n")
-        f.write("- `biomass_rootcount_correlation_heatmap` - Full correlation heatmap\n")
+        f.write(
+            f"### Figures ({', '.join(fmt.upper() for fmt in formats)}, {dpi} DPI)\n"
+        )
+        f.write(
+            "- `depth_independence_regression` - Shallow vs deep biomass correlation\n"
+        )
+        f.write(
+            "- `biomass_rootcount_correlation_heatmap` - Full correlation heatmap\n"
+        )
         f.write("- `yield_vs_deep_biomass` - Grain yield vs deep root biomass\n")
-        f.write("- `stem_biomass_vs_deep_roots` - Stem biomass vs deep root biomass\n\n")
+        f.write(
+            "- `stem_biomass_vs_deep_roots` - Stem biomass vs deep root biomass\n\n"
+        )
 
         f.write("### Tables (CSV)\n")
         f.write("- `correlation_matrix_full.csv` - Complete correlation matrix\n")
-        f.write("- `correlation_belowground_vs_aboveground.csv` - Below-ground vs above-ground subset\n")
+        f.write(
+            "- `correlation_belowground_vs_aboveground.csv` - Below-ground vs above-ground subset\n"
+        )
         f.write("- `analysis_results.json` - Statistical results in JSON format\n\n")
 
         f.write("## Configuration\n\n")
         f.write("```yaml\n")
-        f.write(f"publication_mode: {config.get('publication', {}).get('enabled', True)}\n")
+        f.write(
+            f"publication_mode: {config.get('publication', {}).get('enabled', True)}\n"
+        )
         f.write(f"figure_formats: {formats}\n")
         f.write(f"dpi: {dpi}\n")
         f.write(f"alpha: {alpha}\n")
@@ -749,7 +788,9 @@ def main():
     # Determine output directory (CLI overrides config)
     output_base = args.output
     if output_base is None:
-        output_base = Path(config.get("output", {}).get("output_dir", "./biomass_correlation_analysis"))
+        output_base = Path(
+            config.get("output", {}).get("output_dir", "./biomass_correlation_analysis")
+        )
 
     print("=" * 70)
     print("BIOMASS DEPTH CORRELATION ANALYSIS")
@@ -802,7 +843,10 @@ def main():
         all_results.append(result4)
 
     # 5. Supplementary table
-    if analyses_config.get("supplementary_tables", {}).get("enabled", True) and corr_matrix is not None:
+    if (
+        analyses_config.get("supplementary_tables", {}).get("enabled", True)
+        and corr_matrix is not None
+    ):
         generate_supplementary_correlation_table(corr_matrix, output_dir, config)
 
     # Save JSON results
