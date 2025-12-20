@@ -63,25 +63,28 @@ def correlation_result(cross_platform_exp1_df, cross_platform_exp2_df, tmp_path)
         replicate_col="replicate",
     )
 
-    # Create mock correlation data
+    # Create mock correlation data with both Spearman and Pearson
     np.random.seed(42)
     correlation_data = []
     for i, trait1 in enumerate(exp1_traits[:10]):  # Use first 10 traits
         for j, trait2 in enumerate(exp2_traits[:5]):  # Use first 5 traits
+            spearman_r = np.random.randn() * 0.5
             correlation_data.append(
                 {
                     "exp1_trait": trait1,
                     "exp2_trait": trait2,
-                    "correlation": np.random.randn() * 0.5,
-                    "p_value": np.random.rand(),
+                    "spearman_r": spearman_r,
+                    "spearman_p": np.random.rand(),
+                    "pearson_r": spearman_r + np.random.randn() * 0.1,  # Slightly different
+                    "pearson_p": np.random.rand(),
                     "n_genotypes": len(common_genotypes),
                 }
             )
 
     correlation_df = pd.DataFrame(correlation_data)
-    # Sort by absolute correlation
+    # Sort by absolute spearman correlation (primary method)
     correlation_df = correlation_df.assign(
-        abs_correlation=correlation_df["correlation"].abs()
+        abs_correlation=correlation_df["spearman_r"].abs()
     )
     correlation_df = correlation_df.sort_values(
         "abs_correlation", ascending=False
@@ -232,13 +235,15 @@ def test_visualize_cross_platform_step_minimal_correlations(tmp_path):
         VisualizeCrossPlatformStep,
     )
 
-    # Create minimal correlation data
+    # Create minimal correlation data with both metrics
     correlation_df = pd.DataFrame(
         {
             "exp1_trait": ["trait1", "trait2"],
             "exp2_trait": ["trait_a", "trait_b"],
-            "correlation": [0.8, -0.7],
-            "p_value": [0.01, 0.02],
+            "spearman_r": [0.8, -0.7],
+            "spearman_p": [0.01, 0.02],
+            "pearson_r": [0.85, -0.65],
+            "pearson_p": [0.008, 0.025],
             "n_genotypes": [10, 10],
         }
     )
@@ -365,18 +370,23 @@ def test_visualize_cross_platform_correlation_values_match_csv(tmp_path):
     x_valid = exp1_means_valid.loc[common_genos].values
     y_valid = exp2_means_valid.loc[common_genos].values
 
-    expected_corr, expected_p = calculate_correlations(
+    expected_spearman_r, expected_spearman_p = calculate_correlations(
         x_valid, y_valid, method="spearman"
+    )
+    expected_pearson_r, expected_pearson_p = calculate_correlations(
+        x_valid, y_valid, method="pearson"
     )
     expected_n_genotypes = len(common_genos)
 
-    # Create correlation_df with the CORRECT pre-computed values
+    # Create correlation_df with the CORRECT pre-computed values (both metrics)
     correlation_df = pd.DataFrame(
         {
             "exp1_trait": ["trait1"],
             "exp2_trait": ["trait_a"],
-            "correlation": [expected_corr],
-            "p_value": [expected_p],
+            "spearman_r": [expected_spearman_r],
+            "spearman_p": [expected_spearman_p],
+            "pearson_r": [expected_pearson_r],
+            "pearson_p": [expected_pearson_p],
             "n_genotypes": [expected_n_genotypes],
         }
     )
@@ -434,7 +444,7 @@ def test_visualize_cross_platform_correlation_values_match_csv(tmp_path):
 
     # Verify the correlation_df has the correct values
     assert correlation_df.iloc[0]["n_genotypes"] == 3
-    assert np.isclose(correlation_df.iloc[0]["correlation"], expected_corr)
+    assert np.isclose(correlation_df.iloc[0]["spearman_r"], expected_spearman_r)
 
     # Verify the step executed successfully and generated the expected output
     assert result is not None

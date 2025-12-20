@@ -1109,6 +1109,9 @@ def create_joint_plot(
     correlation: Optional[float] = None,
     p_value: Optional[float] = None,
     n_genotypes: Optional[int] = None,
+    # Pre-computed Pearson values (for consistency with CSV output)
+    pearson_r: Optional[float] = None,
+    pearson_p: Optional[float] = None,
 ) -> plt.Figure:
     """Create joint plot for two traits with regression line and marginal distributions.
 
@@ -1122,26 +1125,30 @@ def create_joint_plot(
         figsize: Figure size
         color: Color for scatter points
         line_color: Color for regression line
-        correlation: Pre-computed correlation coefficient (Spearman). When provided,
+        correlation: Pre-computed Spearman correlation coefficient. When provided,
             this value is displayed instead of recalculating. Use this to ensure
             consistency with CSV output (single source of truth).
-        p_value: Pre-computed p-value corresponding to the correlation.
+        p_value: Pre-computed Spearman p-value corresponding to the correlation.
         n_genotypes: Pre-computed number of genotypes used in correlation calculation.
             May differ from len(plot_df) if min_samples_per_genotype filtering was applied.
+        pearson_r: Pre-computed Pearson correlation coefficient. When provided along
+            with pearson_p, this value is displayed instead of recalculating.
+        pearson_p: Pre-computed Pearson p-value.
 
     Returns:
         Matplotlib figure
 
     Note:
-        When correlation, p_value, and n_genotypes are all provided, these values
-        are displayed in the annotation without recalculation. This ensures the
-        plot matches the CSV output exactly (DRY principle). When not provided,
-        correlations are calculated from the data (backward compatible fallback).
+        When all pre-computed values are provided (correlation, p_value, n_genotypes,
+        pearson_r, pearson_p), these values are displayed in the annotation without
+        recalculation. This ensures the plot matches the CSV output exactly (DRY
+        principle). When not provided, correlations are calculated from the data
+        (backward compatible fallback).
 
     See Also:
         identify_significant_correlations: Computes cross-experiment correlations
-            and exports CSV output. The correlation, p_value, and n_genotypes
-            values from that function should be passed here to ensure consistency.
+            and exports CSV output. The correlation values from that function
+            should be passed here to ensure consistency.
     """
     import seaborn as sns
 
@@ -1175,19 +1182,26 @@ def create_joint_plot(
     # Otherwise fall back to calculating from data (backward compatibility)
     if correlation is not None and p_value is not None and n_genotypes is not None:
         # Use pre-computed Spearman values - ensures consistency with CSV output
-        # (Spearman is the primary non-parametric metric stored in CSV)
-        spearman_r = correlation
-        spearman_p = p_value
+        spearman_r_val = correlation
+        spearman_p_val = p_value
         n_genotypes_for_annotation = n_genotypes
-        # Pearson calculated fresh from plot data as supplementary info for annotation
-        # (Pearson is not stored in CSV, so we compute it here for display only)
-        pearson_r, pearson_p, _, _ = _calculate_correlations(
-            plot_df[exp1_trait].values, plot_df[exp2_trait].values
-        )
+
+        # Use pre-computed Pearson if provided, otherwise calculate from plot data
+        if pearson_r is not None and pearson_p is not None:
+            # Both Spearman and Pearson from CSV (single source of truth)
+            pearson_r_val = pearson_r
+            pearson_p_val = pearson_p
+        else:
+            # Legacy fallback: only Spearman was pre-computed, calculate Pearson
+            pearson_r_val, pearson_p_val, _, _ = _calculate_correlations(
+                plot_df[exp1_trait].values, plot_df[exp2_trait].values
+            )
     else:
         # Fallback: calculate from data (backward compatible for direct API usage)
-        pearson_r, pearson_p, spearman_r, spearman_p = _calculate_correlations(
-            plot_df[exp1_trait].values, plot_df[exp2_trait].values
+        pearson_r_val, pearson_p_val, spearman_r_val, spearman_p_val = (
+            _calculate_correlations(
+                plot_df[exp1_trait].values, plot_df[exp2_trait].values
+            )
         )
         n_genotypes_for_annotation = len(plot_df)
 
@@ -1215,8 +1229,8 @@ def create_joint_plot(
     )
 
     # Add correlation text
-    corr_text = f"Pearson r = {pearson_r:.3f} (p = {pearson_p:.3g})\n"
-    corr_text += f"Spearman ρ = {spearman_r:.3f} (p = {spearman_p:.3g})\n"
+    corr_text = f"Pearson r = {pearson_r_val:.3f} (p = {pearson_p_val:.3g})\n"
+    corr_text += f"Spearman ρ = {spearman_r_val:.3f} (p = {spearman_p_val:.3g})\n"
     corr_text += f"n = {n_genotypes_for_annotation} genotypes"
 
     g.ax_joint.annotate(

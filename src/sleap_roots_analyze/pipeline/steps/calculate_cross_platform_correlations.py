@@ -92,6 +92,7 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         exp2_means = exp2_means.sort_index()
 
         # Calculate correlations for all trait pairs
+        # Store BOTH Pearson and Spearman for each pair (single source of truth)
         correlation_results = []
 
         for trait1 in exp1_traits:
@@ -100,8 +101,9 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 x = exp1_means[trait1].values
                 y = exp2_means[trait2].values
 
-                # Calculate correlation
-                r, p = calculate_correlations(x, y, method=config.correlation_method)
+                # Calculate BOTH correlation methods
+                spearman_r, spearman_p = calculate_correlations(x, y, method="spearman")
+                pearson_r, pearson_p = calculate_correlations(x, y, method="pearson")
 
                 # Count valid genotypes (non-NaN in both traits)
                 valid_mask = ~(np.isnan(x) | np.isnan(y))
@@ -111,8 +113,10 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                     {
                         "exp1_trait": trait1,
                         "exp2_trait": trait2,
-                        "correlation": r,
-                        "p_value": p,
+                        "spearman_r": spearman_r,
+                        "spearman_p": spearman_p,
+                        "pearson_r": pearson_r,
+                        "pearson_p": pearson_p,
                         "n_genotypes": n_genotypes,
                     }
                 )
@@ -120,9 +124,13 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         # Create DataFrame
         correlation_df = pd.DataFrame(correlation_results)
 
-        # Sort by absolute correlation (descending)
+        # Sort by absolute value of PRIMARY correlation (determined by config)
+        # This determines ranking but both methods are stored
+        primary_col = (
+            "spearman_r" if config.correlation_method == "spearman" else "pearson_r"
+        )
         correlation_df = correlation_df.assign(
-            abs_correlation=correlation_df["correlation"].abs()
+            abs_correlation=correlation_df[primary_col].abs()
         )
         correlation_df = correlation_df.sort_values(
             "abs_correlation", ascending=False

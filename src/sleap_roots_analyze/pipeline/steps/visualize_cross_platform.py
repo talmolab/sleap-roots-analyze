@@ -75,11 +75,11 @@ class VisualizeCrossPlatformStep(BaseStep):
 
         files_generated = []
 
-        # 1. Create correlation summary plot
+        # 1. Create correlation summary plot (uses Spearman as primary metric)
         fig = create_correlation_summary_plot(
             correlation_df,
-            correlation_col="correlation",
-            pvalue_col="p_value",
+            correlation_col="spearman_r",
+            pvalue_col="spearman_p",
             exp1_trait_col="exp1_trait",
             exp2_trait_col="exp2_trait",
             figsize=config.figsize_summary,
@@ -126,10 +126,12 @@ class VisualizeCrossPlatformStep(BaseStep):
                 exp2_name=exp2_name,
                 figsize=config.figsize_joint,
                 # Pass pre-computed values from CSV to ensure consistency
-                # (prevents mismatch when min_samples_per_genotype filtering is applied)
-                correlation=row["correlation"],
-                p_value=row["p_value"],
+                # Both Spearman and Pearson are stored - single source of truth
+                correlation=row["spearman_r"],
+                p_value=row["spearman_p"],
                 n_genotypes=row["n_genotypes"],
+                pearson_r=row["pearson_r"],
+                pearson_p=row["pearson_p"],
             )
 
             # Sanitize trait names for filename
