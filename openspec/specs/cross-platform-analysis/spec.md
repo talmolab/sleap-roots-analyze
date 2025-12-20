@@ -25,6 +25,8 @@ And the following optional parameters with defaults:
 - `figsize_summary`: Summary figure size tuple, default (14, 12)
 - `figsize_joint`: Joint plot figure size tuple, default (10, 10)
 - `figsize_boxplot`: Boxplot figure size tuple, default (14, 6)
+- `exp1_exclude_cols`: List of column names to exclude from experiment 1 trait analysis, default None
+- `exp2_exclude_cols`: List of column names to exclude from experiment 2 trait analysis, default None
 
 #### Scenario: Valid configuration with required fields
 
@@ -40,6 +42,24 @@ And the following optional parameters with defaults:
 
 - **WHEN** user specifies correlation method not in ["spearman", "pearson", "kendall"]
 - **THEN** configuration validation fails with error listing valid options
+
+#### Scenario: Exclude metadata columns from experiment 1
+
+- **WHEN** user specifies exp1_exclude_cols with metadata column names like ["Ent", "Sub", "Cid"]
+- **THEN** those columns are excluded from experiment 1 trait analysis
+- **AND** they do not appear in correlation results
+
+#### Scenario: Exclude metadata columns from experiment 2
+
+- **WHEN** user specifies exp2_exclude_cols with metadata column names like ["File.me", "scanner"]
+- **THEN** those columns are excluded from experiment 2 trait analysis
+- **AND** they do not appear in correlation results
+
+#### Scenario: Different exclusion lists per experiment
+
+- **WHEN** exp1 has field metadata columns and exp2 has imaging metadata columns
+- **THEN** each experiment's exclusion list is applied independently
+- **AND** correlations only include biological trait columns
 
 ### Requirement: Load and Align Cross-Platform Data
 
@@ -65,76 +85,77 @@ The system SHALL load and align data from two experimental platforms with the fo
 The system SHALL calculate pairwise trait correlations between experiments through `CalculateCrossPlatformCorrelationsStep` with the following behavior:
 
 - Calculate genotype means for each trait in both experiments using `calculate_genotype_means()`
-- Compute correlations for all trait pairs using selected method (Spearman/Pearson/Kendall)
+- Compute **both Pearson and Spearman** correlations for all trait pairs, regardless of which method is configured as primary
 - Remove NaN pairs before correlation calculation
-- Calculate p-values for each correlation
-- Store results with columns: trait1, trait2, correlation_coefficient, p_value, n_genotypes, abs_correlation
-- Sort results by absolute correlation value (descending)
+- Calculate p-values for each correlation (both Pearson and Spearman)
+- Store results with columns: `exp1_trait`, `exp2_trait`, `spearman_r`, `spearman_p`, `pearson_r`, `pearson_p`, `n_genotypes`
+- Sort results by absolute value of the **primary** correlation (determined by `correlation_method` config), descending
 - Export results to `cross_platform_correlations.csv` in output directory
+- The `correlation_method` config determines:
+  - Which metric is used for sorting/ranking
+  - Which metric is used for significance filtering
+  - Which metric is considered "primary" in visualizations
 
-#### Scenario: Spearman correlation calculation
+#### Scenario: Dual correlation calculation with Spearman primary
 
 - **WHEN** correlation method is "spearman" with 18 valid genotypes and 50 trait pairs
-- **THEN** step calculates Spearman rank correlations for all 50 pairs, generates p-values, and exports CSV sorted by absolute correlation
+- **THEN** step calculates BOTH Spearman and Pearson correlations for all 50 pairs
+- **AND** exports CSV with columns: exp1_trait, exp2_trait, spearman_r, spearman_p, pearson_r, pearson_p, n_genotypes
+- **AND** sorts results by absolute Spearman correlation (descending)
 
-#### Scenario: Pearson correlation calculation
+#### Scenario: Dual correlation calculation with Pearson primary
 
 - **WHEN** correlation method is "pearson" with normally distributed trait data
-- **THEN** step calculates Pearson correlations assuming linear relationships between traits
-
-#### Scenario: Kendall correlation calculation
-
-- **WHEN** correlation method is "kendall" for robust rank-based correlation
-- **THEN** step calculates Kendall tau correlations accounting for tied ranks
+- **THEN** step calculates BOTH Spearman and Pearson correlations
+- **AND** sorts results by absolute Pearson correlation (descending)
 
 #### Scenario: Handling missing data in correlations
 
 - **WHEN** trait pairs have NaN values for some genotypes
-- **THEN** step removes NaN pairs before calculation and reports actual n_genotypes used per correlation
+- **THEN** step removes NaN pairs before calculation
+- **AND** reports actual n_genotypes used per correlation
+- **AND** both Pearson and Spearman use the same filtered data
 
 #### Scenario: Insufficient valid pairs
 
 - **WHEN** after removing NaN pairs, fewer than 3 valid genotype pairs remain
-- **THEN** step skips that trait pair and logs warning about insufficient data
+- **THEN** step sets all correlation values to NaN for that trait pair
+- **AND** logs warning about insufficient data
 
 ### Requirement: Visualize Cross-Platform Correlations
 
 The system SHALL generate publication-quality visualizations through `VisualizeCrossPlatformStep` with the following outputs:
 
 - **Summary visualization** (4-panel figure):
-  - Panel 1: Histogram of correlation distribution with significance counts
-  - Panel 2: Volcano plot (correlation vs -log10(p-value)) with significance thresholds
-  - Panel 3: Horizontal bar chart of top positive correlations
-  - Panel 4: Horizontal bar chart of top negative correlations
+  - Panel 1: Histogram of correlation distribution with significance counts (uses primary method)
+  - Panel 2: Volcano plot (correlation vs -log10(p-value)) with significance thresholds (uses primary method)
+  - Panel 3: Horizontal bar chart of top positive correlations (uses primary method)
+  - Panel 4: Horizontal bar chart of top negative correlations (uses primary method)
 - **Joint plots**: Scatter plots with marginal distributions for top N correlated trait pairs
+  - Display **both** Pearson and Spearman annotations using pre-computed values from CSV
+  - Values MUST match CSV exactly (single source of truth)
 - **Genotype boxplots**: Side-by-side boxplots comparing genotype distributions for top N trait pairs
 - All figures saved to `figures/` subdirectory in output directory
 - Figure format and DPI configurable through pipeline settings
 
+#### Scenario: Joint plots display pre-computed values
+
+- **WHEN** joint plots are generated for top correlations
+- **THEN** both Pearson r and Spearman ρ annotations use pre-computed values from CSV
+- **AND** values displayed match `cross_platform_correlations.csv` exactly
+- **AND** no correlation recalculation occurs during visualization
+
 #### Scenario: Generate summary visualization
 
 - **WHEN** correlation results contain 7,056 trait pairs with max |ρ| = 0.389
-- **THEN** step generates 4-panel summary showing distribution, volcano plot, and top 15 positive/negative correlations
+- **THEN** step generates 4-panel summary using the primary correlation method
+- **AND** significance filtering uses the primary method's p-values
 
 #### Scenario: Generate joint plots for top correlations
 
 - **WHEN** top_n_joint_plots is 6 and correlation results contain sufficient data
-- **THEN** step generates 6 joint plots for trait pairs with highest absolute correlations, showing scatter with marginal distributions and Spearman ρ annotation
-
-#### Scenario: Generate genotype boxplots
-
-- **WHEN** top_n_boxplots is 6 and genotype-level data available
-- **THEN** step generates 6 side-by-side boxplot figures comparing genotype distributions across experiments
-
-#### Scenario: No significant correlations found
-
-- **WHEN** all correlation p-values exceed significance threshold
-- **THEN** summary visualization still generated with annotation indicating 0 significant correlations
-
-#### Scenario: Insufficient negative correlations
-
-- **WHEN** fewer than 15 negative correlations exist
-- **THEN** panel 4 of summary displays available negative correlations or empty panel with "No negative correlations found" message
+- **THEN** step generates 6 joint plots for trait pairs with highest absolute primary correlations
+- **AND** each plot displays both "Pearson r = X.XXX (p = X.XXX)" and "Spearman ρ = X.XXX (p = X.XXX)"
 
 ### Requirement: Cross-Platform Pipeline Integration
 
@@ -184,7 +205,8 @@ The system SHALL generate reproducible outputs with consistent directory structu
 
 ```
 <output_base_dir>/
-├── cross_platform_correlations.csv     # All correlation results
+├── cross_platform_correlations.csv     # All correlation results (Pearson + Spearman)
+│   Columns: exp1_trait, exp2_trait, spearman_r, spearman_p, pearson_r, pearson_p, n_genotypes
 ├── summary.json                         # Analysis metadata and summary statistics
 ├── figures/
 │   ├── correlation_summary.png          # 4-panel summary visualization
@@ -197,15 +219,16 @@ The system SHALL generate reproducible outputs with consistent directory structu
 └── pipeline.log                         # Execution log
 ```
 
+#### Scenario: CSV schema includes both correlation methods
+
+- **WHEN** cross-platform pipeline completes successfully
+- **THEN** cross_platform_correlations.csv contains columns for both Spearman and Pearson
+- **AND** column names are explicit: spearman_r, spearman_p, pearson_r, pearson_p
+
 #### Scenario: Consistent output structure across runs
 
 - **WHEN** user runs cross-platform pipeline multiple times with different configs
 - **THEN** each run creates timestamped directory with identical internal structure for easy comparison
-
-#### Scenario: Summary JSON contains key metrics
-
-- **WHEN** pipeline completes successfully
-- **THEN** summary.json includes: experiment names, common genotypes count, total correlations, significant correlations count, max/mean absolute correlation, top correlation details
 
 ### Requirement: Template Configuration Example
 
@@ -226,4 +249,33 @@ The system SHALL provide template configuration file `configs/cross_platform_tem
 
 - **WHEN** user opens template configuration file
 - **THEN** all CrossPlatformConfig parameters are present with inline comments explaining purpose and valid values
+
+### Requirement: Single Source of Truth for Correlation Statistics
+
+The system SHALL ensure correlation statistics (correlation coefficient, p-value, n_genotypes) are computed once in `CalculateCrossPlatformCorrelationsStep` and reused by all downstream visualizations without recalculation.
+
+Visualization functions (`create_joint_plot`, `create_scatter_plot_grid`) SHALL accept optional pre-computed correlation parameters:
+- `correlation`: Pre-computed correlation coefficient
+- `p_value`: Pre-computed p-value
+- `n_genotypes`: Pre-computed number of genotypes used in calculation
+
+When these parameters are provided, the function SHALL display them directly without recalculation. When not provided (for backward compatibility), the function MAY calculate values from the provided data, but this fallback behavior is deprecated for pipeline use.
+
+#### Scenario: Pipeline passes pre-computed values to joint plot
+
+- **WHEN** `VisualizeCrossPlatformStep` creates a joint plot for a trait pair
+- **THEN** it SHALL pass `correlation`, `p_value`, and `n_genotypes` from `correlation_df` to `create_joint_plot`
+- **AND** the displayed annotation SHALL show these exact values
+
+#### Scenario: Direct API usage with fallback calculation
+
+- **WHEN** `create_joint_plot` is called directly without pre-computed correlation parameters
+- **THEN** it SHALL calculate correlations from the provided genotype means (backward compatible)
+- **AND** this fallback behavior is intended only for standalone usage outside the pipeline
+
+#### Scenario: Consistency verification test
+
+- **WHEN** the test suite runs
+- **THEN** there SHALL be a test that verifies correlation values in generated joint plots match the corresponding CSV row exactly
+- **AND** the test SHALL use a scenario where `min_samples_per_genotype` would cause a discrepancy if values were recalculated
 
