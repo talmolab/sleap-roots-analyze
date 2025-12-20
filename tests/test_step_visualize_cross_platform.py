@@ -472,32 +472,17 @@ def test_joint_plot_uses_precomputed_correlation_values(tmp_path):
     precomputed_n = 3  # Different from 4 genotypes in the data
 
     # Call create_joint_plot with pre-computed values
-    # NOTE: This test will FAIL until the fix is implemented because
-    # create_joint_plot doesn't accept these parameters yet
-    try:
-        fig = create_joint_plot(
-            exp1_means,
-            exp2_means,
-            "trait1",
-            "trait_a",
-            exp1_name="Exp1",
-            exp2_name="Exp2",
-            correlation=precomputed_corr,
-            p_value=precomputed_p,
-            n_genotypes=precomputed_n,
-        )
-        plt.close(fig)
+    fig = create_joint_plot(
+        exp1_means,
+        exp2_means,
+        "trait1",
+        "trait_a",
+        exp1_name="Exp1",
+        exp2_name="Exp2",
+        correlation=precomputed_corr,
+        p_value=precomputed_p,
+        n_genotypes=precomputed_n,
+    )
+    plt.close(fig)
 
-        # If we get here, the function accepts the new parameters
-        # We would need to verify the annotation text, but for now
-        # just verify the function runs without error
-        assert True
-
-    except TypeError as e:
-        # Expected to fail until fix is implemented
-        if "unexpected keyword argument" in str(e):
-            pytest.fail(
-                "create_joint_plot does not accept pre-computed correlation parameters. "
-                "This test will pass once the fix is implemented."
-            )
-        raise
+    # Function accepts pre-computed parameters and uses them for annotation

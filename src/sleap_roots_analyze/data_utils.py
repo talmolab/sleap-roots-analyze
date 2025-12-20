@@ -332,9 +332,11 @@ def sanitize_trait_names(
             new_name = re.sub(r"\(G\)", "(g)", new_name)
             new_name = re.sub(r"\(Mg\)", "(mg)", new_name)
             # Fix metric units after numbers (title() converts "15cm" to "15Cm")
+            # Note: Only fix unambiguous units (cm, mm, kg). We intentionally skip
+            # standalone "M" because it could mean millions (e.g., "15M" = 15 million)
+            # rather than meters. Real meter values typically use "m" with prefixes.
             new_name = re.sub(r"(\d+\.?\d*)Cm\b", r"\1cm", new_name)
             new_name = re.sub(r"(\d+\.?\d*)Mm\b", r"\1mm", new_name)
-            new_name = re.sub(r"(\d+\.?\d*)M\b", r"\1m", new_name)
             new_name = re.sub(r"(\d+\.?\d*)Kg\b", r"\1kg", new_name)
             # Keep degree symbol as-is
         else:

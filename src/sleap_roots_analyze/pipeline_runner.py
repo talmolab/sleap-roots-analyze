@@ -1172,7 +1172,7 @@ class PipelineRunner:
         try:
             with open(config_path) as f:
                 config = yaml.safe_load(f) or {}
-        except Exception:
+        except (yaml.YAMLError, OSError, IOError):
             return {}
 
         # Exclude environment-specific keys that aren't useful for comparison

@@ -1174,11 +1174,13 @@ def create_joint_plot(
     # Use pre-computed values if provided (single source of truth)
     # Otherwise fall back to calculating from data (backward compatibility)
     if correlation is not None and p_value is not None and n_genotypes is not None:
-        # Use pre-computed values - ensures consistency with CSV output
+        # Use pre-computed Spearman values - ensures consistency with CSV output
+        # (Spearman is the primary non-parametric metric stored in CSV)
         spearman_r = correlation
         spearman_p = p_value
         n_genotypes_for_annotation = n_genotypes
-        # Also calculate Pearson for display (both are shown in annotation)
+        # Pearson calculated fresh from plot data as supplementary info for annotation
+        # (Pearson is not stored in CSV, so we compute it here for display only)
         pearson_r, pearson_p, _, _ = _calculate_correlations(
             plot_df[exp1_trait].values, plot_df[exp2_trait].values
         )
