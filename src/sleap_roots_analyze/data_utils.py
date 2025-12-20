@@ -331,6 +331,11 @@ def sanitize_trait_names(
             new_name = re.sub(r"\(Mm\)", "(mm)", new_name)
             new_name = re.sub(r"\(G\)", "(g)", new_name)
             new_name = re.sub(r"\(Mg\)", "(mg)", new_name)
+            # Fix metric units after numbers (title() converts "15cm" to "15Cm")
+            new_name = re.sub(r"(\d+\.?\d*)Cm\b", r"\1cm", new_name)
+            new_name = re.sub(r"(\d+\.?\d*)Mm\b", r"\1mm", new_name)
+            new_name = re.sub(r"(\d+\.?\d*)M\b", r"\1m", new_name)
+            new_name = re.sub(r"(\d+\.?\d*)Kg\b", r"\1kg", new_name)
             # Keep degree symbol as-is
         else:
             # Depth range already applied, name is already properly formatted

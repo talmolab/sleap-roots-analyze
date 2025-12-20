@@ -704,9 +704,9 @@ class TestSanitizeTraitNames:
 
         result = sanitize_trait_names(df, trait_cols, abbreviate=False)
 
-        # Without mapping, should use standard sanitization
-        assert "Rootdw 15Cm" in result.columns
-        assert "Rootdw 45Cm" in result.columns
+        # Without mapping, should use standard sanitization with lowercase cm
+        assert "Rootdw 15cm" in result.columns
+        assert "Rootdw 45cm" in result.columns
 
     def test_root_count_depth_single_depth(self):
         """Test root counting columns at single depths."""
@@ -768,8 +768,8 @@ class TestSanitizeTraitNames:
 
         # Mapped depth gets range label
         assert "Root Biomass DW (g) 0-30cm" in result.columns
-        # Unmapped depth falls back to original notation
-        assert "Rootdw 25Cm" in result.columns
+        # Unmapped depth falls back to original notation with lowercase cm
+        assert "Rootdw 25cm" in result.columns
 
     def test_depth_range_fractional_depth(self):
         """Test handling of fractional depths."""
