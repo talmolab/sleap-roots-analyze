@@ -109,6 +109,8 @@ class VisualizeCrossPlatformStep(BaseStep):
 
         # 2. Create joint plots for top N correlations
         # Pass pre-computed correlation values from CSV (single source of truth)
+        # This prevents discrepancies when min_samples_per_genotype filters genotypes
+        # from the correlation calculation vs the plotting data
         n_joint_plots = min(config.top_n_joint_plots, len(correlation_df))
         for i in range(n_joint_plots):
             row = correlation_df.iloc[i]
@@ -123,7 +125,8 @@ class VisualizeCrossPlatformStep(BaseStep):
                 exp1_name=exp1_name,
                 exp2_name=exp2_name,
                 figsize=config.figsize_joint,
-                # Pass pre-computed values from CSV to ensure consistency (DRY principle)
+                # Pass pre-computed values from CSV to ensure consistency
+                # (prevents mismatch when min_samples_per_genotype filtering is applied)
                 correlation=row["correlation"],
                 p_value=row["p_value"],
                 n_genotypes=row["n_genotypes"],

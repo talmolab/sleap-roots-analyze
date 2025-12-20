@@ -1125,6 +1125,10 @@ class PipelineRunner:
 
         Returns:
             Flattened dictionary with dot-notation keys
+
+        Example:
+            >>> _flatten_config_dict({"cleanup": {"max_nan": 0.0}})
+            {"cleanup.max_nan": 0.0}
         """
         exclude_keys = exclude_keys or []
         result: dict[str, Any] = {}
@@ -1271,8 +1275,8 @@ class PipelineRunner:
                 params = self._extract_all_config_params(config_path)
                 if params:
                     # Use a short name for the column header
-                    short_name = Path(config_rel).stem
-                    config_params[short_name] = params
+                    config_name = Path(config_rel).stem
+                    config_params[config_name] = params
             if config_params:
                 lines.extend(self._format_comparison_table(config_params))
 
@@ -1285,8 +1289,8 @@ class PipelineRunner:
                 config_path = base_dir / config_rel
                 params = self._extract_all_config_params(config_path)
                 if params:
-                    short_name = Path(config_rel).stem
-                    config_params[short_name] = params
+                    config_name = Path(config_rel).stem
+                    config_params[config_name] = params
             if config_params:
                 lines.extend(self._format_comparison_table(config_params))
 
@@ -1299,8 +1303,8 @@ class PipelineRunner:
                 config_path = base_dir / config_rel
                 params = self._extract_all_config_params(config_path)
                 if params:
-                    short_name = Path(config_rel).stem
-                    config_params[short_name] = params
+                    config_name = Path(config_rel).stem
+                    config_params[config_name] = params
             if config_params:
                 lines.extend(self._format_comparison_table(config_params))
 

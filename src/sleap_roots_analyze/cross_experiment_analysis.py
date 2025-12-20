@@ -1137,6 +1137,11 @@ def create_joint_plot(
         are displayed in the annotation without recalculation. This ensures the
         plot matches the CSV output exactly (DRY principle). When not provided,
         correlations are calculated from the data (backward compatible fallback).
+
+    See Also:
+        identify_significant_correlations: Computes cross-experiment correlations
+            and exports CSV output. The correlation, p_value, and n_genotypes
+            values from that function should be passed here to ensure consistency.
     """
     import seaborn as sns
 
@@ -1172,7 +1177,7 @@ def create_joint_plot(
         # Use pre-computed values - ensures consistency with CSV output
         spearman_r = correlation
         spearman_p = p_value
-        display_n = n_genotypes
+        n_genotypes_for_annotation = n_genotypes
         # Also calculate Pearson for display (both are shown in annotation)
         pearson_r, pearson_p, _, _ = _calculate_correlations(
             plot_df[exp1_trait].values, plot_df[exp2_trait].values
@@ -1182,7 +1187,7 @@ def create_joint_plot(
         pearson_r, pearson_p, spearman_r, spearman_p = _calculate_correlations(
             plot_df[exp1_trait].values, plot_df[exp2_trait].values
         )
-        display_n = len(plot_df)
+        n_genotypes_for_annotation = len(plot_df)
 
     # Create joint plot
     g = sns.jointplot(
@@ -1210,7 +1215,7 @@ def create_joint_plot(
     # Add correlation text
     corr_text = f"Pearson r = {pearson_r:.3f} (p = {pearson_p:.3g})\n"
     corr_text += f"Spearman ρ = {spearman_r:.3f} (p = {spearman_p:.3g})\n"
-    corr_text += f"n = {display_n} genotypes"
+    corr_text += f"n = {n_genotypes_for_annotation} genotypes"
 
     g.ax_joint.annotate(
         corr_text,

@@ -25,7 +25,6 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
-import numpy as np
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -150,7 +149,7 @@ def load_and_validate_data(
     """
     df = pd.read_csv(csv_path)
 
-    # Define both naming conventions
+    # Define naming conventions for different data sources
     notebook_style = {
         "shallow_biomass": "c_0_30",
         "deep_biomass": "c_30_60",
@@ -158,9 +157,18 @@ def load_and_validate_data(
         "stem_biomass": "StmDW_M_g",
     }
 
-    pipeline_style = {
+    # Legacy pipeline-style (before sanitize_trait_names fix for lowercase units)
+    pipeline_style_legacy = {
         "shallow_biomass": "Rootdw 15Cm",
         "deep_biomass": "Rootdw 45Cm",
+        "yield": "Gy Calc Gm2",
+        "stem_biomass": "Stmdw M (g)",
+    }
+
+    # Current pipeline-style (after sanitize_trait_names fix for lowercase units)
+    pipeline_style_current = {
+        "shallow_biomass": "Rootdw 15cm",
+        "deep_biomass": "Rootdw 45cm",
         "yield": "Gy Calc Gm2",
         "stem_biomass": "Stmdw M (g)",
     }
@@ -170,17 +178,21 @@ def load_and_validate_data(
         print("  [OK] Detected notebook-style columns (c_0_30, c_30_60)")
         column_mapping = notebook_style
         data_source = "Nov 30 QC notebook"
-    elif all(col in df.columns for col in pipeline_style.values()):
-        print("  [OK] Detected pipeline-style columns (Rootdw 15Cm, Rootdw 45Cm)")
-        column_mapping = pipeline_style
+    elif all(col in df.columns for col in pipeline_style_current.values()):
+        print("  [OK] Detected pipeline-style columns (Rootdw 15cm, Rootdw 45cm)")
+        column_mapping = pipeline_style_current
         data_source = "QC pipeline"
+    elif all(col in df.columns for col in pipeline_style_legacy.values()):
+        print("  [OK] Detected legacy pipeline-style columns (Rootdw 15Cm, Rootdw 45Cm)")
+        column_mapping = pipeline_style_legacy
+        data_source = "QC pipeline (legacy)"
     else:
         # Try to provide helpful error message
         missing_notebook = [
             col for col in notebook_style.values() if col not in df.columns
         ]
         missing_pipeline = [
-            col for col in pipeline_style.values() if col not in df.columns
+            col for col in pipeline_style_current.values() if col not in df.columns
         ]
         raise ValueError(
             f"Data does not match expected format.\n"
@@ -231,7 +243,8 @@ def get_publication_label(
     if config.get("publication", {}).get("enabled", True):
         # Simple title case with underscores to spaces
         label = internal_name.replace("_", " ").title()
-        # Fix common patterns
+        # Fix common patterns (title() capitalizes after digits, e.g., "30cm" -> "30Cm")
+        # This handles internal names that haven't been through sanitize_trait_names
         label = label.replace("Cm", "cm")
         label = label.replace(" G ", " (g) ")
         return label
