@@ -76,7 +76,7 @@ class LoadCrossPlatformDataStep(BaseStep):
         # Get trait columns for each experiment
         # Note: column names are standardized to "genotype" and "replicate"
         # Set barcode_col to None since it may not exist in the loaded data
-        # Pass exp*_exclude_cols from config as additional_exclude to filter metadata
+        # Pass config exclude_cols via additional_exclude param to filter metadata
         exp1_traits = get_trait_columns(
             exp1_df,
             barcode_col=None,
