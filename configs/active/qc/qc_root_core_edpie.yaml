@@ -190,6 +190,38 @@ visualization:
   dpi: 300
   figsize: [10, 8]
 
+  # Font sizes (explicit configuration)
+  title_fontsize: 16
+  label_fontsize: 14
+  tick_fontsize: 12
+  legend_fontsize: 12
+
+  # Figure format
+  figure_format: "png"
+
+  # Savefig parameters - ensures white background
+  bbox_inches: "tight"
+  facecolor: "white"
+  edgecolor: "none"
+  transparent: false
+
+  # Batched plot configuration
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+# Adaptive figure sizing
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
 # Summary report (always generated in Step 10)
 
 # Logging

@@ -101,64 +101,68 @@ def plot_depth_profile_faceted(
         ...     output_path='depth_profiles.png'
         ... )
     """
-    # Set seaborn style
-    sns.set_theme(style="dark")
-    sns.set_style("darkgrid")
+    # Save current style and set whitegrid for this plot only
+    original_style = plt.rcParams.copy()
+    sns.set_style("whitegrid")
 
-    # Create FacetGrid
-    g = sns.FacetGrid(
-        df,
-        col=facet_col,
-        col_wrap=col_wrap,
-        height=height,
-        sharex=False,
-        sharey=True,
-    )
+    try:
+        # Create FacetGrid
+        g = sns.FacetGrid(
+            df,
+            col=facet_col,
+            col_wrap=col_wrap,
+            height=height,
+            sharex=False,
+            sharey=True,
+        )
 
-    # Map lineplot with error bars
-    # Set default lw if not provided in kwargs
-    if "lw" not in kwargs and "linewidth" not in kwargs:
-        kwargs["lw"] = 2
-    g.map_dataframe(sns.lineplot, x=x, y=y, errorbar=errorbar, **kwargs)
+        # Map lineplot with error bars
+        # Set default lw if not provided in kwargs
+        if "lw" not in kwargs and "linewidth" not in kwargs:
+            kwargs["lw"] = 2
+        g.map_dataframe(sns.lineplot, x=x, y=y, errorbar=errorbar, **kwargs)
 
-    # Set axis labels
-    g.set_axis_labels(
-        f"{x.replace('_', ' ').title()}", f"{y.replace('_', ' ').title()}"
-    )
+        # Set axis labels
+        g.set_axis_labels(
+            f"{x.replace('_', ' ').title()}", f"{y.replace('_', ' ').title()}"
+        )
 
-    # Set titles
-    g.set_titles("{col_name}")
+        # Set titles
+        g.set_titles("{col_name}")
 
-    # Add grid and rotate x-axis labels
-    for ax in g.axes.flat:
-        ax.grid(True)
-        for label in ax.get_xticklabels():
-            label.set_rotation(90)
+        # Add grid and rotate x-axis labels
+        for ax in g.axes.flat:
+            ax.grid(True)
+            for label in ax.get_xticklabels():
+                label.set_rotation(90)
 
-    plt.tight_layout()
+        plt.tight_layout()
 
-    # Save and rotate if output path provided
-    if output_path:
-        output_path = Path(output_path)
-        temp_path = output_path.with_suffix(".temp.png")
+        # Save and rotate if output path provided
+        if output_path:
+            output_path = Path(output_path)
+            temp_path = output_path.with_suffix(".temp.png")
 
-        # Save the plot to temporary file
-        g.fig.savefig(temp_path, bbox_inches="tight", facecolor="white", dpi=300)
+            # Save the plot to temporary file
+            g.fig.savefig(temp_path, bbox_inches="tight", facecolor="white", dpi=300)
 
-        # Close matplotlib to release the file
-        plt.close(g.fig)
+            # Close matplotlib to release the file
+            plt.close(g.fig)
 
-        # Rotate the image 90 degrees clockwise to make depth intuitive (going down)
-        with Image.open(temp_path) as img:
-            rotated_img = img.rotate(-90, expand=True)
-            rotated_img.save(output_path)
+            # Rotate the image 90 degrees clockwise to make depth intuitive (going down)
+            with Image.open(temp_path) as img:
+                rotated_img = img.rotate(-90, expand=True)
+                rotated_img.save(output_path)
 
-        # Clean up temp file
-        temp_path.unlink()
+            # Clean up temp file
+            temp_path.unlink()
 
-        return None  # Figure is closed, can't return it
+            return None  # Figure is closed, can't return it
 
-    return g.fig
+        return g.fig
+    finally:
+        # Restore original matplotlib style to avoid polluting global state
+        plt.rcParams.update(original_style)
 
 
 def plot_depth_profile_replicates(
@@ -202,66 +206,75 @@ def plot_depth_profile_replicates(
         ...     output_path='depth_profiles_reps.png'
         ... )
     """
-    # Set seaborn style
-    sns.set_theme(style="dark")
-    sns.set_style("darkgrid")
+    # Save current style and set whitegrid for this plot only
+    original_style = plt.rcParams.copy()
+    sns.set_style("whitegrid")
 
-    # Create FacetGrid
-    g2 = sns.FacetGrid(
-        df, col=facet_col, col_wrap=col_wrap, height=height, sharex=False, sharey=True
-    )
+    try:
+        # Create FacetGrid
+        g2 = sns.FacetGrid(
+            df,
+            col=facet_col,
+            col_wrap=col_wrap,
+            height=height,
+            sharex=False,
+            sharey=True,
+        )
 
-    # Map lineplot with individual lines (no aggregation)
-    g2.map_dataframe(
-        sns.lineplot,
-        x=x,
-        y=y,
-        hue=hue,
-        estimator=None,  # Show individual lines, no aggregation
-        lw=1.5,
-        alpha=alpha,
-        legend=False,  # Suppress legend (too many replicates)
-        **kwargs,
-    )
+        # Map lineplot with individual lines (no aggregation)
+        g2.map_dataframe(
+            sns.lineplot,
+            x=x,
+            y=y,
+            hue=hue,
+            estimator=None,  # Show individual lines, no aggregation
+            lw=1.5,
+            alpha=alpha,
+            legend=False,  # Suppress legend (too many replicates)
+            **kwargs,
+        )
 
-    # Set axis labels
-    g2.set_axis_labels(
-        f"{x.replace('_', ' ').title()}", f"{y.replace('_', ' ')} (Replicates)"
-    )
+        # Set axis labels
+        g2.set_axis_labels(
+            f"{x.replace('_', ' ').title()}", f"{y.replace('_', ' ')} (Replicates)"
+        )
 
-    # Set titles
-    g2.set_titles("{col_name}")
+        # Set titles
+        g2.set_titles("{col_name}")
 
-    # Add grid and rotate x-axis labels
-    for ax in g2.axes.flat:
-        ax.grid(True)
-        for label in ax.get_xticklabels():
-            label.set_rotation(90)
+        # Add grid and rotate x-axis labels
+        for ax in g2.axes.flat:
+            ax.grid(True)
+            for label in ax.get_xticklabels():
+                label.set_rotation(90)
 
-    plt.tight_layout()
+        plt.tight_layout()
 
-    # Save and rotate if output path provided
-    if output_path:
-        output_path = Path(output_path)
-        temp_path = output_path.with_suffix(".temp.png")
+        # Save and rotate if output path provided
+        if output_path:
+            output_path = Path(output_path)
+            temp_path = output_path.with_suffix(".temp.png")
 
-        # Save the plot to temporary file
-        g2.fig.savefig(temp_path, bbox_inches="tight", facecolor="white", dpi=300)
+            # Save the plot to temporary file
+            g2.fig.savefig(temp_path, bbox_inches="tight", facecolor="white", dpi=300)
 
-        # Close matplotlib to release the file
-        plt.close(g2.fig)
+            # Close matplotlib to release the file
+            plt.close(g2.fig)
 
-        # Rotate the image 90 degrees clockwise to make depth intuitive (going down)
-        with Image.open(temp_path) as img:
-            rotated_img = img.rotate(-90, expand=True)
-            rotated_img.save(output_path)
+            # Rotate the image 90 degrees clockwise to make depth intuitive (going down)
+            with Image.open(temp_path) as img:
+                rotated_img = img.rotate(-90, expand=True)
+                rotated_img.save(output_path)
 
-        # Clean up temp file
-        temp_path.unlink()
+            # Clean up temp file
+            temp_path.unlink()
 
-        return None  # Figure is closed, can't return it
+            return None  # Figure is closed, can't return it
 
-    return g2.fig
+        return g2.fig
+    finally:
+        # Restore original matplotlib style to avoid polluting global state
+        plt.rcParams.update(original_style)
 
 
 def plot_biomass_depth_barplot(
@@ -384,70 +397,76 @@ def plot_biomass_depth_barplot(
     else:
         custom_order = list(genotype_stats.index)
 
-    # Set seaborn style
-    sns.set_theme(style="dark")
-    sns.set_style("darkgrid")
+    # Save current style and set whitegrid for this plot only
+    original_style = plt.rcParams.copy()
+    sns.set_style("whitegrid")
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=(12, 7))
+    try:
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 7))
 
-    # Create grouped barplot
-    import numpy as np
+        # Create grouped barplot
+        import numpy as np
 
-    estimator_func = np.median if estimator == "median" else "mean"
+        estimator_func = np.median if estimator == "median" else "mean"
 
-    sns.barplot(
-        x=genotype_col,
-        y=value_col,
-        hue="Depth_Label",
-        data=df,
-        dodge=True,
-        estimator=estimator_func,
-        errorbar="se",  # Standard error
-        order=custom_order,
-        ax=ax,
-        **kwargs,
-    )
-
-    # Add stripplot overlay if requested
-    if include_points:
-        sns.stripplot(
+        sns.barplot(
             x=genotype_col,
             y=value_col,
             hue="Depth_Label",
             data=df,
             dodge=True,
-            marker="o",
-            alpha=0.5,
-            jitter=True,
-            palette="dark:k",
+            estimator=estimator_func,
+            errorbar="se",  # Standard error
             order=custom_order,
             ax=ax,
-            legend=False,  # Don't duplicate legend
+            **kwargs,
         )
 
-    # Clean up legend (remove duplicate from stripplot)
-    handles, labels = ax.get_legend_handles_labels()
-    n_depths = len(unique_depths)
-    ax.legend(handles[:n_depths], labels[:n_depths], title="Depth")
+        # Add stripplot overlay if requested
+        if include_points:
+            sns.stripplot(
+                x=genotype_col,
+                y=value_col,
+                hue="Depth_Label",
+                data=df,
+                dodge=True,
+                marker="o",
+                alpha=0.5,
+                jitter=True,
+                palette="dark:k",
+                order=custom_order,
+                ax=ax,
+                legend=False,  # Don't duplicate legend
+            )
 
-    # Set labels and title
-    estimator_label = "Median" if estimator == "median" else "Mean"
-    ax.set_ylabel(f"{value_col.replace('_', ' ').title()} ({estimator_label} ± SE)")
-    ax.set_xlabel("Genotype")
-    ax.set_title(f"{estimator_label} Biomass per Plot at Different Depths by Genotype")
+        # Clean up legend (remove duplicate from stripplot)
+        handles, labels = ax.get_legend_handles_labels()
+        n_depths = len(unique_depths)
+        ax.legend(handles[:n_depths], labels[:n_depths], title="Depth")
 
-    # Add grid and rotate x-labels
-    ax.grid(True, axis="y")
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+        # Set labels and title
+        estimator_label = "Median" if estimator == "median" else "Mean"
+        ax.set_ylabel(f"{value_col.replace('_', ' ').title()} ({estimator_label} ± SE)")
+        ax.set_xlabel("Genotype")
+        ax.set_title(
+            f"{estimator_label} Biomass per Plot at Different Depths by Genotype"
+        )
 
-    plt.tight_layout()
+        # Add grid and rotate x-labels
+        ax.grid(True, axis="y")
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
-    # Save if output path provided
-    if output_path:
-        output_path = Path(output_path)
-        fig.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
-        plt.close(fig)
-        return None
+        plt.tight_layout()
 
-    return fig
+        # Save if output path provided
+        if output_path:
+            output_path = Path(output_path)
+            fig.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
+            plt.close(fig)
+            return None
+
+        return fig
+    finally:
+        # Restore original matplotlib style to avoid polluting global state
+        plt.rcParams.update(original_style)

@@ -65,6 +65,7 @@ class BasePipeline(ABC):
         output_dir: str | Path,
         pipeline_name: str = "pipeline",
         version: str = "1.0",
+        log_filename: str | None = None,
     ):
         """Initialize the pipeline.
 
@@ -73,11 +74,15 @@ class BasePipeline(ABC):
             output_dir: Directory for pipeline outputs.
             pipeline_name: Name of the pipeline.
             version: Pipeline version.
+            log_filename: Custom log filename for run directory. If None, uses
+                "pipeline.log". This should be just the filename (e.g., "my.log"),
+                not a path - the log will be created in run_dir.
         """
         self.config = config
         self.output_dir = Path(output_dir)
         self.pipeline_name = pipeline_name
         self.version = version
+        self._log_filename = log_filename or "pipeline.log"
 
         # Create run directory first (needed for file logging)
         self.run_dir = self._create_run_directory()
@@ -124,7 +129,7 @@ class BasePipeline(ABC):
 
         # Add FileHandler for per-run log file
         # Each run gets its own log file in run_dir
-        log_file_path = self.run_dir / "pipeline.log"
+        log_file_path = self.run_dir / self._log_filename
         file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)

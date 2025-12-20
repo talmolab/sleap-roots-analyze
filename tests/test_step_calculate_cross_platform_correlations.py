@@ -114,8 +114,10 @@ def test_calculate_cross_platform_correlations_step_execute(
     corr_df = result.data["correlation_df"]
     assert "exp1_trait" in corr_df.columns
     assert "exp2_trait" in corr_df.columns
-    assert "correlation" in corr_df.columns
-    assert "p_value" in corr_df.columns
+    assert "spearman_r" in corr_df.columns
+    assert "spearman_p" in corr_df.columns
+    assert "pearson_r" in corr_df.columns
+    assert "pearson_p" in corr_df.columns
     assert "n_genotypes" in corr_df.columns
 
     # Check that we have correlations (should be many trait pairs)
@@ -151,7 +153,8 @@ def test_calculate_cross_platform_correlations_step_spearman(
 
     # Verify correlations are in valid range [-1, 1]
     corr_df = result.data["correlation_df"]
-    assert (corr_df["correlation"].abs() <= 1.0).all()
+    assert (corr_df["spearman_r"].abs() <= 1.0).all()
+    assert (corr_df["pearson_r"].abs() <= 1.0).all()
 
 
 def test_calculate_cross_platform_correlations_step_pearson(
@@ -205,8 +208,8 @@ def test_calculate_cross_platform_correlations_step_sorted(
 
     corr_df = result.data["correlation_df"]
 
-    # Check sorted by absolute correlation (descending)
-    abs_corr = corr_df["correlation"].abs().values
+    # Check sorted by absolute primary correlation (spearman by default, descending)
+    abs_corr = corr_df["spearman_r"].abs().values
     assert all(abs_corr[i] >= abs_corr[i + 1] for i in range(len(abs_corr) - 1))
 
 
@@ -258,7 +261,8 @@ def test_calculate_cross_platform_correlations_step_files_generated(
     saved_df = pd.read_csv(corr_csv)
     assert len(saved_df) == len(result.data["correlation_df"])
     assert "exp1_trait" in saved_df.columns
-    assert "correlation" in saved_df.columns
+    assert "spearman_r" in saved_df.columns
+    assert "pearson_r" in saved_df.columns
 
 
 def test_calculate_cross_platform_correlations_step_nan_handling(tmp_path):
@@ -329,3 +333,153 @@ def test_calculate_cross_platform_correlations_step_nan_handling(tmp_path):
     ]
     if len(trait1_traita) > 0:
         assert trait1_traita.iloc[0]["n_genotypes"] == 3
+
+
+# === TDD Tests for Dual Correlation Metrics (store-dual-correlation-metrics) ===
+
+
+def test_csv_contains_both_pearson_and_spearman_columns(
+    cross_platform_config, loaded_data_result, tmp_path
+):
+    """Test that CSV output contains both Pearson and Spearman correlation columns.
+
+    TDD Test: This test will FAIL until the fix is implemented.
+    Expected new columns: spearman_r, spearman_p, pearson_r, pearson_p
+    """
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=loaded_data_result.data,
+        config=cross_platform_config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    corr_df = result.data["correlation_df"]
+
+    # New schema: both Pearson and Spearman columns
+    assert "spearman_r" in corr_df.columns, "Missing spearman_r column"
+    assert "spearman_p" in corr_df.columns, "Missing spearman_p column"
+    assert "pearson_r" in corr_df.columns, "Missing pearson_r column"
+    assert "pearson_p" in corr_df.columns, "Missing pearson_p column"
+
+    # Old generic columns should not exist
+    assert (
+        "correlation" not in corr_df.columns
+    ), "Old 'correlation' column should be removed"
+    assert "p_value" not in corr_df.columns, "Old 'p_value' column should be removed"
+
+
+def test_csv_sorted_by_primary_correlation_method(tmp_path):
+    """Test that CSV is sorted by the primary correlation method from config.
+
+    When correlation_method='spearman', sort by |spearman_r|.
+    When correlation_method='pearson', sort by |pearson_r|.
+    """
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    # Create test data with known correlation patterns
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "A", "B", "B", "C", "C", "D", "D"],
+            "replicate": [1, 2, 1, 2, 1, 2, 1, 2],
+            "trait1": [1.0, 1.2, 2.0, 2.1, 3.0, 3.2, 4.0, 4.1],
+            "trait2": [10.0, 10.5, 20.0, 20.2, 30.0, 30.3, 40.0, 40.1],
+        }
+    )
+
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "A", "B", "B", "C", "C", "D", "D"],
+            "replicate": [1, 2, 1, 2, 1, 2, 1, 2],
+            "trait_a": [100.0, 102.0, 200.0, 205.0, 300.0, 310.0, 400.0, 410.0],
+        }
+    )
+
+    prev_result = StepResult(
+        data={
+            "exp1_df": exp1_df,
+            "exp2_df": exp2_df,
+            "common_genotypes": ["A", "B", "C", "D"],
+        },
+        metadata={
+            "exp1_trait_names": ["trait1", "trait2"],
+            "exp2_trait_names": ["trait_a"],
+        },
+        files_generated=[],
+    )
+
+    # Test with Spearman as primary
+    config_spearman = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        correlation_method="spearman",
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=prev_result.data,
+        config=config_spearman,
+        run_dir=tmp_path,
+        prev_result=prev_result,
+    )
+
+    corr_df = result.data["correlation_df"]
+
+    # Should be sorted by |spearman_r| descending
+    abs_spearman = corr_df["spearman_r"].abs().values
+    assert all(
+        abs_spearman[i] >= abs_spearman[i + 1] for i in range(len(abs_spearman) - 1)
+    ), "Results should be sorted by |spearman_r| when correlation_method='spearman'"
+
+
+def test_visualization_uses_precomputed_pearson_values(tmp_path):
+    """Test that create_joint_plot accepts and uses pre-computed Pearson values.
+
+    TDD Test: This will verify that both Pearson and Spearman come from CSV.
+    """
+    import matplotlib.pyplot as plt
+
+    from sleap_roots_analyze.cross_experiment_analysis import create_joint_plot
+
+    # Create genotype means data
+    exp1_means = pd.DataFrame(
+        {"trait1": [1.0, 2.0, 3.0, 4.0]}, index=["A", "B", "C", "D"]
+    )
+    exp2_means = pd.DataFrame(
+        {"trait_a": [10.0, 20.0, 30.0, 40.0]}, index=["A", "B", "C", "D"]
+    )
+
+    # Pre-computed values (as if from CSV)
+    precomputed_spearman_r = 0.95
+    precomputed_spearman_p = 0.001
+    precomputed_pearson_r = 0.98
+    precomputed_pearson_p = 0.0005
+    precomputed_n = 4
+
+    # Call create_joint_plot with both pre-computed values
+    fig = create_joint_plot(
+        exp1_means,
+        exp2_means,
+        "trait1",
+        "trait_a",
+        exp1_name="Exp1",
+        exp2_name="Exp2",
+        correlation=precomputed_spearman_r,
+        p_value=precomputed_spearman_p,
+        n_genotypes=precomputed_n,
+        pearson_r=precomputed_pearson_r,
+        pearson_p=precomputed_pearson_p,
+    )
+    plt.close(fig)
+
+    # If we get here without error, the function accepts the new parameters

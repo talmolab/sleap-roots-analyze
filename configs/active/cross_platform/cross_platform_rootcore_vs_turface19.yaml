@@ -28,6 +28,24 @@ figsize_summary: [16, 14]       # Summary heatmap figure size
 figsize_joint: [10, 10]         # Joint plot figure size
 figsize_boxplot: [14, 6]        # Boxplot figure size
 
+# Column Exclusions - metadata columns to exclude from trait analysis
+# These are preserved in output CSVs but excluded from correlation calculations
+exp1_exclude_cols:
+  - "Plot"             # Plot number
+  - "Ent"              # Entry number
+  - "Sub"              # Sub-entry
+  - "Cid"              # Cross ID
+  - "Sid"              # Selection ID
+  - "GID"              # Germplasm ID
+  - "Cross name"       # Cross pedigree
+  - "Sel_Hist"         # Selection history
+  - "Origin"           # Germplasm origin
+  - "outlier_flag"     # QC outlier flag
+  - "outlier_reason"   # QC outlier reason
+  - "plant_identifier" # Plant identifier
+
+# exp2_exclude_cols not needed - Turface 19 has no extra metadata columns
+
 # Analysis Notes:
 # - Root Core data (07_data_outliers_removed.csv) includes:
 #   * Root counts at ALL 12 depth intervals (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 cm)

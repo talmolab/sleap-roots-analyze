@@ -668,6 +668,27 @@ class TestSanitizeTraitNames:
         assert "geno" not in result.columns
         assert "crown.length" not in result.columns
 
+    def test_metric_unit_millions_notation_preserved(self):
+        """Test that 'M' meaning millions is not converted to 'm' (meters).
+
+        The regex pattern for fixing "15M" -> "15m" should not apply to
+        values like "15M" that might represent 15 million, not 15 meters.
+        """
+        df = pd.DataFrame(
+            {
+                "Value_15M": [1.0, 2.0],  # 15 million, not 15 meters
+                "Count_5M": [3.0, 4.0],  # 5 million, not 5 meters
+            }
+        )
+        trait_cols = ["Value_15M", "Count_5M"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # Should NOT convert M to m - this represents millions, not meters
+        # After title(), "15M" stays "15M" and should not become "15m"
+        assert "Value 15M" in result.columns
+        assert "Count 5M" in result.columns
+
     # === Depth Range Sanitization Tests (TDD) ===
 
     def test_biomass_depth_range_with_mapping(self):
@@ -704,9 +725,9 @@ class TestSanitizeTraitNames:
 
         result = sanitize_trait_names(df, trait_cols, abbreviate=False)
 
-        # Without mapping, should use standard sanitization
-        assert "Rootdw 15Cm" in result.columns
-        assert "Rootdw 45Cm" in result.columns
+        # Without mapping, should use standard sanitization with lowercase cm
+        assert "Rootdw 15cm" in result.columns
+        assert "Rootdw 45cm" in result.columns
 
     def test_root_count_depth_single_depth(self):
         """Test root counting columns at single depths."""
@@ -768,8 +789,8 @@ class TestSanitizeTraitNames:
 
         # Mapped depth gets range label
         assert "Root Biomass DW (g) 0-30cm" in result.columns
-        # Unmapped depth falls back to original notation
-        assert "Rootdw 25Cm" in result.columns
+        # Unmapped depth falls back to original notation with lowercase cm
+        assert "Rootdw 25cm" in result.columns
 
     def test_depth_range_fractional_depth(self):
         """Test handling of fractional depths."""

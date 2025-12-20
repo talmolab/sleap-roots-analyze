@@ -1023,3 +1023,438 @@ columns:
         # Other nested keys unchanged
         assert "image_dir: null" in updated_content
         assert 'barcode: "Barcode"' in updated_content
+
+
+# =============================================================================
+# Phase 10: Tests for Configuration Comparison (add-config-comparison-to-summary)
+# =============================================================================
+
+
+class TestFlattenConfigDict:
+    """Tests for _flatten_config_dict helper function."""
+
+    def test_flatten_simple_dict(self):
+        """Test flattening a simple flat dictionary."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config = {"a": 1, "b": 2, "c": "test"}
+        result = PipelineRunner._flatten_config_dict(config)
+
+        assert result == {"a": 1, "b": 2, "c": "test"}
+
+    def test_flatten_nested_dict(self):
+        """Test flattening a nested dictionary."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config = {
+            "cleanup": {"max_nan_fraction": 0.0, "max_zeros_per_trait": 0.5},
+            "heritability": {"enabled": True, "threshold": 0.4},
+        }
+        result = PipelineRunner._flatten_config_dict(config)
+
+        assert result["cleanup.max_nan_fraction"] == 0.0
+        assert result["cleanup.max_zeros_per_trait"] == 0.5
+        assert result["heritability.enabled"] is True
+        assert result["heritability.threshold"] == 0.4
+
+    def test_flatten_deeply_nested_dict(self):
+        """Test flattening a deeply nested dictionary."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config = {
+            "outlier_detection": {
+                "mahalanobis": {
+                    "variance_threshold": 0.95,
+                    "use_chi_squared": True,
+                    "chi2_percentile": 99.0,
+                }
+            }
+        }
+        result = PipelineRunner._flatten_config_dict(config)
+
+        assert result["outlier_detection.mahalanobis.variance_threshold"] == 0.95
+        assert result["outlier_detection.mahalanobis.use_chi_squared"] is True
+        assert result["outlier_detection.mahalanobis.chi2_percentile"] == 99.0
+
+    def test_flatten_with_list_values(self):
+        """Test flattening preserves list values."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config = {
+            "outlier_detection": {
+                "traditional_methods": ["mahalanobis"],
+                "clustering_methods": [],
+            }
+        }
+        result = PipelineRunner._flatten_config_dict(config)
+
+        assert result["outlier_detection.traditional_methods"] == ["mahalanobis"]
+        assert result["outlier_detection.clustering_methods"] == []
+
+    def test_flatten_with_none_values(self):
+        """Test flattening handles None values."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config = {"data": {"csv_path": None, "image_dir": None}}
+        result = PipelineRunner._flatten_config_dict(config)
+
+        assert result["data.csv_path"] is None
+        assert result["data.image_dir"] is None
+
+    def test_flatten_excludes_specified_keys(self):
+        """Test flattening can exclude specific top-level keys."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config = {
+            "pipeline_name": "test",
+            "data": {"csv_path": "/path/to/file.csv"},
+            "heritability": {"threshold": 0.4},
+        }
+        result = PipelineRunner._flatten_config_dict(
+            config, exclude_keys=["data", "pipeline_name"]
+        )
+
+        assert "data.csv_path" not in result
+        assert "pipeline_name" not in result
+        assert result["heritability.threshold"] == 0.4
+
+
+class TestExtractAllConfigParams:
+    """Tests for _extract_all_config_params function."""
+
+    def test_extract_params_from_qc_config(self, tmp_path):
+        """Test extracting ALL parameters from a QC config file."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config_path = tmp_path / "test_qc.yaml"
+        config_path.write_text(
+            """
+pipeline_name: "test_qc"
+cleanup:
+  max_nan_fraction: 0.0
+  max_zeros_per_trait: 0.5
+heritability:
+  enabled: true
+  threshold: 0.4
+"""
+        )
+
+        result = PipelineRunner._extract_all_config_params(config_path)
+
+        assert result["cleanup.max_nan_fraction"] == 0.0
+        assert result["cleanup.max_zeros_per_trait"] == 0.5
+        assert result["heritability.enabled"] is True
+        assert result["heritability.threshold"] == 0.4
+
+    def test_extract_params_excludes_paths(self, tmp_path):
+        """Test that data paths are excluded from config params."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        config_path = tmp_path / "test_qc.yaml"
+        config_path.write_text(
+            """
+pipeline_name: "test_qc"
+data:
+  csv_path: "C:/path/to/data.csv"
+  image_dir: "C:/path/to/images"
+heritability:
+  threshold: 0.4
+"""
+        )
+
+        result = PipelineRunner._extract_all_config_params(config_path)
+
+        # Data paths should be excluded (they're environment-specific)
+        assert "data.csv_path" not in result
+        assert "data.image_dir" not in result
+        # But other params included
+        assert result["heritability.threshold"] == 0.4
+
+    def test_extract_params_missing_file(self, tmp_path):
+        """Test extracting from non-existent file returns empty dict."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        result = PipelineRunner._extract_all_config_params(
+            tmp_path / "nonexistent.yaml"
+        )
+
+        assert result == {}
+
+
+class TestFormatComparisonTable:
+    """Tests for _format_comparison_table function."""
+
+    def test_format_table_multiple_configs(self):
+        """Test formatting comparison table with multiple configs."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        configs = {
+            "turface_150": {
+                "heritability.threshold": 0.4,
+                "heritability.enabled": True,
+                "cleanup.max_nan_fraction": 0.0,
+            },
+            "turface_19": {
+                "heritability.threshold": 0.6,
+                "heritability.enabled": True,
+                "cleanup.max_nan_fraction": 0.0,
+            },
+        }
+
+        lines = PipelineRunner._format_comparison_table(configs)
+        table_text = "\n".join(lines)
+
+        # Check table structure
+        assert "| Parameter |" in table_text
+        assert "turface_150" in table_text
+        assert "turface_19" in table_text
+        assert "heritability.threshold" in table_text
+        assert "0.4" in table_text
+        assert "0.6" in table_text
+
+    def test_format_table_single_config(self):
+        """Test formatting table with single config still works."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        configs = {
+            "only_one": {
+                "heritability.threshold": 0.5,
+                "cleanup.max_nan_fraction": 0.0,
+            }
+        }
+
+        lines = PipelineRunner._format_comparison_table(configs)
+        table_text = "\n".join(lines)
+
+        # Should still produce valid table
+        assert "| Parameter |" in table_text
+        assert "only_one" in table_text
+        assert "0.5" in table_text
+
+    def test_format_table_missing_params_show_na(self):
+        """Test that missing parameters show N/A."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        configs = {
+            "has_param": {"heritability.threshold": 0.4, "root_core.enabled": True},
+            "missing_param": {
+                "heritability.threshold": 0.5
+                # root_core.enabled is missing
+            },
+        }
+
+        lines = PipelineRunner._format_comparison_table(configs)
+        table_text = "\n".join(lines)
+
+        assert "N/A" in table_text
+
+    def test_format_table_list_values(self):
+        """Test that list values are formatted as comma-separated."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        configs = {
+            "config1": {
+                "outlier_detection.traditional_methods": [
+                    "mahalanobis",
+                    "isolation_forest",
+                ],
+            }
+        }
+
+        lines = PipelineRunner._format_comparison_table(configs)
+        table_text = "\n".join(lines)
+
+        # Lists should be comma-separated
+        assert (
+            "mahalanobis, isolation_forest" in table_text
+            or "mahalanobis,isolation_forest" in table_text
+        )
+
+    def test_format_table_empty_list(self):
+        """Test that empty lists are formatted correctly."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        configs = {"config1": {"outlier_detection.clustering_methods": []}}
+
+        lines = PipelineRunner._format_comparison_table(configs)
+        table_text = "\n".join(lines)
+
+        # Empty list should show as empty or "(none)"
+        assert "[]" in table_text or "(none)" in table_text or "| |" in table_text
+
+
+class TestFormatConfigComparison:
+    """Tests for _format_config_comparison generating full section."""
+
+    def test_format_config_comparison_qc_section(self, tmp_path):
+        """Test generating QC configuration comparison section."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        # Create mock QC configs
+        qc_dir = tmp_path / "qc"
+        qc_dir.mkdir()
+
+        config1 = qc_dir / "turface_150.yaml"
+        config1.write_text(
+            """
+pipeline_name: "turface_150_qc"
+cleanup:
+  max_nan_fraction: 0.0
+  max_zeros_per_trait: 0.5
+heritability:
+  enabled: true
+  threshold: 0.4
+"""
+        )
+
+        config2 = qc_dir / "turface_19.yaml"
+        config2.write_text(
+            """
+pipeline_name: "turface_19_qc"
+cleanup:
+  max_nan_fraction: 0.0
+  max_zeros_per_trait: 0.5
+heritability:
+  enabled: true
+  threshold: 0.6
+"""
+        )
+
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            f"""
+run_name: Test
+qc_configs:
+  - qc/turface_150.yaml
+  - qc/turface_19.yaml
+"""
+        )
+
+        runner = PipelineRunner(manifest_path, output_dir=tmp_path / "runs")
+
+        lines = runner._format_config_comparison()
+        section_text = "\n".join(lines)
+
+        assert "## Configuration Comparison" in section_text
+        assert "### QC Pipeline Configuration" in section_text
+        assert "heritability.threshold" in section_text
+        assert "0.4" in section_text
+        assert "0.6" in section_text
+
+    def test_format_config_comparison_viz_section(self, tmp_path):
+        """Test generating Viz configuration comparison section."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        viz_dir = tmp_path / "viz"
+        viz_dir.mkdir()
+
+        config1 = viz_dir / "viz_turface.yaml"
+        config1.write_text(
+            """
+pipeline_name: "viz_turface"
+visualization:
+  dpi: 100
+  figsize: [12, 8]
+"""
+        )
+
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            """
+run_name: Test
+viz_configs:
+  - viz/viz_turface.yaml
+"""
+        )
+
+        runner = PipelineRunner(manifest_path, output_dir=tmp_path / "runs")
+
+        lines = runner._format_config_comparison()
+        section_text = "\n".join(lines)
+
+        assert "### Visualization Pipeline Configuration" in section_text
+        assert "visualization.dpi" in section_text
+
+    def test_format_config_comparison_cross_platform_section(self, tmp_path):
+        """Test generating Cross-Platform configuration comparison section."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        cross_dir = tmp_path / "cross_platform"
+        cross_dir.mkdir()
+
+        config1 = cross_dir / "cross_test.yaml"
+        config1.write_text(
+            """
+exp1_name: "Exp1"
+exp2_name: "Exp2"
+correlation_method: "spearman"
+significance_threshold: 0.05
+"""
+        )
+
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            """
+run_name: Test
+cross_platform_configs:
+  - cross_platform/cross_test.yaml
+"""
+        )
+
+        runner = PipelineRunner(manifest_path, output_dir=tmp_path / "runs")
+
+        lines = runner._format_config_comparison()
+        section_text = "\n".join(lines)
+
+        assert "### Cross-Platform Pipeline Configuration" in section_text
+        assert "correlation_method" in section_text
+
+
+class TestGenerateSummaryWithConfigComparison:
+    """Test that generate_summary includes config comparison section."""
+
+    def test_summary_includes_config_comparison(self, tmp_path):
+        """Test that SUMMARY.md includes configuration comparison section."""
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        # Create QC config
+        qc_dir = tmp_path / "qc"
+        qc_dir.mkdir()
+        (qc_dir / "test.yaml").write_text(
+            """
+pipeline_name: "test_qc"
+heritability:
+  threshold: 0.4
+cleanup:
+  max_nan_fraction: 0.0
+"""
+        )
+
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            """
+run_name: Test
+qc_configs:
+  - qc/test.yaml
+"""
+        )
+
+        runner = PipelineRunner(manifest_path, output_dir=tmp_path / "runs")
+        runner.run_dir.mkdir(parents=True)
+
+        # Mock successful QC run
+        runner.run_results["qc"]["qc/test.yaml"] = {
+            "success": True,
+            "elapsed_seconds": 30.0,
+            "output_path": str(tmp_path / "output"),
+        }
+
+        summary_path = runner.generate_summary()
+
+        content = summary_path.read_text()
+
+        # Config comparison should appear after results and before Methods
+        assert "## Configuration Comparison" in content
+        assert content.index("## Configuration Comparison") < content.index(
+            "## Methods"
+        )

@@ -729,6 +729,8 @@ class CrossPlatformConfig:
         figsize_summary: Figure size for summary visualization (width, height).
         figsize_joint: Figure size for joint plots (width, height).
         figsize_boxplot: Figure size for boxplots (width, height).
+        exp1_exclude_cols: List of column names to exclude from experiment 1 trait analysis.
+        exp2_exclude_cols: List of column names to exclude from experiment 2 trait analysis.
     """
 
     # Required parameters
@@ -749,6 +751,8 @@ class CrossPlatformConfig:
     figsize_summary: tuple = (14, 12)
     figsize_joint: tuple = (10, 10)
     figsize_boxplot: tuple = (14, 6)
+    exp1_exclude_cols: Optional[List[str]] = None
+    exp2_exclude_cols: Optional[List[str]] = None
 
     def __post_init__(self):
         """Validate configuration parameters."""
