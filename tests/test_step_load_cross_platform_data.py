@@ -285,3 +285,140 @@ def test_load_cross_platform_data_step_alignment_summary(
     geno_a = summary[summary["genotype"] == "A"].iloc[0]
     assert geno_a["exp1_samples"] == 3
     assert geno_a["exp2_samples"] == 2
+
+
+def test_cross_platform_config_accepts_exclude_cols():
+    """Test that CrossPlatformConfig accepts exp1_exclude_cols and exp2_exclude_cols."""
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        exp1_exclude_cols=["Ent", "Sub", "Cid"],
+        exp2_exclude_cols=["scanner", "region"],
+    )
+
+    assert config.exp1_exclude_cols == ["Ent", "Sub", "Cid"]
+    assert config.exp2_exclude_cols == ["scanner", "region"]
+
+
+def test_cross_platform_config_exclude_cols_default_none():
+    """Test that exclude_cols parameters default to None."""
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+    )
+
+    assert config.exp1_exclude_cols is None
+    assert config.exp2_exclude_cols is None
+
+
+def test_load_cross_platform_excludes_exp1_columns(tmp_path):
+    """Test that LoadCrossPlatformDataStep excludes columns from exp1 traits."""
+    # Create exp1 data with metadata columns that should be excluded
+    exp1_data = {
+        "Geno": ["A", "A", "B", "B"],
+        "Rep": [1, 2, 1, 2],
+        "Ent": [1, 1, 2, 2],  # Entry number - should be excluded
+        "Sub": [1, 1, 1, 1],  # Sub-entry - should be excluded
+        "trait1": [10.5, 11.2, 12.3, 11.9],
+        "trait2": [5.2, 5.5, 6.1, 5.9],
+    }
+    exp1_df = pd.DataFrame(exp1_data)
+    exp1_csv = tmp_path / "exp1_with_metadata.csv"
+    exp1_df.to_csv(exp1_csv, index=False)
+
+    # Create exp2 data
+    exp2_data = {
+        "geno": ["A", "A", "B", "B"],
+        "rep": [1, 2, 1, 2],
+        "trait_a": [20.1, 20.5, 22.0, 21.8],
+    }
+    exp2_df = pd.DataFrame(exp2_data)
+    exp2_csv = tmp_path / "exp2_simple.csv"
+    exp2_df.to_csv(exp2_csv, index=False)
+
+    config = CrossPlatformConfig(
+        exp1_data_path=str(exp1_csv),
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path=str(exp2_csv),
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        min_samples_per_genotype=2,
+        exp1_exclude_cols=["Ent", "Sub"],
+    )
+
+    from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+        LoadCrossPlatformDataStep,
+    )
+
+    step = LoadCrossPlatformDataStep()
+    result = step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
+
+    exp1_traits = result.metadata["exp1_trait_names"]
+
+    # Ent and Sub should NOT be in traits (excluded)
+    assert "Ent" not in exp1_traits
+    assert "Sub" not in exp1_traits
+
+    # Actual traits should be present
+    assert "trait1" in exp1_traits
+    assert "trait2" in exp1_traits
+    assert len(exp1_traits) == 2
+
+
+def test_load_cross_platform_excludes_exp2_columns(tmp_path):
+    """Test that LoadCrossPlatformDataStep excludes columns from exp2 traits."""
+    exp1_data = {
+        "Geno": ["A", "A", "B", "B"],
+        "Rep": [1, 2, 1, 2],
+        "trait1": [10.5, 11.2, 12.3, 11.9],
+    }
+    exp1_df = pd.DataFrame(exp1_data)
+    exp1_csv = tmp_path / "exp1_simple.csv"
+    exp1_df.to_csv(exp1_csv, index=False)
+
+    exp2_data = {
+        "geno": ["A", "A", "B", "B"],
+        "rep": [1, 2, 1, 2],
+        "scanner": [1, 1, 2, 2],
+        "region": [1, 1, 1, 1],
+        "trait_a": [20.1, 20.5, 22.0, 21.8],
+        "trait_b": [10.2, 10.5, 11.0, 10.8],
+    }
+    exp2_df = pd.DataFrame(exp2_data)
+    exp2_csv = tmp_path / "exp2_with_metadata.csv"
+    exp2_df.to_csv(exp2_csv, index=False)
+
+    config = CrossPlatformConfig(
+        exp1_data_path=str(exp1_csv),
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path=str(exp2_csv),
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        min_samples_per_genotype=2,
+        exp2_exclude_cols=["scanner", "region"],
+    )
+
+    from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+        LoadCrossPlatformDataStep,
+    )
+
+    step = LoadCrossPlatformDataStep()
+    result = step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
+
+    exp2_traits = result.metadata["exp2_trait_names"]
+
+    assert "scanner" not in exp2_traits
+    assert "region" not in exp2_traits
+    assert "trait_a" in exp2_traits
+    assert "trait_b" in exp2_traits
+    assert len(exp2_traits) == 2

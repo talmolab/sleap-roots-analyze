@@ -54,6 +54,8 @@ class LoadCrossPlatformDataStep(BaseStep):
                 - exp2_name: Name of experiment 2
                 - exp2_genotype_col: Genotype column name in exp2
                 - min_samples_per_genotype: Minimum samples required per genotype
+                - exp1_exclude_cols: Columns to exclude from exp1 trait analysis
+                - exp2_exclude_cols: Columns to exclude from exp2 trait analysis
             run_dir: Directory to save outputs
             prev_result: Previous step result (unused)
 
@@ -74,17 +76,20 @@ class LoadCrossPlatformDataStep(BaseStep):
         # Get trait columns for each experiment
         # Note: column names are standardized to "genotype" and "replicate"
         # Set barcode_col to None since it may not exist in the loaded data
+        # Pass exclusion lists from config to filter out metadata columns
         exp1_traits = get_trait_columns(
             exp1_df,
             barcode_col=None,
             genotype_col="genotype",
             replicate_col="replicate",
+            additional_exclude=config.exp1_exclude_cols,
         )
         exp2_traits = get_trait_columns(
             exp2_df,
             barcode_col=None,
             genotype_col="genotype",
             replicate_col="replicate",
+            additional_exclude=config.exp2_exclude_cols,
         )
 
         # Filter genotypes by minimum sample count

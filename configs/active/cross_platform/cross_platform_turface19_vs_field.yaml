@@ -29,6 +29,11 @@ figsize_summary: [14, 12]       # Summary heatmap figure size
 figsize_joint: [10, 10]         # Joint plot figure size
 figsize_boxplot: [14, 6]        # Boxplot figure size
 
+# Column Exclusions - metadata columns to exclude from trait analysis
+# exp1_exclude_cols not needed - Turface 19 has no extra metadata columns
+
+# exp2_exclude_cols not needed - Field 2024 Clean only has Genotype, Replicate, Barcode
+
 # Analysis Notes:
 # - 19 genotypes from Turface, 20 genotypes from Field
 # - Overlapping genotypes to be determined at runtime

@@ -27,6 +27,43 @@ figsize_summary: [16, 14]       # Larger summary plot (many correlations)
 figsize_joint: [10, 10]         # Joint plot figure size
 figsize_boxplot: [16, 6]        # Boxplot figure size
 
+# Column Exclusions - metadata columns to exclude from trait analysis
+# exp1_exclude_cols not needed - Turface 19 has no extra metadata columns
+
+# Cylinder data (exp2) has SLEAP Roots pipeline metadata columns
+exp2_exclude_cols:
+  - "Geno_rep"           # Genotype-replicate identifier
+  - "Sterilization"      # Sterilization treatment
+  - "DOT"                # Day of treatment
+  - "QC_SLEAP"           # SLEAP QC flag
+  - "QC_Code"            # QC status code
+  - "Date_QC"            # Date of QC
+  - "Outlier_Harvest_Only"  # Outlier flag
+  - "scan_id"            # Scan identifier
+  - "accession_id"       # Accession identifier
+  - "crown"              # Crown root count (metadata)
+  - "date_scanned"       # Date scanned
+  - "experiment_id"      # Experiment identifier
+  - "experiment_name"    # Experiment name
+  - "germ_day"           # Germination day
+  - "germ_day_color"     # Germination day color code
+  - "lateral"            # Lateral root count (metadata)
+  - "phenotyper_id"      # Phenotyper identifier
+  - "plant_age_days"     # Plant age in days
+  - "plant_id"           # Plant identifier
+  - "plant_name"         # Plant name
+  - "primary"            # Primary root count (metadata)
+  - "scan_path"          # Path to scan file
+  - "scanner_id"         # Scanner identifier
+  - "species_genus"      # Species genus
+  - "species_id"         # Species identifier
+  - "species_name"       # Species name
+  - "species_species"    # Species species
+  - "uploaded_at"        # Upload timestamp
+  - "wave_id"            # Wave identifier
+  - "wave_name"          # Wave name
+  - "wave_number"        # Wave number
+
 # Analysis Notes:
 # - 19 genotypes present in both experiments
 # - Different developmental stages: Turface (washed roots) vs Cylinder (11 DAG seedlings)
