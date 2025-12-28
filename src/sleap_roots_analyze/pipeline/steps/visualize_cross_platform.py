@@ -76,6 +76,7 @@ class VisualizeCrossPlatformStep(BaseStep):
         files_generated = []
 
         # 1. Create correlation summary plot (uses Spearman as primary metric)
+        # Pass significant_col to use FDR-corrected significance count
         fig = create_correlation_summary_plot(
             correlation_df,
             correlation_col="spearman_r",
@@ -84,6 +85,7 @@ class VisualizeCrossPlatformStep(BaseStep):
             exp2_trait_col="exp2_trait",
             figsize=config.figsize_summary,
             top_n=config.top_n_correlations,
+            significant_col="significant_fdr",
         )
 
         summary_output = run_dir / "cross_platform_correlation_summary.png"

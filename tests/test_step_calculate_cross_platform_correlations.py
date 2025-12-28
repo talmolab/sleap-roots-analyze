@@ -483,3 +483,207 @@ def test_visualization_uses_precomputed_pearson_values(tmp_path):
     plt.close(fig)
 
     # If we get here without error, the function accepts the new parameters
+
+
+# === TDD Tests for FDR Correction (add-fdr-correction) ===
+
+
+def test_fdr_correction_bh_method(loaded_data_result, tmp_path):
+    """Test that fdr_bh correction method produces adjusted p-values.
+
+    TDD Test: Verifies adjusted columns exist and p_adj >= p_raw.
+    """
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        fdr_correction_method="fdr_bh",
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=loaded_data_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    corr_df = result.data["correlation_df"]
+
+    # Check new columns exist
+    assert "spearman_p_adjusted" in corr_df.columns
+    assert "pearson_p_adjusted" in corr_df.columns
+    assert "significant_fdr" in corr_df.columns
+
+    # Adjusted p-values should be >= raw p-values
+    assert (corr_df["spearman_p_adjusted"] >= corr_df["spearman_p"] - 1e-10).all()
+    assert (corr_df["pearson_p_adjusted"] >= corr_df["pearson_p"] - 1e-10).all()
+
+    # significant_fdr should be boolean
+    assert corr_df["significant_fdr"].dtype == bool
+
+
+def test_fdr_correction_by_method(loaded_data_result, tmp_path):
+    """Test that fdr_by correction method (default) produces more conservative results.
+
+    BY correction should produce larger (more conservative) adjusted p-values than BH.
+    """
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    # Run with fdr_bh
+    config_bh = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        fdr_correction_method="fdr_bh",
+    )
+
+    # Run with fdr_by (default, more conservative)
+    config_by = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        fdr_correction_method="fdr_by",
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+
+    # Create subdirectories for each run
+    bh_dir = tmp_path / "bh"
+    by_dir = tmp_path / "by"
+    bh_dir.mkdir(parents=True, exist_ok=True)
+    by_dir.mkdir(parents=True, exist_ok=True)
+
+    result_bh = step.execute(
+        data=loaded_data_result.data,
+        config=config_bh,
+        run_dir=bh_dir,
+        prev_result=loaded_data_result,
+    )
+
+    result_by = step.execute(
+        data=loaded_data_result.data,
+        config=config_by,
+        run_dir=by_dir,
+        prev_result=loaded_data_result,
+    )
+
+    # BY should be more conservative (fewer significant, or same)
+    sig_bh = result_bh.data["correlation_df"]["significant_fdr"].sum()
+    sig_by = result_by.data["correlation_df"]["significant_fdr"].sum()
+    assert sig_by <= sig_bh
+
+
+def test_fdr_correction_none_method(loaded_data_result, tmp_path):
+    """Test that 'none' correction method uses raw p-values."""
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        fdr_correction_method="none",
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=loaded_data_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    corr_df = result.data["correlation_df"]
+
+    # With no correction, adjusted should equal raw
+    assert np.allclose(
+        corr_df["spearman_p_adjusted"], corr_df["spearman_p"], rtol=1e-10
+    )
+    assert np.allclose(corr_df["pearson_p_adjusted"], corr_df["pearson_p"], rtol=1e-10)
+
+
+def test_fdr_correction_invalid_method():
+    """Test that invalid FDR method raises ValueError."""
+    with pytest.raises(ValueError, match="fdr_correction_method must be one of"):
+        CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            fdr_correction_method="invalid_method",
+        )
+
+
+def test_csv_output_contains_fdr_columns(
+    cross_platform_config, loaded_data_result, tmp_path
+):
+    """Test that saved CSV contains FDR correction columns."""
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=loaded_data_result.data,
+        config=cross_platform_config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    # Verify CSV was saved with new columns
+    saved_df = pd.read_csv(tmp_path / "cross_platform_correlations.csv")
+    assert "spearman_p_adjusted" in saved_df.columns
+    assert "pearson_p_adjusted" in saved_df.columns
+    assert "significant_fdr" in saved_df.columns
+
+
+def test_metadata_includes_fdr_info(loaded_data_result, tmp_path):
+    """Test that metadata includes FDR correction information."""
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        fdr_correction_method="fdr_by",
+        significance_level=0.05,
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=loaded_data_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    assert result.metadata["fdr_correction_method"] == "fdr_by"
+    assert result.metadata["significance_level"] == 0.05
+    assert "significant_correlations" in result.metadata

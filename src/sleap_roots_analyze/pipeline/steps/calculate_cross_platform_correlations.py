@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import pandas as pd
 import numpy as np
+from statsmodels.stats.multitest import multipletests
 
 from sleap_roots_analyze.cross_experiment_analysis import (
     calculate_genotype_means,
@@ -137,6 +138,45 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         ).drop(columns=["abs_correlation"])
         correlation_df = correlation_df.reset_index(drop=True)
 
+        # Apply multiple testing correction
+        if config.fdr_correction_method != "none" and len(correlation_df) > 1:
+            # Correct Spearman p-values
+            _, spearman_p_adj, _, _ = multipletests(
+                correlation_df["spearman_p"],
+                alpha=config.significance_level,
+                method=config.fdr_correction_method,
+            )
+            correlation_df["spearman_p_adjusted"] = spearman_p_adj
+
+            # Correct Pearson p-values
+            _, pearson_p_adj, _, _ = multipletests(
+                correlation_df["pearson_p"],
+                alpha=config.significance_level,
+                method=config.fdr_correction_method,
+            )
+            correlation_df["pearson_p_adjusted"] = pearson_p_adj
+
+            # Add significance flag based on primary correlation method
+            primary_p_adj = (
+                "spearman_p_adjusted"
+                if config.correlation_method == "spearman"
+                else "pearson_p_adjusted"
+            )
+            correlation_df["significant_fdr"] = (
+                correlation_df[primary_p_adj] < config.significance_level
+            )
+        else:
+            # No correction - adjusted equals raw
+            correlation_df["spearman_p_adjusted"] = correlation_df["spearman_p"]
+            correlation_df["pearson_p_adjusted"] = correlation_df["pearson_p"]
+            # Significance based on raw p-values
+            primary_p = (
+                "spearman_p" if config.correlation_method == "spearman" else "pearson_p"
+            )
+            correlation_df["significant_fdr"] = (
+                correlation_df[primary_p] < config.significance_level
+            )
+
         # Save correlation results
         corr_output = run_dir / "cross_platform_correlations.csv"
         correlation_df.to_csv(corr_output, index=False)
@@ -152,6 +192,9 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         metadata = {
             "total_correlations": len(correlation_df),
             "correlation_method": config.correlation_method,
+            "fdr_correction_method": config.fdr_correction_method,
+            "significance_level": config.significance_level,
+            "significant_correlations": int(correlation_df["significant_fdr"].sum()),
             "exp1_traits": len(exp1_traits),
             "exp2_traits": len(exp2_traits),
             "exp1_trait_names": exp1_traits,
