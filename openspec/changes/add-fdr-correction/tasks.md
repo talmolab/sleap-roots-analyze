@@ -44,10 +44,10 @@
 
 ## 7. Documentation
 
-- [ ] 7.1 Create `docs/CROSS_PLATFORM_ANALYSIS.md` with comprehensive guide
-- [ ] 7.2 Add mathematical formulation of Benjamini-Hochberg (BH) procedure
-- [ ] 7.3 Add mathematical formulation of Benjamini-Yekutieli (BY) procedure
-- [ ] 7.4 Explain why BY often produces no significant results (expected behavior)
-- [ ] 7.5 Document output CSV columns and their meanings
-- [ ] 7.6 Add practical recommendations for improving statistical power
-- [ ] 7.7 Include references to original BH and BY papers
+- [x] 7.1 Create `docs/CROSS_PLATFORM_ANALYSIS.md` with comprehensive guide
+- [x] 7.2 Add mathematical formulation of Benjamini-Hochberg (BH) procedure
+- [x] 7.3 Add mathematical formulation of Benjamini-Yekutieli (BY) procedure
+- [x] 7.4 Explain why BY often produces no significant results (expected behavior)
+- [x] 7.5 Document output CSV columns and their meanings
+- [x] 7.6 Add practical recommendations for improving statistical power
+- [x] 7.7 Include references to original BH and BY papers
