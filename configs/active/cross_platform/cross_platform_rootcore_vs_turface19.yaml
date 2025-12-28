@@ -19,7 +19,8 @@ exp2_genotype_col: "Genotype"
 correlation_method: "spearman"  # Spearman for robustness
 min_samples_per_genotype: 2     # Lower threshold for field data
 significance_level: 0.05        # Standard p-value threshold
-n# Multiple Testing Correction
+
+# Multiple Testing Correction
 # Options: "fdr_bh" (Benjamini-Hochberg), "fdr_by" (Benjamini-Yekutieli), "none"
 # Default: "fdr_by" (conservative, valid for correlated traits)
 fdr_correction_method: "fdr_by"
