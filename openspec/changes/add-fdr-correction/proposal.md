@@ -17,6 +17,10 @@ When computing thousands of pairwise correlations between traits across two expe
   - `significant_fdr`: Boolean flag (adjusted p < significance_level)
 - Update volcano plot annotation to show FDR-corrected significance count
 - Update metadata to include correction method and significant correlation count
+- Update pipeline summary to include StepResult metadata (FDR info)
+- Update run-all SUMMARY.md generation:
+  - Use correct correlation column names (`spearman_r` instead of `correlation`)
+  - Update Methods section to mention FDR correction instead of Bonferroni
 - Add comprehensive documentation explaining FDR correction mathematically:
   - Mathematical formulation of BH and BY procedures
   - When to use each method
@@ -31,6 +35,8 @@ When computing thousands of pairwise correlations between traits across two expe
   - `src/sleap_roots_analyze/pipeline/steps/calculate_cross_platform_correlations.py`
   - `src/sleap_roots_analyze/cross_experiment_analysis.py` (create_correlation_summary_plot)
   - `src/sleap_roots_analyze/pipeline/steps/visualize_cross_platform.py`
+  - `src/sleap_roots_analyze/pipeline/pipelines/base_pipeline.py` (merge StepResult metadata)
+  - `src/sleap_roots_analyze/pipeline_runner.py` (SUMMARY.md generation)
   - `configs/cross_platform_*.yaml` (example configs)
   - `tests/test_step_calculate_cross_platform_correlations.py`
 - Affected documentation:

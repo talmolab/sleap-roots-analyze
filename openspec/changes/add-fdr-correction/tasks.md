@@ -51,3 +51,10 @@
 - [x] 7.5 Document output CSV columns and their meanings
 - [x] 7.6 Add practical recommendations for improving statistical power
 - [x] 7.7 Include references to original BH and BY papers
+
+## 8. Pipeline Summary Updates
+
+- [x] 8.1 Update `base_pipeline.py` to merge StepResult metadata into pipeline summary JSON
+- [x] 8.2 Update `pipeline_runner.py` to use `spearman_r` column (new schema) for top correlation
+- [x] 8.3 Update Methods section in SUMMARY.md to mention FDR correction instead of Bonferroni
+- [x] 8.4 Run `run-all --cross-only` and verify SUMMARY.md shows correct top correlations

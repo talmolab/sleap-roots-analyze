@@ -261,3 +261,29 @@ The system SHALL provide comprehensive documentation of FDR (False Discovery Rat
 - **THEN** documentation explains each column's meaning
 - **AND** clarifies difference between raw and adjusted p-values
 - **AND** explains the significant_fdr boolean column
+
+### Requirement: Pipeline Summary Integration
+
+The system SHALL include FDR correction metadata in pipeline summaries with the following behavior:
+
+- Pipeline summary JSON SHALL include StepResult metadata merged with TaskResult metadata
+- The `pipeline_summary.json` for each cross-platform run SHALL include:
+  - `fdr_correction_method`: The correction method used
+  - `significant_correlations`: Count of correlations passing FDR threshold
+  - `total_correlations`: Total number of correlations computed
+- The run-all `SUMMARY.md` SHALL:
+  - Display top correlation values using `spearman_r` column from new CSV schema
+  - Reference FDR correction in the Methods section (not Bonferroni)
+
+#### Scenario: Pipeline summary JSON includes FDR metadata
+
+- **WHEN** cross-platform pipeline completes successfully
+- **THEN** `pipeline_summary.json` step metadata includes `fdr_correction_method`
+- **AND** step metadata includes `significant_correlations` count
+- **AND** step metadata includes `total_correlations` count
+
+#### Scenario: Run-all SUMMARY.md shows correct top correlations
+
+- **WHEN** user runs `sleap-roots-analyze run-all` with cross-platform configs
+- **THEN** SUMMARY.md table shows top correlation values from `spearman_r` column
+- **AND** Methods section describes FDR correction (not Bonferroni)
