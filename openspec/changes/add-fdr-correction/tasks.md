@@ -41,3 +41,13 @@
 - [x] 6.1 Run full test suite: `uv run pytest tests/test_step_calculate_cross_platform_correlations.py -v`
 - [x] 6.2 Run linting: `uv run ruff check --fix && uv run black .`
 - [x] 6.3 Delete stray plan file: `C:\Users\Elizabeth\.claude\plans\enumerated-hatching-planet.md`
+
+## 7. Documentation
+
+- [ ] 7.1 Create `docs/CROSS_PLATFORM_ANALYSIS.md` with comprehensive guide
+- [ ] 7.2 Add mathematical formulation of Benjamini-Hochberg (BH) procedure
+- [ ] 7.3 Add mathematical formulation of Benjamini-Yekutieli (BY) procedure
+- [ ] 7.4 Explain why BY often produces no significant results (expected behavior)
+- [ ] 7.5 Document output CSV columns and their meanings
+- [ ] 7.6 Add practical recommendations for improving statistical power
+- [ ] 7.7 Include references to original BH and BY papers

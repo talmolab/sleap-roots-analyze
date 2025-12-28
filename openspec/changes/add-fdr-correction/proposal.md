@@ -17,6 +17,11 @@ When computing thousands of pairwise correlations between traits across two expe
   - `significant_fdr`: Boolean flag (adjusted p < significance_level)
 - Update volcano plot annotation to show FDR-corrected significance count
 - Update metadata to include correction method and significant correlation count
+- Add comprehensive documentation explaining FDR correction mathematically:
+  - Mathematical formulation of BH and BY procedures
+  - When to use each method
+  - Why BY often yields no significant results (expected behavior)
+  - Practical recommendations for improving statistical power
 
 ## Impact
 
@@ -28,5 +33,7 @@ When computing thousands of pairwise correlations between traits across two expe
   - `src/sleap_roots_analyze/pipeline/steps/visualize_cross_platform.py`
   - `configs/cross_platform_*.yaml` (example configs)
   - `tests/test_step_calculate_cross_platform_correlations.py`
+- Affected documentation:
+  - `docs/CROSS_PLATFORM_ANALYSIS.md` (new file with mathematical explanations)
 - Backward compatible: default `fdr_by` works with existing configs (new field has default)
 - No new dependencies: `statsmodels.stats.multitest.multipletests` already used in codebase

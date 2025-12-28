@@ -208,3 +208,56 @@ The system SHALL generate reproducible outputs with consistent directory structu
 
 - **WHEN** user runs cross-platform pipeline multiple times with different configs
 - **THEN** each run creates timestamped directory with identical internal structure for easy comparison
+
+## ADDED Requirements
+
+### Requirement: FDR Correction Documentation
+
+The system SHALL provide comprehensive documentation of FDR (False Discovery Rate) correction methods in `docs/CROSS_PLATFORM_ANALYSIS.md` with the following content:
+
+- Mathematical formulation of the Benjamini-Hochberg (BH) procedure including:
+  - Ordered p-value notation p₍₁₎ ≤ p₍₂₎ ≤ ... ≤ p₍ₘ₎
+  - Critical value formula: α_i = (i / m) × α
+  - Decision rule for rejecting hypotheses
+  - Adjusted p-value formula
+- Mathematical formulation of the Benjamini-Yekutieli (BY) procedure including:
+  - The additional correction factor c(m) = Σ(1/i) for i = 1 to m
+  - How c(m) grows logarithmically with the number of tests
+  - Example correction factors for common test counts (100, 1000, 10000, 100000)
+- Explanation of when adjusted p-values are capped at 1.0
+- Guidance on when to use each method (BH vs BY vs none)
+- Explanation of why BY often yields no significant results with:
+  - Small sample sizes (< 20 genotypes)
+  - Large numbers of tests (> 10,000)
+  - Example calculation showing how minimum p-values become 1.0 after BY correction
+- Practical recommendations for improving statistical power
+- Output file documentation including CSV column descriptions
+- Academic references to the original BH (1995) and BY (2001) papers
+
+#### Scenario: User understands BH procedure mathematically
+
+- **WHEN** user reads the BH procedure section
+- **THEN** they can understand the step-by-step algorithm
+- **AND** they can calculate adjusted p-values manually for small examples
+- **AND** they understand when BH is appropriate (independent or positively correlated tests)
+
+#### Scenario: User understands BY procedure mathematically
+
+- **WHEN** user reads the BY procedure section
+- **THEN** they understand the additional conservatism from c(m)
+- **AND** they can look up approximate correction factors for their number of tests
+- **AND** they understand BY is valid under arbitrary dependence
+
+#### Scenario: User understands why no results are significant
+
+- **WHEN** user runs analysis with BY correction and gets zero significant results
+- **THEN** documentation explains this is expected behavior
+- **AND** provides worked example showing why minimum p-values become 1.0
+- **AND** suggests actionable steps (increase sample size, reduce tests, use BH for exploration)
+
+#### Scenario: User can interpret output files
+
+- **WHEN** user examines cross_platform_correlations.csv
+- **THEN** documentation explains each column's meaning
+- **AND** clarifies difference between raw and adjusted p-values
+- **AND** explains the significant_fdr boolean column
