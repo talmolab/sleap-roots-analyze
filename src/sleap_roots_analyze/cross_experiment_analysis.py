@@ -222,7 +222,7 @@ def create_correlation_summary_plot(
         alpha=0.7,
         color="#2E6E73",
     )
-    ax.axvline(0, color="red", linestyle="--", alpha=0.5)
+    ax.axvline(0, color="gray", linestyle="-", alpha=0.3, linewidth=1)
     ax.set_xlabel("Correlation Coefficient")
     ax.set_ylabel("Count")
     ax.set_title("Distribution of Correlations")

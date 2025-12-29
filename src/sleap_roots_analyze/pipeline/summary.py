@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from sleap_roots_analyze.data_utils import convert_to_json_serializable
+
 
 @dataclass
 class StepSummary:
@@ -83,7 +85,7 @@ class PipelineSummary:
         Returns:
             JSON string representation of the summary.
         """
-        # Convert Path objects to strings for JSON serialization
+        # Convert Path objects to strings and numpy types to native Python
         data = self.to_dict()
         data["steps"] = [
             {
@@ -92,6 +94,8 @@ class PipelineSummary:
             }
             for step in data["steps"]
         ]
+        # Use convert_to_json_serializable to handle numpy types in metadata
+        data = convert_to_json_serializable(data)
         return json.dumps(data, indent=indent)
 
     def save(self, path: Path | str) -> None:

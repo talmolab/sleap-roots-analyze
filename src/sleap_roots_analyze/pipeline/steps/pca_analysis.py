@@ -136,10 +136,15 @@ class PCAAnalysisStep(BaseStep):
 
         logger.info(f"Saved PCA results to: {pca_dir}")
 
+        # Create serializable version of pca_results (exclude sklearn PCA object)
+        # Downstream steps need transformed_data, loadings, eigenvalues, etc.
+        # but not the PCA model object itself
+        pca_results_serializable = {k: v for k, v in pca_results.items() if k != "pca"}
+
         # Update metadata
         metadata = {
             **prev_result.metadata,
-            "pca_results": pca_results,
+            "pca_results": pca_results_serializable,
             "top_features": top_features,
             "n_pca_components": n_components,
             "pca_explained_variance": explained_var,

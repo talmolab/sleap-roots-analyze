@@ -58,3 +58,8 @@
 - [x] 8.2 Update `pipeline_runner.py` to use `spearman_r` column (new schema) for top correlation
 - [x] 8.3 Update Methods section in SUMMARY.md to mention FDR correction instead of Bonferroni
 - [x] 8.4 Run `run-all --cross-only` and verify SUMMARY.md shows correct top correlations
+- [x] 8.5 Use existing `convert_to_json_serializable` from `data_utils.py` in `summary.py` for numpy types
+- [x] 8.6 Exclude sklearn PCA object from StepResult metadata (non-serializable)
+- [x] 8.7 Add Path handling to `convert_to_json_serializable` using `as_posix()`
+- [x] 8.8 Update histogram correlation=0 line style (gray solid) to distinguish from p-value thresholds
+- [x] 8.9 Run `run-all` and verify full pipeline succeeds (12/12 passed)
