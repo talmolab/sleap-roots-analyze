@@ -7,6 +7,7 @@ This guide covers the cross-platform correlation analysis pipeline, which compar
 - [Overview](#overview)
 - [Configuration](#configuration)
 - [Multiple Testing Correction](#multiple-testing-correction)
+- [Edge Cases](#edge-cases)
 - [Output Files](#output-files)
 - [Interpreting Results](#interpreting-results)
 - [Examples](#examples)
@@ -234,6 +235,64 @@ If BY correction yields no significant results, consider:
    - Show top correlations by raw p-value
    - Note they did not survive FDR correction
    - Treat as hypotheses for future studies
+
+---
+
+## Edge Cases
+
+### Constant-Valued Traits (Zero Variance)
+
+When a trait has constant values across all genotypes (zero variance), correlation cannot be computed.
+
+**Behavior:**
+- Correlation coefficient (r or ρ) = NaN
+- Raw p-value = NaN
+- Adjusted p-value = NaN (excluded from FDR correction)
+- `significant_fdr` = False
+
+**Why this happens:**
+Correlation measures the relationship between two variables as they vary together. If one variable doesn't vary (all genotypes have the same trait value), there's no covariation to measure. Mathematically, the correlation formula divides by the standard deviation, which is zero for constant data.
+
+**Example:** If all 20 genotypes have `root_count = 5.0`, then `root_count` vs any other trait will have NaN correlation.
+
+### Fewer Than 3 Valid Samples
+
+When fewer than 3 genotypes have valid (non-NaN) data for a trait pair, correlation is not computed.
+
+**Behavior:**
+- Correlation coefficient = NaN
+- Raw p-value = NaN
+- Adjusted p-value = NaN
+- `significant_fdr` = False
+
+**Why 3 is the minimum:**
+1. **Degrees of freedom:** Correlation tests have n-2 degrees of freedom. With n=2, df=0, making p-value calculation undefined.
+2. **Statistical meaning:** With only 2 points, you always get r=±1.0 (perfect correlation), which is meaningless.
+3. **Convention:** Most statistical software requires n≥3 for correlation.
+
+### NaN P-value Handling in FDR Correction
+
+The `statsmodels.multipletests` function returns **all NaN** if any input p-value is NaN. The pipeline handles this by:
+
+1. **Filtering:** NaN p-values are excluded before calling `multipletests`
+2. **Correcting:** FDR correction is applied only to valid p-values
+3. **Merging:** Results are merged back, preserving NaN for invalid correlations
+4. **Logging:** A warning is logged when NaN p-values are encountered
+
+**Example log output:**
+```
+WARNING: Found 5 NaN p-values out of 1000 total. These will be excluded from FDR correction and remain NaN.
+```
+
+### Single Correlation (m=1)
+
+When only one trait pair exists (e.g., one trait in each experiment), there's no multiple testing to correct.
+
+**Behavior:**
+- Adjusted p-value = Raw p-value (no correction applied)
+- `significant_fdr` based on raw p-value vs significance level
+
+This is correct because with m=1 test, the expected false discoveries under the null hypothesis is α × 1 = α, which is what we're already controlling.
 
 ---
 
