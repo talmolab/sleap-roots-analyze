@@ -645,7 +645,7 @@ def test_csv_output_contains_fdr_columns(
     )
 
     step = CalculateCrossPlatformCorrelationsStep()
-    result = step.execute(
+    step.execute(
         data=loaded_data_result.data,
         config=cross_platform_config,
         run_dir=tmp_path,
