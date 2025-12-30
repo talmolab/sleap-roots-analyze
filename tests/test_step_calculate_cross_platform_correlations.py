@@ -522,9 +522,15 @@ def test_fdr_correction_bh_method(loaded_data_result, tmp_path):
     assert "pearson_p_adjusted" in corr_df.columns
     assert "significant_fdr" in corr_df.columns
 
-    # Adjusted p-values should be >= raw p-values
-    assert (corr_df["spearman_p_adjusted"] >= corr_df["spearman_p"] - 1e-10).all()
-    assert (corr_df["pearson_p_adjusted"] >= corr_df["pearson_p"] - 1e-10).all()
+    # Adjusted p-values should be >= raw p-values (allowing small numerical tolerance)
+    np.testing.assert_array_less(
+        corr_df["spearman_p"].to_numpy(),
+        corr_df["spearman_p_adjusted"].to_numpy() + 1e-10,
+    )
+    np.testing.assert_array_less(
+        corr_df["pearson_p"].to_numpy(),
+        corr_df["pearson_p_adjusted"].to_numpy() + 1e-10,
+    )
 
     # significant_fdr should be boolean
     assert corr_df["significant_fdr"].dtype == bool
