@@ -19,6 +19,11 @@ correlation_method: "spearman"  # Spearman recommended for robustness to outlier
 min_samples_per_genotype: 3     # Minimum biological replicates per genotype
 significance_level: 0.05        # Standard p-value threshold
 
+# Multiple Testing Correction
+# Options: "fdr_bh" (Benjamini-Hochberg), "fdr_by" (Benjamini-Yekutieli), "none"
+# Default: "fdr_by" (conservative, valid for correlated traits)
+fdr_correction_method: "fdr_by"
+
 # Visualization Parameters
 top_n_correlations: 20          # Number of top correlations to display in summary
 top_n_joint_plots: 6            # Generate joint plots for all common trait pairs

@@ -15,6 +15,7 @@ from typing import Any, Dict, List
 
 from omegaconf import DictConfig, OmegaConf
 
+from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.dag import DAGExecutor
 from sleap_roots_analyze.pipeline.summary import PipelineSummary, StepSummary
 from sleap_roots_analyze.pipeline.task import Task, TaskResult
@@ -303,11 +304,27 @@ class BasePipeline(ABC):
 
             # Update summary with results
             for task_name, task_result in results.items():
+                # Merge TaskResult metadata with StepResult metadata if available
+                # StepResult contains domain-specific metadata (e.g., FDR settings,
+                # significant_correlations) while TaskResult has execution metadata
+                # (elapsed_time, task_name)
+                merged_metadata = dict(task_result.metadata)
+                if isinstance(task_result.data, StepResult):
+                    # StepResult metadata takes precedence for domain-specific fields
+                    merged_metadata.update(task_result.data.metadata)
+                    # Preserve elapsed_time and task_name from TaskResult
+                    merged_metadata["elapsed_time"] = task_result.metadata.get(
+                        "elapsed_time", 0.0
+                    )
+                    merged_metadata["task_name"] = task_result.metadata.get(
+                        "task_name", task_name
+                    )
+
                 self.summary.mark_step_success(
                     step_name=task_name,
                     elapsed_time=task_result.metadata.get("elapsed_time", 0.0),
                     files_generated=task_result.files_generated,
-                    metadata=task_result.metadata,
+                    metadata=merged_metadata,
                 )
 
             # Finalize summary

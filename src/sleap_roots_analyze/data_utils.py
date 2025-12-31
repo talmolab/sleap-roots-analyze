@@ -29,13 +29,22 @@ def create_run_directory(base_dir: Path) -> Path:
 
 
 def convert_to_json_serializable(obj):
-    """Convert numpy types to JSON serializable types recursively."""
+    """Convert numpy types, Path objects, and other types to JSON serializable types.
+
+    Handles:
+    - dicts, lists, tuples: recursively converts contents
+    - Path objects: converted to POSIX string
+    - numpy types: converted to Python native types
+    - Non-serializable objects (e.g., sklearn PCA): converted to type name string
+    """
     if isinstance(obj, dict):
         return {k: convert_to_json_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_json_serializable(item) for item in obj]
     elif isinstance(obj, tuple):
         return tuple(convert_to_json_serializable(item) for item in obj)
+    elif isinstance(obj, Path):
+        return obj.as_posix()
     elif isinstance(obj, (np.integer, np.int64, np.int32)):
         return int(obj)
     elif isinstance(obj, (np.floating, np.float64, np.float32)):
@@ -46,8 +55,11 @@ def convert_to_json_serializable(obj):
         return obj.tolist()
     elif hasattr(obj, "tolist"):
         return obj.tolist()
-    else:
+    elif isinstance(obj, (str, int, float, type(None))):
         return obj
+    else:
+        # For non-serializable objects (e.g., sklearn models), store type name
+        return f"<{type(obj).__name__}>"
 
 
 def _detect_depth_suffix(col_name: str) -> Optional[float]:

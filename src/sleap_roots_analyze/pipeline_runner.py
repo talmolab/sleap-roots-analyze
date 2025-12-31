@@ -867,10 +867,15 @@ class PipelineRunner:
                         import pandas as pd
 
                         corr_df = pd.read_csv(corr_path)
-                        if "correlation" in corr_df.columns and len(corr_df) > 0:
-                            # Get top absolute correlation
-                            top_val = corr_df["correlation"].abs().max()
-                            top_corr = f"{top_val:.2f}"
+                        if len(corr_df) > 0:
+                            # Use spearman_r column (new schema) or fallback to
+                            # correlation (legacy schema)
+                            if "spearman_r" in corr_df.columns:
+                                top_val = corr_df["spearman_r"].abs().max()
+                                top_corr = f"{top_val:.3f}"
+                            elif "correlation" in corr_df.columns:
+                                top_val = corr_df["correlation"].abs().max()
+                                top_corr = f"{top_val:.2f}"
                     except Exception:
                         pass
 
@@ -1056,9 +1061,10 @@ class PipelineRunner:
             "",
             "### Cross-Platform Analysis",
             "",
-            "Cross-platform trait correlations were calculated using Spearman rank correlation "
-            "on genotype means. Significance was assessed using permutation testing with "
-            "Bonferroni correction for multiple comparisons.",
+            "Cross-platform trait correlations were calculated using both Spearman and Pearson "
+            "correlation on genotype means. Multiple testing was controlled using False Discovery "
+            "Rate (FDR) correction with the Benjamini-Yekutieli procedure, which is valid under "
+            "arbitrary dependence between tests.",
             "",
             "---",
             "",

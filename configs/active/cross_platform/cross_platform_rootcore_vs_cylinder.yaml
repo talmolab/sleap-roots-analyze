@@ -21,6 +21,11 @@ correlation_method: "spearman"  # Spearman for robustness
 min_samples_per_genotype: 2     # Lower threshold for field data
 significance_level: 0.05        # Standard p-value threshold
 
+# Multiple Testing Correction
+# Options: "fdr_bh" (Benjamini-Hochberg), "fdr_by" (Benjamini-Yekutieli), "none"
+# Default: "fdr_by" (conservative, valid for correlated traits)
+fdr_correction_method: "fdr_by"
+
 # Visualization Parameters
 top_n_correlations: 50          # More correlations (high-dimensional cylinder data)
 top_n_joint_plots: 15           # Joint plots for top correlations

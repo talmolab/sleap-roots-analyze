@@ -163,6 +163,7 @@ def create_correlation_summary_plot(
     figsize: tuple = (14, 12),
     significance_threshold: float = 0.05,
     top_n: int = 15,
+    significant_col: Optional[str] = None,
 ) -> plt.Figure:
     """Create a 4-panel summary visualization of cross-platform correlations.
 
@@ -181,6 +182,9 @@ def create_correlation_summary_plot(
         figsize: Figure size as (width, height) tuple
         significance_threshold: P-value threshold for significance lines
         top_n: Number of top correlations to show in bar charts
+        significant_col: Optional column name containing pre-computed significance
+            flags (e.g., "significant_fdr"). If provided, uses this column for
+            counting significant correlations instead of p-value thresholding.
 
     Returns:
         matplotlib Figure object
@@ -218,17 +222,24 @@ def create_correlation_summary_plot(
         alpha=0.7,
         color="#2E6E73",
     )
-    ax.axvline(0, color="red", linestyle="--", alpha=0.5)
+    ax.axvline(0, color="gray", linestyle="-", alpha=0.3, linewidth=1)
     ax.set_xlabel("Correlation Coefficient")
     ax.set_ylabel("Count")
     ax.set_title("Distribution of Correlations")
 
     # Count significant correlations
-    n_significant = (correlation_df[pvalue_col] < significance_threshold).sum()
+    if significant_col is not None and significant_col in correlation_df.columns:
+        # Use pre-computed significance column (e.g., FDR-corrected)
+        n_significant = correlation_df[significant_col].sum()
+        sig_label = "Significant (FDR)"
+    else:
+        # Fall back to p-value thresholding
+        n_significant = (correlation_df[pvalue_col] < significance_threshold).sum()
+        sig_label = "Significant"
     ax.text(
         0.05,
         0.95,
-        f"n = {len(correlation_df):,}\nSignificant: {n_significant}",
+        f"n = {len(correlation_df):,}\n{sig_label}: {n_significant}",
         transform=ax.transAxes,
         fontsize=10,
         verticalalignment="top",

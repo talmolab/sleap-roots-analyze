@@ -723,6 +723,10 @@ class CrossPlatformConfig:
         correlation_method: Statistical correlation method ("spearman", "pearson", "kendall").
         min_samples_per_genotype: Minimum samples required per genotype for analysis.
         significance_level: P-value threshold for significance testing.
+        fdr_correction_method: Method for multiple testing correction.
+            - "fdr_bh": Benjamini-Hochberg (assumes test independence)
+            - "fdr_by": Benjamini-Yekutieli (valid under arbitrary dependence) - DEFAULT
+            - "none": No correction (use raw p-values)
         top_n_correlations: Number of top correlations to display in summary.
         top_n_joint_plots: Number of joint plots to generate for top correlations.
         top_n_boxplots: Number of boxplots to generate for top correlations.
@@ -745,6 +749,7 @@ class CrossPlatformConfig:
     correlation_method: str = "spearman"
     min_samples_per_genotype: int = 3
     significance_level: float = 0.05
+    fdr_correction_method: str = "fdr_by"
     top_n_correlations: int = 20
     top_n_joint_plots: int = 6
     top_n_boxplots: int = 6
@@ -762,4 +767,12 @@ class CrossPlatformConfig:
             raise ValueError(
                 f"correlation_method must be one of {valid_methods}, "
                 f"got '{self.correlation_method}'"
+            )
+
+        # Validate FDR correction method
+        valid_fdr_methods = ["fdr_bh", "fdr_by", "none"]
+        if self.fdr_correction_method not in valid_fdr_methods:
+            raise ValueError(
+                f"fdr_correction_method must be one of {valid_fdr_methods}, "
+                f"got '{self.fdr_correction_method}'"
             )

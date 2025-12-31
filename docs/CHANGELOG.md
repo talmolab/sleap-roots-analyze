@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **FDR Correction for Cross-Platform Correlations** (PR #45)
+  - Configurable False Discovery Rate (FDR) correction via `fdr_correction_method` config parameter
+  - Three correction methods: `fdr_bh` (Benjamini-Hochberg), `fdr_by` (Benjamini-Yekutieli, default), `none`
+  - New CSV output columns: `spearman_p_adjusted`, `pearson_p_adjusted`, `significant_fdr`
+  - Updated visualization to show FDR-corrected significance counts in summary plots
+  - Comprehensive documentation in `docs/CROSS_PLATFORM_ANALYSIS.md` with mathematical formulations
+  - Pipeline summary JSON now includes FDR metadata (`fdr_correction_method`, `significant_correlations`)
 - **Visualization Pipeline** with DAG-based architecture for automated visualization workflows
   - 10 new pipeline steps (PCAAnalysisStep, LoadDataAndImagesStep, UMAPAnalysisStep, ClusterAnalysisStep, etc.)
   - 4 configuration presets: minimal, standard, comprehensive, publication
@@ -49,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cleaner, more focused visualization
 
 ### Fixed
+- **JSON serialization in pipeline summaries** (PR #45)
+  - Added Path object handling with `as_posix()` in `convert_to_json_serializable()`
+  - Excluded non-serializable sklearn PCA object from StepResult metadata
+  - Fixed numpy type serialization (int64, float64) in pipeline summary JSON
 - **TypeError in interactive image gallery** when image paths are None
   - Added null check before Path conversion in `create_interactive_image_gallery()`
 - **ipykernel hanging bug** in VS Code Jupyter notebooks

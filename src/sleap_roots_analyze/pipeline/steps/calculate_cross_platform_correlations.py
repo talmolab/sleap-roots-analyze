@@ -2,17 +2,76 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
 import pandas as pd
 import numpy as np
+from statsmodels.stats.multitest import multipletests
 
 from sleap_roots_analyze.cross_experiment_analysis import (
     calculate_genotype_means,
     calculate_correlations,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
+
+logger = logging.getLogger(__name__)
+
+
+def _apply_fdr_correction_safe(
+    p_values: pd.Series, alpha: float, method: str
+) -> np.ndarray:
+    """Apply FDR correction while handling NaN p-values.
+
+    The statsmodels multipletests function returns all NaN if any input is NaN.
+    This function filters out NaN values, applies correction to valid values,
+    and merges results back preserving NaN for invalid correlations.
+
+    Args:
+        p_values: Series of p-values, may contain NaN
+        alpha: Significance level for FDR correction
+        method: FDR method ('fdr_bh', 'fdr_by', etc.)
+
+    Returns:
+        Array of adjusted p-values with NaN preserved for invalid inputs
+    """
+    # Initialize result array with NaN
+    adjusted = np.full(len(p_values), np.nan)
+
+    # Find valid (non-NaN) p-values
+    valid_mask = ~p_values.isna()
+    n_valid = valid_mask.sum()
+    n_nan = (~valid_mask).sum()
+
+    if n_nan > 0:
+        logger.warning(
+            f"Found {n_nan} NaN p-values out of {len(p_values)} total. "
+            "These will be excluded from FDR correction and remain NaN."
+        )
+
+    if n_valid == 0:
+        # All NaN - return all NaN
+        logger.warning("All p-values are NaN. No FDR correction applied.")
+        return adjusted
+
+    if n_valid == 1:
+        # Single valid p-value - no multiple testing correction needed
+        # Adjusted p-value equals raw p-value
+        adjusted[valid_mask] = p_values[valid_mask].values
+        return adjusted
+
+    # Apply FDR correction only to valid p-values
+    _, p_adj, _, _ = multipletests(
+        p_values[valid_mask].values,
+        alpha=alpha,
+        method=method,
+    )
+
+    # Place adjusted values back in original positions
+    adjusted[valid_mask] = p_adj
+
+    return adjusted
 
 
 class CalculateCrossPlatformCorrelationsStep(BaseStep):
@@ -137,6 +196,46 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         ).drop(columns=["abs_correlation"])
         correlation_df = correlation_df.reset_index(drop=True)
 
+        # Apply multiple testing correction
+        if config.fdr_correction_method != "none" and len(correlation_df) > 0:
+            # Use safe FDR correction that handles NaN p-values
+            # (multipletests returns all NaN if any input is NaN)
+            correlation_df["spearman_p_adjusted"] = _apply_fdr_correction_safe(
+                correlation_df["spearman_p"],
+                alpha=config.significance_level,
+                method=config.fdr_correction_method,
+            )
+
+            correlation_df["pearson_p_adjusted"] = _apply_fdr_correction_safe(
+                correlation_df["pearson_p"],
+                alpha=config.significance_level,
+                method=config.fdr_correction_method,
+            )
+
+            # Add significance flag based on primary correlation method
+            # NaN adjusted p-values result in False (not significant)
+            primary_p_adj = (
+                "spearman_p_adjusted"
+                if config.correlation_method == "spearman"
+                else "pearson_p_adjusted"
+            )
+            # Use fillna(False) to ensure NaN p-values are not marked significant
+            correlation_df["significant_fdr"] = (
+                correlation_df[primary_p_adj] < config.significance_level
+            ).fillna(False)
+        else:
+            # No correction - adjusted equals raw
+            correlation_df["spearman_p_adjusted"] = correlation_df["spearman_p"]
+            correlation_df["pearson_p_adjusted"] = correlation_df["pearson_p"]
+            # Significance based on raw p-values
+            # NaN p-values result in False (not significant)
+            primary_p = (
+                "spearman_p" if config.correlation_method == "spearman" else "pearson_p"
+            )
+            correlation_df["significant_fdr"] = (
+                correlation_df[primary_p] < config.significance_level
+            ).fillna(False)
+
         # Save correlation results
         corr_output = run_dir / "cross_platform_correlations.csv"
         correlation_df.to_csv(corr_output, index=False)
@@ -152,6 +251,9 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         metadata = {
             "total_correlations": len(correlation_df),
             "correlation_method": config.correlation_method,
+            "fdr_correction_method": config.fdr_correction_method,
+            "significance_level": config.significance_level,
+            "significant_correlations": int(correlation_df["significant_fdr"].sum()),
             "exp1_traits": len(exp1_traits),
             "exp2_traits": len(exp2_traits),
             "exp1_trait_names": exp1_traits,
