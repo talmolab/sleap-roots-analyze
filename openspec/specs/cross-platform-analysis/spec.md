@@ -27,6 +27,7 @@ And the following optional parameters with defaults:
 - `figsize_boxplot`: Boxplot figure size tuple, default (14, 6)
 - `exp1_exclude_cols`: List of column names to exclude from experiment 1 trait analysis, default None
 - `exp2_exclude_cols`: List of column names to exclude from experiment 2 trait analysis, default None
+- `fdr_correction_method`: Method for multiple testing correction ("fdr_bh", "fdr_by", "none"), default "fdr_by"
 
 #### Scenario: Valid configuration with required fields
 
@@ -41,6 +42,11 @@ And the following optional parameters with defaults:
 #### Scenario: Invalid correlation method
 
 - **WHEN** user specifies correlation method not in ["spearman", "pearson", "kendall"]
+- **THEN** configuration validation fails with error listing valid options
+
+#### Scenario: Invalid FDR correction method
+
+- **WHEN** user specifies fdr_correction_method not in ["fdr_bh", "fdr_by", "none"]
 - **THEN** configuration validation fails with error listing valid options
 
 #### Scenario: Exclude metadata columns from experiment 1
@@ -88,47 +94,78 @@ The system SHALL calculate pairwise trait correlations between experiments throu
 - Compute **both Pearson and Spearman** correlations for all trait pairs, regardless of which method is configured as primary
 - Remove NaN pairs before correlation calculation
 - Calculate p-values for each correlation (both Pearson and Spearman)
-- Store results with columns: `exp1_trait`, `exp2_trait`, `spearman_r`, `spearman_p`, `pearson_r`, `pearson_p`, `n_genotypes`
+- Apply FDR correction to p-values based on `fdr_correction_method` config:
+  - `fdr_bh`: Benjamini-Hochberg correction (assumes test independence)
+  - `fdr_by`: Benjamini-Yekutieli correction (valid under arbitrary dependence)
+  - `none`: No correction applied (adjusted p-values equal raw p-values)
+- **Handle NaN p-values gracefully**: If any correlation produces NaN p-values (e.g., from constant-valued traits or insufficient data), the FDR correction SHALL:
+  - Filter out NaN p-values before applying correction
+  - Apply correction only to valid p-values
+  - Preserve NaN in adjusted p-value columns for invalid correlations
+  - Set `significant_fdr` to False for rows with NaN adjusted p-values
+  - Log a warning indicating the count of NaN p-values encountered
+- Store results with columns: `exp1_trait`, `exp2_trait`, `spearman_r`, `spearman_p`, `pearson_r`, `pearson_p`, `n_genotypes`, `spearman_p_adjusted`, `pearson_p_adjusted`, `significant_fdr`
 - Sort results by absolute value of the **primary** correlation (determined by `correlation_method` config), descending
 - Export results to `cross_platform_correlations.csv` in output directory
-- The `correlation_method` config determines:
-  - Which metric is used for sorting/ranking
-  - Which metric is used for significance filtering
-  - Which metric is considered "primary" in visualizations
+
+#### Scenario: NaN p-values from constant trait do not corrupt FDR correction
+
+- **WHEN** one trait pair produces NaN p-values (e.g., constant values in one trait)
+- **AND** other trait pairs have valid p-values
+- **THEN** FDR correction is applied only to valid p-values
+- **AND** NaN p-values remain NaN in the adjusted columns
+- **AND** `significant_fdr` is False for rows with NaN adjusted p-values
+- **AND** valid correlations receive correct FDR-adjusted p-values
+
+#### Scenario: Single correlation (m=1)
+
+- **WHEN** only one trait pair is tested (m=1)
+- **THEN** no FDR correction is applied (single test, no multiple testing)
+- **AND** adjusted p-values equal raw p-values
+- **AND** `significant_fdr` is based on raw p-value comparison
+
+#### Scenario: Fewer than 3 genotypes for a trait pair
+
+- **WHEN** after removing NaN pairs, fewer than 3 valid genotype pairs remain
+- **THEN** step sets all correlation values to NaN for that trait pair
+- **AND** adjusted p-values are NaN for that trait pair
+- **AND** `significant_fdr` is False for that trait pair
+- **AND** logs warning about insufficient data
 
 #### Scenario: Dual correlation calculation with Spearman primary
 
 - **WHEN** correlation method is "spearman" with 18 valid genotypes and 50 trait pairs
 - **THEN** step calculates BOTH Spearman and Pearson correlations for all 50 pairs
-- **AND** exports CSV with columns: exp1_trait, exp2_trait, spearman_r, spearman_p, pearson_r, pearson_p, n_genotypes
+- **AND** exports CSV with columns: exp1_trait, exp2_trait, spearman_r, spearman_p, pearson_r, pearson_p, n_genotypes, spearman_p_adjusted, pearson_p_adjusted, significant_fdr
 - **AND** sorts results by absolute Spearman correlation (descending)
 
-#### Scenario: Dual correlation calculation with Pearson primary
+#### Scenario: FDR correction with Benjamini-Hochberg
 
-- **WHEN** correlation method is "pearson" with normally distributed trait data
-- **THEN** step calculates BOTH Spearman and Pearson correlations
-- **AND** sorts results by absolute Pearson correlation (descending)
+- **WHEN** fdr_correction_method is "fdr_bh" and 1000 trait pairs are tested
+- **THEN** spearman_p_adjusted and pearson_p_adjusted contain BH-corrected p-values
+- **AND** adjusted p-values are >= raw p-values
+- **AND** significant_fdr is True when primary adjusted p < significance_level
 
-#### Scenario: Handling missing data in correlations
+#### Scenario: FDR correction with Benjamini-Yekutieli (default)
 
-- **WHEN** trait pairs have NaN values for some genotypes
-- **THEN** step removes NaN pairs before calculation
-- **AND** reports actual n_genotypes used per correlation
-- **AND** both Pearson and Spearman use the same filtered data
+- **WHEN** fdr_correction_method is "fdr_by" (default) and traits are correlated
+- **THEN** BY correction is applied (valid under arbitrary dependence)
+- **AND** BY produces more conservative (larger) adjusted p-values than BH
 
-#### Scenario: Insufficient valid pairs
+#### Scenario: No FDR correction
 
-- **WHEN** after removing NaN pairs, fewer than 3 valid genotype pairs remain
-- **THEN** step sets all correlation values to NaN for that trait pair
-- **AND** logs warning about insufficient data
+- **WHEN** fdr_correction_method is "none"
+- **THEN** spearman_p_adjusted equals spearman_p
+- **AND** pearson_p_adjusted equals pearson_p
+- **AND** significant_fdr uses raw p-values for threshold comparison
 
 ### Requirement: Visualize Cross-Platform Correlations
 
 The system SHALL generate publication-quality visualizations through `VisualizeCrossPlatformStep` with the following outputs:
 
 - **Summary visualization** (4-panel figure):
-  - Panel 1: Histogram of correlation distribution with significance counts (uses primary method)
-  - Panel 2: Volcano plot (correlation vs -log10(p-value)) with significance thresholds (uses primary method)
+  - Panel 1: Histogram of correlation distribution with FDR-corrected significance count annotation (uses primary method)
+  - Panel 2: Volcano plot (correlation vs -log10(p-value)) with significance thresholds using raw p-values (uses primary method)
   - Panel 3: Horizontal bar chart of top positive correlations (uses primary method)
   - Panel 4: Horizontal bar chart of top negative correlations (uses primary method)
 - **Joint plots**: Scatter plots with marginal distributions for top N correlated trait pairs
@@ -137,6 +174,13 @@ The system SHALL generate publication-quality visualizations through `VisualizeC
 - **Genotype boxplots**: Side-by-side boxplots comparing genotype distributions for top N trait pairs
 - All figures saved to `figures/` subdirectory in output directory
 - Figure format and DPI configurable through pipeline settings
+
+#### Scenario: Summary plot shows FDR-corrected significance count
+
+- **WHEN** summary visualization is generated with FDR correction enabled
+- **THEN** Panel 1 histogram annotation shows "Significant (FDR): N"
+- **AND** N is the count of correlations where significant_fdr is True
+- **AND** volcano plot (Panel 2) continues to use raw p-values for axis and coloring
 
 #### Scenario: Joint plots display pre-computed values
 
@@ -205,8 +249,9 @@ The system SHALL generate reproducible outputs with consistent directory structu
 
 ```
 <output_base_dir>/
-├── cross_platform_correlations.csv     # All correlation results (Pearson + Spearman)
-│   Columns: exp1_trait, exp2_trait, spearman_r, spearman_p, pearson_r, pearson_p, n_genotypes
+├── cross_platform_correlations.csv     # All correlation results (Pearson + Spearman + FDR)
+│   Columns: exp1_trait, exp2_trait, spearman_r, spearman_p, pearson_r, pearson_p,
+│            n_genotypes, spearman_p_adjusted, pearson_p_adjusted, significant_fdr
 ├── summary.json                         # Analysis metadata and summary statistics
 ├── figures/
 │   ├── correlation_summary.png          # 4-panel summary visualization
@@ -219,11 +264,16 @@ The system SHALL generate reproducible outputs with consistent directory structu
 └── pipeline.log                         # Execution log
 ```
 
-#### Scenario: CSV schema includes both correlation methods
+#### Scenario: CSV schema includes FDR correction columns
 
 - **WHEN** cross-platform pipeline completes successfully
-- **THEN** cross_platform_correlations.csv contains columns for both Spearman and Pearson
-- **AND** column names are explicit: spearman_r, spearman_p, pearson_r, pearson_p
+- **THEN** cross_platform_correlations.csv contains columns for both raw and adjusted p-values
+- **AND** column names include: spearman_p_adjusted, pearson_p_adjusted, significant_fdr
+
+#### Scenario: Metadata includes FDR correction information
+
+- **WHEN** cross-platform pipeline completes successfully
+- **THEN** metadata includes fdr_correction_method and significant_correlations count
 
 #### Scenario: Consistent output structure across runs
 
@@ -278,4 +328,101 @@ When these parameters are provided, the function SHALL display them directly wit
 - **WHEN** the test suite runs
 - **THEN** there SHALL be a test that verifies correlation values in generated joint plots match the corresponding CSV row exactly
 - **AND** the test SHALL use a scenario where `min_samples_per_genotype` would cause a discrepancy if values were recalculated
+
+### Requirement: FDR Correction Documentation
+
+The system SHALL provide comprehensive documentation of FDR (False Discovery Rate) correction methods in `docs/CROSS_PLATFORM_ANALYSIS.md` with the following content:
+
+- Mathematical formulation of the Benjamini-Hochberg (BH) procedure including:
+  - Ordered p-value notation p₍₁₎ ≤ p₍₂₎ ≤ ... ≤ p₍ₘ₎
+  - Critical value formula: α_i = (i / m) × α
+  - Decision rule for rejecting hypotheses
+  - Adjusted p-value formula
+- Mathematical formulation of the Benjamini-Yekutieli (BY) procedure including:
+  - The additional correction factor c(m) = Σ(1/i) for i = 1 to m
+  - How c(m) grows logarithmically with the number of tests
+  - Example correction factors for common test counts (100, 1000, 10000, 100000)
+- Explanation of when adjusted p-values are capped at 1.0
+- Guidance on when to use each method (BH vs BY vs none)
+- Explanation of why BY often yields no significant results with:
+  - Small sample sizes (< 20 genotypes)
+  - Large numbers of tests (> 10,000)
+  - Example calculation showing how minimum p-values become 1.0 after BY correction
+- Practical recommendations for improving statistical power
+- Output file documentation including CSV column descriptions
+- Academic references to the original BH (1995) and BY (2001) papers
+
+#### Scenario: User understands BH procedure mathematically
+
+- **WHEN** user reads the BH procedure section
+- **THEN** they can understand the step-by-step algorithm
+- **AND** they can calculate adjusted p-values manually for small examples
+- **AND** they understand when BH is appropriate (independent or positively correlated tests)
+
+#### Scenario: User understands BY procedure mathematically
+
+- **WHEN** user reads the BY procedure section
+- **THEN** they understand the additional conservatism from c(m)
+- **AND** they can look up approximate correction factors for their number of tests
+- **AND** they understand BY is valid under arbitrary dependence
+
+#### Scenario: User understands why no results are significant
+
+- **WHEN** user runs analysis with BY correction and gets zero significant results
+- **THEN** documentation explains this is expected behavior
+- **AND** provides worked example showing why minimum p-values become 1.0
+- **AND** suggests actionable steps (increase sample size, reduce tests, use BH for exploration)
+
+#### Scenario: User can interpret output files
+
+- **WHEN** user examines cross_platform_correlations.csv
+- **THEN** documentation explains each column's meaning
+- **AND** clarifies difference between raw and adjusted p-values
+- **AND** explains the significant_fdr boolean column
+
+### Requirement: Pipeline Summary Integration
+
+The system SHALL include FDR correction metadata in pipeline summaries with the following behavior:
+
+- Pipeline summary JSON SHALL include StepResult metadata merged with TaskResult metadata
+- The `pipeline_summary.json` for each cross-platform run SHALL include:
+  - `fdr_correction_method`: The correction method used
+  - `significant_correlations`: Count of correlations passing FDR threshold
+  - `total_correlations`: Total number of correlations computed
+- The run-all `SUMMARY.md` SHALL:
+  - Display top correlation values using `spearman_r` column from new CSV schema
+  - Reference FDR correction in the Methods section (not Bonferroni)
+
+#### Scenario: Pipeline summary JSON includes FDR metadata
+
+- **WHEN** cross-platform pipeline completes successfully
+- **THEN** `pipeline_summary.json` step metadata includes `fdr_correction_method`
+- **AND** step metadata includes `significant_correlations` count
+- **AND** step metadata includes `total_correlations` count
+
+#### Scenario: Run-all SUMMARY.md shows correct top correlations
+
+- **WHEN** user runs `sleap-roots-analyze run-all` with cross-platform configs
+- **THEN** SUMMARY.md table shows top correlation values from `spearman_r` column
+- **AND** Methods section describes FDR correction (not Bonferroni)
+
+### Requirement: Edge Case Documentation
+
+The system SHALL document edge case behavior in `docs/CROSS_PLATFORM_ANALYSIS.md` with the following content:
+
+- Explanation of what produces NaN p-values:
+  - Constant-valued traits (zero variance)
+  - Fewer than 3 valid genotype pairs after NaN removal
+- How NaN p-values are handled during FDR correction
+- Why `significant_fdr` is False for NaN adjusted p-values
+- Minimum sample size requirements (n >= 3) for correlation testing
+
+#### Scenario: User understands NaN p-value behavior
+
+- **WHEN** user sees NaN in adjusted p-value columns
+- **THEN** documentation explains this occurs when:
+  - A trait has constant values across all genotypes (zero variance)
+  - Fewer than 3 genotypes have valid data for both traits
+- **AND** documentation confirms this is expected behavior, not a bug
+- **AND** documentation explains that `significant_fdr` is False for these rows
 
