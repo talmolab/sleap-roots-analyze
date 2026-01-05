@@ -154,6 +154,112 @@ def calculate_correlations(
     return r, p
 
 
+def calculate_correlation_ci(
+    r: float, n: int, confidence_level: float = 0.95
+) -> Tuple[float, float]:
+    """Calculate confidence interval for a correlation coefficient using Fisher z-transformation.
+
+    The Fisher z-transformation converts a correlation coefficient to a normally
+    distributed variable, enabling straightforward CI calculation:
+
+    1. Transform: z = arctanh(r) = 0.5 × ln((1+r)/(1-r))
+    2. Standard error: SE_z = 1 / √(n-3)
+    3. CI on z-scale: z ± z_{α/2} × SE_z
+    4. Back-transform: r = tanh(z)
+
+    This method is exact for Pearson correlation under bivariate normality.
+    For Spearman correlations, this Fisher z-based interval is generally
+    considered accurate for sample sizes n >= 10; for 4 <= n < 10, the interval
+    is still computed but should be interpreted with caution due to reduced
+    approximation accuracy.
+
+    Note:
+        For DataFrame-based CI calculation on multiple correlations, see
+        :func:`calculate_correlation_confidence_intervals`.
+
+    Args:
+        r: Correlation coefficient (Pearson or Spearman), must be in [-1, 1].
+            Values outside this range will raise a ValueError. NaN is allowed
+            and returns (NaN, NaN).
+        n: Sample size (number of paired observations). For Spearman
+            correlations, n >= 10 is recommended for accurate approximation;
+            for 4 <= n < 10, the CI is approximate and may be less reliable.
+        confidence_level: Confidence level for the interval, default 0.95.
+            Must be in (0, 1) exclusive range.
+
+    Returns:
+        Tuple of (ci_low, ci_high) representing the confidence interval bounds.
+        Returns (NaN, NaN) if:
+            - r is NaN
+            - n < 4 (variance formula undefined with n-3 in denominator)
+        Returns (r, r) if r = ±1.0 (point mass at boundary)
+
+    Raises:
+        ValueError: If r is not in [-1, 1] (and not NaN), if
+            confidence_level is not in (0, 1), or if n <= 0.
+
+    References:
+        Fisher, R.A. (1921). On the "probable error" of a coefficient of
+        correlation deduced from a small sample. Metron, 1, 3-32.
+
+    Examples:
+        >>> ci_low, ci_high = calculate_correlation_ci(r=0.5, n=20, confidence_level=0.95)
+        >>> print(f"95% CI: ({ci_low:.3f}, {ci_high:.3f})")
+        95% CI: (0.058, 0.776)
+    """
+    # Handle NaN input first (before validation)
+    if np.isnan(r):
+        return np.nan, np.nan
+
+    # Validate r is in [-1, 1]
+    if abs(r) > 1:
+        raise ValueError(f"Correlation coefficient r must be in [-1, 1], got {r}")
+
+    # Validate confidence_level is in (0, 1)
+    if not (0 < confidence_level < 1):
+        raise ValueError(
+            f"confidence_level must be in (0, 1) exclusive range, got {confidence_level}"
+        )
+
+    # Validate n is a positive integer
+    if n <= 0:
+        raise ValueError(f"n must be a positive integer, got {n}")
+
+    # Handle perfect correlations (arctanh undefined at ±1)
+    if r == 1.0:
+        return 1.0, 1.0
+    if r == -1.0:
+        return -1.0, -1.0
+
+    # Handle small n (variance undefined when n-3 <= 0)
+    if n < 4:
+        return np.nan, np.nan
+
+    # Fisher z-transformation
+    z = np.arctanh(r)
+
+    # Standard error on z-scale
+    se_z = 1.0 / np.sqrt(n - 3)
+
+    # Critical value for the confidence level
+    alpha = 1.0 - confidence_level
+    z_critical = stats.norm.ppf(1.0 - alpha / 2.0)
+
+    # CI on z-scale
+    z_low = z - z_critical * se_z
+    z_high = z + z_critical * se_z
+
+    # Back-transform to r-scale
+    ci_low = np.tanh(z_low)
+    ci_high = np.tanh(z_high)
+
+    # Clamp to [-1, 1] for numerical precision
+    ci_low = max(-1.0, min(1.0, ci_low))
+    ci_high = max(-1.0, min(1.0, ci_high))
+
+    return ci_low, ci_high
+
+
 def create_correlation_summary_plot(
     correlation_df: pd.DataFrame,
     correlation_col: str = "correlation",
@@ -1312,34 +1418,38 @@ def calculate_correlation_confidence_intervals(
 ) -> pd.DataFrame:
     """Calculate confidence intervals for correlations using Fisher's z-transformation.
 
+    This is a DataFrame-based wrapper around :func:`calculate_correlation_ci` that
+    applies CI calculation to all rows in a correlation DataFrame. It provides
+    consistent edge case handling (perfect correlations, small n, NaN values).
+
     Args:
-        correlation_df: DataFrame with correlation results
-        n_genotypes: Number of genotypes used in correlation
-        confidence: Confidence level (default 0.95 for 95% CI)
+        correlation_df: DataFrame with correlation results. Must have a
+            "correlation" column containing correlation coefficients.
+        n_genotypes: Number of genotypes used in correlation.
+        confidence: Confidence level (default 0.95 for 95% CI).
+            Must be in (0, 1) exclusive range.
 
     Returns:
-        DataFrame with confidence intervals added
-    """
-    from scipy import stats as scipy_stats
+        DataFrame with confidence intervals added as columns:
+            - ci_lower: Lower bound of confidence interval
+            - ci_upper: Upper bound of confidence interval
+            - ci_width: Width of confidence interval (ci_upper - ci_lower)
 
+    Note:
+        For scalar CI calculation, see :func:`calculate_correlation_ci`.
+    """
     df = correlation_df.copy()
 
-    # Fisher's z-transformation
-    z_scores = np.arctanh(df["correlation"])
+    # Apply calculate_correlation_ci to each row for consistent edge case handling
+    ci_results = df["correlation"].apply(
+        lambda r: calculate_correlation_ci(r, n_genotypes, confidence)
+    )
 
-    # Standard error
-    se = 1 / np.sqrt(n_genotypes - 3)
-
-    # Z critical value
-    z_crit = scipy_stats.norm.ppf((1 + confidence) / 2)
-
-    # Confidence intervals in z-space
-    z_lower = z_scores - z_crit * se
-    z_upper = z_scores + z_crit * se
-
-    # Transform back to correlation space
-    df["ci_lower"] = np.tanh(z_lower)
-    df["ci_upper"] = np.tanh(z_upper)
+    # Unpack CI tuples in a single pass for efficiency
+    ci_bounds = ci_results.apply(
+        lambda x: pd.Series({"ci_lower": x[0], "ci_upper": x[1]})
+    )
+    df[["ci_lower", "ci_upper"]] = ci_bounds
     df["ci_width"] = df["ci_upper"] - df["ci_lower"]
 
     return df
