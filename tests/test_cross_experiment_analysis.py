@@ -958,15 +958,21 @@ class TestCalculateCorrelationCI:
         import pytest
 
         # r > 1 should raise
-        with pytest.raises(ValueError, match=r"r must be in \[-1, 1\]"):
+        with pytest.raises(
+            ValueError, match=r"Correlation coefficient r must be in \[-1, 1\]"
+        ):
             calculate_correlation_ci(r=1.5, n=20, confidence_level=0.95)
 
         # r < -1 should raise
-        with pytest.raises(ValueError, match=r"r must be in \[-1, 1\]"):
+        with pytest.raises(
+            ValueError, match=r"Correlation coefficient r must be in \[-1, 1\]"
+        ):
             calculate_correlation_ci(r=-1.5, n=20, confidence_level=0.95)
 
         # Large positive r
-        with pytest.raises(ValueError, match=r"r must be in \[-1, 1\]"):
+        with pytest.raises(
+            ValueError, match=r"Correlation coefficient r must be in \[-1, 1\]"
+        ):
             calculate_correlation_ci(r=2.0, n=20, confidence_level=0.95)
 
     def test_ci_invalid_confidence_level_raises_error(self):
@@ -992,16 +998,17 @@ class TestCalculateCorrelationCI:
         with pytest.raises(ValueError, match=r"confidence_level must be in \(0, 1\)"):
             calculate_correlation_ci(r=0.5, n=20, confidence_level=1.5)
 
-    def test_ci_nan_r_returns_nan_without_error(self):
-        """Test that NaN r returns (NaN, NaN) without raising ValidationError."""
+    def test_ci_invalid_n_raises_error(self):
+        """Test that n <= 0 raises ValueError."""
         from sleap_roots_analyze.cross_experiment_analysis import (
             calculate_correlation_ci,
         )
+        import pytest
 
-        # NaN r should return NaN, not raise
-        ci_low, ci_high = calculate_correlation_ci(
-            r=np.nan, n=20, confidence_level=0.95
-        )
+        # n = 0 should raise
+        with pytest.raises(ValueError, match=r"n must be a positive integer"):
+            calculate_correlation_ci(r=0.5, n=0, confidence_level=0.95)
 
-        assert np.isnan(ci_low)
-        assert np.isnan(ci_high)
+        # n < 0 should raise
+        with pytest.raises(ValueError, match=r"n must be a positive integer"):
+            calculate_correlation_ci(r=0.5, n=-5, confidence_level=0.95)

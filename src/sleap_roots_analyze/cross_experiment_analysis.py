@@ -195,8 +195,8 @@ def calculate_correlation_ci(
         Returns (r, r) if r = ±1.0 (point mass at boundary)
 
     Raises:
-        ValueError: If r is not in [-1, 1] (and not NaN), or if
-            confidence_level is not in (0, 1).
+        ValueError: If r is not in [-1, 1] (and not NaN), if
+            confidence_level is not in (0, 1), or if n <= 0.
 
     References:
         Fisher, R.A. (1921). On the "probable error" of a coefficient of
@@ -220,6 +220,10 @@ def calculate_correlation_ci(
         raise ValueError(
             f"confidence_level must be in (0, 1) exclusive range, got {confidence_level}"
         )
+
+    # Validate n is a positive integer
+    if n <= 0:
+        raise ValueError(f"n must be a positive integer, got {n}")
 
     # Handle perfect correlations (arctanh undefined at ±1)
     if r == 1.0:
@@ -1441,8 +1445,11 @@ def calculate_correlation_confidence_intervals(
         lambda r: calculate_correlation_ci(r, n_genotypes, confidence)
     )
 
-    df["ci_lower"] = ci_results.apply(lambda x: x[0])
-    df["ci_upper"] = ci_results.apply(lambda x: x[1])
+    # Unpack CI tuples in a single pass for efficiency
+    ci_bounds = ci_results.apply(
+        lambda x: pd.Series({"ci_lower": x[0], "ci_upper": x[1]})
+    )
+    df[["ci_lower", "ci_upper"]] = ci_bounds
     df["ci_width"] = df["ci_upper"] - df["ci_lower"]
 
     return df

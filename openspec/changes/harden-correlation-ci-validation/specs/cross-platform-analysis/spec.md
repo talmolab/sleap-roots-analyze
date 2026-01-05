@@ -7,6 +7,7 @@ The system SHALL provide a function `calculate_correlation_ci(r, n, confidence_l
 1. **Validate inputs**:
    - Raise `ValueError` if r is not in [-1, 1] (and not NaN)
    - Raise `ValueError` if confidence_level is not in (0, 1) exclusive range
+   - Raise `ValueError` if n <= 0
 2. **Transform to z-scale**: z = arctanh(r) = 0.5 × ln((1+r)/(1-r))
 3. **Compute standard error**: SE_z = 1 / √(n-3)
 4. **Compute z-scale CI**: z ± z_{α/2} × SE_z where α = 1 - confidence_level
@@ -80,3 +81,9 @@ Documentation:
 - **WHEN** r = NaN
 - **THEN** function returns (NaN, NaN) without raising ValueError
 - **AND** this allows graceful handling of missing correlation data
+
+#### Scenario: Invalid sample size raises error
+
+- **WHEN** n = 0 or n = -5
+- **THEN** function raises ValueError with message indicating n must be positive
+- **AND** error occurs before any computation
