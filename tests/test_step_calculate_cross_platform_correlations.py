@@ -1011,3 +1011,239 @@ def test_significant_fdr_false_for_nan(data_with_constant_trait, tmp_path):
     assert valid_rows[
         "significant_fdr"
     ].any(), "Some valid correlations should be significant"
+
+
+# === TDD Tests for Confidence Intervals in Pipeline Step ===
+
+
+def test_correlation_step_outputs_ci_columns(loaded_data_result, tmp_path):
+    """Test that correlation step outputs CI columns in CSV."""
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        confidence_level=0.95,
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=loaded_data_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    corr_df = result.data["correlation_df"]
+
+    # Check CI columns exist
+    assert "spearman_r_ci_low" in corr_df.columns
+    assert "spearman_r_ci_high" in corr_df.columns
+    assert "pearson_r_ci_low" in corr_df.columns
+    assert "pearson_r_ci_high" in corr_df.columns
+
+    # Check CI bounds are valid: -1 <= ci_low <= r <= ci_high <= 1
+    for _, row in corr_df.iterrows():
+        if not np.isnan(row["spearman_r"]):
+            assert (
+                row["spearman_r_ci_low"]
+                <= row["spearman_r"]
+                <= row["spearman_r_ci_high"]
+            )
+            assert -1 <= row["spearman_r_ci_low"]
+            assert row["spearman_r_ci_high"] <= 1
+        if not np.isnan(row["pearson_r"]):
+            assert (
+                row["pearson_r_ci_low"] <= row["pearson_r"] <= row["pearson_r_ci_high"]
+            )
+            assert -1 <= row["pearson_r_ci_low"]
+            assert row["pearson_r_ci_high"] <= 1
+
+
+def test_confidence_level_config_validation():
+    """Test that config validates confidence_level parameter."""
+    # Valid confidence levels should work
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        confidence_level=0.95,
+    )
+    assert config.confidence_level == 0.95
+
+    config_99 = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        confidence_level=0.99,
+    )
+    assert config_99.confidence_level == 0.99
+
+    # Invalid confidence levels should raise
+    with pytest.raises(ValueError, match="confidence_level must be"):
+        CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            confidence_level=0.0,  # Must be > 0
+        )
+
+    with pytest.raises(ValueError, match="confidence_level must be"):
+        CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            confidence_level=1.0,  # Must be < 1
+        )
+
+
+def test_metadata_includes_confidence_level(loaded_data_result, tmp_path):
+    """Test that step metadata includes confidence_level."""
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        confidence_level=0.99,
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result = step.execute(
+        data=loaded_data_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    # Check metadata includes confidence_level
+    assert "confidence_level" in result.metadata
+    assert result.metadata["confidence_level"] == 0.99
+
+
+def test_ci_columns_in_csv_file(loaded_data_result, tmp_path):
+    """Test that saved CSV file contains CI columns."""
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+    import pandas as pd
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+    )
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    step.execute(
+        data=loaded_data_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=loaded_data_result,
+    )
+
+    # Read CSV and check columns
+    csv_path = tmp_path / "cross_platform_correlations.csv"
+    df = pd.read_csv(csv_path)
+
+    expected_cols = [
+        "spearman_r_ci_low",
+        "spearman_r_ci_high",
+        "pearson_r_ci_low",
+        "pearson_r_ci_high",
+    ]
+    for col in expected_cols:
+        assert col in df.columns, f"Missing column: {col}"
+
+
+def test_higher_confidence_level_produces_wider_ci(loaded_data_result, tmp_path):
+    """Test that 99% CI is wider than 95% CI."""
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    # Run with 95% CI
+    config_95 = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        confidence_level=0.95,
+    )
+
+    run_dir_95 = tmp_path / "run_95"
+    run_dir_95.mkdir()
+
+    step = CalculateCrossPlatformCorrelationsStep()
+    result_95 = step.execute(
+        data=loaded_data_result.data,
+        config=config_95,
+        run_dir=run_dir_95,
+        prev_result=loaded_data_result,
+    )
+
+    # Run with 99% CI
+    config_99 = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        confidence_level=0.99,
+    )
+
+    run_dir_99 = tmp_path / "run_99"
+    run_dir_99.mkdir()
+
+    result_99 = step.execute(
+        data=loaded_data_result.data,
+        config=config_99,
+        run_dir=run_dir_99,
+        prev_result=loaded_data_result,
+    )
+
+    df_95 = result_95.data["correlation_df"]
+    df_99 = result_99.data["correlation_df"]
+
+    # Compare widths for first valid row
+    valid_idx = df_95[~df_95["spearman_r_ci_low"].isna()].index[0]
+
+    width_95 = (
+        df_95.loc[valid_idx, "spearman_r_ci_high"]
+        - df_95.loc[valid_idx, "spearman_r_ci_low"]
+    )
+    width_99 = (
+        df_99.loc[valid_idx, "spearman_r_ci_high"]
+        - df_99.loc[valid_idx, "spearman_r_ci_low"]
+    )
+
+    assert width_99 > width_95, "99% CI should be wider than 95% CI"

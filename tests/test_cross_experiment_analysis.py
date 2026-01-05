@@ -781,3 +781,172 @@ class TestEdgeCases:
         fig = create_cross_experiment_heatmap(empty_df)
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
+
+
+# === TDD Tests for Correlation Confidence Intervals ===
+
+
+class TestCalculateCorrelationCI:
+    """Tests for calculate_correlation_ci function using Fisher z-transformation."""
+
+    def test_ci_moderate_correlation_adequate_n(self):
+        """Test CI for moderate correlation with adequate sample size.
+
+        For r=0.5, n=20, 95% CI should be approximately (0.06, 0.78).
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        ci_low, ci_high = calculate_correlation_ci(r=0.5, n=20, confidence_level=0.95)
+
+        # CI should contain the point estimate
+        assert ci_low < 0.5 < ci_high
+        # CI should be within valid bounds
+        assert -1 <= ci_low <= ci_high <= 1
+        # Approximate expected values (Fisher z method)
+        assert 0.0 < ci_low < 0.2  # Lower bound ~0.06
+        assert 0.7 < ci_high < 0.85  # Upper bound ~0.78
+
+    def test_ci_zero_correlation(self):
+        """Test CI for zero correlation contains zero."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        ci_low, ci_high = calculate_correlation_ci(r=0.0, n=30, confidence_level=0.95)
+
+        # CI should contain zero
+        assert ci_low < 0 < ci_high
+        # Should be symmetric around zero on r-scale (approximately)
+        assert abs(ci_low + ci_high) < 0.05  # Near symmetric
+        # Approximate expected bounds ~(-0.36, 0.36)
+        assert -0.4 < ci_low < -0.3
+        assert 0.3 < ci_high < 0.4
+
+    def test_ci_perfect_positive_correlation(self):
+        """Test CI for r=1.0 returns point mass (edge case)."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        ci_low, ci_high = calculate_correlation_ci(r=1.0, n=50, confidence_level=0.95)
+
+        # Perfect correlation: CI collapses to point mass
+        assert ci_low == 1.0
+        assert ci_high == 1.0
+
+    def test_ci_perfect_negative_correlation(self):
+        """Test CI for r=-1.0 returns point mass (edge case)."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        ci_low, ci_high = calculate_correlation_ci(r=-1.0, n=50, confidence_level=0.95)
+
+        # Perfect negative correlation: CI collapses to point mass
+        assert ci_low == -1.0
+        assert ci_high == -1.0
+
+    def test_ci_small_n_returns_nan(self):
+        """Test CI undefined for n < 4 (variance formula has n-3 denominator)."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        # n=3: variance undefined (n-3=0 in denominator)
+        ci_low, ci_high = calculate_correlation_ci(r=0.5, n=3, confidence_level=0.95)
+        assert np.isnan(ci_low)
+        assert np.isnan(ci_high)
+
+        # n=2: also undefined
+        ci_low, ci_high = calculate_correlation_ci(r=0.5, n=2, confidence_level=0.95)
+        assert np.isnan(ci_low)
+        assert np.isnan(ci_high)
+
+    def test_ci_nan_r_returns_nan(self):
+        """Test CI for NaN correlation returns NaN."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        ci_low, ci_high = calculate_correlation_ci(
+            r=np.nan, n=20, confidence_level=0.95
+        )
+        assert np.isnan(ci_low)
+        assert np.isnan(ci_high)
+
+    def test_ci_bounds_always_valid(self):
+        """Test CI bounds are always in [-1, 1] range."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        # Test various r values
+        for r in [-0.9, -0.5, 0.0, 0.5, 0.9, 0.99]:
+            for n in [10, 20, 50, 100]:
+                ci_low, ci_high = calculate_correlation_ci(
+                    r=r, n=n, confidence_level=0.95
+                )
+                assert -1 <= ci_low <= r <= ci_high <= 1, f"Failed for r={r}, n={n}"
+
+    def test_ci_higher_confidence_wider(self):
+        """Test that higher confidence level produces wider intervals."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        r, n = 0.5, 20
+
+        ci_low_95, ci_high_95 = calculate_correlation_ci(
+            r=r, n=n, confidence_level=0.95
+        )
+        ci_low_99, ci_high_99 = calculate_correlation_ci(
+            r=r, n=n, confidence_level=0.99
+        )
+
+        width_95 = ci_high_95 - ci_low_95
+        width_99 = ci_high_99 - ci_low_99
+
+        # 99% CI should be wider than 95% CI
+        assert width_99 > width_95
+        # Expected ratio ~1.31 (z_0.005/z_0.025 ≈ 2.576/1.96)
+        assert 1.2 < width_99 / width_95 < 1.5
+
+    def test_ci_larger_n_narrower(self):
+        """Test that larger sample size produces narrower intervals."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        r = 0.5
+
+        ci_low_10, ci_high_10 = calculate_correlation_ci(
+            r=r, n=10, confidence_level=0.95
+        )
+        ci_low_100, ci_high_100 = calculate_correlation_ci(
+            r=r, n=100, confidence_level=0.95
+        )
+
+        width_10 = ci_high_10 - ci_low_10
+        width_100 = ci_high_100 - ci_low_100
+
+        # n=100 should have narrower CI than n=10
+        assert width_100 < width_10
+        # Approximately proportional to 1/sqrt(n-3)
+        expected_ratio = np.sqrt(10 - 3) / np.sqrt(100 - 3)
+        actual_ratio = width_100 / width_10
+        assert 0.2 < actual_ratio < 0.4  # ~0.27 expected
+
+    def test_ci_near_boundary(self):
+        """Test CI for near-boundary correlations is clamped correctly."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        # r=0.99 with large n should have upper bound clamped to 1.0
+        ci_low, ci_high = calculate_correlation_ci(r=0.99, n=100, confidence_level=0.95)
+
+        assert ci_low < 0.99
+        assert ci_high <= 1.0  # Clamped at boundary
+        assert ci_high >= 0.99  # But still at least r

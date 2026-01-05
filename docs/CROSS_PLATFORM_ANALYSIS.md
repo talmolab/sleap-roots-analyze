@@ -8,6 +8,7 @@ This guide covers the cross-platform correlation analysis pipeline, which compar
 - [Configuration](#configuration)
 - [Multiple Testing Correction](#multiple-testing-correction)
 - [Edge Cases](#edge-cases)
+- [Confidence Intervals](#confidence-intervals)
 - [Output Files](#output-files)
 - [Interpreting Results](#interpreting-results)
 - [Examples](#examples)
@@ -296,6 +297,74 @@ This is correct because with m=1 test, the expected false discoveries under the 
 
 ---
 
+## Confidence Intervals
+
+### Fisher z-Transformation Method
+
+Confidence intervals for correlation coefficients are computed using Fisher's z-transformation, which normalizes the sampling distribution of r:
+
+**Step 1: Transform to z-scale**
+```
+z = arctanh(r) = 0.5 × ln((1+r)/(1-r))
+```
+
+**Step 2: Compute standard error**
+```
+SE_z = 1 / √(n-3)
+```
+
+**Step 3: Compute CI on z-scale**
+```
+z_low = z - z_{α/2} × SE_z
+z_high = z + z_{α/2} × SE_z
+```
+where z_{α/2} is the critical value (1.96 for 95% CI, 2.576 for 99% CI).
+
+**Step 4: Back-transform to r-scale**
+```
+ci_low = tanh(z_low)
+ci_high = tanh(z_high)
+```
+
+### Why n ≥ 4 is Required
+
+The standard error formula has (n-3) in the denominator. When n < 4:
+- n = 3: SE = 1/√0 = undefined (division by zero)
+- n = 2: Would give negative variance
+
+For trait pairs with n < 4 genotypes, CI bounds are set to NaN.
+
+### Accuracy Notes
+
+- **Pearson r**: Fisher z-transformation is exact under bivariate normality
+- **Spearman ρ**: Fisher z provides a good asymptotic approximation (accurate for n ≥ 10)
+
+### Example Calculation
+
+For r = 0.6, n = 25, 95% CI:
+
+1. z = arctanh(0.6) = 0.693
+2. SE_z = 1/√(25-3) = 1/√22 = 0.213
+3. z_low = 0.693 - 1.96 × 0.213 = 0.275
+4. z_high = 0.693 + 1.96 × 0.213 = 1.111
+5. ci_low = tanh(0.275) = 0.269
+6. ci_high = tanh(1.111) = 0.804
+
+Result: 95% CI = (0.27, 0.80)
+
+### Interpreting Confidence Intervals
+
+- **Narrower CI**: More precise estimate (larger sample size)
+- **Wider CI**: Less precise estimate (smaller sample size)
+- **CI contains 0**: Correlation may not be significantly different from zero
+- **Non-overlapping CIs**: Correlations are likely significantly different
+
+### Reference
+
+Fisher, R.A. (1921). On the "probable error" of a coefficient of correlation deduced from a small sample. Metron, 1, 3-32.
+
+---
+
 ## Output Files
 
 ### CSV Output: `cross_platform_correlations.csv`
@@ -306,8 +375,12 @@ This is correct because with m=1 test, the expected false discoveries under the 
 | `exp2_trait` | string | Trait name from experiment 2 |
 | `spearman_r` | float | Spearman correlation coefficient (ρ), range [-1, 1] |
 | `spearman_p` | float | Raw Spearman p-value (two-tailed) |
+| `spearman_r_ci_low` | float | Lower bound of Spearman ρ confidence interval |
+| `spearman_r_ci_high` | float | Upper bound of Spearman ρ confidence interval |
 | `pearson_r` | float | Pearson correlation coefficient (r), range [-1, 1] |
 | `pearson_p` | float | Raw Pearson p-value (two-tailed) |
+| `pearson_r_ci_low` | float | Lower bound of Pearson r confidence interval |
+| `pearson_r_ci_high` | float | Upper bound of Pearson r confidence interval |
 | `n_genotypes` | int | Number of genotypes used (after removing NaN pairs) |
 | `spearman_p_adjusted` | float | FDR-corrected Spearman p-value (q-value) |
 | `pearson_p_adjusted` | float | FDR-corrected Pearson p-value (q-value) |
@@ -317,16 +390,18 @@ This is correct because with m=1 test, the expected false discoveries under the 
 - Results are sorted by absolute value of the primary correlation (descending)
 - `significant_fdr` uses the primary method's adjusted p-value (Spearman if `correlation_method: "spearman"`)
 - Adjusted p-values are capped at 1.0
+- CI columns are NaN when n_genotypes < 4 or correlation is NaN
 
 ### Metadata: `pipeline_summary.json`
 
-Key fields related to FDR correction:
+Key fields related to statistical analysis:
 
 ```json
 {
   "config": {
     "fdr_correction_method": "fdr_by",
     "significance_level": 0.05,
+    "confidence_level": 0.95,
     "correlation_method": "spearman"
   },
   "steps": [
@@ -335,6 +410,7 @@ Key fields related to FDR correction:
       "metadata": {
         "fdr_correction_method": "fdr_by",
         "significance_level": 0.05,
+        "confidence_level": 0.95,
         "significant_correlations": 0,
         "total_correlations": 16380
       }

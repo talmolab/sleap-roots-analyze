@@ -13,6 +13,7 @@ from statsmodels.stats.multitest import multipletests
 from sleap_roots_analyze.cross_experiment_analysis import (
     calculate_genotype_means,
     calculate_correlations,
+    calculate_correlation_ci,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
@@ -168,14 +169,26 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 valid_mask = ~(np.isnan(x) | np.isnan(y))
                 n_genotypes = valid_mask.sum()
 
+                # Calculate confidence intervals for both correlation methods
+                spearman_ci_low, spearman_ci_high = calculate_correlation_ci(
+                    spearman_r, n_genotypes, config.confidence_level
+                )
+                pearson_ci_low, pearson_ci_high = calculate_correlation_ci(
+                    pearson_r, n_genotypes, config.confidence_level
+                )
+
                 correlation_results.append(
                     {
                         "exp1_trait": trait1,
                         "exp2_trait": trait2,
                         "spearman_r": spearman_r,
                         "spearman_p": spearman_p,
+                        "spearman_r_ci_low": spearman_ci_low,
+                        "spearman_r_ci_high": spearman_ci_high,
                         "pearson_r": pearson_r,
                         "pearson_p": pearson_p,
+                        "pearson_r_ci_low": pearson_ci_low,
+                        "pearson_r_ci_high": pearson_ci_high,
                         "n_genotypes": n_genotypes,
                     }
                 )
@@ -253,6 +266,7 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
             "correlation_method": config.correlation_method,
             "fdr_correction_method": config.fdr_correction_method,
             "significance_level": config.significance_level,
+            "confidence_level": config.confidence_level,
             "significant_correlations": int(correlation_df["significant_fdr"].sum()),
             "exp1_traits": len(exp1_traits),
             "exp2_traits": len(exp2_traits),

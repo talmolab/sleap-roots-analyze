@@ -727,6 +727,8 @@ class CrossPlatformConfig:
             - "fdr_bh": Benjamini-Hochberg (assumes test independence)
             - "fdr_by": Benjamini-Yekutieli (valid under arbitrary dependence) - DEFAULT
             - "none": No correction (use raw p-values)
+        confidence_level: Confidence level for correlation coefficient intervals.
+            Must be in (0, 1) exclusive range. Default 0.95 for 95% CI.
         top_n_correlations: Number of top correlations to display in summary.
         top_n_joint_plots: Number of joint plots to generate for top correlations.
         top_n_boxplots: Number of boxplots to generate for top correlations.
@@ -750,6 +752,7 @@ class CrossPlatformConfig:
     min_samples_per_genotype: int = 3
     significance_level: float = 0.05
     fdr_correction_method: str = "fdr_by"
+    confidence_level: float = 0.95
     top_n_correlations: int = 20
     top_n_joint_plots: int = 6
     top_n_boxplots: int = 6
@@ -775,4 +778,11 @@ class CrossPlatformConfig:
             raise ValueError(
                 f"fdr_correction_method must be one of {valid_fdr_methods}, "
                 f"got '{self.fdr_correction_method}'"
+            )
+
+        # Validate confidence level
+        if not (0 < self.confidence_level < 1):
+            raise ValueError(
+                f"confidence_level must be in (0, 1) exclusive range, "
+                f"got {self.confidence_level}"
             )
