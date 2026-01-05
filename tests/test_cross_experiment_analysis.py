@@ -933,8 +933,7 @@ class TestCalculateCorrelationCI:
 
         # n=100 should have narrower CI than n=10
         assert width_100 < width_10
-        # Approximately proportional to 1/sqrt(n-3)
-        expected_ratio = np.sqrt(10 - 3) / np.sqrt(100 - 3)
+        # Approximately proportional to 1/sqrt(n-3), ratio ~0.27
         actual_ratio = width_100 / width_10
         assert 0.2 < actual_ratio < 0.4  # ~0.27 expected
 
@@ -950,3 +949,59 @@ class TestCalculateCorrelationCI:
         assert ci_low < 0.99
         assert ci_high <= 1.0  # Clamped at boundary
         assert ci_high >= 0.99  # But still at least r
+
+    def test_ci_invalid_r_raises_error(self):
+        """Test that r outside [-1, 1] raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+        import pytest
+
+        # r > 1 should raise
+        with pytest.raises(ValueError, match=r"r must be in \[-1, 1\]"):
+            calculate_correlation_ci(r=1.5, n=20, confidence_level=0.95)
+
+        # r < -1 should raise
+        with pytest.raises(ValueError, match=r"r must be in \[-1, 1\]"):
+            calculate_correlation_ci(r=-1.5, n=20, confidence_level=0.95)
+
+        # Large positive r
+        with pytest.raises(ValueError, match=r"r must be in \[-1, 1\]"):
+            calculate_correlation_ci(r=2.0, n=20, confidence_level=0.95)
+
+    def test_ci_invalid_confidence_level_raises_error(self):
+        """Test that confidence_level outside (0, 1) raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+        import pytest
+
+        # confidence_level = 0 should raise
+        with pytest.raises(ValueError, match=r"confidence_level must be in \(0, 1\)"):
+            calculate_correlation_ci(r=0.5, n=20, confidence_level=0.0)
+
+        # confidence_level = 1 should raise
+        with pytest.raises(ValueError, match=r"confidence_level must be in \(0, 1\)"):
+            calculate_correlation_ci(r=0.5, n=20, confidence_level=1.0)
+
+        # confidence_level < 0 should raise
+        with pytest.raises(ValueError, match=r"confidence_level must be in \(0, 1\)"):
+            calculate_correlation_ci(r=0.5, n=20, confidence_level=-0.5)
+
+        # confidence_level > 1 should raise
+        with pytest.raises(ValueError, match=r"confidence_level must be in \(0, 1\)"):
+            calculate_correlation_ci(r=0.5, n=20, confidence_level=1.5)
+
+    def test_ci_nan_r_returns_nan_without_error(self):
+        """Test that NaN r returns (NaN, NaN) without raising ValidationError."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            calculate_correlation_ci,
+        )
+
+        # NaN r should return NaN, not raise
+        ci_low, ci_high = calculate_correlation_ci(
+            r=np.nan, n=20, confidence_level=0.95
+        )
+
+        assert np.isnan(ci_low)
+        assert np.isnan(ci_high)
