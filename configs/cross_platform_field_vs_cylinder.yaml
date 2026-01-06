@@ -25,6 +25,11 @@ significance_level: 0.05        # Standard p-value threshold
 # Default: "fdr_by" (conservative, valid for correlated traits)
 fdr_correction_method: "fdr_by"
 
+# Confidence Intervals
+# Confidence level for correlation coefficient intervals (Fisher z-transformation)
+# Valid range: (0, 1) exclusive. Common values: 0.95 (95% CI), 0.99 (99% CI)
+confidence_level: 0.95
+
 # Visualization Parameters
 top_n_correlations: 50          # More correlations (high-dimensional cylinder data)
 top_n_joint_plots: 15           # Joint plots for top correlations
