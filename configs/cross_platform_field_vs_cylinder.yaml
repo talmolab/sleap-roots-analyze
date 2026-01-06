@@ -30,6 +30,20 @@ fdr_correction_method: "fdr_by"
 # Valid range: (0, 1) exclusive. Common values: 0.95 (95% CI), 0.99 (99% CI)
 confidence_level: 0.95
 
+# Minimum Genotypes Filter
+# Trait pairs with fewer valid genotypes (after NaN removal) are excluded
+# Default: 10 (recommended for accurate Fisher z approximation for Spearman)
+# Valid range: >= 3
+min_genotypes_for_correlation: 10
+
+# Power Analysis
+# Significance level for power calculations (Type I error rate)
+# Default: 0.05 (5% false positive rate)
+power_analysis_alpha: 0.05
+# Target statistical power (1 - Type II error rate)
+# Default: 0.80 (80% true positive rate)
+power_analysis_power: 0.80
+
 # Visualization Parameters
 top_n_correlations: 50          # More correlations (high-dimensional cylinder data)
 top_n_joint_plots: 15           # Joint plots for top correlations

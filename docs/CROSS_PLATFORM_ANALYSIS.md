@@ -9,6 +9,8 @@ This guide covers the cross-platform correlation analysis pipeline, which compar
 - [Multiple Testing Correction](#multiple-testing-correction)
 - [Edge Cases](#edge-cases)
 - [Confidence Intervals](#confidence-intervals)
+- [Power Analysis](#power-analysis)
+- [Minimum Genotypes Filter](#minimum-genotypes-filter)
 - [Output Files](#output-files)
 - [Interpreting Results](#interpreting-results)
 - [Examples](#examples)
@@ -52,9 +54,17 @@ exp2_genotype_col: "Genotype"
 correlation_method: "spearman"      # Options: "spearman", "pearson"
 min_samples_per_genotype: 3         # Minimum replicates per genotype
 significance_level: 0.05            # Alpha level for significance
+confidence_level: 0.95              # Confidence level for CI (0.95 = 95% CI)
 
 # Multiple Testing Correction
 fdr_correction_method: "fdr_by"     # Options: "fdr_bh", "fdr_by", "none"
+
+# Minimum Genotypes Filter
+min_genotypes_for_correlation: 10   # Min valid genotypes for correlation (excludes low-n pairs)
+
+# Power Analysis
+power_analysis_alpha: 0.05          # Significance level for power calculations
+power_analysis_power: 0.80          # Target power for minimum detectable effect
 
 # Visualization
 top_n_correlations: 30
@@ -365,6 +375,132 @@ Fisher, R.A. (1921). On the "probable error" of a coefficient of correlation ded
 
 ---
 
+## Power Analysis
+
+Statistical power analysis helps assess whether your sample size is sufficient to detect meaningful correlations. The pipeline provides two key metrics:
+
+### Achieved Power
+
+For each correlation, the pipeline calculates the **achieved power** — the probability that a correlation of the observed magnitude would be detected as statistically significant given the sample size.
+
+**Formula (using Fisher z-transformation):**
+
+1. Transform correlation: z_r = arctanh(|r|)
+2. Effect size: λ = z_r × √(n-3)
+3. Critical z-value: z_α = Φ⁻¹(1 - α/2)
+4. Power: Φ(λ - z_α) + Φ(-λ - z_α)
+
+**Interpretation:**
+- Power ≥ 0.80: Adequate power (standard convention)
+- Power 0.50-0.79: Moderate power, interpret with caution
+- Power < 0.50: Low power, underpowered to detect this effect
+
+### Minimum Detectable Correlation
+
+The pipeline calculates the **minimum detectable correlation** (MDR) — the smallest correlation that can be detected with the specified power at the given sample size.
+
+**Formula:**
+
+1. Critical z-values: z_α = Φ⁻¹(1 - α/2), z_β = Φ⁻¹(power)
+2. Minimum detectable z: z_r = (z_α + z_β) / √(n-3)
+3. Back-transform: r = tanh(z_r)
+
+**Example values (α=0.05, power=0.80):**
+
+| n (genotypes) | Minimum Detectable |r| |
+|--------------:|--------------------:|
+| 10            | 0.76 |
+| 15            | 0.62 |
+| 20            | 0.58 |
+| 30            | 0.49 |
+| 50            | 0.38 |
+| 100           | 0.28 |
+
+### Configuration
+
+```yaml
+# Power analysis parameters
+power_analysis_alpha: 0.05   # Significance level (Type I error rate)
+power_analysis_power: 0.80   # Target power (1 - Type II error rate)
+```
+
+### When Power is NaN
+
+Power is NaN when:
+- n < 4 (Fisher z variance undefined with n-3 denominator)
+- Correlation is NaN (constant trait or insufficient data)
+
+### Why Power Matters
+
+With n ≈ 18 genotypes (typical in greenhouse experiments), many correlations may be statistically underpowered. The power analysis helps:
+
+1. **Interpret non-significant results**: Low power means "absence of evidence is not evidence of absence"
+2. **Focus on robust findings**: High-power correlations are more reliable
+3. **Plan future experiments**: MDR tells you what effect size you can detect
+4. **Prioritize follow-up studies**: Target high-power, high-effect correlations
+
+### Reference
+
+Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences. Lawrence Erlbaum Associates, 2nd edition.
+
+---
+
+## Minimum Genotypes Filter
+
+The pipeline applies a hard filter to exclude trait pairs with too few valid genotypes for reliable correlation estimation.
+
+### Why This Filter Exists
+
+1. **Statistical reliability**: Correlations with very few observations (n < 10) have extremely wide confidence intervals and unreliable p-values
+2. **Fisher z accuracy**: The Fisher z-transformation approximation for Spearman correlations is most accurate for n ≥ 10
+3. **Spurious results prevention**: With low n, random fluctuations can produce misleadingly strong correlations
+
+### Configuration
+
+```yaml
+# Minimum genotypes for correlation calculation
+min_genotypes_for_correlation: 10   # Default: 10 (recommended for Fisher z accuracy)
+```
+
+Valid range: 3 to unlimited. The default of 10 is recommended for reliable Spearman correlation CIs.
+
+### Behavior
+
+When a trait pair has fewer valid genotypes than `min_genotypes_for_correlation` (after NaN removal):
+
+1. **Excluded from CSV**: The trait pair is not included in the output
+2. **Counted in metadata**: `n_correlations_filtered_low_n` tracks how many pairs were filtered
+3. **Logged**: A summary message indicates how many pairs were filtered and why
+
+**Example log output:**
+```
+INFO: Filtered 25/1000 trait pairs with n_genotypes < 10
+```
+
+**If all pairs are filtered:**
+```
+WARNING: All 500 trait pairs were filtered out. Consider lowering min_genotypes_for_correlation (current: 10).
+```
+
+### Relationship to min_samples_per_genotype
+
+These two parameters serve different purposes:
+
+| Parameter | What it filters | When applied |
+|-----------|-----------------|--------------|
+| `min_samples_per_genotype` | Genotypes with too few replicates | During data loading |
+| `min_genotypes_for_correlation` | Trait pairs with too few valid genotypes | During correlation calculation |
+
+A genotype may pass `min_samples_per_genotype` but still be excluded from a correlation if it has NaN values for those traits, reducing n below `min_genotypes_for_correlation`.
+
+### Recommendations
+
+- **n ≥ 10**: Recommended for publication-quality results
+- **n ≥ 5**: Acceptable for exploratory analysis
+- **n = 3**: Minimum valid (use only for small pilot studies)
+
+---
+
 ## Output Files
 
 ### CSV Output: `cross_platform_correlations.csv`
@@ -382,6 +518,7 @@ Fisher, R.A. (1921). On the "probable error" of a coefficient of correlation ded
 | `pearson_r_ci_low` | float | Lower bound of Pearson r confidence interval |
 | `pearson_r_ci_high` | float | Upper bound of Pearson r confidence interval |
 | `n_genotypes` | int | Number of genotypes used (after removing NaN pairs) |
+| `achieved_power` | float | Statistical power for detecting the observed correlation |
 | `spearman_p_adjusted` | float | FDR-corrected Spearman p-value (q-value) |
 | `pearson_p_adjusted` | float | FDR-corrected Pearson p-value (q-value) |
 | `significant_fdr` | bool | True if primary adjusted p < significance_level |
@@ -402,7 +539,10 @@ Key fields related to statistical analysis:
     "fdr_correction_method": "fdr_by",
     "significance_level": 0.05,
     "confidence_level": 0.95,
-    "correlation_method": "spearman"
+    "correlation_method": "spearman",
+    "min_genotypes_for_correlation": 10,
+    "power_analysis_alpha": 0.05,
+    "power_analysis_power": 0.80
   },
   "steps": [
     {
@@ -412,7 +552,13 @@ Key fields related to statistical analysis:
         "significance_level": 0.05,
         "confidence_level": 0.95,
         "significant_correlations": 0,
-        "total_correlations": 16380
+        "total_correlations": 16380,
+        "min_genotypes_for_correlation": 10,
+        "n_correlations_filtered_low_n": 25,
+        "power_analysis_alpha": 0.05,
+        "power_analysis_power": 0.80,
+        "minimum_detectable_r": 0.62,
+        "modal_n_genotypes": 15
       }
     }
   ]
@@ -508,4 +654,10 @@ sleap-roots-analyze cross-platform configs/cross_platform_example.yaml -o result
 
 2. Benjamini, Y., & Yekutieli, D. (2001). The control of the false discovery rate in multiple testing under dependency. *Annals of Statistics*, 29(4), 1165-1188. https://doi.org/10.1214/aos/1013699998
 
-3. Storey, J. D., & Tibshirani, R. (2003). Statistical significance for genomewide studies. *Proceedings of the National Academy of Sciences*, 100(16), 9440-9445. https://doi.org/10.1073/pnas.1530509100
+3. Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences. Lawrence Erlbaum Associates, 2nd edition.
+
+4. Fisher, R.A. (1921). On the "probable error" of a coefficient of correlation deduced from a small sample. *Metron*, 1, 3-32.
+
+5. Bonett, D.G. & Wright, T.A. (2000). Sample size requirements for estimating Pearson, Kendall and Spearman correlations. *Psychometrika*, 65(1), 23-28.
+
+6. Storey, J. D., & Tibshirani, R. (2003). Statistical significance for genomewide studies. *Proceedings of the National Academy of Sciences*, 100(16), 9440-9445. https://doi.org/10.1073/pnas.1530509100

@@ -14,6 +14,8 @@ from sleap_roots_analyze.cross_experiment_analysis import (
     calculate_genotype_means,
     calculate_correlations,
     calculate_correlation_ci,
+    minimum_detectable_correlation,
+    achieved_power,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
@@ -154,6 +156,7 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         # Calculate correlations for all trait pairs
         # Store BOTH Pearson and Spearman for each pair (single source of truth)
         correlation_results = []
+        n_filtered_low_n = 0  # Count pairs filtered due to insufficient genotypes
 
         for trait1 in exp1_traits:
             for trait2 in exp2_traits:
@@ -161,13 +164,22 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 x = exp1_means[trait1].values
                 y = exp2_means[trait2].values
 
-                # Calculate BOTH correlation methods
-                spearman_r, spearman_p = calculate_correlations(x, y, method="spearman")
-                pearson_r, pearson_p = calculate_correlations(x, y, method="pearson")
-
                 # Count valid genotypes (non-NaN in both traits)
                 valid_mask = ~(np.isnan(x) | np.isnan(y))
                 n_genotypes = valid_mask.sum()
+
+                # Apply min_genotypes_for_correlation filter (hard filter)
+                if n_genotypes < config.min_genotypes_for_correlation:
+                    n_filtered_low_n += 1
+                    logger.debug(
+                        f"Skipping {trait1} vs {trait2}: only {n_genotypes} genotypes "
+                        f"(min: {config.min_genotypes_for_correlation})"
+                    )
+                    continue
+
+                # Calculate BOTH correlation methods
+                spearman_r, spearman_p = calculate_correlations(x, y, method="spearman")
+                pearson_r, pearson_p = calculate_correlations(x, y, method="pearson")
 
                 # Calculate confidence intervals for both correlation methods
                 spearman_ci_low, spearman_ci_high = calculate_correlation_ci(
@@ -175,6 +187,14 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 )
                 pearson_ci_low, pearson_ci_high = calculate_correlation_ci(
                     pearson_r, n_genotypes, config.confidence_level
+                )
+
+                # Calculate achieved power for the primary correlation
+                primary_r = (
+                    spearman_r if config.correlation_method == "spearman" else pearson_r
+                )
+                power = achieved_power(
+                    r=primary_r, n=n_genotypes, alpha=config.power_analysis_alpha
                 )
 
                 correlation_results.append(
@@ -190,24 +210,61 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                         "pearson_r_ci_low": pearson_ci_low,
                         "pearson_r_ci_high": pearson_ci_high,
                         "n_genotypes": n_genotypes,
+                        "achieved_power": power,
                     }
                 )
+
+        # Log filter summary
+        if n_filtered_low_n > 0:
+            total_pairs = len(exp1_traits) * len(exp2_traits)
+            logger.info(
+                f"Filtered {n_filtered_low_n}/{total_pairs} trait pairs with "
+                f"n_genotypes < {config.min_genotypes_for_correlation}"
+            )
 
         # Create DataFrame
         correlation_df = pd.DataFrame(correlation_results)
 
-        # Sort by absolute value of PRIMARY correlation (determined by config)
-        # This determines ranking but both methods are stored
-        primary_col = (
-            "spearman_r" if config.correlation_method == "spearman" else "pearson_r"
-        )
-        correlation_df = correlation_df.assign(
-            abs_correlation=correlation_df[primary_col].abs()
-        )
-        correlation_df = correlation_df.sort_values(
-            "abs_correlation", ascending=False
-        ).drop(columns=["abs_correlation"])
-        correlation_df = correlation_df.reset_index(drop=True)
+        # Handle empty results (all trait pairs filtered out)
+        if len(correlation_df) == 0:
+            # Create empty DataFrame with expected columns for downstream compatibility
+            correlation_df = pd.DataFrame(
+                columns=[
+                    "exp1_trait",
+                    "exp2_trait",
+                    "spearman_r",
+                    "spearman_p",
+                    "spearman_r_ci_low",
+                    "spearman_r_ci_high",
+                    "pearson_r",
+                    "pearson_p",
+                    "pearson_r_ci_low",
+                    "pearson_r_ci_high",
+                    "n_genotypes",
+                    "achieved_power",
+                    "spearman_p_adjusted",
+                    "pearson_p_adjusted",
+                    "significant_fdr",
+                ]
+            )
+            logger.warning(
+                f"All {len(exp1_traits) * len(exp2_traits)} trait pairs were filtered out. "
+                f"Consider lowering min_genotypes_for_correlation "
+                f"(current: {config.min_genotypes_for_correlation})."
+            )
+        else:
+            # Sort by absolute value of PRIMARY correlation (determined by config)
+            # This determines ranking but both methods are stored
+            primary_col = (
+                "spearman_r" if config.correlation_method == "spearman" else "pearson_r"
+            )
+            correlation_df = correlation_df.assign(
+                abs_correlation=correlation_df[primary_col].abs()
+            )
+            correlation_df = correlation_df.sort_values(
+                "abs_correlation", ascending=False
+            ).drop(columns=["abs_correlation"])
+            correlation_df = correlation_df.reset_index(drop=True)
 
         # Apply multiple testing correction
         if config.fdr_correction_method != "none" and len(correlation_df) > 0:
@@ -260,6 +317,19 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
             "exp2_df": exp2_df,
         }
 
+        # Calculate minimum detectable r for power analysis summary
+        # Use modal n_genotypes from the results for the MDR calculation
+        if len(correlation_df) > 0:
+            modal_n = int(correlation_df["n_genotypes"].mode().iloc[0])
+            mdr = minimum_detectable_correlation(
+                n=modal_n,
+                alpha=config.power_analysis_alpha,
+                power=config.power_analysis_power,
+            )
+        else:
+            modal_n = 0
+            mdr = np.nan
+
         # Prepare metadata (pass through trait names and experiment names for visualization)
         metadata = {
             "total_correlations": len(correlation_df),
@@ -267,13 +337,24 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
             "fdr_correction_method": config.fdr_correction_method,
             "significance_level": config.significance_level,
             "confidence_level": config.confidence_level,
-            "significant_correlations": int(correlation_df["significant_fdr"].sum()),
+            "significant_correlations": (
+                int(correlation_df["significant_fdr"].sum())
+                if len(correlation_df) > 0
+                else 0
+            ),
             "exp1_traits": len(exp1_traits),
             "exp2_traits": len(exp2_traits),
             "exp1_trait_names": exp1_traits,
             "exp2_trait_names": exp2_traits,
             "exp1_name": prev_result.metadata.get("exp1_name", "Experiment 1"),
             "exp2_name": prev_result.metadata.get("exp2_name", "Experiment 2"),
+            # Power analysis metadata
+            "min_genotypes_for_correlation": config.min_genotypes_for_correlation,
+            "n_correlations_filtered_low_n": n_filtered_low_n,
+            "power_analysis_alpha": config.power_analysis_alpha,
+            "power_analysis_power": config.power_analysis_power,
+            "minimum_detectable_r": mdr,
+            "modal_n_genotypes": modal_n,
         }
 
         return StepResult(
