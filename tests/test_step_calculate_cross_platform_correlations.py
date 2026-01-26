@@ -1321,7 +1321,9 @@ class TestMinGenotypesFilter:
         corr_df = result.data["correlation_df"]
 
         # All correlations should be filtered out (only 4 genotypes, need 10)
-        assert len(corr_df) == 0, "All correlations should be filtered with only 4 genotypes"
+        assert (
+            len(corr_df) == 0
+        ), "All correlations should be filtered with only 4 genotypes"
 
     def test_min_genotypes_filter_keeps_high_n(self, tmp_path):
         """Test that trait pairs above min_genotypes_for_correlation are kept."""
@@ -1472,7 +1474,9 @@ class TestMinGenotypesFilter:
         assert config_min.min_genotypes_for_correlation == 3
 
         # Invalid: less than 3
-        with pytest.raises(ValueError, match="min_genotypes_for_correlation must be >= 3"):
+        with pytest.raises(
+            ValueError, match="min_genotypes_for_correlation must be >= 3"
+        ):
             CrossPlatformConfig(
                 exp1_data_path="dummy1.csv",
                 exp1_name="Exp1",
@@ -1605,7 +1609,9 @@ class TestPowerAnalysisIntegration:
         assert config.power_analysis_power == 0.80
 
         # Invalid alpha (must be in (0, 1))
-        with pytest.raises(ValueError, match="power_analysis_alpha must be in \\(0, 1\\)"):
+        with pytest.raises(
+            ValueError, match="power_analysis_alpha must be in \\(0, 1\\)"
+        ):
             CrossPlatformConfig(
                 exp1_data_path="dummy1.csv",
                 exp1_name="Exp1",
@@ -1616,7 +1622,9 @@ class TestPowerAnalysisIntegration:
                 power_analysis_alpha=0.0,
             )
 
-        with pytest.raises(ValueError, match="power_analysis_alpha must be in \\(0, 1\\)"):
+        with pytest.raises(
+            ValueError, match="power_analysis_alpha must be in \\(0, 1\\)"
+        ):
             CrossPlatformConfig(
                 exp1_data_path="dummy1.csv",
                 exp1_name="Exp1",
@@ -1628,7 +1636,9 @@ class TestPowerAnalysisIntegration:
             )
 
         # Invalid power (must be in (0, 1))
-        with pytest.raises(ValueError, match="power_analysis_power must be in \\(0, 1\\)"):
+        with pytest.raises(
+            ValueError, match="power_analysis_power must be in \\(0, 1\\)"
+        ):
             CrossPlatformConfig(
                 exp1_data_path="dummy1.csv",
                 exp1_name="Exp1",
@@ -1639,7 +1649,9 @@ class TestPowerAnalysisIntegration:
                 power_analysis_power=0.0,
             )
 
-        with pytest.raises(ValueError, match="power_analysis_power must be in \\(0, 1\\)"):
+        with pytest.raises(
+            ValueError, match="power_analysis_power must be in \\(0, 1\\)"
+        ):
             CrossPlatformConfig(
                 exp1_data_path="dummy1.csv",
                 exp1_name="Exp1",
