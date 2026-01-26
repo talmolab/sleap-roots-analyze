@@ -283,7 +283,7 @@ The system SHALL generate reproducible outputs with consistent directory structu
 
 - **WHEN** cross-platform pipeline completes successfully
 - **THEN** metadata includes `power_analysis_alpha`, `power_analysis_power`, `minimum_detectable_r`
-- **AND** metadata includes `n_correlations_above_mdr` (count of correlations with |r| >= minimum_detectable_r)
+- **AND** metadata includes `modal_n_genotypes` (most common sample size used for MDR calculation)
 - **AND** metadata includes `n_correlations_filtered_low_n` (count of trait pairs excluded due to low n)
 
 #### Scenario: Consistent output structure across runs

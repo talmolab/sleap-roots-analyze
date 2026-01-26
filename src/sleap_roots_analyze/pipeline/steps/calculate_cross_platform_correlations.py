@@ -172,8 +172,11 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 if n_genotypes < config.min_genotypes_for_correlation:
                     n_filtered_low_n += 1
                     logger.debug(
-                        f"Skipping {trait1} vs {trait2}: only {n_genotypes} genotypes "
-                        f"(min: {config.min_genotypes_for_correlation})"
+                        "Skipping %s vs %s: only %d genotypes (min: %d)",
+                        trait1,
+                        trait2,
+                        n_genotypes,
+                        config.min_genotypes_for_correlation,
                     )
                     continue
 
@@ -190,9 +193,18 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 )
 
                 # Calculate achieved power for the primary correlation
-                primary_r = (
-                    spearman_r if config.correlation_method == "spearman" else pearson_r
-                )
+                if config.correlation_method == "spearman":
+                    primary_r = spearman_r
+                elif config.correlation_method == "pearson":
+                    primary_r = pearson_r
+                else:
+                    # Kendall and any other unsupported methods are not valid for this step.
+                    # Failing fast here avoids silently using Pearson when Kendall is configured.
+                    raise ValueError(
+                        f"Unsupported correlation_method for cross-platform correlations: "
+                        f"{config.correlation_method!r}. "
+                        "Supported methods are 'spearman' and 'pearson' for this pipeline step."
+                    )
                 power = achieved_power(
                     r=primary_r, n=n_genotypes, alpha=config.power_analysis_alpha
                 )

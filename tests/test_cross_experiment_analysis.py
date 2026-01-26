@@ -1253,7 +1253,7 @@ class TestAchievedPower:
         from sleap_roots_analyze.cross_experiment_analysis import achieved_power
 
         power = achieved_power(r=1.0, n=10, alpha=0.05)
-        assert power > 0.99 or power == 1.0, f"Expected ~1.0, got {power}"
+        assert 0.99 <= power <= 1.0, f"Expected ~1.0, got {power}"
 
     def test_achieved_power_nan_r_returns_nan(self):
         """Test that NaN correlation returns NaN power."""

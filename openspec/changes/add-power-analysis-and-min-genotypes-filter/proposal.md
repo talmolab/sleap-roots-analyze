@@ -52,7 +52,7 @@ This proposal addresses Issue #44 P1 priorities:
 - Add `power_analysis_alpha` config parameter (default: 0.05)
 - Add `power_analysis_power` config parameter (default: 0.80)
 - Add `achieved_power` column to CSV output (per-correlation)
-- Add power analysis metadata: `minimum_detectable_r`, `n_correlations_above_mdr`, `n_correlations_filtered_low_n`, `filtered_reason`
+- Add power analysis metadata: `minimum_detectable_r`, `modal_n_genotypes`, `n_correlations_filtered_low_n`
 - Document statistical methodology and interpretation guidance
 
 ## Impact
