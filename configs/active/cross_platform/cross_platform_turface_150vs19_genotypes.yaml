@@ -22,7 +22,7 @@ significance_level: 0.05        # Standard p-value threshold
 # Multiple Testing Correction
 # Options: "fdr_bh" (Benjamini-Hochberg), "fdr_by" (Benjamini-Yekutieli), "none"
 # Default: "fdr_by" (conservative, valid for correlated traits)
-fdr_correction_method: "fdr_by"
+fdr_correction_method: "fdr_bh"
 
 # Visualization Parameters
 top_n_correlations: 20          # Number of top correlations to display in summary
