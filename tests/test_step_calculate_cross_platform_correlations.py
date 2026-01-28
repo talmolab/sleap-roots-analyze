@@ -310,6 +310,7 @@ def test_calculate_cross_platform_correlations_step_nan_handling(tmp_path):
         exp2_data_path="dummy2.csv",
         exp2_name="Exp2",
         exp2_genotype_col="geno",
+        min_genotypes_for_correlation=3,  # Lower threshold for test with 3 genotypes
     )
 
     step = CalculateCrossPlatformCorrelationsStep()
@@ -850,6 +851,7 @@ def test_fdr_correction_with_nan_pvalues(data_with_constant_trait, tmp_path):
         exp2_name="Exp2",
         exp2_genotype_col="geno",
         fdr_correction_method="fdr_bh",
+        min_genotypes_for_correlation=3,  # Lower threshold for test with 4 genotypes
     )
 
     step = CalculateCrossPlatformCorrelationsStep()
@@ -902,6 +904,7 @@ def test_fdr_correction_single_correlation(data_with_single_trait_pair, tmp_path
         exp2_name="Exp2",
         exp2_genotype_col="geno",
         fdr_correction_method="fdr_bh",
+        min_genotypes_for_correlation=3,  # Lower threshold for test with 4 genotypes
     )
 
     step = CalculateCrossPlatformCorrelationsStep()
@@ -943,6 +946,7 @@ def test_fdr_correction_with_constant_trait(data_with_constant_trait, tmp_path):
         exp2_name="Exp2",
         exp2_genotype_col="geno",
         fdr_correction_method="fdr_by",  # Use BY (more conservative)
+        min_genotypes_for_correlation=3,  # Lower threshold for test with 4 genotypes
     )
 
     step = CalculateCrossPlatformCorrelationsStep()
@@ -986,6 +990,7 @@ def test_significant_fdr_false_for_nan(data_with_constant_trait, tmp_path):
         exp2_genotype_col="geno",
         fdr_correction_method="fdr_bh",
         significance_level=0.99,  # Very high threshold to ensure valid correlations are significant
+        min_genotypes_for_correlation=3,  # Lower threshold for test with 4 genotypes
     )
 
     step = CalculateCrossPlatformCorrelationsStep()
@@ -1247,3 +1252,513 @@ def test_higher_confidence_level_produces_wider_ci(loaded_data_result, tmp_path)
     )
 
     assert width_99 > width_95, "99% CI should be wider than 95% CI"
+
+
+# === TDD Tests for Power Analysis and Min Genotypes Filter ===
+
+
+class TestMinGenotypesFilter:
+    """Tests for minimum genotypes filtering in correlation step."""
+
+    def test_min_genotypes_filter_excludes_low_n(self, tmp_path):
+        """Test that trait pairs below min_genotypes_for_correlation are excluded.
+
+        TDD Test: With min_genotypes_for_correlation=10 and only 4 genotypes,
+        all correlations should be filtered out.
+        """
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        # Create data with only 4 genotypes (below threshold of 10)
+        exp1_df = pd.DataFrame(
+            {
+                "genotype": ["A", "A", "B", "B", "C", "C", "D", "D"],
+                "replicate": [1, 2, 1, 2, 1, 2, 1, 2],
+                "trait1": [1.0, 1.2, 2.0, 2.1, 3.0, 3.2, 4.0, 4.1],
+            }
+        )
+
+        exp2_df = pd.DataFrame(
+            {
+                "genotype": ["A", "A", "B", "B", "C", "C", "D", "D"],
+                "replicate": [1, 2, 1, 2, 1, 2, 1, 2],
+                "trait_a": [10.0, 10.2, 20.0, 20.1, 30.0, 30.2, 40.0, 40.1],
+            }
+        )
+
+        prev_result = StepResult(
+            data={
+                "exp1_df": exp1_df,
+                "exp2_df": exp2_df,
+                "common_genotypes": ["A", "B", "C", "D"],
+            },
+            metadata={
+                "exp1_trait_names": ["trait1"],
+                "exp2_trait_names": ["trait_a"],
+            },
+            files_generated=[],
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=10,  # Higher than available genotypes
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=prev_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        corr_df = result.data["correlation_df"]
+
+        # All correlations should be filtered out (only 4 genotypes, need 10)
+        assert (
+            len(corr_df) == 0
+        ), "All correlations should be filtered with only 4 genotypes"
+
+    def test_min_genotypes_filter_keeps_high_n(self, tmp_path):
+        """Test that trait pairs above min_genotypes_for_correlation are kept."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        # Create data with 12 genotypes (above threshold of 10)
+        genotypes = [f"G{i}" for i in range(12)]
+        exp1_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 12 + [2] * 12,
+                "trait1": list(range(12)) + list(range(12)),
+            }
+        )
+
+        exp2_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 12 + [2] * 12,
+                "trait_a": list(range(100, 112)) + list(range(100, 112)),
+            }
+        )
+
+        prev_result = StepResult(
+            data={
+                "exp1_df": exp1_df,
+                "exp2_df": exp2_df,
+                "common_genotypes": genotypes,
+            },
+            metadata={
+                "exp1_trait_names": ["trait1"],
+                "exp2_trait_names": ["trait_a"],
+            },
+            files_generated=[],
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=10,
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=prev_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        corr_df = result.data["correlation_df"]
+
+        # Correlation should be kept (12 genotypes >= 10)
+        assert len(corr_df) == 1, "Correlation should be kept with 12 genotypes"
+        assert corr_df.iloc[0]["n_genotypes"] == 12
+
+    def test_min_genotypes_filter_metadata(self, tmp_path):
+        """Test that metadata includes count of filtered correlations."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        # Create data with 5 genotypes
+        genotypes = ["A", "B", "C", "D", "E"]
+        exp1_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 5 + [2] * 5,
+                "trait1": [1.0, 2.0, 3.0, 4.0, 5.0] * 2,
+            }
+        )
+
+        exp2_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 5 + [2] * 5,
+                "trait_a": [10.0, 20.0, 30.0, 40.0, 50.0] * 2,
+            }
+        )
+
+        prev_result = StepResult(
+            data={
+                "exp1_df": exp1_df,
+                "exp2_df": exp2_df,
+                "common_genotypes": genotypes,
+            },
+            metadata={
+                "exp1_trait_names": ["trait1"],
+                "exp2_trait_names": ["trait_a"],
+            },
+            files_generated=[],
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=10,  # Higher than available
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=prev_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Metadata should include filtered count
+        assert "n_correlations_filtered_low_n" in result.metadata
+        assert result.metadata["n_correlations_filtered_low_n"] == 1
+        assert "min_genotypes_for_correlation" in result.metadata
+        assert result.metadata["min_genotypes_for_correlation"] == 10
+
+    def test_min_genotypes_config_validation(self):
+        """Test that config validates min_genotypes_for_correlation parameter."""
+        # Valid values should work
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=10,
+        )
+        assert config.min_genotypes_for_correlation == 10
+
+        # Minimum value of 3 (for valid correlation)
+        config_min = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=3,
+        )
+        assert config_min.min_genotypes_for_correlation == 3
+
+        # Invalid: less than 3
+        with pytest.raises(
+            ValueError, match="min_genotypes_for_correlation must be >= 3"
+        ):
+            CrossPlatformConfig(
+                exp1_data_path="dummy1.csv",
+                exp1_name="Exp1",
+                exp1_genotype_col="Geno",
+                exp2_data_path="dummy2.csv",
+                exp2_name="Exp2",
+                exp2_genotype_col="geno",
+                min_genotypes_for_correlation=2,
+            )
+
+
+class TestPowerAnalysisIntegration:
+    """Tests for power analysis integration in correlation step."""
+
+    def test_correlation_step_outputs_power_column(self, loaded_data_result, tmp_path):
+        """Test that correlation step outputs achieved_power column in CSV."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            power_analysis_alpha=0.05,
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=loaded_data_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=loaded_data_result,
+        )
+
+        corr_df = result.data["correlation_df"]
+
+        # Check achieved_power column exists
+        assert "achieved_power" in corr_df.columns, "Missing achieved_power column"
+
+        # Power should be in [0, 1] range
+        valid_power = corr_df["achieved_power"].dropna()
+        assert (valid_power >= 0).all(), "Power should be >= 0"
+        assert (valid_power <= 1).all(), "Power should be <= 1"
+
+    def test_correlation_step_power_metadata(self, loaded_data_result, tmp_path):
+        """Test that metadata includes power analysis summary."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            power_analysis_alpha=0.05,
+            power_analysis_power=0.80,
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=loaded_data_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=loaded_data_result,
+        )
+
+        # Check power analysis metadata
+        assert "power_analysis_alpha" in result.metadata
+        assert result.metadata["power_analysis_alpha"] == 0.05
+        assert "power_analysis_power" in result.metadata
+        assert result.metadata["power_analysis_power"] == 0.80
+        assert "minimum_detectable_r" in result.metadata
+        # For typical n (~4-20 genotypes), MDR should be in reasonable range
+        mdr = result.metadata["minimum_detectable_r"]
+        if not np.isnan(mdr):
+            assert 0.3 < mdr < 1.0, f"MDR {mdr} should be in reasonable range"
+
+    def test_power_config_parameters_in_metadata(self, loaded_data_result, tmp_path):
+        """Test that all power config parameters are recorded in metadata."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            power_analysis_alpha=0.01,
+            power_analysis_power=0.90,
+            min_genotypes_for_correlation=5,
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=loaded_data_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=loaded_data_result,
+        )
+
+        # All config parameters should be in metadata for reproducibility
+        assert result.metadata["power_analysis_alpha"] == 0.01
+        assert result.metadata["power_analysis_power"] == 0.90
+        assert result.metadata["min_genotypes_for_correlation"] == 5
+
+    def test_power_config_validation(self):
+        """Test that config validates power analysis parameters."""
+        # Valid power analysis parameters
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            power_analysis_alpha=0.05,
+            power_analysis_power=0.80,
+        )
+        assert config.power_analysis_alpha == 0.05
+        assert config.power_analysis_power == 0.80
+
+        # Invalid alpha (must be in (0, 1))
+        with pytest.raises(
+            ValueError, match="power_analysis_alpha must be in \\(0, 1\\)"
+        ):
+            CrossPlatformConfig(
+                exp1_data_path="dummy1.csv",
+                exp1_name="Exp1",
+                exp1_genotype_col="Geno",
+                exp2_data_path="dummy2.csv",
+                exp2_name="Exp2",
+                exp2_genotype_col="geno",
+                power_analysis_alpha=0.0,
+            )
+
+        with pytest.raises(
+            ValueError, match="power_analysis_alpha must be in \\(0, 1\\)"
+        ):
+            CrossPlatformConfig(
+                exp1_data_path="dummy1.csv",
+                exp1_name="Exp1",
+                exp1_genotype_col="Geno",
+                exp2_data_path="dummy2.csv",
+                exp2_name="Exp2",
+                exp2_genotype_col="geno",
+                power_analysis_alpha=1.0,
+            )
+
+        # Invalid power (must be in (0, 1))
+        with pytest.raises(
+            ValueError, match="power_analysis_power must be in \\(0, 1\\)"
+        ):
+            CrossPlatformConfig(
+                exp1_data_path="dummy1.csv",
+                exp1_name="Exp1",
+                exp1_genotype_col="Geno",
+                exp2_data_path="dummy2.csv",
+                exp2_name="Exp2",
+                exp2_genotype_col="geno",
+                power_analysis_power=0.0,
+            )
+
+        with pytest.raises(
+            ValueError, match="power_analysis_power must be in \\(0, 1\\)"
+        ):
+            CrossPlatformConfig(
+                exp1_data_path="dummy1.csv",
+                exp1_name="Exp1",
+                exp1_genotype_col="Geno",
+                exp2_data_path="dummy2.csv",
+                exp2_name="Exp2",
+                exp2_genotype_col="geno",
+                power_analysis_power=1.0,
+            )
+
+    def test_achieved_power_in_csv_file(self, loaded_data_result, tmp_path):
+        """Test that saved CSV file contains achieved_power column."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        step.execute(
+            data=loaded_data_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=loaded_data_result,
+        )
+
+        # Read CSV and check column exists
+        csv_path = tmp_path / "cross_platform_correlations.csv"
+        df = pd.read_csv(csv_path)
+
+        assert "achieved_power" in df.columns, "achieved_power missing from CSV"
+
+    def test_power_increases_with_effect_size(self, tmp_path):
+        """Test that achieved power increases with correlation magnitude."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        # Create data with strong positive correlation
+        genotypes = [f"G{i}" for i in range(15)]
+        exp1_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 15 + [2] * 15,
+                "trait_strong": list(range(15)) + list(range(15)),  # Perfect linear
+                "trait_weak": [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+                + [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],  # Alternating (weak)
+            }
+        )
+
+        exp2_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 15 + [2] * 15,
+                "trait_response": list(range(100, 115)) + list(range(100, 115)),
+            }
+        )
+
+        prev_result = StepResult(
+            data={
+                "exp1_df": exp1_df,
+                "exp2_df": exp2_df,
+                "common_genotypes": genotypes,
+            },
+            metadata={
+                "exp1_trait_names": ["trait_strong", "trait_weak"],
+                "exp2_trait_names": ["trait_response"],
+            },
+            files_generated=[],
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=3,
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=prev_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        corr_df = result.data["correlation_df"]
+
+        # Get power for strong and weak correlations
+        strong_power = corr_df[corr_df["exp1_trait"] == "trait_strong"][
+            "achieved_power"
+        ].iloc[0]
+        weak_power = corr_df[corr_df["exp1_trait"] == "trait_weak"][
+            "achieved_power"
+        ].iloc[0]
+
+        # Strong correlation should have higher power than weak
+        assert (
+            strong_power > weak_power
+        ), "Strong correlation should have higher power than weak"

@@ -1012,3 +1012,308 @@ class TestCalculateCorrelationCI:
         # n < 0 should raise
         with pytest.raises(ValueError, match=r"n must be a positive integer"):
             calculate_correlation_ci(r=0.5, n=-5, confidence_level=0.95)
+
+
+# === TDD Tests for Power Analysis Functions ===
+
+
+class TestMinimumDetectableCorrelation:
+    """Tests for minimum_detectable_correlation function.
+
+    Uses Fisher z-transformation to calculate the minimum detectable correlation
+    coefficient given sample size n, significance level alpha, and desired power.
+
+    Formula: r = tanh((z_α + z_β) / √(n-3))
+    where z_α is the critical z-value for alpha and z_β is for power.
+    """
+
+    def test_minimum_detectable_r_standard_params(self):
+        """Test minimum detectable r with standard parameters (n=20, α=0.05, power=0.80).
+
+        Reference: G*Power, Cohen (1988)
+        Expected: ~0.58 for n=20, α=0.05, power=0.80
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        mdr = minimum_detectable_correlation(n=20, alpha=0.05, power=0.80)
+        # Expected ~0.58 based on G*Power calculation
+        assert 0.55 < mdr < 0.62, f"Expected ~0.58, got {mdr}"
+
+    def test_minimum_detectable_r_large_n(self):
+        """Test minimum detectable r with large sample size (n=100).
+
+        Larger n should detect smaller effects.
+        Expected: ~0.27 for n=100, α=0.05, power=0.80
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        mdr = minimum_detectable_correlation(n=100, alpha=0.05, power=0.80)
+        # Expected ~0.27 based on G*Power calculation
+        assert 0.24 < mdr < 0.30, f"Expected ~0.27, got {mdr}"
+
+    def test_minimum_detectable_r_small_n(self):
+        """Test minimum detectable r with small sample size (n=10).
+
+        Smaller n requires larger effects to detect.
+        Expected: ~0.76 for n=10, α=0.05, power=0.80
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        mdr = minimum_detectable_correlation(n=10, alpha=0.05, power=0.80)
+        # Expected ~0.76 based on G*Power calculation
+        assert 0.72 < mdr < 0.82, f"Expected ~0.76, got {mdr}"
+
+    def test_minimum_detectable_r_high_power(self):
+        """Test minimum detectable r with high power (0.90).
+
+        Higher power requires larger effect to maintain.
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        mdr_80 = minimum_detectable_correlation(n=20, alpha=0.05, power=0.80)
+        mdr_90 = minimum_detectable_correlation(n=20, alpha=0.05, power=0.90)
+
+        # Higher power should require larger effect
+        assert mdr_90 > mdr_80
+
+    def test_minimum_detectable_r_lower_alpha(self):
+        """Test minimum detectable r with lower alpha (0.01).
+
+        Lower alpha requires larger effect to achieve significance.
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        mdr_05 = minimum_detectable_correlation(n=20, alpha=0.05, power=0.80)
+        mdr_01 = minimum_detectable_correlation(n=20, alpha=0.01, power=0.80)
+
+        # Lower alpha should require larger effect
+        assert mdr_01 > mdr_05
+
+    def test_minimum_detectable_r_n_less_than_4_returns_nan(self):
+        """Test that n < 4 returns NaN (Fisher z variance undefined for n-3=0)."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        # n=3: n-3=0 makes variance undefined
+        mdr = minimum_detectable_correlation(n=3, alpha=0.05, power=0.80)
+        assert np.isnan(mdr)
+
+        # n=2: also undefined
+        mdr = minimum_detectable_correlation(n=2, alpha=0.05, power=0.80)
+        assert np.isnan(mdr)
+
+    def test_minimum_detectable_r_invalid_alpha_raises_error(self):
+        """Test that invalid alpha raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        with pytest.raises(ValueError, match=r"alpha must be in \(0, 1\)"):
+            minimum_detectable_correlation(n=20, alpha=0.0, power=0.80)
+
+        with pytest.raises(ValueError, match=r"alpha must be in \(0, 1\)"):
+            minimum_detectable_correlation(n=20, alpha=1.0, power=0.80)
+
+        with pytest.raises(ValueError, match=r"alpha must be in \(0, 1\)"):
+            minimum_detectable_correlation(n=20, alpha=-0.1, power=0.80)
+
+    def test_minimum_detectable_r_invalid_power_raises_error(self):
+        """Test that invalid power raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        with pytest.raises(ValueError, match=r"power must be in \(0, 1\)"):
+            minimum_detectable_correlation(n=20, alpha=0.05, power=0.0)
+
+        with pytest.raises(ValueError, match=r"power must be in \(0, 1\)"):
+            minimum_detectable_correlation(n=20, alpha=0.05, power=1.0)
+
+        with pytest.raises(ValueError, match=r"power must be in \(0, 1\)"):
+            minimum_detectable_correlation(n=20, alpha=0.05, power=1.5)
+
+    def test_minimum_detectable_r_invalid_n_raises_error(self):
+        """Test that n <= 0 raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            minimum_detectable_correlation,
+        )
+
+        with pytest.raises(ValueError, match=r"n must be a positive integer"):
+            minimum_detectable_correlation(n=0, alpha=0.05, power=0.80)
+
+        with pytest.raises(ValueError, match=r"n must be a positive integer"):
+            minimum_detectable_correlation(n=-5, alpha=0.05, power=0.80)
+
+
+class TestAchievedPower:
+    """Tests for achieved_power function.
+
+    Calculates achieved statistical power given observed correlation,
+    sample size, and significance level.
+
+    Formula: power = Φ(z_r × √(n-3) - z_α) + Φ(-z_r × √(n-3) - z_α)
+    where z_r = atanh(r) is the Fisher z-transformation.
+    """
+
+    def test_achieved_power_moderate_correlation(self):
+        """Test achieved power for moderate correlation (r=0.5, n=20).
+
+        Expected: ~0.65 for r=0.5, n=20, α=0.05
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=0.5, n=20, alpha=0.05)
+        # Expected ~0.65 based on G*Power calculation
+        assert 0.60 < power < 0.72, f"Expected ~0.65, got {power}"
+
+    def test_achieved_power_strong_correlation(self):
+        """Test achieved power for strong correlation (r=0.8, n=20).
+
+        Expected: ~0.99 for r=0.8, n=20, α=0.05
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=0.8, n=20, alpha=0.05)
+        # Strong correlation should give very high power
+        assert power > 0.95, f"Expected >0.95, got {power}"
+
+    def test_achieved_power_weak_correlation(self):
+        """Test achieved power for weak correlation (r=0.2, n=20).
+
+        Expected: ~0.13 for r=0.2, n=20, α=0.05 (underpowered)
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=0.2, n=20, alpha=0.05)
+        # Weak correlation should give low power
+        assert power < 0.25, f"Expected <0.25, got {power}"
+
+    def test_achieved_power_large_n(self):
+        """Test achieved power with large sample size (r=0.3, n=100).
+
+        Larger n should increase power for same effect.
+        Expected: ~0.85 for r=0.3, n=100, α=0.05
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=0.3, n=100, alpha=0.05)
+        # Large n should give good power even for moderate effect
+        assert 0.80 < power < 0.92, f"Expected ~0.85, got {power}"
+
+    def test_achieved_power_zero_correlation_returns_alpha(self):
+        """Test that r=0 returns alpha (no effect to detect).
+
+        When there's no effect, power equals the Type I error rate (alpha).
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=0.0, n=50, alpha=0.05)
+        # No effect means power = alpha (false positive rate)
+        assert abs(power - 0.05) < 0.01, f"Expected ~0.05, got {power}"
+
+    def test_achieved_power_negative_correlation(self):
+        """Test achieved power for negative correlation.
+
+        Power should be same for |r| (absolute value).
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power_pos = achieved_power(r=0.5, n=30, alpha=0.05)
+        power_neg = achieved_power(r=-0.5, n=30, alpha=0.05)
+
+        # Power should be same for positive and negative correlations
+        assert abs(power_pos - power_neg) < 0.001
+
+    def test_achieved_power_n_less_than_4_returns_nan(self):
+        """Test that n < 4 returns NaN (Fisher z variance undefined)."""
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=0.5, n=3, alpha=0.05)
+        assert np.isnan(power)
+
+        power = achieved_power(r=0.5, n=2, alpha=0.05)
+        assert np.isnan(power)
+
+    def test_achieved_power_perfect_correlation(self):
+        """Test achieved power for perfect correlation (r=1.0).
+
+        Perfect correlation should give power ≈ 1.0.
+        """
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=1.0, n=10, alpha=0.05)
+        assert 0.99 <= power <= 1.0, f"Expected ~1.0, got {power}"
+
+    def test_achieved_power_nan_r_returns_nan(self):
+        """Test that NaN correlation returns NaN power."""
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        power = achieved_power(r=np.nan, n=20, alpha=0.05)
+        assert np.isnan(power)
+
+    def test_achieved_power_invalid_r_raises_error(self):
+        """Test that r outside [-1, 1] raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        with pytest.raises(
+            ValueError, match=r"Correlation coefficient r must be in \[-1, 1\]"
+        ):
+            achieved_power(r=1.5, n=20, alpha=0.05)
+
+        with pytest.raises(
+            ValueError, match=r"Correlation coefficient r must be in \[-1, 1\]"
+        ):
+            achieved_power(r=-1.5, n=20, alpha=0.05)
+
+    def test_achieved_power_invalid_alpha_raises_error(self):
+        """Test that invalid alpha raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        with pytest.raises(ValueError, match=r"alpha must be in \(0, 1\)"):
+            achieved_power(r=0.5, n=20, alpha=0.0)
+
+        with pytest.raises(ValueError, match=r"alpha must be in \(0, 1\)"):
+            achieved_power(r=0.5, n=20, alpha=1.0)
+
+    def test_achieved_power_invalid_n_raises_error(self):
+        """Test that n <= 0 raises ValueError."""
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        with pytest.raises(ValueError, match=r"n must be a positive integer"):
+            achieved_power(r=0.5, n=0, alpha=0.05)
+
+        with pytest.raises(ValueError, match=r"n must be a positive integer"):
+            achieved_power(r=0.5, n=-5, alpha=0.05)
+
+    def test_achieved_power_increases_with_n(self):
+        """Test that power increases with sample size."""
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        r = 0.4
+        power_10 = achieved_power(r=r, n=10, alpha=0.05)
+        power_30 = achieved_power(r=r, n=30, alpha=0.05)
+        power_100 = achieved_power(r=r, n=100, alpha=0.05)
+
+        assert power_10 < power_30 < power_100
+
+    def test_achieved_power_increases_with_r(self):
+        """Test that power increases with absolute correlation."""
+        from sleap_roots_analyze.cross_experiment_analysis import achieved_power
+
+        n = 30
+        power_02 = achieved_power(r=0.2, n=n, alpha=0.05)
+        power_05 = achieved_power(r=0.5, n=n, alpha=0.05)
+        power_08 = achieved_power(r=0.8, n=n, alpha=0.05)
+
+        assert power_02 < power_05 < power_08

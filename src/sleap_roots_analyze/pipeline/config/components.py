@@ -729,6 +729,14 @@ class CrossPlatformConfig:
             - "none": No correction (use raw p-values)
         confidence_level: Confidence level for correlation coefficient intervals.
             Must be in (0, 1) exclusive range. Default 0.95 for 95% CI.
+        min_genotypes_for_correlation: Minimum number of genotypes required for a valid
+            correlation calculation. Trait pairs with fewer valid genotypes (after NaN
+            removal) will be excluded from results. Default 10, which is recommended
+            for accurate Fisher z-transformation approximation. Must be >= 3.
+        power_analysis_alpha: Significance level for power analysis calculations.
+            Must be in (0, 1) exclusive range. Default 0.05.
+        power_analysis_power: Target statistical power for minimum detectable effect
+            size calculation. Must be in (0, 1) exclusive range. Default 0.80.
         top_n_correlations: Number of top correlations to display in summary.
         top_n_joint_plots: Number of joint plots to generate for top correlations.
         top_n_boxplots: Number of boxplots to generate for top correlations.
@@ -753,6 +761,9 @@ class CrossPlatformConfig:
     significance_level: float = 0.05
     fdr_correction_method: str = "fdr_by"
     confidence_level: float = 0.95
+    min_genotypes_for_correlation: int = 10
+    power_analysis_alpha: float = 0.05
+    power_analysis_power: float = 0.80
     top_n_correlations: int = 20
     top_n_joint_plots: int = 6
     top_n_boxplots: int = 6
@@ -785,4 +796,25 @@ class CrossPlatformConfig:
             raise ValueError(
                 f"confidence_level must be in (0, 1) exclusive range, "
                 f"got {self.confidence_level}"
+            )
+
+        # Validate min_genotypes_for_correlation (minimum 3 for valid correlation)
+        if self.min_genotypes_for_correlation < 3:
+            raise ValueError(
+                f"min_genotypes_for_correlation must be >= 3, "
+                f"got {self.min_genotypes_for_correlation}"
+            )
+
+        # Validate power_analysis_alpha
+        if not (0 < self.power_analysis_alpha < 1):
+            raise ValueError(
+                f"power_analysis_alpha must be in (0, 1) exclusive range, "
+                f"got {self.power_analysis_alpha}"
+            )
+
+        # Validate power_analysis_power
+        if not (0 < self.power_analysis_power < 1):
+            raise ValueError(
+                f"power_analysis_power must be in (0, 1) exclusive range, "
+                f"got {self.power_analysis_power}"
             )

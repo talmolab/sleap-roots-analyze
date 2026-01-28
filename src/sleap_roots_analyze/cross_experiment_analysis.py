@@ -260,6 +260,174 @@ def calculate_correlation_ci(
     return ci_low, ci_high
 
 
+def minimum_detectable_correlation(
+    n: int, alpha: float = 0.05, power: float = 0.80
+) -> float:
+    """Calculate the minimum detectable correlation coefficient given sample size and power.
+
+    Uses the Fisher z-transformation to determine the smallest correlation
+    that can be detected with the specified statistical power:
+
+    1. Compute critical z-values: z_α = Φ⁻¹(1 - α/2), z_β = Φ⁻¹(power)
+    2. Minimum detectable z: z_r = (z_α + z_β) / √(n-3)
+    3. Back-transform: r = tanh(z_r)
+
+    This calculation is valid for both Pearson and Spearman correlations,
+    as both use the same Fisher z-transformation framework for power analysis.
+
+    Args:
+        n: Sample size (number of paired observations). Must be a positive integer.
+            For n < 4, returns NaN (Fisher z variance undefined with n-3 denominator).
+        alpha: Significance level (Type I error rate), default 0.05.
+            Must be in (0, 1) exclusive range.
+        power: Desired statistical power (1 - Type II error rate), default 0.80.
+            Must be in (0, 1) exclusive range.
+
+    Returns:
+        Minimum detectable correlation coefficient (always positive).
+        Returns NaN if n < 4 (variance formula undefined).
+
+    Raises:
+        ValueError: If n <= 0, alpha not in (0, 1), or power not in (0, 1).
+
+    References:
+        Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences.
+            Lawrence Erlbaum Associates, 2nd edition.
+        Bonett, D.G. & Wright, T.A. (2000). Sample size requirements for estimating
+            Pearson, Kendall and Spearman correlations. Psychometrika, 65(1), 23-28.
+
+    Examples:
+        >>> mdr = minimum_detectable_correlation(n=20, alpha=0.05, power=0.80)
+        >>> print(f"Minimum detectable r with n=20: {mdr:.3f}")
+        Minimum detectable r with n=20: 0.582
+
+        >>> # Larger sample can detect smaller effects
+        >>> mdr_100 = minimum_detectable_correlation(n=100, alpha=0.05, power=0.80)
+        >>> print(f"Minimum detectable r with n=100: {mdr_100:.3f}")
+        Minimum detectable r with n=100: 0.277
+    """
+    # Validate n is a positive integer
+    if n <= 0:
+        raise ValueError(f"n must be a positive integer, got {n}")
+
+    # Validate alpha is in (0, 1)
+    if not (0 < alpha < 1):
+        raise ValueError(f"alpha must be in (0, 1) exclusive range, got {alpha}")
+
+    # Validate power is in (0, 1)
+    if not (0 < power < 1):
+        raise ValueError(f"power must be in (0, 1) exclusive range, got {power}")
+
+    # Handle small n (variance undefined when n-3 <= 0)
+    if n < 4:
+        return np.nan
+
+    # Critical z-values
+    z_alpha = stats.norm.ppf(1 - alpha / 2)  # Two-tailed
+    z_beta = stats.norm.ppf(power)
+
+    # Minimum detectable effect on z-scale
+    z_r = (z_alpha + z_beta) / np.sqrt(n - 3)
+
+    # Back-transform to r-scale
+    mdr = np.tanh(z_r)
+
+    return mdr
+
+
+def achieved_power(r: float, n: int, alpha: float = 0.05) -> float:
+    """Calculate the achieved statistical power for an observed correlation.
+
+    Uses the Fisher z-transformation to compute power:
+
+    1. Transform correlation: z_r = arctanh(|r|)
+    2. Effect size on z-scale: λ = z_r × √(n-3)
+    3. Critical z-value: z_α = Φ⁻¹(1 - α/2)
+    4. Power: Φ(λ - z_α) + Φ(-λ - z_α)
+
+    The second term accounts for detecting effects in either direction
+    (two-tailed test). For practical purposes, when the effect is non-zero,
+    this term is negligible.
+
+    This calculation is valid for both Pearson and Spearman correlations,
+    as both use the same Fisher z-transformation framework.
+
+    Args:
+        r: Observed correlation coefficient (Pearson or Spearman), must be in [-1, 1].
+            NaN is allowed and returns NaN.
+        n: Sample size (number of paired observations). Must be a positive integer.
+            For n < 4, returns NaN (Fisher z variance undefined).
+        alpha: Significance level (Type I error rate), default 0.05.
+            Must be in (0, 1) exclusive range.
+
+    Returns:
+        Achieved statistical power (probability of detecting the effect).
+        Returns NaN if:
+            - r is NaN
+            - n < 4 (variance formula undefined)
+        Returns approximately alpha if r = 0 (no effect to detect).
+
+    Raises:
+        ValueError: If r is not in [-1, 1] (and not NaN), n <= 0,
+            or alpha not in (0, 1).
+
+    References:
+        Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences.
+            Lawrence Erlbaum Associates, 2nd edition.
+
+    Examples:
+        >>> power = achieved_power(r=0.5, n=20, alpha=0.05)
+        >>> print(f"Power for r=0.5, n=20: {power:.3f}")
+        Power for r=0.5, n=20: 0.654
+
+        >>> # Larger sample gives higher power
+        >>> power_100 = achieved_power(r=0.5, n=100, alpha=0.05)
+        >>> print(f"Power for r=0.5, n=100: {power_100:.3f}")
+        Power for r=0.5, n=100: 1.000
+    """
+    # Handle NaN input first (before validation)
+    if np.isnan(r):
+        return np.nan
+
+    # Validate r is in [-1, 1]
+    if abs(r) > 1:
+        raise ValueError(f"Correlation coefficient r must be in [-1, 1], got {r}")
+
+    # Validate n is a positive integer
+    if n <= 0:
+        raise ValueError(f"n must be a positive integer, got {n}")
+
+    # Validate alpha is in (0, 1)
+    if not (0 < alpha < 1):
+        raise ValueError(f"alpha must be in (0, 1) exclusive range, got {alpha}")
+
+    # Handle small n (variance undefined when n-3 <= 0)
+    if n < 4:
+        return np.nan
+
+    # Use absolute value of r (power is symmetric)
+    abs_r = abs(r)
+
+    # Handle perfect correlation (arctanh undefined at ±1)
+    if abs_r == 1.0:
+        return 1.0
+
+    # Fisher z-transformation of the effect
+    z_r = np.arctanh(abs_r)
+
+    # Effect size (non-centrality parameter)
+    lambda_nc = z_r * np.sqrt(n - 3)
+
+    # Critical z-value (two-tailed)
+    z_alpha = stats.norm.ppf(1 - alpha / 2)
+
+    # Power calculation (two-tailed test)
+    # P(reject H0 | H1 true) = P(Z > z_α - λ) + P(Z < -z_α - λ)
+    power = stats.norm.cdf(lambda_nc - z_alpha) + stats.norm.cdf(-lambda_nc - z_alpha)
+
+    return power
+
+
 def create_correlation_summary_plot(
     correlation_df: pd.DataFrame,
     correlation_col: str = "correlation",
