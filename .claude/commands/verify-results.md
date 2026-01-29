@@ -90,7 +90,7 @@ for meta_file in output_dir.rglob("*_metadata.json"):
     required_fields = [
         "fdr_correction_method",
         "confidence_level",
-        "n_comparisons",
+        "total_correlations",
     ]
 
     for field in required_fields:
@@ -100,7 +100,7 @@ for meta_file in output_dir.rglob("*_metadata.json"):
             print(f"  WARNING: Missing {field}")
 
     # Check for power analysis fields (cross-platform only)
-    power_fields = ["power_analysis_alpha", "minimum_detectable_r", "modal_n"]
+    power_fields = ["power_analysis_alpha", "minimum_detectable_r", "modal_n_genotypes"]
     has_power = any(f in meta for f in power_fields)
     if has_power:
         for field in power_fields:
@@ -128,7 +128,7 @@ for csv_file in output_dir.rglob("*correlation*.csv"):
             print(f"  {col} range: [{r_min:.4f}, {r_max:.4f}] {'OK' if ok else 'OUT OF RANGE'}")
 
     # P-values should be in [0, 1]
-    for col in ["p_value", "p_value_fdr"]:
+    for col in ["spearman_p", "pearson_p", "spearman_p_adjusted", "pearson_p_adjusted"]:
         if col in df.columns:
             p_min, p_max = df[col].min(), df[col].max()
             ok = 0 <= p_min and p_max <= 1

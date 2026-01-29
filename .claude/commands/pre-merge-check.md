@@ -17,7 +17,7 @@ This command performs a full pre-merge check by:
 
 ## Step 1: Local CI Checks
 
-Run the exact CI checks from `.github/workflows/ci.yml`:
+Run CI-equivalent checks from `.github/workflows/ci.yml`:
 
 ```bash
 # Lint: Black formatting check
@@ -29,8 +29,8 @@ uv run ruff check src/sleap_roots_analyze
 # Tests: Full test suite
 uv run pytest tests/
 
-# Coverage: Test coverage report
-uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing tests/
+# Coverage: Test coverage report (CI uses --cov-report=xml)
+uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --cov-report=term-missing --durations=-1 tests/
 ```
 
 If any check fails, fix the issue before proceeding.
@@ -39,10 +39,10 @@ If any check fails, fix the issue before proceeding.
 
 ```bash
 # Get current PR number
-gh pr view --json number --jq .number
+unset GITHUB_TOKEN && gh pr view --json number --jq .number
 
 # Check CI status
-gh pr checks
+unset GITHUB_TOKEN && gh pr checks
 ```
 
 If CI is failing, investigate and fix before continuing.
@@ -51,13 +51,13 @@ If CI is failing, investigate and fix before continuing.
 
 ```bash
 # Get the PR number
-PR_NUMBER=$(gh pr view --json number --jq .number)
+PR_NUMBER=$(unset GITHUB_TOKEN && gh pr view --json number --jq .number)
 
 # Get inline code review comments
-gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/comments --jq '.[] | {path: .path, line: .line, body: .body}'
+unset GITHUB_TOKEN && gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/comments --jq '.[] | {path: .path, line: .line, body: .body}'
 
 # Get review summaries
-gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/reviews --jq '.[].body'
+unset GITHUB_TOKEN && gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/reviews --jq '.[].body'
 ```
 
 ## Step 4: Categorize and Prioritize
@@ -120,10 +120,10 @@ After all fixes:
 uv run black --check src/sleap_roots_analyze tests && uv run ruff check src/sleap_roots_analyze && uv run pytest tests/
 
 # Verify GitHub CI passes
-gh pr checks
+unset GITHUB_TOKEN && gh pr checks
 
 # Check coverage
-uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing tests/
+uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --cov-report=term-missing --durations=-1 tests/
 ```
 
 ## Integration

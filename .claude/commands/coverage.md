@@ -17,7 +17,7 @@ $ARGUMENTS
 Supported arguments:
 - `--html` - Generate HTML coverage report in `htmlcov/`
 - `--xml` - Generate XML report for CI (matches GitHub Actions)
-- `--fail-under N` - Fail if coverage drops below N%
+- `--cov-fail-under N` - Fail if coverage drops below N%
 
 ## Examples
 

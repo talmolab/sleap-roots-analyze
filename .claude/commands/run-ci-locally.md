@@ -1,10 +1,10 @@
 # Run CI Checks Locally
 
-Run the exact same CI checks locally that run on GitHub Actions before pushing your code.
+Run CI-equivalent checks locally before pushing your code.
 
 ## What This Command Does
 
-This command runs the exact CI workflow from `.github/workflows/ci.yml`:
+This command runs CI-equivalent checks matching `.github/workflows/ci.yml`:
 
 ### Step 1: Black Formatting Check
 
@@ -27,7 +27,7 @@ uv run pytest tests/
 ### Step 4: Coverage Report
 
 ```bash
-uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing tests/
+uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --cov-report=term-missing --durations=-1 tests/
 ```
 
 Run each step sequentially. If any step fails, stop and report the failure with instructions to fix.
