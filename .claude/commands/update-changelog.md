@@ -1,10 +1,9 @@
 # Update CHANGELOG.md
 
-This command helps maintain the project's CHANGELOG.md file (located at `docs/CHANGELOG.md`) following the Keep a Changelog format.
+Update the project's CHANGELOG.md file (located at `docs/CHANGELOG.md`) following the Keep a Changelog format.
 
-## Usage
+## When to Update
 
-Update the docs/CHANGELOG.md file when:
 - Adding new features
 - Fixing bugs
 - Making breaking changes
@@ -41,16 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Security fixes and improvements
-
-## [0.2.0] - YYYY-MM-DD
-
-### Added
-- ...
 ```
 
 ## Categories
-
-Use these categories for organizing changes:
 
 - **Added**: New features
 - **Changed**: Changes to existing functionality
@@ -87,19 +79,17 @@ git diff HEAD
 ### Good Examples
 ```markdown
 ### Added
-- Statistical analysis module with heritability estimation and ANOVA (#2)
-- Modular data cleanup functions for zero-inflated and NaN-heavy traits
-- Comprehensive test suite achieving 95% coverage
+- Power analysis for cross-platform correlations with achieved power and MDR (#47)
+- Minimum genotypes filter for cross-platform analysis (configurable threshold)
+- Cross-experiment statistical analysis module with FDR correction
 
 ### Fixed
-- Duplicate imports in test files causing confusion
-- Private function incorrectly exposed in public API
-- Line ending consistency issues on Windows
+- Lazy logging format strings to use % style instead of f-strings
+- Kendall method validation in correlation analysis
 
 ### Changed
-- Renamed `link_images_to_samples` to `link_rhizovision_images_to_samples` for clarity
-- Made `_convert_to_json_serializable` part of public API
-- Added configurable alpha parameter to ANOVA function (default: 0.05)
+- FDR correction method from BY to BH for cross-platform configs
+- Cross-platform correlation metadata to include power analysis fields
 ```
 
 ### Poor Examples
@@ -127,7 +117,7 @@ When ready to release:
 ## [Unreleased]
 (empty or future items)
 
-## [0.2.0] - 2024-01-04
+## [0.2.0] - YYYY-MM-DD
 ### Added
 - (move items from Unreleased here)
 ```
@@ -144,32 +134,6 @@ git commit -m "Release version 0.2.0"
 git tag -a v0.2.0 -m "Release version 0.2.0"
 ```
 
-## Template for Current PR
-
-Based on recent changes, here's a template for updating the CHANGELOG:
-
-```markdown
-## [Unreleased]
-
-### Added
-- Statistical analysis module (`statistics.py`) with heritability estimation and ANOVA
-- Modular data cleanup functions: `remove_zero_inflated_traits`, `remove_traits_with_many_nans`, `remove_low_sample_traits`
-- Comprehensive test suite for statistical functions with known-answer fixtures
-- Claude command for reviewing GitHub PR comments (`.claude/commands/review-pr.md`)
-
-### Changed
-- Renamed `link_images_to_samples` to `link_rhizovision_images_to_samples` to clarify Rhizovision-specific functionality
-- Made `_convert_to_json_serializable` public API by removing underscore prefix
-- Added configurable `alpha` parameter to `perform_anova_by_genotype` (default: 0.05)
-- Improved test fixtures with mathematically validated expected values
-
-### Fixed
-- Duplicate imports in `test_statistics.py`
-- Misplaced docstring between test classes
-- Brittle test dependency in heritability tests
-- Metadata key conflict risk by changing `_metadata` to `__calculation_metadata__`
-```
-
 ## Best Practices
 
 1. **Update as you go**: Don't wait until release to update the CHANGELOG
@@ -178,11 +142,8 @@ Based on recent changes, here's a template for updating the CHANGELOG:
 4. **Credit contributors**: Mention PR authors when applicable
 5. **Link to issues/PRs**: Include links for more context
 
-## Quick Command
+## Integration
 
-```bash
-# Quick add to Unreleased section
-echo "- Your change description" >> docs/CHANGELOG.md
-```
-
-Then manually organize into the correct category.
+- Run `/update-changelog` before creating a PR to capture changes
+- Run `/pre-merge-check` to verify the PR is ready, including changelog updates
+- Run `/cleanup-merged` after merge to finalize the release cycle

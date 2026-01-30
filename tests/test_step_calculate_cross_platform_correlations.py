@@ -1762,3 +1762,227 @@ class TestPowerAnalysisIntegration:
         assert (
             strong_power > weak_power
         ), "Strong correlation should have higher power than weak"
+
+
+# === TDD Tests for Copilot Review Fixes ===
+
+
+class TestUnsupportedMethodValidation:
+    """Tests for early validation of unsupported correlation methods.
+
+    Copilot Comment #5: Validation for unsupported correlation methods only
+    occurred inside the loop, risking silent success if no trait pairs were
+    processed. Validation should be moved to execute() entry.
+    """
+
+    def test_unsupported_method_raises_even_when_all_pairs_filtered(self, tmp_path):
+        """Test unsupported method raises ValueError when all pairs filtered.
+
+        This catches the bug where validation only ran inside the loop body,
+        so if all pairs were filtered before reaching validation, an invalid
+        method like 'kendall' would silently succeed.
+        """
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        # Create data with only 4 genotypes
+        exp1_df = pd.DataFrame(
+            {
+                "genotype": ["A", "A", "B", "B", "C", "C", "D", "D"],
+                "replicate": [1, 2, 1, 2, 1, 2, 1, 2],
+                "trait1": [1.0, 1.2, 2.0, 2.1, 3.0, 3.2, 4.0, 4.1],
+            }
+        )
+
+        exp2_df = pd.DataFrame(
+            {
+                "genotype": ["A", "A", "B", "B", "C", "C", "D", "D"],
+                "replicate": [1, 2, 1, 2, 1, 2, 1, 2],
+                "trait_a": [10.0, 10.2, 20.0, 20.1, 30.0, 30.2, 40.0, 40.1],
+            }
+        )
+
+        prev_result = StepResult(
+            data={
+                "exp1_df": exp1_df,
+                "exp2_df": exp2_df,
+                "common_genotypes": ["A", "B", "C", "D"],
+            },
+            metadata={
+                "exp1_trait_names": ["trait1"],
+                "exp2_trait_names": ["trait_a"],
+            },
+            files_generated=[],
+        )
+
+        # Use kendall (unsupported) AND high min_genotypes to filter all pairs
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            correlation_method="kendall",
+            min_genotypes_for_correlation=100,  # All pairs will be filtered
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+
+        # Should raise ValueError for unsupported method BEFORE entering the loop
+        with pytest.raises(ValueError, match="Unsupported correlation_method"):
+            step.execute(
+                data=prev_result.data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+    def test_unsupported_method_raises_with_empty_trait_lists(self, tmp_path):
+        """Test that unsupported method raises even with empty trait lists."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        exp1_df = pd.DataFrame(
+            {
+                "genotype": ["A", "B"],
+                "replicate": [1, 1],
+            }
+        )
+        exp2_df = pd.DataFrame(
+            {
+                "genotype": ["A", "B"],
+                "replicate": [1, 1],
+            }
+        )
+
+        prev_result = StepResult(
+            data={
+                "exp1_df": exp1_df,
+                "exp2_df": exp2_df,
+                "common_genotypes": ["A", "B"],
+            },
+            metadata={
+                "exp1_trait_names": [],  # No traits
+                "exp2_trait_names": [],  # No traits
+            },
+            files_generated=[],
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            correlation_method="kendall",
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+
+        with pytest.raises(ValueError, match="Unsupported correlation_method"):
+            step.execute(
+                data=prev_result.data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+
+class TestFilteringReasonMetadata:
+    """Tests for filtering reason metadata field.
+
+    Copilot Comment #4 / Spec line 233: Metadata should include reason for
+    filtered trait pairs: 'n_genotypes below threshold'.
+    """
+
+    def test_metadata_includes_filtering_reason_when_pairs_filtered(self, tmp_path):
+        """Test metadata includes filtering_reason when pairs are filtered."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        # Create data with only 5 genotypes
+        genotypes = ["A", "B", "C", "D", "E"]
+        exp1_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 5 + [2] * 5,
+                "trait1": [1.0, 2.0, 3.0, 4.0, 5.0] * 2,
+            }
+        )
+        exp2_df = pd.DataFrame(
+            {
+                "genotype": genotypes * 2,
+                "replicate": [1] * 5 + [2] * 5,
+                "trait_a": [10.0, 20.0, 30.0, 40.0, 50.0] * 2,
+            }
+        )
+
+        prev_result = StepResult(
+            data={
+                "exp1_df": exp1_df,
+                "exp2_df": exp2_df,
+                "common_genotypes": genotypes,
+            },
+            metadata={
+                "exp1_trait_names": ["trait1"],
+                "exp2_trait_names": ["trait_a"],
+            },
+            files_generated=[],
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=10,  # Higher than available
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=prev_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Metadata should include filtering_reason
+        assert "filtering_reason" in result.metadata
+        assert result.metadata["filtering_reason"] == "n_genotypes below threshold"
+
+    def test_metadata_no_filtering_reason_when_no_pairs_filtered(
+        self, loaded_data_result, tmp_path
+    ):
+        """Test no filtering_reason in metadata when no pairs are filtered."""
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        config = CrossPlatformConfig(
+            exp1_data_path="dummy1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="Geno",
+            exp2_data_path="dummy2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno",
+            min_genotypes_for_correlation=3,  # Low threshold, nothing filtered
+        )
+
+        step = CalculateCrossPlatformCorrelationsStep()
+        result = step.execute(
+            data=loaded_data_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=loaded_data_result,
+        )
+
+        # When no pairs are filtered, filtering_reason should not be present
+        assert result.metadata.get("n_correlations_filtered_low_n", 0) == 0
+        assert "filtering_reason" not in result.metadata

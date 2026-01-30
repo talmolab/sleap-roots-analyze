@@ -582,7 +582,7 @@ Key fields related to statistical analysis:
 
 ### Correlation Strength Guidelines
 
-| |r| or |ρ| | Interpretation |
+| \|r\| or \|ρ\| | Interpretation |
 |------------|----------------|
 | 0.0 - 0.1  | Negligible |
 | 0.1 - 0.3  | Weak |

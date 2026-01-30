@@ -49,8 +49,10 @@ def _apply_fdr_correction_safe(
 
     if n_nan > 0:
         logger.warning(
-            f"Found {n_nan} NaN p-values out of {len(p_values)} total. "
-            "These will be excluded from FDR correction and remain NaN."
+            "Found %d NaN p-values out of %d total. "
+            "These will be excluded from FDR correction and remain NaN.",
+            n_nan,
+            len(p_values),
         )
 
     if n_valid == 0:
@@ -128,6 +130,15 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         exp2_df = data["exp2_df"]
         common_genotypes = data["common_genotypes"]
 
+        # Validate correlation method early (before entering loop)
+        supported_methods = ("spearman", "pearson")
+        if config.correlation_method not in supported_methods:
+            raise ValueError(
+                f"Unsupported correlation_method for cross-platform correlations: "
+                f"{config.correlation_method!r}. "
+                f"Supported methods are {supported_methods!r} for this pipeline step."
+            )
+
         # Get trait names from metadata
         exp1_traits = prev_result.metadata["exp1_trait_names"]
         exp2_traits = prev_result.metadata["exp2_trait_names"]
@@ -164,9 +175,12 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 x = exp1_means[trait1].values
                 y = exp2_means[trait2].values
 
-                # Count valid genotypes (non-NaN in both traits)
+                # Pre-filter NaN pairs once (avoids redundant masking in
+                # calculate_correlations which also filters internally)
                 valid_mask = ~(np.isnan(x) | np.isnan(y))
-                n_genotypes = valid_mask.sum()
+                n_genotypes = int(valid_mask.sum())
+                x_clean = x[valid_mask]
+                y_clean = y[valid_mask]
 
                 # Apply min_genotypes_for_correlation filter (hard filter)
                 if n_genotypes < config.min_genotypes_for_correlation:
@@ -180,9 +194,13 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                     )
                     continue
 
-                # Calculate BOTH correlation methods
-                spearman_r, spearman_p = calculate_correlations(x, y, method="spearman")
-                pearson_r, pearson_p = calculate_correlations(x, y, method="pearson")
+                # Calculate BOTH correlation methods using pre-filtered data
+                spearman_r, spearman_p = calculate_correlations(
+                    x_clean, y_clean, method="spearman"
+                )
+                pearson_r, pearson_p = calculate_correlations(
+                    x_clean, y_clean, method="pearson"
+                )
 
                 # Calculate confidence intervals for both correlation methods
                 spearman_ci_low, spearman_ci_high = calculate_correlation_ci(
@@ -193,18 +211,10 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 )
 
                 # Calculate achieved power for the primary correlation
-                if config.correlation_method == "spearman":
-                    primary_r = spearman_r
-                elif config.correlation_method == "pearson":
-                    primary_r = pearson_r
-                else:
-                    # Kendall and any other unsupported methods are not valid for this step.
-                    # Failing fast here avoids silently using Pearson when Kendall is configured.
-                    raise ValueError(
-                        f"Unsupported correlation_method for cross-platform correlations: "
-                        f"{config.correlation_method!r}. "
-                        "Supported methods are 'spearman' and 'pearson' for this pipeline step."
-                    )
+                # (method already validated at execute() entry)
+                primary_r = (
+                    spearman_r if config.correlation_method == "spearman" else pearson_r
+                )
                 power = achieved_power(
                     r=primary_r, n=n_genotypes, alpha=config.power_analysis_alpha
                 )
@@ -230,8 +240,10 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         if n_filtered_low_n > 0:
             total_pairs = len(exp1_traits) * len(exp2_traits)
             logger.info(
-                f"Filtered {n_filtered_low_n}/{total_pairs} trait pairs with "
-                f"n_genotypes < {config.min_genotypes_for_correlation}"
+                "Filtered %d/%d trait pairs with n_genotypes < %d",
+                n_filtered_low_n,
+                total_pairs,
+                config.min_genotypes_for_correlation,
             )
 
         # Create DataFrame
@@ -260,9 +272,10 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
                 ]
             )
             logger.warning(
-                f"All {len(exp1_traits) * len(exp2_traits)} trait pairs were filtered out. "
-                f"Consider lowering min_genotypes_for_correlation "
-                f"(current: {config.min_genotypes_for_correlation})."
+                "All %d trait pairs were filtered out. "
+                "Consider lowering min_genotypes_for_correlation (current: %d).",
+                len(exp1_traits) * len(exp2_traits),
+                config.min_genotypes_for_correlation,
             )
         else:
             # Sort by absolute value of PRIMARY correlation (determined by config)
@@ -363,6 +376,11 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
             # Power analysis metadata
             "min_genotypes_for_correlation": config.min_genotypes_for_correlation,
             "n_correlations_filtered_low_n": n_filtered_low_n,
+            **(
+                {"filtering_reason": "n_genotypes below threshold"}
+                if n_filtered_low_n > 0
+                else {}
+            ),
             "power_analysis_alpha": config.power_analysis_alpha,
             "power_analysis_power": config.power_analysis_power,
             "minimum_detectable_r": mdr,

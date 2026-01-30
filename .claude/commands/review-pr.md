@@ -1,75 +1,85 @@
 # Review GitHub PR Comments
 
-This command helps review and address GitHub Copilot or human review comments on pull requests.
+Review and address GitHub Copilot or human review comments on pull requests.
 
-## Usage
+## Arguments
+
+$ARGUMENTS
+
+If a PR number is provided as an argument, use it directly. Otherwise, detect from the current branch:
 
 ```bash
-# List current PRs
-gh pr list --author @me
+gh pr view --json number --jq .number
+```
 
+## Step 1: Fetch PR Comments
+
+```bash
 # View PR with comments
 gh pr view <PR_NUMBER> --comments
 
-# Get inline code review comments
-gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments --jq '.[] | {path: .path, line: .line, body: .body}'
+# Get inline code review comments with file paths and line numbers
+gh api repos/talmolab/sleap-roots-analyze/pulls/<PR_NUMBER>/comments --jq '.[] | {path: .path, line: .line, body: .body}'
 
 # Get review summaries
-gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/reviews --jq '.[].body'
+gh api repos/talmolab/sleap-roots-analyze/pulls/<PR_NUMBER>/reviews --jq '.[].body'
 ```
 
-## Example for this repository
+## Step 2: Categorize Comments
 
-```bash
-# View PR #2 with all comments
-gh pr view 2 --comments
-
-# Get inline comments with file paths and line numbers
-gh api repos/talmolab/sleap-roots-analyze/pulls/2/comments --jq '.[] | {path: .path, line: .line, body: .body}'
-
-# Get review summaries
-gh api repos/talmolab/sleap-roots-analyze/pulls/2/reviews --jq '.[].body'
-```
-
-## Action Plan Template
-
-When addressing PR comments, create an action plan:
-
-1. **List all comments** with their locations
-2. **Prioritize** by severity (errors > warnings > suggestions > nitpicks)
-3. **Group related changes** (e.g., all import fixes together)
-4. **Test after each group** of changes
-5. **Document decisions** if not implementing a suggestion
-
-## Categories of Changes
+Organize comments by priority:
 
 ### Critical (Must Fix)
-- Duplicate code/imports
+- Data consistency issues
 - Broken functionality
 - Security issues
+- Incorrect statistical calculations
 
 ### Important (Should Fix)
 - API inconsistencies
-- Misleading documentation
+- Missing or incorrect tests
+- Type safety violations
 - Code maintainability issues
+- Misleading documentation
 
 ### Nice to Have (Consider)
+- Code quality improvements
 - Style improvements
 - Performance optimizations (unless critical)
 - Additional features
+- Documentation enhancements
 
-## Responding to Reviews
+## Step 3: Create Action Plan
+
+1. **List all comments** with their locations (file:line)
+2. **Prioritize** by severity (Critical > Important > Nice to Have)
+3. **Group related changes** (e.g., all import fixes together)
+4. **Identify already-fixed** issues from previous commits
+5. **Test after each group** of changes
+6. **Document decisions** if not implementing a suggestion
+
+## Step 4: Implement Fixes
+
+1. Fix Critical issues first, run tests, commit
+2. Fix Important issues, run tests, commit
+3. Consider Nice to Have items - implement or note for future
+
+## Step 5: Respond to Review
 
 After addressing comments:
 
 ```bash
 # Post a comment summarizing changes
 gh pr comment <PR_NUMBER> --body "Addressed review comments:
-- Fixed duplicate imports
-- Updated docstrings
-- Made function public
-..."
-
-# Request re-review
-gh pr review <PR_NUMBER> --request-changes --body "Please review the changes"
+- Fixed [summary of critical fixes]
+- Updated [summary of important fixes]
+- Noted [items deferred to future work]
+"
 ```
+
+## Integration
+
+- Run `/lint` after fixes to verify code style
+- Run `/coverage` to check test coverage after adding tests
+- Run `/run-ci-locally` to verify full CI passes
+- Use `/pre-merge-check` for comprehensive pre-merge verification
