@@ -12,10 +12,10 @@ First, confirm the PR has been merged:
 
 ```bash
 # Show recent merged PRs
-unset GITHUB_TOKEN && gh pr list --state merged --limit 5
+gh pr list --state merged --limit 5
 
 # View specific PR status
-unset GITHUB_TOKEN && gh pr view <number>
+gh pr view <number>
 ```
 
 Verify the branch appears in the merged list before proceeding.
@@ -128,7 +128,7 @@ After cleanup, verify:
 
 **Stop!** Do not force delete with `-D`.
 
-1. Check merge status: `unset GITHUB_TOKEN && gh pr view <number>`
+1. Check merge status: `gh pr view <number>`
 2. If PR is still open, ask user to merge first
 3. If PR was closed without merging, confirm before force deletion
 
@@ -162,7 +162,7 @@ error: The branch '<branch-name>' is not fully merged.
 **Solution**: Check if PR was actually merged:
 
 ```bash
-unset GITHUB_TOKEN && gh pr view <number>
+gh pr view <number>
 ```
 
 If it shows "Merged", there may be a remote sync issue:

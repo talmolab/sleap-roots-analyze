@@ -9,20 +9,20 @@ $ARGUMENTS
 If a PR number is provided as an argument, use it directly. Otherwise, detect from the current branch:
 
 ```bash
-unset GITHUB_TOKEN && gh pr view --json number --jq .number
+gh pr view --json number --jq .number
 ```
 
 ## Step 1: Fetch PR Comments
 
 ```bash
 # View PR with comments
-unset GITHUB_TOKEN && gh pr view <PR_NUMBER> --comments
+gh pr view <PR_NUMBER> --comments
 
 # Get inline code review comments with file paths and line numbers
-unset GITHUB_TOKEN && gh api repos/talmolab/sleap-roots-analyze/pulls/<PR_NUMBER>/comments --jq '.[] | {path: .path, line: .line, body: .body}'
+gh api repos/talmolab/sleap-roots-analyze/pulls/<PR_NUMBER>/comments --jq '.[] | {path: .path, line: .line, body: .body}'
 
 # Get review summaries
-unset GITHUB_TOKEN && gh api repos/talmolab/sleap-roots-analyze/pulls/<PR_NUMBER>/reviews --jq '.[].body'
+gh api repos/talmolab/sleap-roots-analyze/pulls/<PR_NUMBER>/reviews --jq '.[].body'
 ```
 
 ## Step 2: Categorize Comments
@@ -70,7 +70,7 @@ After addressing comments:
 
 ```bash
 # Post a comment summarizing changes
-unset GITHUB_TOKEN && gh pr comment <PR_NUMBER> --body "Addressed review comments:
+gh pr comment <PR_NUMBER> --body "Addressed review comments:
 - Fixed [summary of critical fixes]
 - Updated [summary of important fixes]
 - Noted [items deferred to future work]

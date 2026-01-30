@@ -18,13 +18,3 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 <!-- OPENSPEC:END -->
 
 For project context, guidelines, and conventions, see **[openspec/project.md](openspec/project.md)**.
-
-## GitHub CLI
-
-When using `gh` commands, always prefix with `unset GITHUB_TOKEN` to avoid token lifetime restrictions from the `talmolab` organization:
-
-```bash
-unset GITHUB_TOKEN && gh pr create ...
-```
-
-This ensures `gh` falls back to its own auth rather than the environment variable.

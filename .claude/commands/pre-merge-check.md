@@ -39,10 +39,10 @@ If any check fails, fix the issue before proceeding.
 
 ```bash
 # Get current PR number
-unset GITHUB_TOKEN && gh pr view --json number --jq .number
+gh pr view --json number --jq .number
 
 # Check CI status
-unset GITHUB_TOKEN && gh pr checks
+gh pr checks
 ```
 
 If CI is failing, investigate and fix before continuing.
@@ -51,13 +51,13 @@ If CI is failing, investigate and fix before continuing.
 
 ```bash
 # Get the PR number
-PR_NUMBER=$(unset GITHUB_TOKEN && gh pr view --json number --jq .number)
+PR_NUMBER=$(gh pr view --json number --jq .number)
 
 # Get inline code review comments
-unset GITHUB_TOKEN && gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/comments --jq '.[] | {path: .path, line: .line, body: .body}'
+gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/comments --jq '.[] | {path: .path, line: .line, body: .body}'
 
 # Get review summaries
-unset GITHUB_TOKEN && gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/reviews --jq '.[].body'
+gh api repos/talmolab/sleap-roots-analyze/pulls/$PR_NUMBER/reviews --jq '.[].body'
 ```
 
 ## Step 4: Categorize and Prioritize
@@ -120,7 +120,7 @@ After all fixes:
 uv run black --check src/sleap_roots_analyze tests && uv run ruff check src/sleap_roots_analyze && uv run pytest tests/
 
 # Verify GitHub CI passes
-unset GITHUB_TOKEN && gh pr checks
+gh pr checks
 
 # Check coverage
 uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --cov-report=term-missing --durations=-1 tests/
