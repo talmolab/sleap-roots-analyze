@@ -15,6 +15,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+from scipy.cluster.hierarchy import linkage as hierarchical_linkage, fcluster
+from scipy.spatial.distance import squareform
 
 
 def _calculate_correlations(
@@ -1808,3 +1810,193 @@ def create_genotype_boxplots(
 
     plt.tight_layout()
     return fig
+
+
+# ============================================================================
+# TRAIT REDUNDANCY REDUCTION FUNCTIONS
+# ============================================================================
+
+
+def cluster_correlated_traits(
+    df: pd.DataFrame,
+    threshold: float = 0.8,
+    linkage: str = "complete",
+) -> Dict[int, List[str]]:
+    """Cluster traits based on pairwise correlations.
+
+    Uses hierarchical clustering with the specified linkage method to group
+    traits that are highly correlated. Traits with |r| >= threshold are
+    considered redundant and grouped together.
+
+    Algorithm:
+        1. Compute Spearman correlation matrix between all trait pairs
+        2. Convert to distance: d = 1 - |r| (range [0, 1])
+        3. Apply hierarchical clustering with specified linkage
+        4. Cut dendrogram at distance t = 1 - threshold
+        5. Return cluster assignments
+
+    Edge cases:
+        - Empty DataFrame: Returns empty dict
+        - Single trait: Returns {0: [trait_name]}
+        - All NaN trait: Placed in singleton cluster
+        - Constant trait (zero variance): Placed in singleton cluster
+
+    Args:
+        df: DataFrame with traits as columns and genotypes as rows.
+            Index should be genotype identifiers.
+        threshold: Minimum |r| for traits to be considered redundant.
+            Must be in (0, 1]. Default 0.8.
+        linkage: Linkage method for hierarchical clustering.
+            One of "complete", "average", "single". Default "complete".
+
+    Returns:
+        Dict mapping cluster_id (int) to list of trait names (sorted alphabetically).
+
+    Example:
+        >>> df = pd.DataFrame({'A': [1, 2, 3], 'B': [1, 2, 3], 'C': [3, 2, 1]})
+        >>> clusters = cluster_correlated_traits(df, threshold=0.8)
+        >>> # A and B are perfectly correlated, C is anti-correlated
+        >>> # Result: {0: ['A', 'B'], 1: ['C']}
+    """
+    # Handle empty DataFrame
+    if df.empty or len(df.columns) == 0:
+        return {}
+
+    traits = list(df.columns)
+    n_traits = len(traits)
+
+    # Handle single trait
+    if n_traits == 1:
+        return {0: traits}
+
+    # Compute pairwise Spearman correlations
+    # Use min_periods to handle NaN values
+    corr_matrix = df.corr(method="spearman")
+
+    # Identify problematic traits (constant or all NaN)
+    # These will be placed in singleton clusters
+    problematic_traits = []
+    valid_traits = []
+
+    for trait in traits:
+        # Check if trait is constant (zero variance) or all NaN
+        trait_values = df[trait].dropna()
+        if len(trait_values) == 0 or trait_values.std() == 0:
+            problematic_traits.append(trait)
+        else:
+            valid_traits.append(trait)
+
+    # If no valid traits, all are singletons
+    if len(valid_traits) == 0:
+        return {i: [trait] for i, trait in enumerate(sorted(traits))}
+
+    # If only one valid trait, it's a singleton
+    if len(valid_traits) == 1:
+        clusters = {0: valid_traits}
+        # Add problematic traits as singletons
+        for i, trait in enumerate(sorted(problematic_traits), start=1):
+            clusters[i] = [trait]
+        return clusters
+
+    # Extract correlation submatrix for valid traits
+    valid_corr = corr_matrix.loc[valid_traits, valid_traits]
+
+    # Convert to distance matrix: d = 1 - |r|
+    # Handle any NaN correlations by treating them as maximum distance
+    distance_matrix = 1 - valid_corr.abs().fillna(0)
+
+    # Ensure diagonal is 0 (no self-distance)
+    np.fill_diagonal(distance_matrix.values, 0)
+
+    # Ensure symmetry (should already be, but just in case of floating point issues)
+    distance_matrix = (distance_matrix + distance_matrix.T) / 2
+
+    # Convert to condensed distance matrix for scipy
+    condensed_dist = squareform(distance_matrix.values, checks=False)
+
+    # Perform hierarchical clustering
+    Z = hierarchical_linkage(condensed_dist, method=linkage)
+
+    # Cut dendrogram at threshold distance
+    # distance = 1 - threshold means: cluster traits with |r| >= threshold
+    cut_distance = 1 - threshold
+    cluster_labels = fcluster(Z, t=cut_distance, criterion="distance")
+
+    # Build cluster dict from valid traits
+    clusters_dict: Dict[int, List[str]] = {}
+    for trait, label in zip(valid_traits, cluster_labels):
+        if label not in clusters_dict:
+            clusters_dict[label] = []
+        clusters_dict[label].append(trait)
+
+    # Sort traits within each cluster alphabetically
+    for label in clusters_dict:
+        clusters_dict[label] = sorted(clusters_dict[label])
+
+    # Add problematic traits as singleton clusters
+    next_cluster_id = max(clusters_dict.keys()) + 1 if clusters_dict else 0
+    for trait in sorted(problematic_traits):
+        clusters_dict[next_cluster_id] = [trait]
+        next_cluster_id += 1
+
+    # Renumber clusters to be consecutive starting from 0
+    old_to_new = {old: new for new, old in enumerate(sorted(clusters_dict.keys()))}
+    result = {old_to_new[old]: traits for old, traits in clusters_dict.items()}
+
+    return result
+
+
+def select_cluster_representatives(
+    df: pd.DataFrame,
+    clusters: Dict[int, List[str]],
+) -> List[str]:
+    """Select one representative trait per cluster.
+
+    Selection criterion: trait with highest variance across genotypes.
+    Tie-breaking: alphabetically first trait name.
+
+    Args:
+        df: DataFrame with traits as columns and genotypes as rows.
+        clusters: Dict mapping cluster_id to list of trait names.
+            Output from cluster_correlated_traits().
+
+    Returns:
+        List of representative trait names, one per cluster.
+        Order corresponds to cluster IDs sorted ascending.
+
+    Example:
+        >>> df = pd.DataFrame({'A': [1, 2, 3], 'B': [10, 20, 30], 'C': [5, 5, 5]})
+        >>> clusters = {0: ['A', 'B'], 1: ['C']}
+        >>> reps = select_cluster_representatives(df, clusters)
+        >>> reps  # ['B', 'C'] - B has higher variance than A
+    """
+    if not clusters:
+        return []
+
+    representatives = []
+
+    for cluster_id in sorted(clusters.keys()):
+        traits = clusters[cluster_id]
+
+        if len(traits) == 1:
+            representatives.append(traits[0])
+            continue
+
+        # Calculate variance for each trait, handling NaN
+        variances = {}
+        for trait in traits:
+            var = df[trait].var(skipna=True)
+            # If variance is NaN (e.g., all values are NaN), use -inf
+            variances[trait] = var if not np.isnan(var) else float("-inf")
+
+        # Find trait(s) with maximum variance
+        max_var = max(variances.values())
+
+        # Get all traits with max variance (for tie-breaking)
+        max_var_traits = [t for t, v in variances.items() if v == max_var]
+
+        # Tie-break alphabetically
+        representative = sorted(max_var_traits)[0]
+        representatives.append(representative)
+
+    return representatives

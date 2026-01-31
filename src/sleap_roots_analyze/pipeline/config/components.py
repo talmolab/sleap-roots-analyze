@@ -745,6 +745,16 @@ class CrossPlatformConfig:
         figsize_boxplot: Figure size for boxplots (width, height).
         exp1_exclude_cols: List of column names to exclude from experiment 1 trait analysis.
         exp2_exclude_cols: List of column names to exclude from experiment 2 trait analysis.
+        trait_reduction_method: Method for reducing trait redundancy before correlation.
+            - "none": No reduction, use all traits (default)
+            - "clustering": Hierarchical clustering of correlated traits
+        trait_clustering_threshold: Minimum |r| for traits to be considered redundant.
+            Must be in (0, 1] range. Default 0.8. Higher values = more stringent = more
+            clusters = fewer traits removed.
+        trait_clustering_linkage: Linkage method for hierarchical clustering.
+            - "complete": Maximum distance between all pairs (default, most conservative)
+            - "average": Average distance between all pairs
+            - "single": Minimum distance between any pair (most aggressive)
     """
 
     # Required parameters
@@ -772,6 +782,11 @@ class CrossPlatformConfig:
     figsize_boxplot: tuple = (14, 6)
     exp1_exclude_cols: Optional[List[str]] = None
     exp2_exclude_cols: Optional[List[str]] = None
+
+    # Trait redundancy reduction parameters
+    trait_reduction_method: str = "none"
+    trait_clustering_threshold: float = 0.8
+    trait_clustering_linkage: str = "complete"
 
     def __post_init__(self):
         """Validate configuration parameters."""
@@ -817,4 +832,27 @@ class CrossPlatformConfig:
             raise ValueError(
                 f"power_analysis_power must be in (0, 1) exclusive range, "
                 f"got {self.power_analysis_power}"
+            )
+
+        # Validate trait reduction method
+        valid_reduction_methods = ["none", "clustering"]
+        if self.trait_reduction_method not in valid_reduction_methods:
+            raise ValueError(
+                f"trait_reduction_method must be one of {valid_reduction_methods}, "
+                f"got '{self.trait_reduction_method}'"
+            )
+
+        # Validate trait clustering threshold (must be in (0, 1] range)
+        if not (0 < self.trait_clustering_threshold <= 1):
+            raise ValueError(
+                f"trait_clustering_threshold must be in (0, 1] range, "
+                f"got {self.trait_clustering_threshold}"
+            )
+
+        # Validate trait clustering linkage
+        valid_linkage_methods = ["complete", "average", "single"]
+        if self.trait_clustering_linkage not in valid_linkage_methods:
+            raise ValueError(
+                f"trait_clustering_linkage must be one of {valid_linkage_methods}, "
+                f"got '{self.trait_clustering_linkage}'"
             )
