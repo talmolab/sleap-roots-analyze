@@ -77,7 +77,7 @@ The system SHALL calculate total image size before generating summaries to suppo
 
 ## MODIFIED Requirements
 
-### Requirement: Summary Generation
+### Requirement: Cross-Platform Summary Generator
 
 The system SHALL generate comprehensive markdown summaries from cross-platform correlation analysis outputs using the `CrossPlatformSummaryGenerator` class.
 

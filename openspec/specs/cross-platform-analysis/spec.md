@@ -32,6 +32,9 @@ And the following optional parameters with defaults:
 - `min_genotypes_for_correlation`: Minimum number of valid genotypes required for a trait pair correlation, default 10. Trait pairs with fewer valid genotypes after NaN removal are excluded from output.
 - `power_analysis_alpha`: Significance level (α) for power analysis, default 0.05. Used to calculate minimum detectable effect size and achieved power.
 - `power_analysis_power`: Target power (1-β) for minimum detectable effect size calculation, default 0.80. Standard convention is 80% power.
+- `trait_reduction_method`: Method for reducing trait redundancy ("none", "clustering"), default "none"
+- `trait_clustering_threshold`: Minimum |r| for traits to be considered redundant, default 0.8
+- `trait_clustering_linkage`: Linkage method for hierarchical clustering ("complete", "average", "single"), default "complete"
 
 #### Scenario: Valid configuration with required fields
 
@@ -64,44 +67,15 @@ And the following optional parameters with defaults:
 - **THEN** 99% confidence intervals are computed for all correlations
 - **AND** intervals are wider than default 95% intervals
 
-#### Scenario: Exclude metadata columns from experiment 1
+#### Scenario: Invalid trait reduction method
 
-- **WHEN** user specifies exp1_exclude_cols with metadata column names like ["Ent", "Sub", "Cid"]
-- **THEN** those columns are excluded from experiment 1 trait analysis
-- **AND** they do not appear in correlation results
+- **WHEN** user specifies trait_reduction_method not in ["none", "clustering"]
+- **THEN** configuration validation fails with error listing valid options
 
-#### Scenario: Exclude metadata columns from experiment 2
+#### Scenario: Invalid clustering threshold
 
-- **WHEN** user specifies exp2_exclude_cols with metadata column names like ["File.me", "scanner"]
-- **THEN** those columns are excluded from experiment 2 trait analysis
-- **AND** they do not appear in correlation results
-
-#### Scenario: Different exclusion lists per experiment
-
-- **WHEN** exp1 has field metadata columns and exp2 has imaging metadata columns
-- **THEN** each experiment's exclusion list is applied independently
-- **AND** correlations only include biological trait columns
-
-#### Scenario: Invalid min_genotypes_for_correlation
-
-- **WHEN** user specifies min_genotypes_for_correlation < 3
-- **THEN** configuration validation fails with error indicating minimum value is 3
-
-#### Scenario: Invalid power_analysis_alpha
-
-- **WHEN** user specifies power_analysis_alpha outside (0, 1) exclusive range
+- **WHEN** user specifies trait_clustering_threshold outside (0, 1] range
 - **THEN** configuration validation fails with error indicating valid range
-
-#### Scenario: Invalid power_analysis_power
-
-- **WHEN** user specifies power_analysis_power outside (0, 1) exclusive range
-- **THEN** configuration validation fails with error indicating valid range
-
-#### Scenario: Custom power analysis parameters
-
-- **WHEN** user specifies power_analysis_alpha as 0.01 and power_analysis_power as 0.90
-- **THEN** minimum detectable r is computed using α=0.01 and power=0.90
-- **AND** achieved power is computed using α=0.01
 
 ### Requirement: Load and Align Cross-Platform Data
 
@@ -811,4 +785,486 @@ The system SHALL document the minimum genotypes filter in `docs/CROSS_PLATFORM_A
 - **WHEN** user decides on min_genotypes_for_correlation value
 - **THEN** documentation provides guidance based on statistical requirements
 - **AND** documentation recommends n >= 10 as default for Spearman accuracy
+
+### Requirement: Cross-Platform Summary Data Structures
+
+The system SHALL provide data structures for aggregating and reporting cross-platform analysis statistics.
+
+#### Scenario: TraitReductionStats captures clustering results
+
+- **GIVEN** a cross-platform run with `trait_reduction_method: clustering`
+- **WHEN** `TraitReductionStats` is created from `trait_clusters.csv`
+- **THEN** it SHALL contain:
+  - `original_count`: Total traits before clustering
+  - `cluster_count`: Number of clusters formed
+  - `representative_count`: Number of representative traits selected
+  - `reduction_percentage`: Calculated as `(1 - representative_count / original_count) * 100`
+
+#### Scenario: CorrelationStats captures correlation analysis results
+
+- **GIVEN** a `cross_platform_correlations.csv` file
+- **WHEN** `CorrelationStats` is created
+- **THEN** it SHALL contain:
+  - `total`: Row count in correlations CSV
+  - `nominal_significant`: Count where `spearman_p < 0.05`
+  - `fdr_significant`: Count where `significant_fdr == True`
+  - `max_abs_r`: Maximum absolute value of `spearman_r`
+  - `top_correlations`: List of `TopCorrelation` objects (top N by |r|)
+
+#### Scenario: TopCorrelation captures individual correlation details
+
+- **WHEN** a `TopCorrelation` object is created
+- **THEN** it SHALL contain:
+  - `exp1_trait`: Trait name from experiment 1
+  - `exp2_trait`: Trait name from experiment 2
+  - `r`: Spearman correlation coefficient (signed)
+  - `p`: Raw p-value
+  - `q`: FDR-adjusted p-value
+  - `power`: Achieved statistical power
+  - `n`: Number of genotypes used in correlation
+
+#### Scenario: PowerStats captures power analysis summary
+
+- **GIVEN** a correlations CSV with `achieved_power` column
+- **WHEN** `PowerStats` is created
+- **THEN** it SHALL contain:
+  - `count_above_80`: Count where `achieved_power >= 0.80`
+  - `percentage_above_80`: `(count_above_80 / total) * 100`
+  - `median_power`: Median of all `achieved_power` values
+  - `min_power`: Minimum `achieved_power`
+  - `max_power`: Maximum `achieved_power`
+
+#### Scenario: ValidationResult captures guardrail outcomes
+
+- **WHEN** validation guardrails are applied
+- **THEN** `ValidationResult` SHALL contain:
+  - `passed`: Boolean indicating all checks passed
+  - `errors`: List of error messages for failed checks
+  - `warnings`: List of warning messages for non-critical issues
+
+### Requirement: Explicit Trait Clustering Configuration
+
+The system SHALL require explicit configuration of which experiment(s) to cluster. There are no implicit defaults.
+
+#### Scenario: Clustering target explicitly configured
+
+- **GIVEN** a cross-platform config with `trait_reduction_method: clustering`
+- **THEN** the config MUST specify `trait_reduction_target` with one of:
+  - `exp1`: Cluster only exp1 traits
+  - `exp2`: Cluster only exp2 traits
+  - `both`: Cluster both exp1 and exp2 traits independently
+- **AND** validation SHALL fail if `trait_reduction_target` is missing when clustering is enabled
+
+#### Scenario: Config validation rejects ambiguous clustering
+
+- **GIVEN** a cross-platform config with `trait_reduction_method: clustering`
+- **AND** no `trait_reduction_target` specified
+- **WHEN** config validation runs
+- **THEN** validation SHALL fail with error: "trait_reduction_target must be specified when trait_reduction_method is 'clustering'"
+
+### Requirement: Trait Clustering Visualizations
+
+The system SHALL generate visualizations for trait clustering as part of the `ReduceTraitRedundancyStep` pipeline step. All visualizations are tested Python code following project conventions.
+
+#### Scenario: Exp1 dendrogram generated when exp1 clustered
+
+- **GIVEN** `trait_reduction_target` includes `exp1` (i.e., `exp1` or `both`)
+- **WHEN** `ReduceTraitRedundancyStep` executes
+- **THEN** it SHALL generate `exp1_trait_clustering_dendrogram.png`
+- **AND** the dendrogram SHALL show hierarchical clustering of exp1 traits
+- **AND** the threshold cutoff line SHALL be displayed at `trait_clustering_threshold`
+- **AND** cluster assignments SHALL be color-coded
+
+#### Scenario: Exp2 dendrogram generated when exp2 clustered
+
+- **GIVEN** `trait_reduction_target` includes `exp2` (i.e., `exp2` or `both`)
+- **WHEN** `ReduceTraitRedundancyStep` executes
+- **THEN** it SHALL generate `exp2_trait_clustering_dendrogram.png`
+- **AND** the dendrogram SHALL show hierarchical clustering of exp2 traits
+- **AND** the threshold cutoff line SHALL be displayed at `trait_clustering_threshold`
+- **AND** cluster assignments SHALL be color-coded
+
+#### Scenario: Exp1 correlation heatmap generated when exp1 clustered
+
+- **GIVEN** `trait_reduction_target` includes `exp1`
+- **WHEN** `ReduceTraitRedundancyStep` executes
+- **THEN** it SHALL generate `exp1_trait_cluster_heatmap.png`
+- **AND** the heatmap SHALL show within-exp1 trait correlation matrix
+- **AND** traits SHALL be ordered by cluster membership
+- **AND** cluster boundaries SHALL be visually indicated
+- **AND** representative traits SHALL be highlighted
+
+#### Scenario: Exp2 correlation heatmap generated when exp2 clustered
+
+- **GIVEN** `trait_reduction_target` includes `exp2`
+- **WHEN** `ReduceTraitRedundancyStep` executes
+- **THEN** it SHALL generate `exp2_trait_cluster_heatmap.png`
+- **AND** the heatmap SHALL show within-exp2 trait correlation matrix
+- **AND** traits SHALL be ordered by cluster membership
+- **AND** cluster boundaries SHALL be visually indicated
+- **AND** representative traits SHALL be highlighted
+
+#### Scenario: Cross-platform representative heatmap generated
+
+- **GIVEN** trait clustering is enabled for at least one experiment
+- **WHEN** `VisualizeCrossPlatformStep` executes
+- **THEN** it SHALL generate `cross_platform_representative_heatmap.png`
+- **AND** rows SHALL be exp1 traits (all traits if not clustered, representatives if clustered)
+- **AND** columns SHALL be exp2 traits (all traits if not clustered, representatives if clustered)
+- **AND** significant correlations SHALL be annotated
+- **AND** color scale SHALL indicate correlation strength and direction
+
+#### Scenario: No clustering visualizations when clustering disabled
+
+- **GIVEN** `trait_reduction_method: none`
+- **WHEN** pipeline executes
+- **THEN** no clustering dendrograms or heatmaps SHALL be generated
+- **AND** no errors SHALL occur
+
+#### Scenario: Visualization metadata captured for reproducibility
+
+- **WHEN** clustering visualizations are generated
+- **THEN** metadata JSON SHALL include:
+  - `trait_reduction_target`: Which experiment(s) were clustered
+  - `trait_clustering_threshold`: The threshold value used
+  - `trait_clustering_linkage`: The linkage method used
+  - `exp1_n_clusters`: Number of clusters in exp1 (if clustered)
+  - `exp2_n_clusters`: Number of clusters in exp2 (if clustered)
+  - `exp1_n_representatives`: Number of exp1 representatives (if clustered)
+  - `exp2_n_representatives`: Number of exp2 representatives (if clustered)
+
+### Requirement: Cross-Platform Summary Generator
+
+The system SHALL generate comprehensive markdown summaries from cross-platform correlation analysis outputs using the `CrossPlatformSummaryGenerator` class.
+
+The `to_markdown()` method SHALL accept the following parameters:
+- `image_mode`: One of "file_path", "embed", or "auto" (default: "file_path")
+- `embed_threshold_bytes`: Maximum bytes for embedded images (default: 10,485,760)
+
+The `generate()` method SHALL return a `CrossPlatformSummary` object that can be converted to markdown or HTML format.
+
+#### Scenario: Default generates file-path markdown
+
+- **WHEN** `CrossPlatformSummaryGenerator.generate()` is called
+- **AND** `summary.to_markdown()` is called with no arguments
+- **THEN** the output SHALL use relative file paths for images
+- **AND** the file size SHALL be less than 1MB for typical analyses
+
+#### Scenario: Embedded images requested under threshold
+
+- **WHEN** `summary.to_markdown(image_mode="embed")` is called
+- **AND** total visualization size is under 10MB
+- **THEN** images SHALL be embedded as base64 data URIs
+- **AND** the markdown SHALL be self-contained
+
+#### Scenario: Summary written by pipeline runner
+
+- **WHEN** the pipeline runner generates SUMMARY.md
+- **THEN** it SHALL use `image_mode="file_path"` by default
+- **AND** optionally accept `--embed-images` flag for portable output
+- **AND** optionally accept `--html` flag for HTML output
+
+### Requirement: Cross-Platform Summary Markdown Rendering
+
+The system SHALL render cross-platform summaries as well-formatted markdown.
+
+#### Scenario: Overview table rendered correctly
+
+- **WHEN** `to_markdown()` is called on a summary with multiple comparisons
+- **THEN** the output SHALL include a comparison overview table
+- **AND** columns SHALL match the spec: Comparison, Genotypes, Trait Reduction, Correlations, Nominal Sig, FDR Sig, Top |r|, Power ≥80%
+
+#### Scenario: Top correlations table rendered correctly
+
+- **WHEN** `to_markdown()` is called
+- **THEN** each comparison SHALL have a "Top Correlations" subsection
+- **AND** the table SHALL show Rank, Exp1 Trait, Exp2 Trait, r, p, q, Power, n
+- **AND** correlations SHALL be ordered by |r| descending
+
+#### Scenario: Metadata table rendered correctly
+
+- **WHEN** `to_markdown()` is called
+- **THEN** each comparison SHALL have a "Metadata" subsection
+- **AND** it SHALL include FDR correction method, trait reduction parameters, significance level
+
+#### Scenario: Validation warnings included in output
+
+- **WHEN** `to_markdown()` is called and validation found warnings
+- **THEN** the output SHALL include a "Validation Warnings" section
+- **AND** each warning SHALL be listed clearly for user review
+
+### Requirement: Memory-Aware Summary Image Handling
+
+The system SHALL support configurable image handling modes for cross-platform analysis summaries with the following options:
+
+- `file_path` (default): Use relative file paths for all images
+- `embed`: Embed images as base64 data URIs if total size < threshold, otherwise fallback to file_path with warning
+- `auto`: Automatically select based on total image size
+
+The default embed threshold SHALL be 10MB (10,485,760 bytes).
+
+#### Scenario: File path mode generates small summary
+
+- **WHEN** generating a cross-platform summary with `image_mode="file_path"`
+- **THEN** the SUMMARY.md file SHALL be less than 1MB
+- **AND** all image references SHALL use relative file paths
+- **AND** images SHALL be viewable when SUMMARY.md is opened in VS Code markdown preview
+
+#### Scenario: Embed mode respects size threshold
+
+- **WHEN** generating a cross-platform summary with `image_mode="embed"`
+- **AND** total image size is less than 10MB
+- **THEN** images SHALL be embedded as base64 data URIs
+
+#### Scenario: Embed mode falls back when over threshold
+
+- **WHEN** generating a cross-platform summary with `image_mode="embed"`
+- **AND** total image size exceeds the threshold
+- **THEN** a warning SHALL be logged
+- **AND** the system SHALL fall back to file_path mode
+- **AND** the summary SHALL be generated successfully
+
+#### Scenario: Auto mode selects appropriate method
+
+- **WHEN** generating a cross-platform summary with `image_mode="auto"`
+- **THEN** the system SHALL calculate total image size
+- **AND** embed images if total size < threshold
+- **AND** use file paths if total size >= threshold
+
+### Requirement: HTML Summary Output
+
+The system SHALL support generating HTML output format for cross-platform summaries that can be viewed directly in web browsers.
+
+#### Scenario: HTML output generated with markdown
+
+- **WHEN** generating a cross-platform summary with `output_format="both"`
+- **THEN** both SUMMARY.md and SUMMARY.html SHALL be created
+- **AND** SUMMARY.html SHALL include embedded CSS styling
+- **AND** SUMMARY.html SHALL render correctly in Chrome/Firefox
+
+#### Scenario: HTML output contains proper structure
+
+- **WHEN** generating HTML summary output
+- **THEN** the HTML SHALL include proper DOCTYPE and charset
+- **AND** tables SHALL be styled with borders and padding
+- **AND** images SHALL be properly referenced
+- **AND** the file SHALL be self-contained (embedded styles)
+
+### Requirement: Image Size Calculation
+
+The system SHALL calculate total image size before generating summaries to support memory-aware decisions.
+
+#### Scenario: Total size calculated for all images
+
+- **WHEN** preparing to generate a summary
+- **THEN** the system SHALL calculate the total size of all visualization images
+- **AND** estimate base64 overhead (approximately 1.37x raw size)
+- **AND** make this information available for mode selection
+
+#### Scenario: Missing images handled gracefully
+
+- **WHEN** calculating total image size
+- **AND** some image files do not exist
+- **THEN** missing files SHALL be skipped without error
+- **AND** a warning SHALL be logged for each missing file
+
+### Requirement: Trait Redundancy Reduction Configuration
+
+The system SHALL provide configuration options for trait redundancy reduction in `CrossPlatformConfig` with the following parameters:
+
+- `trait_reduction_method`: Method for reducing trait redundancy before correlation analysis
+  - `"none"` (default): No reduction, all traits are used
+  - `"clustering"`: Hierarchical clustering of correlated traits
+- `trait_clustering_threshold`: Minimum |r| for traits to be considered redundant (default: 0.8)
+  - Must be in range (0, 1]
+  - Higher values = more stringent = more clusters = fewer traits removed
+- `trait_clustering_linkage`: Linkage method for hierarchical clustering
+  - `"complete"` (default): Maximum distance between all pairs
+  - `"average"`: Average distance between all pairs
+  - `"single"`: Minimum distance between any pair
+
+#### Scenario: Default configuration preserves existing behavior
+
+- **WHEN** user creates CrossPlatformConfig without trait reduction parameters
+- **THEN** trait_reduction_method defaults to "none"
+- **AND** all original traits are used in correlation analysis
+- **AND** behavior is identical to previous pipeline versions
+
+#### Scenario: Enable clustering-based reduction
+
+- **WHEN** user sets trait_reduction_method to "clustering" with threshold 0.8
+- **THEN** traits with |r| >= 0.8 are grouped into clusters
+- **AND** one representative per cluster is selected for correlation analysis
+- **AND** original trait count is reduced to cluster count
+
+#### Scenario: Invalid threshold raises error
+
+- **WHEN** user sets trait_clustering_threshold to 0 or negative value
+- **THEN** configuration validation fails with error indicating valid range (0, 1]
+
+#### Scenario: Invalid threshold above 1 raises error
+
+- **WHEN** user sets trait_clustering_threshold to 1.5
+- **THEN** configuration validation fails with error indicating valid range (0, 1]
+
+#### Scenario: Invalid linkage method raises error
+
+- **WHEN** user sets trait_clustering_linkage to "ward" (unsupported)
+- **THEN** configuration validation fails with error listing valid options
+
+#### Scenario: Invalid reduction method raises error
+
+- **WHEN** user sets trait_reduction_method to "invalid_method"
+- **THEN** configuration validation fails with error listing valid options: "none", "clustering"
+
+### Requirement: Trait Clustering Algorithm
+
+The system SHALL provide a function `cluster_correlated_traits(df, threshold, linkage)` in `cross_experiment_analysis.py` that clusters traits based on pairwise correlations:
+
+1. **Compute correlation matrix**: Spearman correlation between all trait pairs (genotypes as observations)
+2. **Convert to distance**: d = 1 - |r| where r is the correlation coefficient
+3. **Apply hierarchical clustering**: Using specified linkage method
+4. **Cut dendrogram**: At distance threshold t = 1 - clustering_threshold
+5. **Return cluster assignments**: Dict mapping cluster_id -> list of trait names
+
+Edge cases:
+- **Single trait**: Returns one cluster containing that trait
+- **All NaN trait**: Excluded from clustering, returned as singleton cluster
+- **Constant trait (zero variance)**: Excluded from clustering, returned as singleton cluster
+- **Empty DataFrame**: Returns empty dict
+
+#### Scenario: Cluster perfectly correlated traits
+
+- **WHEN** df contains 3 traits where traits A and B have r=1.0 and trait C is independent
+- **THEN** cluster_correlated_traits returns 2 clusters: {0: ["A", "B"], 1: ["C"]}
+
+#### Scenario: Threshold affects cluster count
+
+- **WHEN** df contains traits with correlations 0.7, 0.8, 0.9 between pairs
+- **AND** threshold is 0.85
+- **THEN** only pairs with |r| >= 0.85 are grouped
+- **AND** pairs with r=0.7 or r=0.8 remain in separate clusters
+
+#### Scenario: Complete linkage requires all pairs to meet threshold
+
+- **WHEN** linkage is "complete" and traits A-B have r=0.9, B-C have r=0.9, but A-C have r=0.5
+- **THEN** A, B, C are NOT all in the same cluster
+- **AND** complete linkage prevents weak-link clustering
+
+#### Scenario: Deterministic output
+
+- **WHEN** cluster_correlated_traits is called twice with identical inputs
+- **THEN** output cluster assignments are identical
+- **AND** trait ordering within clusters is deterministic (alphabetical)
+
+#### Scenario: Handle constant trait
+
+- **WHEN** df contains a trait with zero variance (all genotypes have same value)
+- **THEN** that trait is placed in its own singleton cluster
+- **AND** other traits are clustered normally
+- **AND** no error is raised
+
+### Requirement: Cluster Representative Selection
+
+The system SHALL provide a function `select_cluster_representatives(df, clusters)` in `cross_experiment_analysis.py` that selects one representative trait per cluster:
+
+1. **For each cluster**: Compute variance of each trait across genotypes
+2. **Select representative**: Trait with highest variance
+3. **Tie-breaking**: If variances are equal, select alphabetically first trait
+4. **Return**: List of representative trait names (one per cluster)
+
+#### Scenario: Select highest variance representative
+
+- **WHEN** cluster contains traits with variances [0.5, 0.8, 0.3]
+- **THEN** trait with variance 0.8 is selected as representative
+
+#### Scenario: Alphabetical tie-breaking
+
+- **WHEN** cluster contains traits "Beta" and "Alpha" with identical variance
+- **THEN** "Alpha" is selected as representative (alphabetically first)
+
+#### Scenario: Singleton cluster
+
+- **WHEN** cluster contains only one trait
+- **THEN** that trait is returned as representative
+
+#### Scenario: Handle NaN variance
+
+- **WHEN** a trait has NaN variance (all NaN values)
+- **THEN** that trait is not selected as representative
+- **AND** next highest variance trait is selected
+
+### Requirement: Reduce Trait Redundancy Pipeline Step
+
+The system SHALL provide a pipeline step `ReduceTraitRedundancyStep` that reduces trait redundancy before correlation analysis:
+
+**Inputs**:
+- `data`: Dict containing `exp1_df`, `exp2_df`, and trait name lists from LoadCrossPlatformDataStep
+- `config`: CrossPlatformConfig with trait reduction settings
+
+**Behavior**:
+- When `trait_reduction_method` is `"none"`: Pass through data unchanged
+- When `trait_reduction_method` is `"clustering"`:
+  1. Cluster exp2 traits (typically the larger set)
+  2. Select representative per cluster
+  3. Filter exp2_df to representative columns only
+  4. Update trait name lists in metadata
+
+**Outputs**:
+- `data`: Dict with reduced trait DataFrames and updated trait lists
+- `metadata`: Reduction statistics (original count, reduced count, method)
+- `files_generated`: Path to `trait_clusters.csv`
+
+#### Scenario: Reduction step produces correct metadata
+
+- **WHEN** ReduceTraitRedundancyStep executes with clustering enabled
+- **AND** exp2 has 2048 traits that reduce to 150 clusters
+- **THEN** metadata includes `original_exp2_traits: 2048`
+- **AND** metadata includes `reduced_exp2_traits: 150`
+- **AND** metadata includes `reduction_ratio: 0.927` (92.7% reduction)
+
+#### Scenario: Cluster membership file is traceable
+
+- **WHEN** ReduceTraitRedundancyStep executes with clustering enabled
+- **THEN** `trait_clusters.csv` is generated with columns:
+  - `trait`: Original trait name
+  - `cluster_id`: Integer cluster assignment
+  - `is_representative`: Boolean indicating if this trait was selected
+  - `variance`: Trait variance used for selection
+
+#### Scenario: Downstream steps receive reduced traits
+
+- **WHEN** ReduceTraitRedundancyStep completes
+- **THEN** `exp2_trait_names` in output metadata contains only representatives
+- **AND** CalculateCrossPlatformCorrelationsStep uses reduced trait list
+- **AND** total correlations = exp1_traits × reduced_exp2_traits
+
+#### Scenario: Method none is a no-op
+
+- **WHEN** trait_reduction_method is "none"
+- **THEN** step returns data unchanged
+- **AND** metadata indicates `reduction_ratio: 0.0`
+- **AND** no trait_clusters.csv is generated
+
+### Requirement: Trait Reduction Integration with Correlation Step
+
+The system SHALL integrate trait reduction with the correlation calculation step such that:
+
+- Correlation CSV contains only traits that survived reduction
+- Metadata reports both original and reduced trait counts
+- Cluster membership file enables tracing any correlation back to original traits
+
+#### Scenario: Correlation output reflects reduced traits
+
+- **WHEN** exp2 is reduced from 2048 to 150 traits
+- **AND** exp1 has 8 traits
+- **THEN** correlation CSV contains 8 × 150 = 1200 rows
+- **AND** all exp2_trait values in CSV are cluster representatives
+
+#### Scenario: Traceability from correlation to original traits
+
+- **WHEN** user finds significant correlation with exp2 trait "SeminalLength_Mean"
+- **THEN** user can look up "SeminalLength_Mean" in trait_clusters.csv
+- **AND** find all original traits in same cluster (e.g., "SeminalLength_Median", "SeminalLength_Max")
+- **AND** understand which redundant traits were represented
 
