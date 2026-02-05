@@ -587,6 +587,86 @@ class TestMethodsSection:
             or "samples" in summary_text.lower()
         )
 
+    def test_format_methods_section_uses_config_fdr_method(self, tmp_path):
+        """Test that Methods section shows actual FDR method from config.
+
+        WHEN cross-platform config has fdr_correction_method = "fdr_bh"
+        THEN Methods section shows "Benjamini-Hochberg" (not Benjamini-Yekutieli)
+        """
+        import json
+
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            "run_name: Test\nqc_configs: []\ncross_platform_configs: []"
+        )
+
+        # Create a mock cross-platform run with fdr_bh in config
+        run_dir = tmp_path / "runs"
+        run_dir.mkdir(parents=True)
+        cp_output = run_dir / "cross_platform" / "cross_platform_A_vs_B"
+        cp_output.mkdir(parents=True)
+
+        pipeline_summary = {
+            "config": {
+                "fdr_correction_method": "fdr_bh",  # Benjamini-Hochberg
+            }
+        }
+        (cp_output / "pipeline_summary.json").write_text(json.dumps(pipeline_summary))
+
+        runner = PipelineRunner(manifest_path, output_dir=run_dir)
+        runner.run_results["cross_platform"]["cp.yaml"] = {
+            "success": True,
+            "output_path": str(cp_output),
+        }
+
+        lines = runner._format_methods_section()
+        summary_text = "\n".join(lines)
+
+        # Should mention Benjamini-Hochberg, not Benjamini-Yekutieli
+        assert "Benjamini-Hochberg" in summary_text
+        assert "Benjamini-Yekutieli" not in summary_text
+
+    def test_format_methods_section_fdr_method_mapping(self, tmp_path):
+        """Test FDR method names are correctly mapped.
+
+        WHEN fdr_correction_method = "fdr_by"
+        THEN shows "Benjamini-Yekutieli"
+        """
+        import json
+
+        from sleap_roots_analyze.pipeline_runner import PipelineRunner
+
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(
+            "run_name: Test\nqc_configs: []\ncross_platform_configs: []"
+        )
+
+        run_dir = tmp_path / "runs"
+        run_dir.mkdir(parents=True)
+        cp_output = run_dir / "cross_platform" / "cross_platform_A_vs_B"
+        cp_output.mkdir(parents=True)
+
+        pipeline_summary = {
+            "config": {
+                "fdr_correction_method": "fdr_by",  # Benjamini-Yekutieli
+            }
+        }
+        (cp_output / "pipeline_summary.json").write_text(json.dumps(pipeline_summary))
+
+        runner = PipelineRunner(manifest_path, output_dir=run_dir)
+        runner.run_results["cross_platform"]["cp.yaml"] = {
+            "success": True,
+            "output_path": str(cp_output),
+        }
+
+        lines = runner._format_methods_section()
+        summary_text = "\n".join(lines)
+
+        # Should mention Benjamini-Yekutieli
+        assert "Benjamini-Yekutieli" in summary_text
+
 
 # =============================================================================
 # Phase 8: Integration Tests

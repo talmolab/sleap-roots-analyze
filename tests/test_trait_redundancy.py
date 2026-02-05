@@ -643,11 +643,13 @@ class TestCrossPlatformConfigTraitReduction:
             exp2_name="Exp2",
             exp2_genotype_col="genotype",
             trait_reduction_method="clustering",
+            trait_reduction_target="both",
             trait_clustering_threshold=0.85,
             trait_clustering_linkage="average",
         )
 
         assert config.trait_reduction_method == "clustering"
+        assert config.trait_reduction_target == "both"
         assert config.trait_clustering_threshold == 0.85
         assert config.trait_clustering_linkage == "average"
 
@@ -699,6 +701,7 @@ class TestCrossPlatformConfigTraitReduction:
                 exp2_name="Exp2",
                 exp2_genotype_col="genotype",
                 trait_reduction_method="clustering",
+                trait_reduction_target="both",
                 trait_clustering_threshold=0.0,
             )
 
@@ -720,6 +723,7 @@ class TestCrossPlatformConfigTraitReduction:
                 exp2_name="Exp2",
                 exp2_genotype_col="genotype",
                 trait_reduction_method="clustering",
+                trait_reduction_target="both",
                 trait_clustering_threshold=-0.5,
             )
 
@@ -745,6 +749,7 @@ class TestCrossPlatformConfigTraitReduction:
                 exp2_name="Exp2",
                 exp2_genotype_col="genotype",
                 trait_reduction_method="clustering",
+                trait_reduction_target="both",
                 trait_clustering_threshold=1.5,
             )
 
@@ -765,6 +770,7 @@ class TestCrossPlatformConfigTraitReduction:
             exp2_name="Exp2",
             exp2_genotype_col="genotype",
             trait_reduction_method="clustering",
+            trait_reduction_target="both",
             trait_clustering_threshold=1.0,  # Edge case: only perfect correlations
         )
 
@@ -794,6 +800,7 @@ class TestCrossPlatformConfigTraitReduction:
                 exp2_name="Exp2",
                 exp2_genotype_col="genotype",
                 trait_reduction_method="clustering",
+                trait_reduction_target="both",
                 trait_clustering_linkage="ward",  # Not supported
             )
 
@@ -847,7 +854,6 @@ class TestReduceTraitRedundancyStep:
 
         WHEN trait_reduction_method is "none"
         THEN step returns data unchanged
-        AND metadata indicates reduction_ratio: 0.0
         AND no trait_clusters.csv is generated
         """
         from sleap_roots_analyze.pipeline.steps.reduce_trait_redundancy import (
@@ -884,8 +890,9 @@ class TestReduceTraitRedundancyStep:
         assert result_traits == original_traits
 
         # Metadata should indicate no reduction
-        assert result.metadata["reduction_ratio"] == 0.0
         assert result.metadata["trait_reduction_method"] == "none"
+        assert result.metadata["exp2_original_traits"] == len(original_traits)
+        assert result.metadata["exp2_reduced_traits"] == len(result_traits)
 
         # No cluster file should be generated
         assert not any("trait_clusters.csv" in str(f) for f in result.files_generated)
@@ -893,8 +900,8 @@ class TestReduceTraitRedundancyStep:
     def test_clustering_reduces_traits(self, mock_prev_result, tmp_path):
         """Test that clustering reduces trait count.
 
-        WHEN trait_reduction_method is "clustering"
-        THEN trait count is reduced
+        WHEN trait_reduction_method is "clustering" and trait_reduction_target is "exp2"
+        THEN exp2 trait count is reduced
         AND metadata includes reduction statistics
         """
         from sleap_roots_analyze.pipeline.steps.reduce_trait_redundancy import (
@@ -915,6 +922,7 @@ class TestReduceTraitRedundancyStep:
             exp2_name="Exp2",
             exp2_genotype_col="genotype",
             trait_reduction_method="clustering",
+            trait_reduction_target="exp2",
             trait_clustering_threshold=0.8,
         )
 
@@ -926,21 +934,21 @@ class TestReduceTraitRedundancyStep:
             prev_result=mock_prev_result,
         )
 
-        # Traits should be reduced
+        # Traits should be reduced for exp2
         original_count = len(mock_prev_result.metadata["exp2_trait_names"])
         reduced_count = len(result.metadata["exp2_trait_names"])
         assert reduced_count < original_count
 
         # Metadata should include statistics
-        assert result.metadata["original_exp2_traits"] == original_count
-        assert result.metadata["reduced_exp2_traits"] == reduced_count
-        assert 0 < result.metadata["reduction_ratio"] < 1
+        assert result.metadata["exp2_original_traits"] == original_count
+        assert result.metadata["exp2_reduced_traits"] == reduced_count
+        assert result.metadata["exp2_n_clusters"] >= 1
 
     def test_produces_cluster_membership_file(self, mock_prev_result, tmp_path):
         """Test that clustering produces traceable cluster membership file.
 
         WHEN ReduceTraitRedundancyStep executes with clustering enabled
-        THEN trait_clusters.csv is generated with columns:
+        THEN exp2_trait_clusters.csv is generated with columns:
           - trait: Original trait name
           - cluster_id: Integer cluster assignment
           - is_representative: Boolean indicating if this trait was selected
@@ -964,6 +972,7 @@ class TestReduceTraitRedundancyStep:
             exp2_name="Exp2",
             exp2_genotype_col="genotype",
             trait_reduction_method="clustering",
+            trait_reduction_target="exp2",
             trait_clustering_threshold=0.8,
         )
 
@@ -976,10 +985,10 @@ class TestReduceTraitRedundancyStep:
         )
 
         # Check file was generated
-        assert any("trait_clusters.csv" in str(f) for f in result.files_generated)
+        assert any("exp2_trait_clusters.csv" in str(f) for f in result.files_generated)
 
         # Read and verify the file
-        cluster_file = tmp_path / "trait_clusters.csv"
+        cluster_file = tmp_path / "exp2_trait_clusters.csv"
         assert cluster_file.exists()
 
         cluster_df = pd.read_csv(cluster_file)
@@ -1002,7 +1011,7 @@ class TestReduceTraitRedundancyStep:
     def test_downstream_steps_receive_reduced_traits(self, mock_prev_result, tmp_path):
         """Test that output is correctly formatted for downstream steps.
 
-        WHEN ReduceTraitRedundancyStep completes
+        WHEN ReduceTraitRedundancyStep completes with clustering on exp2
         THEN exp2_trait_names in output metadata contains only representatives
         AND exp2_df contains only representative columns (plus genotype)
         """
@@ -1024,6 +1033,7 @@ class TestReduceTraitRedundancyStep:
             exp2_name="Exp2",
             exp2_genotype_col="genotype",
             trait_reduction_method="clustering",
+            trait_reduction_target="exp2",
             trait_clustering_threshold=0.8,
         )
 
@@ -1042,3 +1052,124 @@ class TestReduceTraitRedundancyStep:
         exp2_df = result.data["exp2_df"]
         expected_cols = set(reduced_traits) | {"genotype"}
         assert set(exp2_df.columns) == expected_cols
+
+    def test_clustering_both_experiments(self, mock_prev_result, tmp_path):
+        """Test that clustering works when targeting both experiments.
+
+        WHEN trait_reduction_target is "both"
+        THEN both exp1 and exp2 are clustered
+        AND separate cluster membership files are generated for each
+        AND dendrograms are generated for each
+        """
+        from sleap_roots_analyze.pipeline.steps.reduce_trait_redundancy import (
+            ReduceTraitRedundancyStep,
+        )
+        from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+        exp1_path = tmp_path / "exp1.csv"
+        exp2_path = tmp_path / "exp2.csv"
+        exp1_path.touch()
+        exp2_path.touch()
+
+        config = CrossPlatformConfig(
+            exp1_data_path=str(exp1_path),
+            exp1_name="Exp1",
+            exp1_genotype_col="genotype",
+            exp2_data_path=str(exp2_path),
+            exp2_name="Exp2",
+            exp2_genotype_col="genotype",
+            trait_reduction_method="clustering",
+            trait_reduction_target="both",
+            trait_clustering_threshold=0.8,
+        )
+
+        step = ReduceTraitRedundancyStep()
+        result = step.execute(
+            data=mock_prev_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=mock_prev_result,
+        )
+
+        # Check both experiments have cluster files
+        assert any("exp1_trait_clusters.csv" in str(f) for f in result.files_generated)
+        assert any("exp2_trait_clusters.csv" in str(f) for f in result.files_generated)
+
+        # Check both experiments have dendrograms
+        assert any(
+            "exp1_trait_clustering_dendrogram.png" in str(f)
+            for f in result.files_generated
+        )
+        assert any(
+            "exp2_trait_clustering_dendrogram.png" in str(f)
+            for f in result.files_generated
+        )
+
+        # Check both experiments have heatmaps
+        assert any(
+            "exp1_trait_cluster_heatmap.png" in str(f) for f in result.files_generated
+        )
+        assert any(
+            "exp2_trait_cluster_heatmap.png" in str(f) for f in result.files_generated
+        )
+
+        # Check metadata includes both experiment stats
+        assert "exp1_original_traits" in result.metadata
+        assert "exp1_reduced_traits" in result.metadata
+        assert "exp1_n_clusters" in result.metadata
+        assert "exp2_original_traits" in result.metadata
+        assert "exp2_reduced_traits" in result.metadata
+        assert "exp2_n_clusters" in result.metadata
+
+    def test_clustering_only_exp1(self, mock_prev_result, tmp_path):
+        """Test that clustering works when targeting only exp1.
+
+        WHEN trait_reduction_target is "exp1"
+        THEN only exp1 is clustered
+        AND exp2 data is passed through unchanged
+        """
+        from sleap_roots_analyze.pipeline.steps.reduce_trait_redundancy import (
+            ReduceTraitRedundancyStep,
+        )
+        from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+        exp1_path = tmp_path / "exp1.csv"
+        exp2_path = tmp_path / "exp2.csv"
+        exp1_path.touch()
+        exp2_path.touch()
+
+        config = CrossPlatformConfig(
+            exp1_data_path=str(exp1_path),
+            exp1_name="Exp1",
+            exp1_genotype_col="genotype",
+            exp2_data_path=str(exp2_path),
+            exp2_name="Exp2",
+            exp2_genotype_col="genotype",
+            trait_reduction_method="clustering",
+            trait_reduction_target="exp1",
+            trait_clustering_threshold=0.8,
+        )
+
+        step = ReduceTraitRedundancyStep()
+        result = step.execute(
+            data=mock_prev_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=mock_prev_result,
+        )
+
+        # Check only exp1 has cluster files
+        assert any("exp1_trait_clusters.csv" in str(f) for f in result.files_generated)
+        assert not any(
+            "exp2_trait_clusters.csv" in str(f) for f in result.files_generated
+        )
+
+        # exp2 traits should be unchanged
+        original_exp2_traits = mock_prev_result.metadata["exp2_trait_names"]
+        result_exp2_traits = result.metadata["exp2_trait_names"]
+        assert result_exp2_traits == original_exp2_traits
+
+        # exp1 traits should be reduced
+        original_exp1_traits = mock_prev_result.metadata["exp1_trait_names"]
+        result_exp1_traits = result.metadata["exp1_trait_names"]
+        assert len(result_exp1_traits) <= len(original_exp1_traits)

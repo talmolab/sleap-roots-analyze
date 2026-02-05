@@ -222,3 +222,84 @@ def test_cross_platform_config_frozen():
 
     with pytest.raises(FrozenInstanceError):
         config.correlation_method = "pearson"
+
+
+# =============================================================================
+# trait_reduction_target validation tests
+# =============================================================================
+
+
+def test_config_requires_target_when_clustering_enabled():
+    """Test that trait_reduction_target is required when clustering is enabled."""
+    from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+    with pytest.raises(
+        ValueError,
+        match="trait_reduction_target must be specified when trait_reduction_method is 'clustering'",
+    ):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            trait_reduction_method="clustering",
+            # trait_reduction_target not specified - should fail
+        )
+
+
+def test_config_accepts_valid_reduction_targets():
+    """Test that all valid trait_reduction_target values are accepted."""
+    from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+    for target in ["exp1", "exp2", "both"]:
+        config = CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            trait_reduction_method="clustering",
+            trait_reduction_target=target,
+        )
+        assert config.trait_reduction_target == target
+
+
+def test_config_allows_no_target_when_clustering_disabled():
+    """Test that trait_reduction_target is not required when clustering is disabled."""
+    from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+    # Should succeed without trait_reduction_target when method is "none"
+    config = CrossPlatformConfig(
+        exp1_data_path="exp1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno1",
+        exp2_data_path="exp2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno2",
+        trait_reduction_method="none",
+        # No trait_reduction_target - should succeed
+    )
+    assert config.trait_reduction_method == "none"
+    assert config.trait_reduction_target is None
+
+
+def test_config_rejects_invalid_reduction_target():
+    """Test that invalid trait_reduction_target values are rejected."""
+    from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+    with pytest.raises(
+        ValueError, match="trait_reduction_target must be one of.*got 'invalid'"
+    ):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            trait_reduction_method="clustering",
+            trait_reduction_target="invalid",
+        )

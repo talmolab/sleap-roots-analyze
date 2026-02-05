@@ -16,6 +16,9 @@ from sleap_roots_analyze.pipeline.task import Task
 from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
     LoadCrossPlatformDataStep,
 )
+from sleap_roots_analyze.pipeline.steps.reduce_trait_redundancy import (
+    ReduceTraitRedundancyStep,
+)
 from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
     CalculateCrossPlatformCorrelationsStep,
 )
@@ -86,13 +89,14 @@ class CrossPlatformPipeline(BasePipeline):
         return sanitized
 
     def create_tasks(self) -> List[Task]:
-        """Create the cross-platform analysis task graph with 3 steps.
+        """Create the cross-platform analysis task graph with 4 steps.
 
         Returns:
             List of Tasks defining the pipeline DAG:
                 - Step 1: LoadCrossPlatformData
-                - Step 2: CalculateCrossPlatformCorrelations
-                - Step 3: VisualizeCrossPlatform
+                - Step 2: ReduceTraitRedundancy (optional, based on config)
+                - Step 3: CalculateCrossPlatformCorrelations
+                - Step 4: VisualizeCrossPlatform
         """
         tasks = []
 
@@ -106,22 +110,32 @@ class CrossPlatformPipeline(BasePipeline):
             )
         )
 
-        # Step 2: Calculate correlations between all trait pairs
+        # Step 2: Reduce trait redundancy (optional - always runs but may be no-op)
+        tasks.append(
+            Task(
+                func=self._run_reduce_trait_redundancy,
+                name="02_reduce_trait_redundancy",
+                depends_on=["01_load_cross_platform_data"],
+                description=f"Reduce trait redundancy ({self.config.trait_reduction_method})",
+            )
+        )
+
+        # Step 3: Calculate correlations between all trait pairs
         tasks.append(
             Task(
                 func=self._run_calculate_correlations,
-                name="02_calculate_correlations",
-                depends_on=["01_load_cross_platform_data"],
+                name="03_calculate_correlations",
+                depends_on=["02_reduce_trait_redundancy"],
                 description=f"Calculate correlations using {self.config.correlation_method}",
             )
         )
 
-        # Step 3: Visualize correlations
+        # Step 4: Visualize correlations
         tasks.append(
             Task(
                 func=self._run_visualize_cross_platform,
-                name="03_visualize_cross_platform",
-                depends_on=["02_calculate_correlations"],
+                name="04_visualize_cross_platform",
+                depends_on=["03_calculate_correlations"],
                 description="Generate correlation visualizations",
             )
         )
@@ -130,17 +144,34 @@ class CrossPlatformPipeline(BasePipeline):
 
     def _run_load_cross_platform_data(self, config, run_dir, logger, **kwargs):
         """Execute Step 1: Load Cross-Platform Data."""
-        logger.info("Step 1/3: Loading and aligning cross-platform data...")
+        logger.info("Step 1/4: Loading and aligning cross-platform data...")
         step = LoadCrossPlatformDataStep()
         result = step.execute(
             data=None, config=config, run_dir=run_dir, prev_result=None
         )
         return result
 
-    def _run_calculate_correlations(self, config, run_dir, logger, **kwargs):
-        """Execute Step 2: Calculate Cross-Platform Correlations."""
-        logger.info("Step 2/3: Calculating correlations between all trait pairs...")
+    def _run_reduce_trait_redundancy(self, config, run_dir, logger, **kwargs):
+        """Execute Step 2: Reduce Trait Redundancy."""
+        logger.info(
+            "Step 2/4: Reducing trait redundancy (method=%s)...",
+            config.trait_reduction_method,
+        )
         prev_task_result = kwargs.get("01_load_cross_platform_data")
+        prev_step_result = prev_task_result.data
+        step = ReduceTraitRedundancyStep()
+        result = step.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_calculate_correlations(self, config, run_dir, logger, **kwargs):
+        """Execute Step 3: Calculate Cross-Platform Correlations."""
+        logger.info("Step 3/4: Calculating correlations between all trait pairs...")
+        prev_task_result = kwargs.get("02_reduce_trait_redundancy")
         prev_step_result = prev_task_result.data
         step = CalculateCrossPlatformCorrelationsStep()
         result = step.execute(
@@ -152,9 +183,9 @@ class CrossPlatformPipeline(BasePipeline):
         return result
 
     def _run_visualize_cross_platform(self, config, run_dir, logger, **kwargs):
-        """Execute Step 3: Visualize Cross-Platform Correlations."""
-        logger.info("Step 3/3: Generating correlation visualizations...")
-        prev_task_result = kwargs.get("02_calculate_correlations")
+        """Execute Step 4: Visualize Cross-Platform Correlations."""
+        logger.info("Step 4/4: Generating correlation visualizations...")
+        prev_task_result = kwargs.get("03_calculate_correlations")
         prev_step_result = prev_task_result.data
         step = VisualizeCrossPlatformStep()
         result = step.execute(

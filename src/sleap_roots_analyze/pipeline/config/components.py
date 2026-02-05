@@ -785,6 +785,7 @@ class CrossPlatformConfig:
 
     # Trait redundancy reduction parameters
     trait_reduction_method: str = "none"
+    trait_reduction_target: Optional[str] = None  # "exp1", "exp2", or "both"
     trait_clustering_threshold: float = 0.8
     trait_clustering_linkage: str = "complete"
 
@@ -841,6 +842,20 @@ class CrossPlatformConfig:
                 f"trait_reduction_method must be one of {valid_reduction_methods}, "
                 f"got '{self.trait_reduction_method}'"
             )
+
+        # Validate trait_reduction_target is required when clustering is enabled
+        if self.trait_reduction_method == "clustering":
+            if self.trait_reduction_target is None:
+                raise ValueError(
+                    "trait_reduction_target must be specified when "
+                    "trait_reduction_method is 'clustering'"
+                )
+            valid_targets = ["exp1", "exp2", "both"]
+            if self.trait_reduction_target not in valid_targets:
+                raise ValueError(
+                    f"trait_reduction_target must be one of {valid_targets}, "
+                    f"got '{self.trait_reduction_target}'"
+                )
 
         # Validate trait clustering threshold (must be in (0, 1] range)
         if not (0 < self.trait_clustering_threshold <= 1):
