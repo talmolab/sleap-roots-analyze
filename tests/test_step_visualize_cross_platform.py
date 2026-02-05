@@ -663,7 +663,7 @@ def test_representative_heatmap_not_generated_when_clustering_disabled(tmp_path)
     )
 
     step = VisualizeCrossPlatformStep()
-    result = step.execute(
+    step.execute(
         data=prev_result.data,
         config=config,
         run_dir=tmp_path,

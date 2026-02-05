@@ -468,7 +468,7 @@ class CrossPlatformSummary:
                     if img_ref:
                         lines.append(f"\n{img_ref}\n")
                     img_ref = self._format_image_reference(
-                        run_summary.exp1_heatmap_path, "Exp1 Heatmap", embed_images
+                        run_summary.exp1_heatmap_path, "Exp1 Heatmap", should_embed
                     )
                     if img_ref:
                         lines.append(f"{img_ref}\n")
@@ -489,7 +489,7 @@ class CrossPlatformSummary:
                     if img_ref:
                         lines.append(f"\n{img_ref}\n")
                     img_ref = self._format_image_reference(
-                        run_summary.exp2_heatmap_path, "Exp2 Heatmap", embed_images
+                        run_summary.exp2_heatmap_path, "Exp2 Heatmap", should_embed
                     )
                     if img_ref:
                         lines.append(f"{img_ref}\n")

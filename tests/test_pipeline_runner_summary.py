@@ -593,8 +593,6 @@ class TestMethodsSection:
         WHEN cross-platform config has fdr_correction_method = "fdr_bh"
         THEN Methods section shows "Benjamini-Hochberg" (not Benjamini-Yekutieli)
         """
-        import json
-
         from sleap_roots_analyze.pipeline_runner import PipelineRunner
 
         manifest_path = tmp_path / "manifest.yaml"
@@ -634,8 +632,6 @@ class TestMethodsSection:
         WHEN fdr_correction_method = "fdr_by"
         THEN shows "Benjamini-Yekutieli"
         """
-        import json
-
         from sleap_roots_analyze.pipeline_runner import PipelineRunner
 
         manifest_path = tmp_path / "manifest.yaml"
