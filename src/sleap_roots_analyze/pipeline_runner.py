@@ -23,6 +23,17 @@ from typing import Any
 
 import yaml
 
+# FDR correction method name mapping for human-readable display
+FDR_METHOD_NAMES: dict[str, str] = {
+    "fdr_bh": "Benjamini-Hochberg",
+    "fdr_by": "Benjamini-Yekutieli",
+    "bonferroni": "Bonferroni",
+    "holm": "Holm",
+    "holm-sidak": "Holm-Sidak",
+    "simes-hochberg": "Simes-Hochberg",
+    "hommel": "Hommel",
+}
+
 
 class PipelineRunner:
     """Orchestrates multi-pipeline execution with dependency management."""
@@ -809,7 +820,8 @@ class PipelineRunner:
         """Format Cross-Platform results for summary with alignment metrics.
 
         Reads alignment CSV and correlations CSV to extract common genotypes,
-        sample/trait counts, and top correlation value.
+        sample/trait counts, and top correlation value. Also generates detailed
+        summary using CrossPlatformSummaryGenerator for each run.
         """
         lines = [
             "## Cross-Platform Analysis Results",
@@ -885,6 +897,69 @@ class PipelineRunner:
             )
 
         lines.extend(["", ""])
+
+        # Add detailed cross-platform summary using CrossPlatformSummaryGenerator
+        lines.extend(self._format_detailed_cross_platform_summary())
+
+        return lines
+
+    def _format_detailed_cross_platform_summary(self) -> list[str]:
+        """Generate detailed cross-platform analysis summary.
+
+        Uses CrossPlatformSummaryGenerator to generate comprehensive statistics
+        including trait reduction, power analysis, and top correlations.
+
+        Returns:
+            List of markdown lines for the detailed summary
+        """
+        lines = []
+
+        # Import here to avoid circular imports
+        try:
+            from sleap_roots_analyze.summary.cross_platform_summary import (
+                CrossPlatformSummaryGenerator,
+            )
+        except ImportError:
+            return lines
+
+        # Generate summary for each successful cross-platform run
+        for config, result in self.run_results["cross_platform"].items():
+            if not result.get("success"):
+                continue
+
+            output = result.get("output_path")
+            if not output:
+                continue
+
+            output_path = Path(output)
+            if not output_path.exists():
+                continue
+
+            try:
+                generator = CrossPlatformSummaryGenerator(output_path)
+                summary = generator.generate()
+
+                if summary.run_summaries:
+                    # Append the markdown summary using file paths for images
+                    # image_mode="file_path" creates small files viewable in VS Code
+                    # (embed_images=True created 70MB+ files that couldn't render)
+                    markdown_lines = summary.to_markdown(image_mode="file_path").split(
+                        "\n"
+                    )
+                    # Find where the content starts (after the main header)
+                    start_idx = 0
+                    for i, line in enumerate(markdown_lines):
+                        if line.startswith("## "):
+                            start_idx = i
+                            break
+                    lines.extend(markdown_lines[start_idx:])
+                    lines.append("")
+
+            except Exception as e:
+                print(
+                    f"  Warning: Could not generate detailed summary for {config}: {e}"
+                )
+
         return lines
 
     @staticmethod
@@ -1009,6 +1084,34 @@ class PipelineRunner:
         except Exception:
             return {}
 
+    def _get_cross_platform_fdr_method(self) -> str:
+        """Get the FDR correction method name from cross-platform configs.
+
+        Reads the fdr_correction_method from cross-platform run summaries
+        and returns the human-readable name.
+
+        Returns:
+            Human-readable FDR method name (e.g., "Benjamini-Hochberg")
+        """
+        # Check cross-platform run results for FDR method
+        for result in self.run_results.get("cross_platform", {}).values():
+            if not result.get("success"):
+                continue
+            output_path = result.get("output_path")
+            if not output_path:
+                continue
+
+            # Read pipeline summary from output directory
+            summary = self._read_pipeline_summary(output_path)
+            config = summary.get("config", {})
+            fdr_method = config.get("fdr_correction_method")
+
+            if fdr_method and fdr_method in FDR_METHOD_NAMES:
+                return FDR_METHOD_NAMES[fdr_method]
+
+        # Default fallback
+        return FDR_METHOD_NAMES.get("fdr_by", "Benjamini-Yekutieli")
+
     def _format_methods_section(self) -> list[str]:
         """Generate publication-ready methods section template.
 
@@ -1063,8 +1166,7 @@ class PipelineRunner:
             "",
             "Cross-platform trait correlations were calculated using both Spearman and Pearson "
             "correlation on genotype means. Multiple testing was controlled using False Discovery "
-            "Rate (FDR) correction with the Benjamini-Yekutieli procedure, which is valid under "
-            "arbitrary dependence between tests.",
+            f"Rate (FDR) correction with the {self._get_cross_platform_fdr_method()} procedure.",
             "",
             "---",
             "",

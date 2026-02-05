@@ -25,6 +25,13 @@ significance_level: 0.05        # Standard p-value threshold
 # Default: "fdr_by" (conservative, valid for correlated traits)
 fdr_correction_method: "fdr_bh"
 
+# Trait Redundancy Reduction
+# Cluster highly correlated traits and select representatives to reduce multiple testing burden
+trait_reduction_method: "clustering"  # Options: "none", "clustering"
+trait_reduction_target: "both"        # Which experiment to cluster: "exp1", "exp2", or "both"
+trait_clustering_threshold: 0.8       # Traits with |r| >= 0.8 are clustered together
+trait_clustering_linkage: "complete"  # Linkage method: "complete", "average", "single"
+
 # Visualization Parameters
 top_n_correlations: 30          # Display top correlations
 top_n_joint_plots: 10           # Joint plots for top correlations

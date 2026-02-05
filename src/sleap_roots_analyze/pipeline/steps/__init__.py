@@ -69,6 +69,9 @@ from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations im
 from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
     LoadCrossPlatformDataStep,
 )
+from sleap_roots_analyze.pipeline.steps.reduce_trait_redundancy import (
+    ReduceTraitRedundancyStep,
+)
 from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
     VisualizeCrossPlatformStep,
 )
@@ -106,5 +109,6 @@ __all__ = [
     # Cross-Platform Steps
     "CalculateCrossPlatformCorrelationsStep",
     "LoadCrossPlatformDataStep",
+    "ReduceTraitRedundancyStep",
     "VisualizeCrossPlatformStep",
 ]

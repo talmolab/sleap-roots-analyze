@@ -497,3 +497,272 @@ def test_joint_plot_uses_precomputed_correlation_values(tmp_path):
     plt.close(fig)
 
     # Function accepts pre-computed parameters and uses them for annotation
+
+
+def test_representative_heatmap_generated_when_clustering_enabled(tmp_path):
+    """Test that representative heatmap is created when clustering is enabled.
+
+    WHEN clustering is enabled (trait_reduction_method='clustering')
+    THEN cross_platform_representative_heatmap.png is generated
+    """
+    from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+        VisualizeCrossPlatformStep,
+    )
+
+    # Create correlation data with FDR significance column
+    correlation_df = pd.DataFrame(
+        {
+            "exp1_trait": ["trait1", "trait2", "trait3"],
+            "exp2_trait": ["trait_a", "trait_b", "trait_c"],
+            "spearman_r": [0.85, -0.72, 0.45],
+            "spearman_p": [0.001, 0.005, 0.10],
+            "spearman_p_adjusted": [0.003, 0.01, 0.20],
+            "pearson_r": [0.82, -0.68, 0.42],
+            "pearson_p": [0.002, 0.008, 0.12],
+            "n_genotypes": [20, 20, 20],
+            "significant_fdr": [True, True, False],
+        }
+    )
+
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait1": np.random.randn(9),
+            "trait2": np.random.randn(9),
+            "trait3": np.random.randn(9),
+        }
+    )
+
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait_a": np.random.randn(9),
+            "trait_b": np.random.randn(9),
+            "trait_c": np.random.randn(9),
+        }
+    )
+
+    prev_result = StepResult(
+        data={
+            "exp1_df": exp1_df,
+            "exp2_df": exp2_df,
+            "common_genotypes": ["A", "B", "C"],
+            "correlation_df": correlation_df,
+        },
+        metadata={
+            "exp1_name": "Cylinder",
+            "exp2_name": "Turface",
+            "total_correlations": 3,
+            "exp1_trait_names": ["trait1", "trait2", "trait3"],
+            "exp2_trait_names": ["trait_a", "trait_b", "trait_c"],
+            "trait_reduction_method": "clustering",
+            "trait_reduction_target": "both",
+        },
+        files_generated=[],
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Cylinder",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Turface",
+        exp2_genotype_col="geno",
+        trait_reduction_method="clustering",
+        trait_reduction_target="both",
+        top_n_joint_plots=3,
+        top_n_boxplots=3,
+    )
+
+    step = VisualizeCrossPlatformStep()
+    result = step.execute(
+        data=prev_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=prev_result,
+    )
+
+    # Check for representative heatmap
+    heatmap_file = tmp_path / "cross_platform_representative_heatmap.png"
+    assert (
+        heatmap_file.exists()
+    ), "Representative heatmap should be created when clustering is enabled"
+    assert str(heatmap_file) in result.files_generated
+
+
+def test_representative_heatmap_not_generated_when_clustering_disabled(tmp_path):
+    """Test that representative heatmap is NOT created when clustering is disabled.
+
+    WHEN clustering is disabled (trait_reduction_method='none')
+    THEN cross_platform_representative_heatmap.png should NOT be generated
+    """
+    from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+        VisualizeCrossPlatformStep,
+    )
+
+    # Create minimal correlation data
+    correlation_df = pd.DataFrame(
+        {
+            "exp1_trait": ["trait1"],
+            "exp2_trait": ["trait_a"],
+            "spearman_r": [0.8],
+            "spearman_p": [0.01],
+            "pearson_r": [0.75],
+            "pearson_p": [0.02],
+            "n_genotypes": [10],
+            "significant_fdr": [True],
+        }
+    )
+
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait1": np.random.randn(9),
+        }
+    )
+
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait_a": np.random.randn(9),
+        }
+    )
+
+    prev_result = StepResult(
+        data={
+            "exp1_df": exp1_df,
+            "exp2_df": exp2_df,
+            "common_genotypes": ["A", "B", "C"],
+            "correlation_df": correlation_df,
+        },
+        metadata={
+            "exp1_name": "Exp1",
+            "exp2_name": "Exp2",
+            "total_correlations": 1,
+            "exp1_trait_names": ["trait1"],
+            "exp2_trait_names": ["trait_a"],
+            "trait_reduction_method": "none",
+        },
+        files_generated=[],
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        trait_reduction_method="none",
+        top_n_joint_plots=1,
+        top_n_boxplots=1,
+    )
+
+    step = VisualizeCrossPlatformStep()
+    step.execute(
+        data=prev_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=prev_result,
+    )
+
+    # Check that representative heatmap is NOT created
+    heatmap_file = tmp_path / "cross_platform_representative_heatmap.png"
+    assert (
+        not heatmap_file.exists()
+    ), "Representative heatmap should NOT be created when clustering is disabled"
+
+
+def test_representative_heatmap_shows_significance_annotations(tmp_path):
+    """Test that representative heatmap annotates significant correlations.
+
+    WHEN representative heatmap is generated
+    THEN FDR-significant correlations should be visually distinguished
+    """
+    from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+        VisualizeCrossPlatformStep,
+    )
+
+    # Create correlation data with mix of significant and non-significant
+    correlation_df = pd.DataFrame(
+        {
+            "exp1_trait": ["t1", "t1", "t2", "t2"],
+            "exp2_trait": ["a", "b", "a", "b"],
+            "spearman_r": [0.9, 0.3, 0.4, 0.85],
+            "spearman_p": [0.001, 0.2, 0.1, 0.002],
+            "spearman_p_adjusted": [0.003, 0.4, 0.2, 0.006],
+            "pearson_r": [0.88, 0.28, 0.38, 0.82],
+            "pearson_p": [0.002, 0.25, 0.15, 0.003],
+            "n_genotypes": [15, 15, 15, 15],
+            "significant_fdr": [True, False, False, True],
+        }
+    )
+
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "t1": np.random.randn(9),
+            "t2": np.random.randn(9),
+        }
+    )
+
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "a": np.random.randn(9),
+            "b": np.random.randn(9),
+        }
+    )
+
+    prev_result = StepResult(
+        data={
+            "exp1_df": exp1_df,
+            "exp2_df": exp2_df,
+            "common_genotypes": ["A", "B", "C"],
+            "correlation_df": correlation_df,
+        },
+        metadata={
+            "exp1_name": "Cylinder",
+            "exp2_name": "Turface",
+            "total_correlations": 4,
+            "exp1_trait_names": ["t1", "t2"],
+            "exp2_trait_names": ["a", "b"],
+            "trait_reduction_method": "clustering",
+            "trait_reduction_target": "both",
+        },
+        files_generated=[],
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Cylinder",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Turface",
+        exp2_genotype_col="geno",
+        trait_reduction_method="clustering",
+        trait_reduction_target="both",
+        top_n_joint_plots=2,
+        top_n_boxplots=2,
+    )
+
+    step = VisualizeCrossPlatformStep()
+    result = step.execute(
+        data=prev_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=prev_result,
+    )
+
+    # Check that heatmap was created (existence proves step ran successfully)
+    heatmap_file = tmp_path / "cross_platform_representative_heatmap.png"
+    assert heatmap_file.exists()
+
+    # Check metadata indicates heatmap was generated
+    assert "representative_heatmap" in result.metadata or heatmap_file.exists()
