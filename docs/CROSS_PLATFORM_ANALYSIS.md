@@ -578,6 +578,180 @@ Key fields related to statistical analysis:
 
 ---
 
+## Summary Generation
+
+After running cross-platform analyses, you can generate a detailed summary document that aggregates results from all comparisons. This is especially useful when running multiple cross-platform pipelines in a single run.
+
+### Automatic Summary Generation
+
+When using `sleap-roots-analyze run-all`, a comprehensive `SUMMARY.md` file is automatically generated in the pipeline run directory. This includes:
+
+- Trait reduction statistics (when clustering is enabled)
+- Correlation statistics (total, nominal significant, FDR significant)
+- Power analysis with sample size recommendations
+- Links to visualizations (dendrograms, heatmaps, joint plots)
+- Interpretation guidance for common scenarios (e.g., FDR=0)
+
+**Note:** The summary uses relative file paths for images, keeping the file small (~50KB) and viewable in VS Code markdown preview. To view in a browser, use the HTML conversion script (see below).
+
+### Claude Command: `/cross-platform-summary`
+
+For interactive summary generation with validation, use the Claude command:
+
+```
+/cross-platform-summary pipeline_runs/2026-02-03_092935
+```
+
+This command:
+1. Reads all cross-platform results in the specified directory
+2. Validates reported statistics against source CSVs
+3. Generates a detailed markdown summary with embedded images
+4. Provides interpretation guidance based on results
+
+### Summary Sections
+
+The generated summary includes:
+
+**Configuration:**
+- Correlation method (Spearman/Pearson)
+- Trait reduction method and target
+- Clustering threshold (when applicable)
+- FDR correction method
+
+**Trait Reduction (when clustering enabled):**
+- Original trait counts per experiment
+- Number of clusters formed
+- Representative traits selected
+- Reduction percentage achieved
+- Dendrogram and heatmap visualizations
+
+**Correlation Statistics:**
+- Total correlations calculated
+- Nominally significant (p < 0.05)
+- FDR-significant (q < 0.05)
+- Top correlations table with:
+  - ρ (Spearman correlation)
+  - 95% confidence intervals
+  - Raw and FDR-adjusted p-values
+  - Achieved power
+  - Sample size
+
+**Power Analysis:**
+- Analysis parameters (α, n, minimum detectable |r|)
+- Power distribution (min, median, max)
+- Percentage of tests with adequate power (≥80%)
+- Sample size recommendations for future studies
+- Warnings when study is underpowered
+
+**Interpretation Guidance:**
+- When FDR=0: Explanation of why no correlations survived correction
+- Sample size recommendations for detecting specific effect sizes
+- Suggestions for follow-up studies
+
+### Validation Guardrails
+
+The summary generator includes validation checks to ensure accuracy:
+
+| Check | Purpose |
+|-------|---------|
+| Correlation counts | Verify total/nominal/FDR counts match source CSV |
+| Top correlations | Verify top N values match sorted CSV |
+| Power statistics | Verify power range and percentiles match CSV |
+| Trait reduction | Verify cluster counts match cluster membership CSV |
+| Missing files | Gracefully handle missing optional files |
+
+If validation fails, warnings are included in the summary with details about the discrepancy.
+
+### Output Format Options
+
+The summary generator supports multiple output formats:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `file_path` | Relative image paths (default) | VS Code markdown preview |
+| `embed` | Base64-embedded images | Portable single-file sharing |
+| `auto` | Smart selection based on size | Intelligent default |
+
+**Memory limits:** Embedded images are limited to 10MB total. If exceeded, the generator falls back to file paths with a warning.
+
+### HTML Conversion for Browser Viewing
+
+Since browsers don't render markdown files directly, use the conversion script:
+
+```bash
+# Convert latest run to HTML
+uv run python scripts/convert_summary_to_html.py
+
+# Convert specific run
+uv run python scripts/convert_summary_to_html.py pipeline_runs/2026-02-04_120723
+
+# Open in browser (Windows)
+start pipeline_runs/2026-02-04_120723/SUMMARY.html
+```
+
+The HTML output includes:
+- Styled tables with alternating row colors
+- Properly rendered headers and formatting
+- Image references that work when opened from the run directory
+
+### Example Output
+
+```markdown
+## Turface 19 Genotypes vs Cylinder 23 Genotypes
+
+### Configuration
+
+- **Correlation Method**: spearman
+- **Trait Reduction**: clustering
+- **Reduction Target**: both
+- **Clustering Threshold**: 0.7
+
+### Trait Reduction
+
+**Turface 19 Genotypes**:
+- 82 original traits → 15 clusters → 15 representatives (81.7% reduction)
+
+**Cylinder 23 Genotypes**:
+- 2048 original traits → 245 clusters → 245 representatives (88.0% reduction)
+
+### Correlation Statistics
+
+| Metric | Value |
+| --- | --- |
+| Total Correlations | 3675 |
+| Nominal Significant (p < 0.05) | 184 |
+| FDR Significant | 0 |
+
+#### Interpretation: No FDR-Significant Correlations
+
+**Note:** No correlations survived FDR correction. This is common when:
+- Sample sizes are small
+- Effect sizes are modest
+- Testing many correlations simultaneously
+
+**Nominal Significant (p < 0.05):** 184 correlations reached nominal significance
+before FDR correction. These may warrant further investigation with larger sample sizes.
+
+### Power Analysis
+
+**Analysis Parameters:**
+- **Significance level (α):** 0.05
+- **Modal sample size (n):** 19
+- **Minimum detectable |r| at 80% power:** 0.58
+- **Required n for |r|=0.40 at 80% power:** 46
+
+**Power Distribution:**
+- **Min Power:** 0.05
+- **Median Power:** 0.12
+- **Max Power:** 0.89
+- **% Above 80%:** 2.3%
+
+**⚠️ Warning: Study may be underpowered.** Only 2.3% of correlations have ≥80% power.
+Consider increasing sample size for future studies.
+```
+
+---
+
 ## Interpreting Results
 
 ### Correlation Strength Guidelines
