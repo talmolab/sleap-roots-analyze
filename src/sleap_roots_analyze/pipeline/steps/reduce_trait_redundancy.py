@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.cluster.hierarchy import dendrogram, linkage as hierarchical_linkage
 from scipy.spatial.distance import squareform
 
 from sleap_roots_analyze.cross_experiment_analysis import (
@@ -314,7 +314,7 @@ class ReduceTraitRedundancyStep(BaseStep):
 
         # Compute linkage
         condensed_dist = squareform(dist_matrix)
-        Z = linkage(condensed_dist, method=linkage_method)
+        Z = hierarchical_linkage(condensed_dist, method=linkage_method)
 
         # Create figure
         n_traits = len(trait_names)
