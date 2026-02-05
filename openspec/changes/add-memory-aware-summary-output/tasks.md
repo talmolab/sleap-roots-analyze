@@ -82,4 +82,4 @@
 - [x] 5.3 Verify SUMMARY.md is < 1MB with file_path mode - 28KB (was 77MB)
 - [x] 5.4 Verify HTML output works - 24.8KB HTML generated
 - [x] 5.5 Run linting: `uv run ruff check` and `uv run black` - passed
-- [ ] 5.6 Run `/pre-merge-check` to ensure CI passes
+- [x] 5.6 Run `/pre-merge-check` to ensure CI passes
