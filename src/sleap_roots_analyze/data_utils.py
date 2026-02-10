@@ -28,17 +28,45 @@ def create_run_directory(base_dir: Path) -> Path:
     return run_dir
 
 
+def _convert_dict_key(key):
+    """Convert dictionary key to JSON-serializable type.
+
+    JSON only accepts str, int, float, bool, or None as dictionary keys.
+    numpy integer/float types must be converted to native Python types.
+
+    Args:
+        key: Dictionary key to convert.
+
+    Returns:
+        JSON-serializable key (str, int, float, bool, or None).
+    """
+    if isinstance(key, (np.integer, np.int64, np.int32)):
+        return int(key)
+    elif isinstance(key, (np.floating, np.float64, np.float32)):
+        return float(key)
+    elif isinstance(key, (np.bool_, bool)):
+        return bool(key)
+    elif isinstance(key, (str, int, float, type(None))):
+        return key
+    else:
+        # Convert other types to string as fallback for JSON key compatibility
+        return str(key)
+
+
 def convert_to_json_serializable(obj):
     """Convert numpy types, Path objects, and other types to JSON serializable types.
 
     Handles:
-    - dicts, lists, tuples: recursively converts contents
+    - dicts, lists, tuples: recursively converts contents (both keys and values)
     - Path objects: converted to POSIX string
     - numpy types: converted to Python native types
     - Non-serializable objects (e.g., sklearn PCA): converted to type name string
     """
     if isinstance(obj, dict):
-        return {k: convert_to_json_serializable(v) for k, v in obj.items()}
+        return {
+            _convert_dict_key(k): convert_to_json_serializable(v)
+            for k, v in obj.items()
+        }
     elif isinstance(obj, list):
         return [convert_to_json_serializable(item) for item in obj]
     elif isinstance(obj, tuple):
@@ -113,6 +141,141 @@ def _format_depth_range(depth: float, mapping: Optional[Dict[float, str]]) -> st
             return f"{int(depth)}cm"
         else:
             return f"{depth}cm"
+
+
+def sanitize_single_trait_name(
+    name: str,
+    abbreviate: bool = True,
+) -> str:
+    """Sanitize a single trait name for display.
+
+    This is a convenience wrapper around the core sanitization logic used by
+    sanitize_trait_names(). Use this when you need to format a single trait
+    name without creating a DataFrame.
+
+    Transformations applied:
+    - Replace dots, hyphens, and underscores with spaces
+    - Convert units to parenthetical format with proper symbols
+    - Remove filler words ("of", "the")
+    - Optionally abbreviate common words
+    - Apply title case with corrections for units and abbreviations
+
+    Args:
+        name: The trait name to sanitize (e.g., "root_length_cm")
+        abbreviate: If True, abbreviate common words (Default: True)
+
+    Returns:
+        Sanitized trait name (e.g., "Root Length (cm)")
+
+    Examples:
+        >>> sanitize_single_trait_name("root_length_cm")
+        "Root Length (cm)"
+        >>> sanitize_single_trait_name("Root_DW_g")
+        "Root DW (g)"
+        >>> sanitize_single_trait_name("Median.Number.of.Roots", abbreviate=True)
+        "Med Num Roots"
+    """
+    # Define abbreviation mappings
+    abbreviations = (
+        {
+            "Number": "Num",
+            "Average": "Avg",
+            "Maximum": "Max",
+            "Minimum": "Min",
+            "Median": "Med",
+            "Frequency": "Freq",
+            "Orientation": "Orient",
+        }
+        if abbreviate
+        else {}
+    )
+
+    # Words to remove for brevity
+    filler_words = {"of", "the"}
+
+    new_name = name
+
+    # Handle unit suffixes first (before splitting)
+    # Order matters: check longer patterns first to avoid partial matches
+    unit_replacements = {
+        # Dot-separated units
+        ".mm3": " (mm³)",
+        ".mm2": " (mm²)",
+        ".mm": " (mm)",
+        ".cm3": " (cm³)",
+        ".cm2": " (cm²)",
+        ".cm": " (cm)",
+        ".deg": " (°)",
+        ".degrees": " (°)",
+        # Underscore-separated units
+        "_mm3": " (mm³)",
+        "_mm2": " (mm²)",
+        "_mm": " (mm)",
+        "_cm3": " (cm³)",
+        "_cm2": " (cm²)",
+        "_cm": " (cm)",
+        "_deg": " (°)",
+        "_degrees": " (°)",
+        "_mg": " (mg)",
+        "_g": " (g)",
+        "_kg": " (kg)",
+    }
+    for old_unit, new_unit in unit_replacements.items():
+        if new_name.endswith(old_unit):
+            new_name = new_name[: -len(old_unit)] + new_unit
+            break
+
+    # Split by dots, hyphens, and underscores
+    parts = new_name.replace(".", " ").replace("-", " ").replace("_", " ").split()
+
+    # Remove filler words and apply abbreviations
+    processed_parts = []
+    for part in parts:
+        # Skip filler words (case-insensitive)
+        if part.lower() in filler_words:
+            continue
+
+        # Skip empty parts
+        if not part.strip():
+            continue
+
+        # Apply abbreviations if enabled (case-insensitive matching)
+        if abbreviate:
+            # Check if this part (title-cased) matches any abbreviation key
+            part_titlecase = part.title()
+            if part_titlecase in abbreviations:
+                processed_parts.append(abbreviations[part_titlecase])
+            else:
+                processed_parts.append(part)
+        else:
+            processed_parts.append(part)
+
+    # Join and apply title case for consistent capitalization
+    new_name = " ".join(processed_parts)
+    new_name = new_name.strip().title()
+
+    # Fix units to be lowercase (e.g., "(G)" -> "(g)", "(Mm)" -> "(mm)")
+    # Keep scientific symbols correct
+    new_name = re.sub(r"\(Mm³\)", "(mm³)", new_name)
+    new_name = re.sub(r"\(Mm²\)", "(mm²)", new_name)
+    new_name = re.sub(r"\(Mm\)", "(mm)", new_name)
+    new_name = re.sub(r"\(Cm³\)", "(cm³)", new_name)
+    new_name = re.sub(r"\(Cm²\)", "(cm²)", new_name)
+    new_name = re.sub(r"\(Cm\)", "(cm)", new_name)
+    new_name = re.sub(r"\(G\)", "(g)", new_name)
+    new_name = re.sub(r"\(Mg\)", "(mg)", new_name)
+    new_name = re.sub(r"\(Kg\)", "(kg)", new_name)
+    # Fix metric units after numbers (title() converts "15cm" to "15Cm")
+    new_name = re.sub(r"(\d+(?:\.\d+)?)Cm\b", r"\1cm", new_name)
+    new_name = re.sub(r"(\d+(?:\.\d+)?)Mm\b", r"\1mm", new_name)
+    new_name = re.sub(r"(\d+(?:\.\d+)?)Kg\b", r"\1kg", new_name)
+
+    # Fix common scientific abbreviations (title() converts "DW" to "Dw")
+    # DW = Dry Weight, FW = Fresh Weight
+    new_name = re.sub(r"\bDw\b", "DW", new_name)
+    new_name = re.sub(r"\bFw\b", "FW", new_name)
+
+    return new_name
 
 
 def sanitize_trait_names(
@@ -242,16 +405,27 @@ def sanitize_trait_names(
         # Handle unit suffixes first (before splitting)
         # Order matters: check longer patterns first to avoid partial matches
         unit_replacements = {
+            # Dot-separated units
             ".mm3": " (mm³)",
             ".mm2": " (mm²)",
             ".mm": " (mm)",
+            ".cm3": " (cm³)",
+            ".cm2": " (cm²)",
+            ".cm": " (cm)",
             ".deg": " (°)",
+            ".degrees": " (°)",
+            # Underscore-separated units
             "_mm3": " (mm³)",
             "_mm2": " (mm²)",
             "_mm": " (mm)",
+            "_cm3": " (cm³)",
+            "_cm2": " (cm²)",
+            "_cm": " (cm)",
             "_deg": " (°)",
+            "_degrees": " (°)",
             "_mg": " (mg)",
             "_g": " (g)",
+            "_kg": " (kg)",
         }
         for old_unit, new_unit in unit_replacements.items():
             if new_name.endswith(old_unit):
@@ -341,8 +515,12 @@ def sanitize_trait_names(
             new_name = re.sub(r"\(Mm³\)", "(mm³)", new_name)
             new_name = re.sub(r"\(Mm²\)", "(mm²)", new_name)
             new_name = re.sub(r"\(Mm\)", "(mm)", new_name)
+            new_name = re.sub(r"\(Cm³\)", "(cm³)", new_name)
+            new_name = re.sub(r"\(Cm²\)", "(cm²)", new_name)
+            new_name = re.sub(r"\(Cm\)", "(cm)", new_name)
             new_name = re.sub(r"\(G\)", "(g)", new_name)
             new_name = re.sub(r"\(Mg\)", "(mg)", new_name)
+            new_name = re.sub(r"\(Kg\)", "(kg)", new_name)
             # Fix metric units after numbers (title() converts "15cm" to "15Cm")
             # Note: Only fix unambiguous units (cm, mm, kg). We intentionally skip
             # standalone "M" because it could mean millions (e.g., "15M" = 15 million)
@@ -353,6 +531,11 @@ def sanitize_trait_names(
             new_name = re.sub(r"(\d+(?:\.\d+)?)Mm\b", r"\1mm", new_name)
             new_name = re.sub(r"(\d+(?:\.\d+)?)Kg\b", r"\1kg", new_name)
             # Keep degree symbol as-is
+
+            # Fix common scientific abbreviations (title() converts "DW" to "Dw")
+            # DW = Dry Weight, FW = Fresh Weight
+            new_name = re.sub(r"\bDw\b", "DW", new_name)
+            new_name = re.sub(r"\bFw\b", "FW", new_name)
         else:
             # Depth range already applied, name is already properly formatted
             # Just use it as-is (processed_parts has single element with full name)

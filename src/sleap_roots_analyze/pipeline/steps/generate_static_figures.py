@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -13,10 +14,13 @@ from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.visualization import (
     create_correlation_heatmap,
     create_feature_contribution_heatmap,
+    create_feature_contribution_plot,
     create_heritability_plot,
     create_pc_genotype_boxplots,
     create_pca_biplot,
     create_pca_scree_plot,
+    create_phenotype_variation_plot,
+    create_regression_plot,
     create_trait_boxplots_by_genotype_batched,
     create_trait_histograms_batched,
 )
@@ -116,6 +120,9 @@ class GenerateStaticFiguresStep(BaseStep):
         # Track generated files
         generated_files = []
         formats = config.static_viz.formats
+        # Filter out 'pdf' if save_pdf is False
+        if not config.static_viz.save_pdf:
+            formats = [f for f in formats if f.lower() != "pdf"]
         dpi = config.static_viz.dpi
 
         try:
@@ -161,12 +168,39 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 5. Genotype Comparison Plots
+            # 5. Phenotype Variation Plots (requires heritability results)
+            if (
+                config.static_viz.create_phenotype_variation_plots
+                and heritability_results
+                and trait_cols
+            ):
+                logger.info("  Creating phenotype variation plots...")
+                generated_files.extend(
+                    self._create_phenotype_variation_plots(
+                        df,
+                        heritability_results,
+                        config,
+                        figures_dir,
+                        formats,
+                        dpi,
+                    )
+                )
+
+            # 6. Genotype Comparison Plots
             if config.static_viz.create_genotype_comparisons and trait_cols:
                 logger.info("  Creating genotype comparison plots...")
                 generated_files.extend(
                     self._create_genotype_comparisons(
                         df, trait_cols, config, figures_dir, formats, dpi
+                    )
+                )
+
+            # 7. Regression Plots (based on configured trait pairs)
+            if config.static_viz.regression_trait_pairs:
+                logger.info("  Creating regression plots...")
+                generated_files.extend(
+                    self._create_regression_plots(
+                        df, config, figures_dir, formats, dpi
                     )
                 )
 
@@ -287,13 +321,55 @@ class GenerateStaticFiguresStep(BaseStep):
         plt.close(variance_fig)
         plt.close(loadings_fig)
 
+        # Feature contribution bar chart
+        # Determine variance threshold: use explicit config, or inherit from pca.n_components
+        if config.static_viz.feature_contribution_variance_threshold is not None:
+            variance_threshold = config.static_viz.feature_contribution_variance_threshold
+        elif config.pca.n_components < 1:
+            # pca.n_components < 1 means it's a variance threshold
+            variance_threshold = config.pca.n_components
+        else:
+            # Default fallback
+            variance_threshold = 0.95
+
+        contrib_fig = create_feature_contribution_plot(
+            pca_results,
+            trait_names=trait_cols,
+            n_components=None,  # Use variance threshold instead
+            variance_threshold=variance_threshold,
+            top_n=config.static_viz.feature_contribution_top_n,
+            feature_selection=config.pca.feature_selection_strategy,
+        )
+        files.extend(
+            self._save_figure(
+                contrib_fig,
+                "pca_feature_contributions",
+                output_dir,
+                formats,
+                dpi,
+                bbox_inches=config.static_viz.bbox_inches,
+                transparent=config.static_viz.transparent,
+            )
+        )
+        plt.close(contrib_fig)
+
         # PC boxplots by genotype
         if "transformed_data" in pca_results and genotype_col in df.columns:
+            # Use same variance threshold logic as feature contribution plot
+            # If pca.n_components < 1, treat as variance threshold; else use explicit count
+            if config.pca.n_components < 1:
+                pc_variance_threshold = config.pca.n_components
+                pc_n_components = None
+            else:
+                pc_variance_threshold = None
+                pc_n_components = config.static_viz.pca_n_components
+
             fig = create_pc_genotype_boxplots(
                 pca_results,
                 df,
                 genotype_col=genotype_col,
-                n_components=config.static_viz.pca_n_components,
+                n_components=pc_n_components,
+                variance_threshold=pc_variance_threshold,
                 highlight_genotypes=config.static_viz.highlight_genotypes,
             )
             files.extend(
@@ -340,6 +416,9 @@ class GenerateStaticFiguresStep(BaseStep):
                 )
             )
             plt.close(subfig)
+            # Periodically reclaim memory during large batch generation
+            if (i + 1) % 10 == 0:
+                gc.collect()
 
         # Boxplots by genotype (batched)
         # Use hardcoded sanitized column name (data from QC pipeline already sanitized)
@@ -364,6 +443,9 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
                 plt.close(subfig)
+                # Periodically reclaim memory during large batch generation
+                if (i + 1) % 10 == 0:
+                    gc.collect()
 
         return files
 
@@ -403,7 +485,11 @@ class GenerateStaticFiguresStep(BaseStep):
         formats: list,
         dpi: int,
     ) -> list[Path]:
-        """Create heritability plots."""
+        """Create heritability plots.
+
+        Handles both single figure (small datasets) and paginated figures
+        (large datasets with many traits).
+        """
         files = []
 
         # Use configured threshold for visualization
@@ -411,19 +497,102 @@ class GenerateStaticFiguresStep(BaseStep):
         # This ensures consistency with Step 8 plots and helps users understand what
         # threshold would be used if heritability filtering were enabled.
         threshold = config.heritability.threshold
-        fig = create_heritability_plot(heritability_results, threshold=threshold)
-        files.extend(
-            self._save_figure(
-                fig,
-                "heritability_estimates",
-                output_dir,
-                formats,
-                dpi,
-                bbox_inches=config.static_viz.bbox_inches,
-                transparent=config.static_viz.transparent,
+        result = create_heritability_plot(heritability_results, threshold=threshold)
+
+        # Handle both single figure and paginated list of figures
+        if isinstance(result, list):
+            # Multiple paginated figures
+            for i, fig in enumerate(result, start=1):
+                files.extend(
+                    self._save_figure(
+                        fig,
+                        f"heritability_estimates_page{i:02d}",
+                        output_dir,
+                        formats,
+                        dpi,
+                        bbox_inches=config.static_viz.bbox_inches,
+                        transparent=config.static_viz.transparent,
+                    )
+                )
+                plt.close(fig)
+        else:
+            # Single figure (backward compatibility for small datasets)
+            files.extend(
+                self._save_figure(
+                    result,
+                    "heritability_estimates",
+                    output_dir,
+                    formats,
+                    dpi,
+                    bbox_inches=config.static_viz.bbox_inches,
+                    transparent=config.static_viz.transparent,
+                )
             )
-        )
-        plt.close(fig)
+            plt.close(result)
+
+        return files
+
+    def _create_phenotype_variation_plots(
+        self,
+        df: pd.DataFrame,
+        heritability_results: dict,
+        config: Any,
+        output_dir: Path,
+        formats: list,
+        dpi: int,
+    ) -> list[Path]:
+        """Create phenotype variation plots for top heritable traits.
+
+        Generates box plots with jittered points showing phenotypic variation
+        across genotypes for the most heritable traits.
+        """
+        files = []
+
+        # Get top N traits by heritability
+        top_n = config.static_viz.phenotype_variation_top_n
+
+        # Sort traits by H2 value
+        traits_by_h2 = sorted(
+            [
+                (trait, data.get("H2", data.get("heritability", 0)))
+                for trait, data in heritability_results.items()
+                if trait in df.columns
+            ],
+            key=lambda x: x[1],
+            reverse=True,
+        )[:top_n]
+
+        if not traits_by_h2:
+            logger.info("  No heritable traits found for phenotype variation plots")
+            return files
+
+        # Determine genotype column (sanitized name from QC pipeline)
+        genotype_col = "Genotype"
+
+        for trait, h2 in traits_by_h2:
+            try:
+                fig, _ = create_phenotype_variation_plot(
+                    df,
+                    trait=trait,
+                    group_col=genotype_col,
+                )
+                # Sanitize trait name for filename
+                safe_trait_name = trait.replace("/", "_").replace("\\", "_")
+                files.extend(
+                    self._save_figure(
+                        fig,
+                        f"phenotype_variation_{safe_trait_name}",
+                        output_dir,
+                        formats,
+                        dpi,
+                        bbox_inches=config.static_viz.bbox_inches,
+                        transparent=config.static_viz.transparent,
+                    )
+                )
+                plt.close(fig)
+            except Exception as e:
+                logger.warning(f"Failed to create phenotype variation plot for {trait}: {e}")
+                continue
 
         return files
 
@@ -440,6 +609,65 @@ class GenerateStaticFiguresStep(BaseStep):
         # Genotype comparisons are already handled by boxplots_by_genotype
         # This is a placeholder for future additional comparisons
         return []
+
+    def _create_regression_plots(
+        self,
+        df: pd.DataFrame,
+        config: Any,
+        output_dir: Path,
+        formats: list,
+        dpi: int,
+    ) -> list[Path]:
+        """Create regression plots for configured trait pairs.
+
+        Generates scatter plots with linear regression lines for each
+        pair of traits specified in config.static_viz.regression_trait_pairs.
+        """
+        files = []
+
+        trait_pairs = config.static_viz.regression_trait_pairs
+
+        for pair in trait_pairs:
+            if len(pair) != 2:
+                logger.warning(f"Invalid regression pair (expected 2 traits): {pair}")
+                continue
+
+            x_col, y_col = pair
+
+            # Check columns exist
+            if x_col not in df.columns or y_col not in df.columns:
+                logger.warning(
+                    f"Skipping regression {x_col} vs {y_col}: column(s) not in data"
+                )
+                continue
+
+            try:
+                fig = create_regression_plot(
+                    df,
+                    x_col=x_col,
+                    y_col=y_col,
+                    color_by="Genotype" if "Genotype" in df.columns else None,
+                )
+                # Sanitize trait names for filename
+                safe_x = x_col.replace("/", "_").replace("\\", "_")
+                safe_y = y_col.replace("/", "_").replace("\\", "_")
+                files.extend(
+                    self._save_figure(
+                        fig,
+                        f"regression_{safe_x}_vs_{safe_y}",
+                        output_dir,
+                        formats,
+                        dpi,
+                        bbox_inches=config.static_viz.bbox_inches,
+                        transparent=config.static_viz.transparent,
+                    )
+                )
+                plt.close(fig)
+            except Exception as e:
+                logger.warning(f"Failed to create regression plot for {x_col} vs {y_col}: {e}")
+                continue
+
+        return files
 
     def _save_figure(
         self,

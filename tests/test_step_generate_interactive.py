@@ -491,3 +491,89 @@ class TestGenerateInteractiveMetadata:
             assert (
                 file_path.exists()
             ), f"File in files_generated doesn't exist: {file_path}"
+
+
+class TestInteractiveImageDependentPlots:
+    """Tests for Section 11: Interactive plots that depend on image paths."""
+
+    def test_config_accepts_image_dependent_fields(
+        self,
+        interactive_viz_config_enabled,
+    ):
+        """Test that config accepts image-dependent plot fields."""
+        config = interactive_viz_config_enabled.interactive_viz
+
+        # Check new fields exist with correct defaults
+        assert hasattr(config, "create_scatter_with_images")
+        assert hasattr(config, "create_image_viewer")
+        assert hasattr(config, "create_image_gallery")
+
+        assert config.create_scatter_with_images is True
+        assert config.create_image_viewer is True
+        assert config.create_image_gallery is True
+
+    def test_image_dependent_plots_skipped_without_image_paths(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+    ):
+        """Test that image-dependent plots are skipped when image paths not available."""
+        step = GenerateInteractiveStep()
+
+        # Enable all image-dependent plots
+        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = True
+        interactive_viz_config_enabled.interactive_viz.create_image_viewer = True
+        interactive_viz_config_enabled.interactive_viz.create_image_gallery = True
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,  # Has PCA but no image paths
+        )
+
+        # Check image-dependent plots don't exist (no image paths available)
+        interactive_dir = tmp_path / "interactive_figures"
+        if interactive_dir.exists():
+            scatter_with_images = interactive_dir / "scatter_with_images.html"
+            pca_image_viewer = interactive_dir / "pca_image_viewer.html"
+            image_gallery = interactive_dir / "image_gallery.html"
+
+            # These should not exist because no image paths are in metadata
+            assert not scatter_with_images.exists(), (
+                "scatter_with_images.html should not exist without image paths"
+            )
+            assert not pca_image_viewer.exists(), (
+                "pca_image_viewer.html should not exist without image paths"
+            )
+            assert not image_gallery.exists(), (
+                "image_gallery.html should not exist without image paths"
+            )
+
+    def test_image_dependent_plots_disabled_in_config(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+    ):
+        """Test that image-dependent plots respect config disable settings."""
+        step = GenerateInteractiveStep()
+
+        # Disable all image-dependent plots
+        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = False
+        interactive_viz_config_enabled.interactive_viz.create_image_viewer = False
+        interactive_viz_config_enabled.interactive_viz.create_image_gallery = False
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Check result is valid
+        assert isinstance(result, StepResult)
+        assert result.data.equals(sample_trait_data)

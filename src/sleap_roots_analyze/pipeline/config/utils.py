@@ -495,6 +495,17 @@ def validate_viz_config(config: VizPipelineConfig) -> None:
     if config.logging.level not in valid_log_levels:
         raise ValueError(f"logging.level must be one of {valid_log_levels}")
 
+    # Warn if UMAP is enabled but not yet implemented (Phase 2C stub)
+    if config.umap.enabled:
+        import warnings
+
+        warnings.warn(
+            "UMAP analysis is not yet implemented (Phase 2C stub). "
+            "The umap.enabled setting will be ignored and UMAP steps will be skipped.",
+            UserWarning,
+            stacklevel=2,
+        )
+
 
 # ============================================================================
 # Cross-Platform Pipeline Configuration Utilities

@@ -1693,3 +1693,80 @@ def create_hierarchical_outlier_plots(
             print(f"Warning: Could not create optimal k plot: {e}")
 
     return figures
+
+
+def create_outlier_method_comparison_plot(
+    all_outlier_results: Dict,
+    figsize: Tuple[float, float] = (10, 6),
+) -> plt.Figure:
+    """Create bar chart comparing outlier counts across detection methods.
+
+    This function creates a publication-ready bar chart showing how many
+    outliers each detection method identified, useful for comparing method
+    sensitivity and consensus.
+
+    Args:
+        all_outlier_results: Dictionary with results from all outlier methods.
+            Each method's results should have an "outlier_indices" key.
+        figsize: Figure size as (width, height) in inches.
+
+    Returns:
+        Matplotlib figure with the comparison bar chart.
+
+    Raises:
+        ValueError: If less than 2 methods have outlier results.
+    """
+    # Extract outlier counts from each method
+    method_counts = {}
+    for method, results in all_outlier_results.items():
+        if method == "combined":
+            continue
+        if isinstance(results, dict) and "outlier_indices" in results:
+            method_counts[method] = len(results["outlier_indices"])
+
+    if len(method_counts) < 2:
+        raise ValueError(
+            f"Need at least 2 methods with outlier results, got {len(method_counts)}"
+        )
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Sort methods by outlier count for consistent ordering
+    sorted_methods = sorted(method_counts.keys(), key=lambda m: method_counts[m], reverse=True)
+    counts = [method_counts[m] for m in sorted_methods]
+
+    # Format method names for display
+    display_names = [m.replace("_", " ").title() for m in sorted_methods]
+
+    # Create bars
+    x = np.arange(len(sorted_methods))
+    bars = ax.bar(x, counts, color="steelblue", edgecolor="black", alpha=0.8)
+
+    # Add value labels on each bar
+    for bar, count in zip(bars, counts):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height,
+            f"{count:,}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold",
+        )
+
+    # Formatting
+    ax.set_xlabel("Outlier Detection Method", fontsize=12)
+    ax.set_ylabel("Number of Outliers Detected", fontsize=12)
+    ax.set_title("Comparison of Outlier Detection Methods", fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(display_names, rotation=45, ha="right")
+    ax.grid(True, alpha=0.3, axis="y")
+
+    # Add some padding at the top for labels
+    ymax = max(counts) if counts else 1
+    ax.set_ylim(0, ymax * 1.15)
+
+    plt.tight_layout()
+    return fig

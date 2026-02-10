@@ -270,24 +270,44 @@ class StatisticalAnalysisStep(BaseStep):
         else:
             h2_figsize = figsize
 
-        fig = create_heritability_plot(
+        result = create_heritability_plot(
             heritability_results=heritability_results,
             threshold=config.heritability.threshold,
             figsize=h2_figsize,
         )
-        heritability_plot_path = (
-            figures_dir / f"08_heritability_analysis.{figure_format}"
-        )
-        fig.savefig(
-            heritability_plot_path,
-            dpi=viz_config.dpi,
-            bbox_inches=viz_config.bbox_inches,
-            facecolor=facecolor,
-            edgecolor=edgecolor,
-            transparent=viz_config.transparent,
-        )
-        plt.close(fig)
-        files.append(heritability_plot_path)
+
+        # Handle both single figure and paginated list of figures
+        if isinstance(result, list):
+            # Multiple paginated figures for large datasets
+            for i, fig in enumerate(result, start=1):
+                heritability_plot_path = (
+                    figures_dir / f"08_heritability_analysis_page{i:02d}.{figure_format}"
+                )
+                fig.savefig(
+                    heritability_plot_path,
+                    dpi=viz_config.dpi,
+                    bbox_inches=viz_config.bbox_inches,
+                    facecolor=facecolor,
+                    edgecolor=edgecolor,
+                    transparent=viz_config.transparent,
+                )
+                plt.close(fig)
+                files.append(heritability_plot_path)
+        else:
+            # Single figure for small datasets (backward compatibility)
+            heritability_plot_path = (
+                figures_dir / f"08_heritability_analysis.{figure_format}"
+            )
+            result.savefig(
+                heritability_plot_path,
+                dpi=viz_config.dpi,
+                bbox_inches=viz_config.bbox_inches,
+                facecolor=facecolor,
+                edgecolor=edgecolor,
+                transparent=viz_config.transparent,
+            )
+            plt.close(result)
+            files.append(heritability_plot_path)
 
         # Create metadata
         metadata = {

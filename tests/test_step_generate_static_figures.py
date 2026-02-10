@@ -844,3 +844,666 @@ class TestGenerateStaticFiguresGenotypeHighlighting:
         if mock_boxplot.called:
             boxplot_kwargs = mock_boxplot.call_args.kwargs
             assert boxplot_kwargs["highlight_genotypes"] is None
+
+
+class TestMemoryManagement:
+    """Tests for memory management during figure generation."""
+
+    def test_plt_close_called_after_batch_figure_save(
+        self, sample_trait_data, static_viz_config_enabled, prev_result_minimal, tmp_path, monkeypatch
+    ):
+        """Verify plt.close() is called after saving each batch figure."""
+        import matplotlib.pyplot as plt
+        from unittest.mock import patch, MagicMock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Track plt.close calls
+        close_calls = []
+        original_close = plt.close
+
+        def tracking_close(fig=None):
+            close_calls.append(fig)
+            original_close(fig)
+
+        with patch.object(plt, "close", side_effect=tracking_close):
+            # Create minimal config for trait distributions only
+            config = static_viz_config_enabled
+            config.static_viz.create_pca_plots = False
+            config.static_viz.create_heritability_plots = False
+            config.static_viz.create_trait_correlations = False
+            config.static_viz.create_genotype_comparisons = False
+
+            result = step.execute(
+                data=sample_trait_data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=prev_result_minimal,
+            )
+
+        # Should have called plt.close at least once for histogram batches
+        assert len(close_calls) > 0, "plt.close should be called after saving figures"
+
+    def test_gc_collect_called_periodically_in_batch_generation(
+        self, monkeypatch
+    ):
+        """Verify gc.collect() is called periodically during batch generation."""
+        import gc
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Check that gc module is imported in generate_static_figures
+        assert hasattr(generate_static_figures, "gc"), "gc module should be imported"
+
+        # Verify the code has gc.collect() calls by inspecting the module
+        import inspect
+        source = inspect.getsource(generate_static_figures.GenerateStaticFiguresStep)
+        assert "gc.collect()" in source, "gc.collect() should be called in batch generation loops"
+
+    def test_no_figure_handle_accumulation(self):
+        """Test that generating many figures in sequence doesn't accumulate handles."""
+        import matplotlib.pyplot as plt
+        from sleap_roots_analyze.visualization import create_trait_histograms
+        import numpy as np
+        import pandas as pd
+
+        setup_matplotlib_backend()
+
+        # Get initial figure count
+        initial_figs = len(plt.get_fignums())
+
+        # Generate 20 figures in sequence (simulating batch generation)
+        for i in range(20):
+            # Create simple test data
+            data = pd.DataFrame({
+                "trait1": np.random.randn(50),
+                "trait2": np.random.randn(50),
+            })
+            fig = create_trait_histograms(data, ["trait1", "trait2"])
+            plt.close(fig)
+
+        # Check that figure count hasn't grown significantly
+        final_figs = len(plt.get_fignums())
+        accumulated = final_figs - initial_figs
+
+        assert accumulated <= 2, (
+            f"Figure handles accumulated: {accumulated}. "
+            f"Expected <= 2 (initial: {initial_figs}, final: {final_figs})"
+        )
+
+    def test_batch_generation_memory_bounds(
+        self, sample_trait_data, static_viz_config_enabled, prev_result_minimal, tmp_path
+    ):
+        """Test that batch generation keeps figure count within reasonable bounds."""
+        import matplotlib.pyplot as plt
+
+        setup_matplotlib_backend()
+
+        step = GenerateStaticFiguresStep()
+
+        # Record figure count before
+        initial_figs = len(plt.get_fignums())
+
+        # Run with minimal config
+        config = static_viz_config_enabled
+        config.static_viz.create_pca_plots = False
+        config.static_viz.create_heritability_plots = False
+        config.static_viz.create_trait_correlations = False
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result_minimal,
+        )
+
+        # Record figure count after
+        final_figs = len(plt.get_fignums())
+
+        # Should not accumulate many open figures
+        # Allow some tolerance for figures that might not be closed immediately
+        max_allowed_accumulation = 5
+        accumulated = final_figs - initial_figs
+
+        assert accumulated <= max_allowed_accumulation, (
+            f"Too many figures accumulated during batch generation: {accumulated}. "
+            f"Expected <= {max_allowed_accumulation}"
+        )
+
+
+class TestBatchFileReduction:
+    """Tests for Section 8: Batch File Reduction."""
+
+    def test_config_accepts_save_pdf_option(self, static_viz_config_enabled):
+        """Test that StaticVisualizationConfig accepts save_pdf option."""
+        assert hasattr(static_viz_config_enabled.static_viz, "save_pdf")
+        # Default should be True (generate PDF alongside PNG)
+        assert static_viz_config_enabled.static_viz.save_pdf is True
+
+    def test_no_pdf_files_when_save_pdf_disabled(
+        self, static_viz_config_enabled, sample_trait_data, prev_result_minimal, tmp_path
+    ):
+        """Test that no PDF files are generated when save_pdf is False, even if pdf in formats."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Disable PDF generation but include pdf in formats
+        # The pipeline should respect save_pdf=False and skip PDF generation
+        static_viz_config_enabled.static_viz.save_pdf = False
+        static_viz_config_enabled.static_viz.formats = ["png", "pdf"]  # PDF is in formats
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_minimal,
+        )
+
+        # Check no PDF files exist (save_pdf=False should override formats list)
+        static_dir = tmp_path / "static_figures"
+        pdf_files = list(static_dir.glob("*.pdf"))
+        assert len(pdf_files) == 0, (
+            f"Should not generate PDF files when save_pdf=False, found: {pdf_files}"
+        )
+
+    def test_pdf_files_generated_when_save_pdf_enabled(
+        self, static_viz_config_enabled, sample_trait_data, prev_result_minimal, tmp_path
+    ):
+        """Test that PDF files are generated when save_pdf is True."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Enable PDF generation
+        static_viz_config_enabled.static_viz.save_pdf = True
+        static_viz_config_enabled.static_viz.formats = ["png", "pdf"]
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_minimal,
+        )
+
+        # Check PDF files exist
+        static_dir = tmp_path / "static_figures"
+        pdf_files = list(static_dir.glob("*.pdf"))
+        assert len(pdf_files) > 0, (
+            "Should generate PDF files when save_pdf=True and pdf in formats"
+        )
+
+
+class TestMissingPlotsWiring:
+    """Tests for Section 10: Wiring missing notebook plots into pipeline.
+
+    These tests verify that plots from notebooks are properly wired
+    into the pipeline step execution.
+    """
+
+    # --- 10a: PCA Feature Contribution Bar Chart ---
+
+    def test_pca_feature_contributions_generated_when_pca_results_exist(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+    ):
+        """Test that PCA feature contributions bar chart is generated when PCA results exist."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Check feature contributions plot exists
+        static_dir = tmp_path / "static_figures"
+        assert (static_dir / "pca_feature_contributions.png").exists(), (
+            "Missing pca_feature_contributions.png when PCA results exist"
+        )
+
+    def test_pca_feature_contributions_not_generated_without_pca_results(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_minimal,
+        tmp_path,
+    ):
+        """Test that PCA feature contributions is NOT generated when PCA results missing."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_minimal,
+        )
+
+        # Check feature contributions plot does NOT exist
+        static_dir = tmp_path / "static_figures"
+        assert not (static_dir / "pca_feature_contributions.png").exists(), (
+            "pca_feature_contributions.png should not exist without PCA results"
+        )
+
+    # --- 10a2: PCA Feature Contribution Config ---
+
+    def test_config_accepts_feature_contribution_fields(
+        self,
+        static_viz_config_enabled,
+    ):
+        """Test that config accepts feature contribution plot fields.
+
+        Task 10.3a-b: StaticVisualizationConfig should have variance_threshold and top_n.
+        """
+        assert hasattr(
+            static_viz_config_enabled.static_viz, "feature_contribution_variance_threshold"
+        )
+        assert hasattr(static_viz_config_enabled.static_viz, "feature_contribution_top_n")
+        # Check defaults
+        assert static_viz_config_enabled.static_viz.feature_contribution_variance_threshold is None
+        assert static_viz_config_enabled.static_viz.feature_contribution_top_n == 20
+
+    def test_passes_variance_threshold_from_pca_config_when_none(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that variance_threshold is passed from pca.n_components when static_viz is None.
+
+        Task 10.3d: When feature_contribution_variance_threshold is None, inherit from pca.n_components.
+        """
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Set up config
+        static_viz_config_enabled.static_viz.feature_contribution_variance_threshold = None
+        static_viz_config_enabled.pca.n_components = 0.80  # Variance threshold
+
+        # Mock the function to capture call args
+        mock_contrib = Mock(return_value=Mock())
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_plot", mock_contrib
+        )
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify function was called with variance_threshold from pca config
+        assert mock_contrib.called
+        call_kwargs = mock_contrib.call_args.kwargs
+        assert "variance_threshold" in call_kwargs
+        assert call_kwargs["variance_threshold"] == 0.80
+
+    def test_passes_explicit_variance_threshold_from_config(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that explicit variance_threshold from static_viz config is used.
+
+        Task 10.3d: When feature_contribution_variance_threshold is set, use that value.
+        """
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Set explicit variance threshold different from pca.n_components
+        static_viz_config_enabled.static_viz.feature_contribution_variance_threshold = 0.90
+        static_viz_config_enabled.pca.n_components = 0.80
+
+        # Mock the function to capture call args
+        mock_contrib = Mock(return_value=Mock())
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_plot", mock_contrib
+        )
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify function was called with explicit variance_threshold
+        assert mock_contrib.called
+        call_kwargs = mock_contrib.call_args.kwargs
+        assert "variance_threshold" in call_kwargs
+        assert call_kwargs["variance_threshold"] == 0.90
+
+    def test_passes_top_n_from_config(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that top_n is passed from config.
+
+        Task 10.3e: top_n should come from feature_contribution_top_n config.
+        """
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Set custom top_n
+        static_viz_config_enabled.static_viz.feature_contribution_top_n = 15
+
+        # Mock the function to capture call args
+        mock_contrib = Mock(return_value=Mock())
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_plot", mock_contrib
+        )
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify function was called with top_n from config
+        assert mock_contrib.called
+        call_kwargs = mock_contrib.call_args.kwargs
+        assert "top_n" in call_kwargs
+        assert call_kwargs["top_n"] == 15
+
+    # --- 6b: PCA PC Boxplots Variance Threshold ---
+
+    def test_pc_boxplots_uses_variance_threshold_from_pca_config(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that PC boxplots use variance_threshold from pca.n_components when <1.
+
+        Task 6b.2: Same logic as feature contribution plot.
+        """
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        # Set pca.n_components to variance threshold (<1)
+        static_viz_config_enabled.pca.n_components = 0.80
+
+        # Mock the function to capture call args
+        mock_boxplots = Mock(return_value=Mock())
+        monkeypatch.setattr(
+            generate_static_figures, "create_pc_genotype_boxplots", mock_boxplots
+        )
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify function was called with variance_threshold from pca config
+        assert mock_boxplots.called
+        call_kwargs = mock_boxplots.call_args.kwargs
+        assert "variance_threshold" in call_kwargs or "n_components" in call_kwargs
+        # If pca.n_components < 1, it should be passed as variance_threshold
+        if "variance_threshold" in call_kwargs:
+            assert call_kwargs["variance_threshold"] == 0.80
+        else:
+            # Or n_components should be None (to trigger variance threshold mode)
+            assert call_kwargs.get("n_components") is None
+
+    # --- 10b: Phenotype Variation Plots ---
+
+    def test_config_accepts_phenotype_variation_fields(
+        self,
+        static_viz_config_enabled,
+    ):
+        """Test that config accepts phenotype variation plot fields."""
+        # Check that fields exist and have correct defaults
+        assert hasattr(static_viz_config_enabled.static_viz, "create_phenotype_variation_plots")
+        assert hasattr(static_viz_config_enabled.static_viz, "phenotype_variation_top_n")
+        assert static_viz_config_enabled.static_viz.create_phenotype_variation_plots is True
+        assert static_viz_config_enabled.static_viz.phenotype_variation_top_n == 10
+
+    def test_phenotype_variation_plots_generated_when_heritability_exists(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_heritability,
+        tmp_path,
+    ):
+        """Test that phenotype variation plots are generated when heritability results exist."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Limit to just 2 plots for faster test
+        static_viz_config_enabled.static_viz.phenotype_variation_top_n = 2
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_heritability,
+        )
+
+        # Check phenotype variation plots exist
+        static_dir = tmp_path / "static_figures"
+        variation_files = list(static_dir.glob("phenotype_variation_*.png"))
+        assert len(variation_files) >= 1, (
+            "Should generate at least 1 phenotype variation plot when heritability exists"
+        )
+
+    def test_phenotype_variation_plots_skipped_without_heritability(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_minimal,
+        tmp_path,
+    ):
+        """Test that phenotype variation plots are skipped when heritability missing."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_minimal,
+        )
+
+        # Check no phenotype variation plots exist
+        static_dir = tmp_path / "static_figures"
+        variation_files = list(static_dir.glob("phenotype_variation_*.png"))
+        assert len(variation_files) == 0, (
+            "Should not generate phenotype variation plots without heritability results"
+        )
+
+    def test_phenotype_variation_plots_disabled_in_config(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_heritability,
+        tmp_path,
+    ):
+        """Test that phenotype variation plots respect config disable setting."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Disable the plots
+        static_viz_config_enabled.static_viz.create_phenotype_variation_plots = False
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_heritability,
+        )
+
+        # Check no phenotype variation plots exist
+        static_dir = tmp_path / "static_figures"
+        variation_files = list(static_dir.glob("phenotype_variation_*.png"))
+        assert len(variation_files) == 0, (
+            "Should not generate phenotype variation plots when disabled in config"
+        )
+
+    # --- 10c: Regression Plots ---
+
+    def test_config_accepts_regression_trait_pairs(
+        self,
+        static_viz_config_enabled,
+    ):
+        """Test that config accepts regression_trait_pairs field."""
+        assert hasattr(static_viz_config_enabled.static_viz, "regression_trait_pairs")
+        # Default should be empty list
+        assert static_viz_config_enabled.static_viz.regression_trait_pairs == []
+
+    def test_regression_plots_generated_for_configured_pairs(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_minimal,
+        tmp_path,
+    ):
+        """Test that regression plots are generated for each configured pair."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Configure trait pairs for regression
+        static_viz_config_enabled.static_viz.regression_trait_pairs = [
+            ["trait1", "trait2"],
+            ["trait3", "trait4"],
+        ]
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_minimal,
+        )
+
+        # Check regression plots exist
+        static_dir = tmp_path / "static_figures"
+        regression_files = list(static_dir.glob("regression_*.png"))
+        assert len(regression_files) == 2, (
+            f"Expected 2 regression plots, got {len(regression_files)}"
+        )
+
+    def test_no_regression_plots_when_pairs_empty(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_minimal,
+        tmp_path,
+    ):
+        """Test that no regression plots are generated when regression_trait_pairs is empty."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Ensure pairs are empty (default)
+        static_viz_config_enabled.static_viz.regression_trait_pairs = []
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_minimal,
+        )
+
+        # Check no regression plots exist
+        static_dir = tmp_path / "static_figures"
+        regression_files = list(static_dir.glob("regression_*.png"))
+        assert len(regression_files) == 0, (
+            "Should not generate regression plots when pairs list is empty"
+        )
+
+    # --- 10d: Genotype Image Grids ---
+
+    def test_config_accepts_genotype_image_grids(
+        self,
+        static_viz_config_enabled,
+    ):
+        """Test that config accepts create_genotype_image_grids field."""
+        assert hasattr(static_viz_config_enabled.static_viz, "create_genotype_image_grids")
+        # Default should be True
+        assert static_viz_config_enabled.static_viz.create_genotype_image_grids is True
+
+    def test_genotype_image_grids_skipped_without_image_paths(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+    ):
+        """Test that genotype image grids are skipped when image paths not available."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Ensure create_genotype_image_grids is enabled
+        static_viz_config_enabled.static_viz.create_genotype_image_grids = True
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,  # Has PCA but no image paths
+        )
+
+        # Check no image grid files exist (skipped due to missing image paths)
+        static_dir = tmp_path / "static_figures"
+        grid_files = list(static_dir.glob("genotype_grid_*.png"))
+        assert len(grid_files) == 0, (
+            "Should skip genotype image grids when image paths not available"
+        )
+
+    def test_genotype_image_grids_disabled_in_config(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+    ):
+        """Test that genotype image grids respect config disable setting."""
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        # Disable genotype image grids
+        static_viz_config_enabled.static_viz.create_genotype_image_grids = False
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Check no image grid files exist
+        static_dir = tmp_path / "static_figures"
+        grid_files = list(static_dir.glob("genotype_grid_*.png"))
+        assert len(grid_files) == 0, (
+            "Should not generate genotype image grids when disabled in config"
+        )

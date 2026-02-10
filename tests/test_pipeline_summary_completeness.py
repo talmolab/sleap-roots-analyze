@@ -574,3 +574,93 @@ class TestSummaryFigures:
         fig_path = runner.run_dir / "heritability_distribution.png"
         # Note: This test will initially fail until we implement the feature
         # assert fig_path.exists(), "heritability_distribution.png should be created"
+
+
+class TestUMAPStubIndicator:
+    """Tests for UMAP stub status display in summaries."""
+
+    def test_umap_skip_reason_in_summary(self, tmp_path):
+        """Verify UMAP skip reason is shown when UMAP is enabled but stubbed."""
+        from sleap_roots_analyze.pipeline.steps.generate_summary_viz import (
+            GenerateSummaryStep,
+        )
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.config import VizPipelineConfig
+
+        # Create config with UMAP enabled
+        config = VizPipelineConfig(pipeline_name="test_viz")
+        config.data.csv_path = "test.csv"
+        config.umap.enabled = True
+        config.summary.formats = ["markdown"]
+
+        # Create minimal DataFrame
+        data = pd.DataFrame({"geno": ["A", "B"], "trait1": [1.0, 2.0]})
+
+        # Create previous result with UMAP skipped_stub status (as set by UMAPAnalysisStep)
+        prev_result = StepResult(
+            data=data,
+            metadata={
+                "n_samples": 2,
+                "n_traits": 1,
+                "trait_names": ["trait1"],
+                "umap_status": "skipped_stub",
+                "umap_skip_reason": "Not yet implemented (Phase 2C)",
+            },
+        )
+
+        # Execute summary step
+        step = GenerateSummaryStep()
+        result = step.execute(data, config, tmp_path, prev_result)
+
+        # Read the generated markdown
+        summary_path = tmp_path / "SUMMARY.md"
+        assert summary_path.exists(), "SUMMARY.md should be created"
+
+        content = summary_path.read_text(encoding="utf-8")
+
+        # Check that UMAP shows skip reason
+        assert "UMAP" in content, "UMAP should be mentioned in summary"
+        assert "skipped" in content.lower(), "Summary should indicate UMAP was skipped"
+        assert (
+            "Not yet implemented" in content or "Phase 2C" in content
+        ), "Summary should include skip reason"
+
+    def test_umap_disabled_no_skip_message(self, tmp_path):
+        """Verify no skip message when UMAP is disabled."""
+        from sleap_roots_analyze.pipeline.steps.generate_summary_viz import (
+            GenerateSummaryStep,
+        )
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.config import VizPipelineConfig
+
+        # Create config with UMAP disabled
+        config = VizPipelineConfig(pipeline_name="test_viz")
+        config.data.csv_path = "test.csv"
+        config.umap.enabled = False  # Default
+        config.summary.formats = ["markdown"]
+
+        # Create minimal DataFrame
+        data = pd.DataFrame({"geno": ["A", "B"], "trait1": [1.0, 2.0]})
+
+        # Create previous result with UMAP disabled status
+        prev_result = StepResult(
+            data=data,
+            metadata={
+                "n_samples": 2,
+                "n_traits": 1,
+                "trait_names": ["trait1"],
+                "umap_status": "disabled",
+            },
+        )
+
+        # Execute summary step
+        step = GenerateSummaryStep()
+        result = step.execute(data, config, tmp_path, prev_result)
+
+        # Read the generated markdown
+        summary_path = tmp_path / "SUMMARY.md"
+        content = summary_path.read_text(encoding="utf-8")
+
+        # Check that UMAP shows as disabled, not skipped
+        assert "UMAP:** Disabled" in content, "UMAP should show as Disabled"
+        assert "skipped" not in content.lower(), "No skip message for disabled UMAP"

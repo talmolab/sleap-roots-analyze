@@ -28,12 +28,19 @@ class UMAPAnalysisStep(BaseStep):
             logger.info("UMAP analysis disabled, skipping")
             return StepResult(
                 data=data,
-                metadata=prev_result.metadata,
+                metadata={
+                    **prev_result.metadata,
+                    "umap_status": "disabled",
+                },
             )
 
         # TODO: Implement in Phase 2C
         logger.warning("UMAP analysis not yet implemented (Phase 2C)")
         return StepResult(
             data=data,
-            metadata=prev_result.metadata,
+            metadata={
+                **prev_result.metadata,
+                "umap_status": "skipped_stub",
+                "umap_skip_reason": "Not yet implemented (Phase 2C)",
+            },
         )

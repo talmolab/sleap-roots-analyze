@@ -865,6 +865,167 @@ class TestSanitizeTraitNames:
         # Should have some sanitized columns (exact names depend on abbreviate default)
         assert len(result.columns) >= 2
 
+    # --- Section 9b: Sanitize Trait Names Improvements ---
+
+    def test_unit_cm_not_capitalized(self):
+        """Test that _cm suffix is formatted as (cm), not Cm."""
+        df = pd.DataFrame(
+            {
+                "root_length_cm": [10, 20, 30],
+                "depth_cm": [5, 10, 15],
+            }
+        )
+        trait_cols = ["root_length_cm", "depth_cm"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # Should have (cm) format, not "Cm"
+        assert "Root Length (cm)" in result.columns
+        assert "Depth (cm)" in result.columns
+        # Should NOT have capitalized "Cm"
+        assert "Root Length Cm" not in result.columns
+        assert "Depth Cm" not in result.columns
+
+    def test_unit_degrees_to_symbol(self):
+        """Test that _degrees suffix is formatted as (°)."""
+        df = pd.DataFrame(
+            {
+                "root_angle_degrees": [45, 90, 135],
+                "crown_angle_degrees": [30, 60, 90],
+            }
+        )
+        trait_cols = ["root_angle_degrees", "crown_angle_degrees"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # Should have (°) format
+        assert "Root Angle (°)" in result.columns
+        assert "Crown Angle (°)" in result.columns
+        # Should NOT have "Degrees" as a word
+        assert "Root Angle Degrees" not in result.columns
+
+    def test_embedded_unit_cm_preserved(self):
+        """Test that embedded units like 15cm are handled correctly."""
+        df = pd.DataFrame(
+            {
+                "RootDW_15cm": [2.5, 3.0],
+                "biomass_30cm": [1.0, 1.5],
+            }
+        )
+        trait_cols = ["RootDW_15cm", "biomass_30cm"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # Embedded units should not be wrongly capitalized
+        # "15cm" should stay as "15cm" or "15 cm", not "15Cm"
+        for col in result.columns:
+            assert "Cm" not in col, f"Found wrongly capitalized 'Cm' in: {col}"
+
+    def test_multiple_unit_types_consistent(self):
+        """Test that multiple unit types are formatted consistently."""
+        df = pd.DataFrame(
+            {
+                "length_mm": [100, 200],
+                "weight_g": [1.0, 2.0],
+                "area_cm2": [50, 100],
+                "angle_deg": [45, 90],
+            }
+        )
+        trait_cols = ["length_mm", "weight_g", "area_cm2", "angle_deg"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # All should have proper unit format
+        assert "Length (mm)" in result.columns
+        assert "Weight (g)" in result.columns
+        # cm2 should be cm² or (cm²)
+        assert any("cm" in col.lower() for col in result.columns)
+        assert "Angle (°)" in result.columns
+
+    def test_dw_abbreviation_preserved(self):
+        """Test that DW (dry weight) abbreviation is preserved in uppercase.
+
+        Common abbreviations like DW (dry weight), FW (fresh weight) should
+        stay uppercase since they are well-known scientific abbreviations.
+        """
+        df = pd.DataFrame(
+            {
+                "Root_DW_g": [1.0, 2.0, 3.0],
+                "Shoot_FW_g": [5.0, 6.0, 7.0],
+            }
+        )
+        trait_cols = ["Root_DW_g", "Shoot_FW_g"]
+
+        result = sanitize_trait_names(df, trait_cols, abbreviate=False)
+
+        # DW and FW should stay uppercase
+        assert "Root DW (g)" in result.columns, f"Expected 'Root DW (g)', got {list(result.columns)}"
+        assert "Shoot FW (g)" in result.columns, f"Expected 'Shoot FW (g)', got {list(result.columns)}"
+        # Should NOT have title-cased versions
+        assert "Root Dw (g)" not in result.columns
+        assert "Shoot Fw (g)" not in result.columns
+
+
+class TestSanitizeSingleTraitName:
+    """Tests for sanitize_single_trait_name helper function."""
+
+    def test_basic_underscore_replacement(self):
+        """Test basic underscore to space replacement with title case."""
+        from sleap_roots_analyze.data_utils import sanitize_single_trait_name
+
+        result = sanitize_single_trait_name("root_length")
+        assert result == "Root Length"
+
+    def test_unit_suffix_formatting(self):
+        """Test that unit suffixes are formatted correctly."""
+        from sleap_roots_analyze.data_utils import sanitize_single_trait_name
+
+        # _cm should become (cm), not Cm
+        result = sanitize_single_trait_name("root_length_cm")
+        assert result == "Root Length (cm)", f"Got: {result}"
+
+        # _g should become (g)
+        result = sanitize_single_trait_name("biomass_g")
+        assert result == "Biomass (g)", f"Got: {result}"
+
+    def test_dw_abbreviation_preserved(self):
+        """Test that DW abbreviation is preserved in uppercase."""
+        from sleap_roots_analyze.data_utils import sanitize_single_trait_name
+
+        result = sanitize_single_trait_name("Root_DW_g")
+        assert result == "Root DW (g)", f"Got: {result}"
+
+    def test_dot_separator(self):
+        """Test handling of dot-separated trait names."""
+        from sleap_roots_analyze.data_utils import sanitize_single_trait_name
+
+        result = sanitize_single_trait_name("Median.Root.Length.mm")
+        assert result == "Med Root Length (mm)", f"Got: {result}"
+
+    def test_abbreviate_disabled(self):
+        """Test that abbreviations can be disabled."""
+        from sleap_roots_analyze.data_utils import sanitize_single_trait_name
+
+        result = sanitize_single_trait_name("Median.Root.Length", abbreviate=False)
+        assert result == "Median Root Length", f"Got: {result}"
+
+    def test_matches_dataframe_function(self):
+        """Test that single name function matches DataFrame function output."""
+        from sleap_roots_analyze.data_utils import sanitize_single_trait_name, sanitize_trait_names
+
+        trait_names = ["root_length_cm", "Root_DW_g", "Median.Number.of.Roots"]
+
+        for trait in trait_names:
+            # Get result from single-name function
+            single_result = sanitize_single_trait_name(trait)
+
+            # Get result from DataFrame function
+            df = pd.DataFrame({trait: [1, 2, 3]})
+            df_result = sanitize_trait_names(df, [trait])
+            df_col_name = df_result.columns[0]
+
+            assert single_result == df_col_name, f"Mismatch for '{trait}': single='{single_result}', df='{df_col_name}'"
+
 
 class TestConvertToJsonSerializable:
     """Tests for convert_to_json_serializable function."""
@@ -916,6 +1077,45 @@ class TestConvertToJsonSerializable:
         assert isinstance(result[0], int)
         assert isinstance(result[1], float)
         assert isinstance(result[2], bool)
+
+    def test_numpy_integer_as_dict_key(self):
+        """Test conversion of numpy integers used as dictionary keys.
+
+        JSON only accepts str, int, float, bool, or None as keys.
+        numpy.int64 keys cause TypeError in json.dumps().
+        """
+        import json
+
+        obj = {np.int64(1): "value1", np.int64(2): "value2"}
+        result = convert_to_json_serializable(obj)
+
+        # Keys should be converted to native int
+        assert all(isinstance(k, int) for k in result.keys())
+        assert 1 in result
+        assert 2 in result
+
+        # Should be serializable without error
+        json_str = json.dumps(result)
+        assert json_str is not None
+
+    def test_mixed_numpy_dict_keys(self):
+        """Test conversion of mixed numpy types as dictionary keys."""
+        import json
+
+        obj = {
+            np.int64(1): "int64",
+            np.float64(2.5): "float64",
+            "string": "str_key",
+        }
+        result = convert_to_json_serializable(obj)
+
+        # Should be serializable without error
+        json_str = json.dumps(result)
+        assert json_str is not None
+
+        # Check key types are native Python types
+        for key in result.keys():
+            assert isinstance(key, (str, int, float, bool, type(None)))
 
 
 class TestCreateRunDirectory:
