@@ -228,22 +228,27 @@ class TestVizFigureCounting:
         viz_output = runner.run_dir / "viz" / "test_viz_run"
         viz_output.mkdir(parents=True)
 
-        # Create static_figures directory with PNG files
-        static_dir = viz_output / "static_figures"
-        static_dir.mkdir()
-        for i in range(5):
-            (static_dir / f"fig_{i}.png").write_text("dummy")
+        # Create figures directory with subdirectories (new structure per VIZ-OUTPUT-001)
+        figures_dir = viz_output / "figures"
+        figures_dir.mkdir()
 
-        # Create interactive_figures directory with HTML files
-        interactive_dir = viz_output / "interactive_figures"
-        interactive_dir.mkdir()
-        for i in range(3):
-            (interactive_dir / f"plot_{i}.html").write_text("dummy")
-
-        # Create pca directory with HTML files
-        pca_dir = viz_output / "pca"
+        # Create PCA subdirectory with PNG files
+        pca_dir = figures_dir / "pca"
         pca_dir.mkdir()
-        (pca_dir / "pca_biplot.html").write_text("dummy")
+        for i in range(3):
+            (pca_dir / f"pca_fig_{i}.png").write_text("dummy")
+
+        # Create overview subdirectory with PNG files
+        overview_dir = figures_dir / "overview"
+        overview_dir.mkdir()
+        for i in range(2):
+            (overview_dir / f"overview_{i}.png").write_text("dummy")
+
+        # Create interactive subdirectory with HTML files
+        interactive_dir = figures_dir / "interactive"
+        interactive_dir.mkdir()
+        for i in range(4):
+            (interactive_dir / f"plot_{i}.html").write_text("dummy")
 
         runner.run_results = {
             "qc": {},
@@ -261,9 +266,9 @@ class TestVizFigureCounting:
         lines = runner._format_viz_summary()
         summary_text = "\n".join(lines)
 
-        # Should count static figures (5) not just figures/ dir
+        # Should count PNG figures recursively (3 in pca + 2 in overview = 5)
         assert "| 5 |" in summary_text or "5" in summary_text
-        # Should count interactive figures (3 + 1 from pca)
+        # Should count interactive HTML files (4 in figures/interactive)
         assert "| 4 |" in summary_text or "4" in summary_text
 
 

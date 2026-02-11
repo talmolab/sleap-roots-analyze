@@ -52,11 +52,14 @@ statistics:
   alpha: 0.05
 
 # PCA configuration (matches notebook: trait_viz_cylinder_20251105.ipynb, Cell 6)
+# Note: n_top_features controls how many features are selected during PCA analysis.
+# For "extreme" strategy, this is the count per extreme (top + bottom).
+# See static_viz.pca_biplot_top_features for display settings.
 pca:
   n_components: 0.75             # Keep components explaining 75% variance (PCA_EXPLAINED_VARIANCE_THRESHOLD)
   standardize: true
   feature_selection_strategy: "extreme"
-  n_top_features: 1             # Show more features due to large trait count
+  n_top_features: 1              # 1 feature per extreme = 2 features per PC
 
 # UMAP configuration (disabled by default)
 umap:
@@ -102,6 +105,8 @@ adaptive_sizing:
   max_height: 20.0
 
 # Static visualization settings
+# Note: pca_biplot_top_features controls how many feature arrows are shown on the
+# PCA biplot. This is separate from pca.n_top_features (analysis).
 static_viz:
   enabled: true
   formats:
@@ -115,6 +120,9 @@ static_viz:
   create_trait_correlations: true
   create_heritability_plots: true
   create_genotype_comparisons: true
+
+  # PCA biplot feature control - matches pca.n_top_features for extreme strategy
+  pca_biplot_top_features: 1
 
   # Genotype highlighting (from notebook: trait_viz_cylinder_20251105.ipynb, Cell 7)
   # genotypes_to_color: List of genotypes to color distinctly in PCA plots

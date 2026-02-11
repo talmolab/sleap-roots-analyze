@@ -108,7 +108,7 @@ class TestPCAAnalysisStep:
             prev_result=prev_result,
         )
 
-        pca_dir = tmp_path / "pca"
+        pca_dir = tmp_path / "data" / "pca"
         assert pca_dir.exists()
 
         # Check all expected files
@@ -276,7 +276,7 @@ class TestPCAAnalysisStep:
             assert result.metadata["n_pca_components"] == n_comp
 
             # Check saved files have correct dimensions
-            pca_dir = run_dir / "pca"
+            pca_dir = run_dir / "data" / "pca"
             pc_scores = pd.read_csv(pca_dir / "pc_scores.csv", index_col=0)
             assert pc_scores.shape[1] == n_comp
 
@@ -317,12 +317,12 @@ class TestPCAAnalysisStep:
         # Data should be unchanged
         pd.testing.assert_frame_equal(result.data, original_data)
 
-    def test_pca_with_existing_pca_dir(
+    def test_pca_with_existing_data_pca_dir(
         self, config, sample_data, prev_result, tmp_path
     ):
-        """Test that PCA step handles existing pca directory."""
-        pca_dir = tmp_path / "pca"
-        pca_dir.mkdir(exist_ok=True)
+        """Test that PCA step handles existing data/pca directory."""
+        pca_dir = tmp_path / "data" / "pca"
+        pca_dir.mkdir(parents=True, exist_ok=True)
 
         # Create dummy file
         (pca_dir / "old_file.txt").write_text("old content")
@@ -338,3 +338,63 @@ class TestPCAAnalysisStep:
         # Should complete successfully and create new files
         assert (pca_dir / "pc_scores.csv").exists()
         assert (pca_dir / "loadings.csv").exists()
+
+
+class TestPCADataOrganization:
+    """Test that PCA outputs are saved to data/pca/ subdirectory (VIZ-OUTPUT-001)."""
+
+    def test_pca_outputs_saved_to_data_pca_directory(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """Test that PCA step saves CSVs to data/pca/ subdirectory."""
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # PCA outputs should be in data/pca/, not pca/
+        data_pca_dir = tmp_path / "data" / "pca"
+        assert data_pca_dir.exists(), "data/pca/ directory should exist"
+
+        # All PCA CSV files should be in data/pca/
+        assert (data_pca_dir / "pc_scores.csv").exists()
+        assert (data_pca_dir / "loadings.csv").exists()
+        assert (data_pca_dir / "explained_variance.csv").exists()
+        assert (data_pca_dir / "top_features.csv").exists()
+
+        # Old path should NOT exist
+        old_pca_dir = tmp_path / "pca"
+        assert not old_pca_dir.exists(), "pca/ at root should not exist"
+
+    def test_pca_output_files_content(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """Test that PCA output file contents are correct in new location."""
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        data_pca_dir = tmp_path / "data" / "pca"
+
+        # Validate file contents
+        pc_scores = pd.read_csv(data_pca_dir / "pc_scores.csv", index_col=0)
+        assert pc_scores.shape == (50, 2)  # n_samples x n_components
+        assert list(pc_scores.columns) == ["PC1", "PC2"]
+
+        loadings = pd.read_csv(data_pca_dir / "loadings.csv", index_col=0)
+        assert loadings.shape == (6, 2)  # n_traits x n_components
+
+        explained_var = pd.read_csv(data_pca_dir / "explained_variance.csv", index_col=0)
+        assert explained_var.shape == (2, 3)  # n_components x 3 metrics
+
+        top_features = pd.read_csv(data_pca_dir / "top_features.csv")
+        assert len(top_features) == 5

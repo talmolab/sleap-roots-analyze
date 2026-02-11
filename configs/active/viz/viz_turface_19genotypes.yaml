@@ -38,11 +38,14 @@ statistics:
   alpha: 0.05
 
 # PCA configuration
+# Note: n_top_features controls how many features are selected during PCA analysis.
+# For "extreme" strategy, this is the count per extreme (top + bottom), so 1 means
+# 2 features total per PC. See static_viz.pca_biplot_top_features for display settings.
 pca:
   n_components: 0.95             # Keep components explaining 95% variance
   standardize: true
   feature_selection_strategy: "extreme"
-  n_top_features: 1
+  n_top_features: 1              # 1 feature per extreme = 2 features per PC
 
 # UMAP configuration (disabled by default)
 umap:
@@ -88,6 +91,9 @@ adaptive_sizing:
   max_height: 16.0
 
 # Static visualization settings
+# Note: pca_biplot_top_features controls how many feature arrows are shown on the
+# PCA biplot. This is separate from pca.n_top_features (analysis). Set to match
+# the intended display (e.g., 1 for extreme strategy shows 1 arrow per extreme).
 static_viz:
   enabled: true
   formats:
@@ -101,6 +107,7 @@ static_viz:
   create_trait_correlations: true
   create_heritability_plots: true
   create_genotype_comparisons: true
+  pca_biplot_top_features: 1     # Match pca.n_top_features for extreme strategy
 
 # Interactive visualization settings
 interactive_viz:

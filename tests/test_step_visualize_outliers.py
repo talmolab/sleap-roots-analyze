@@ -122,3 +122,112 @@ class TestVisualizeOutliersStepMetadata:
 
         assert "valid_trait_names" in result.metadata
         assert result.metadata["valid_trait_names"] == ["trait1", "trait2"]
+
+
+class TestOutlierMethodComparisonBarChart:
+    """Tests for task 12.4-12.6: Outlier method comparison bar chart integration.
+
+    These tests verify that `create_outlier_method_comparison_plot()` is wired
+    into the visualize_outliers step and generates a comparison bar chart
+    when multiple detection methods are run.
+    """
+
+    @pytest.fixture
+    def prev_result_two_methods(self, sample_data):
+        """Previous result with two outlier methods run."""
+        return StepResult(
+            data=sample_data,
+            metadata={
+                "valid_trait_names": ["trait1", "trait2"],
+                "methods_run": ["pca", "isolation_forest"],
+                "outlier_results": {
+                    "pca": {
+                        "outlier_indices": [0, 5, 10],
+                        "scores": np.random.randn(20),
+                        "threshold": 2.0,
+                    },
+                    "isolation_forest": {
+                        "outlier_indices": [1, 5, 15],
+                        "scores": np.random.randn(20),
+                        "contamination": 0.1,
+                    },
+                },
+                "samples": 20,
+                "column_mapping": {"genotype": "geno"},
+            },
+            files_generated=[],
+        )
+
+    @pytest.fixture
+    def prev_result_one_method(self, sample_data):
+        """Previous result with only one outlier method run."""
+        return StepResult(
+            data=sample_data,
+            metadata={
+                "valid_trait_names": ["trait1", "trait2"],
+                "methods_run": ["pca"],
+                "outlier_results": {
+                    "pca": {
+                        "outlier_indices": [0, 5, 10],
+                        "scores": np.random.randn(20),
+                        "threshold": 2.0,
+                    },
+                },
+                "samples": 20,
+                "column_mapping": {"genotype": "geno"},
+            },
+            files_generated=[],
+        )
+
+    def test_comparison_bar_chart_generated_when_two_methods_run(
+        self, sample_data, config, prev_result_two_methods, tmp_path
+    ):
+        """Task 12.4: This test MUST FAIL until task 12.6 is implemented.
+
+        The visualize_outliers step should call create_outlier_method_comparison_plot()
+        when 2+ methods are run, producing outlier_method_comparison.png.
+        """
+        step = VisualizeOutliersStep()
+
+        result = step.execute(
+            sample_data, config, tmp_path, prev_result_two_methods
+        )
+
+        # Check that outlier_method_comparison file was generated
+        figures_dir = tmp_path / "figures"
+        comparison_bar_files = list(figures_dir.glob("outlier_method_comparison.*"))
+
+        assert len(comparison_bar_files) > 0, (
+            "Should generate outlier_method_comparison.{fmt} when 2+ outlier methods are run. "
+            "Task 12.6: create_outlier_method_comparison_plot() must be wired into "
+            "visualize_outliers.py when len(methods_run) > 1."
+        )
+
+        # Also verify it's in files_generated
+        file_names = [f.name for f in result.files_generated]
+        assert any("outlier_method_comparison" in name for name in file_names), (
+            "outlier_method_comparison should be in files_generated list"
+        )
+
+    def test_comparison_bar_chart_not_generated_for_single_method(
+        self, sample_data, config, prev_result_one_method, tmp_path
+    ):
+        """Task 12.5: Comparison bar chart should NOT be generated when only 1 method run.
+
+        This test verifies correct behavior - the chart only makes sense when
+        comparing multiple methods.
+        """
+        step = VisualizeOutliersStep()
+
+        result = step.execute(
+            sample_data, config, tmp_path, prev_result_one_method
+        )
+
+        # Check that outlier_method_comparison file was NOT generated
+        figures_dir = tmp_path / "figures"
+        comparison_bar_files = list(figures_dir.glob("outlier_method_comparison.*"))
+
+        assert len(comparison_bar_files) == 0, (
+            "Should NOT generate outlier_method_comparison when only 1 method run. "
+            "Comparison chart only makes sense with 2+ methods."
+        )

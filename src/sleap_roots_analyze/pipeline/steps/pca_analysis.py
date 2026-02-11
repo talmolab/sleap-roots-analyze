@@ -99,9 +99,9 @@ class PCAAnalysisStep(BaseStep):
             f"Selected {len(top_features)} top features using {config.pca.feature_selection_strategy} method"
         )
 
-        # Save PCA results
-        pca_dir = run_dir / "pca"
-        pca_dir.mkdir(exist_ok=True)
+        # Save PCA results (to data/pca/ per VIZ-OUTPUT-001)
+        pca_dir = run_dir / "data" / "pca"
+        pca_dir.mkdir(parents=True, exist_ok=True)
 
         # Save PC scores (use cleaned data index)
         pc_scores_df = pd.DataFrame(

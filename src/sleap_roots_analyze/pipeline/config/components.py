@@ -26,6 +26,11 @@ class AdaptiveSizingConfig:
         max_width: Maximum figure width.
         min_height: Minimum figure height.
         max_height: Maximum figure height.
+        adaptive_batch_size: Whether to automatically increase batch size for many traits.
+            When enabled and trait count > batch_size_threshold, batch size increases
+            to reduce output files (e.g., from 9 per page to 36 per page).
+        batch_size_threshold: Trait count threshold for adaptive batch sizing (default: 100).
+        max_batch_size: Maximum batch size when adaptive sizing is enabled (default: 49).
     """
 
     enabled: bool = True
@@ -37,6 +42,9 @@ class AdaptiveSizingConfig:
     max_width: float = 20.0
     min_height: float = 4.0
     max_height: float = 16.0
+    adaptive_batch_size: bool = False
+    batch_size_threshold: int = 100
+    max_batch_size: int = 49
 
 
 @dataclass

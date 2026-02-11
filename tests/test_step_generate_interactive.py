@@ -9,6 +9,68 @@ from sleap_roots_analyze.pipeline.steps import GenerateInteractiveStep
 from tests.fixtures_visualization import verify_html_structure
 
 
+class TestInteractiveFigureOrganization:
+    """Test that interactive figures are organized into figures/interactive/ subdirectory.
+
+    Per VIZ-OUTPUT-001: Interactive figures saved to figures/interactive/
+    """
+
+    def test_no_interactive_figures_directory_created(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+    ):
+        """Test that NO interactive_figures/ directory is created (legacy structure).
+
+        Per VIZ-LEGACY-001: interactive_figures/ directory at run root is removed.
+        """
+        step = GenerateInteractiveStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Verify interactive_figures/ does NOT exist at run root
+        legacy_dir = tmp_path / "interactive_figures"
+        assert not legacy_dir.exists(), (
+            "interactive_figures/ directory should NOT be created. "
+            "Interactive figures should go to figures/interactive/"
+        )
+
+    def test_interactive_figures_saved_to_figures_interactive_subdirectory(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+    ):
+        """Test that interactive figures are saved to figures/interactive/ subdirectory.
+
+        Per VIZ-OUTPUT-001 Scenario: Interactive figures saved to figures/interactive/
+        """
+        step = GenerateInteractiveStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        # Check interactive figures exist in figures/interactive/
+        interactive_dir = tmp_path / "figures" / "interactive"
+        assert interactive_dir.exists(), "figures/interactive/ directory should be created"
+
+        # Should have at least one HTML file
+        html_files = list(interactive_dir.glob("*.html"))
+        assert len(html_files) > 0, "Should have HTML files in figures/interactive/"
+
+
 class TestGenerateInteractiveBasic:
     """Test basic functionality of GenerateInteractiveStep."""
 
@@ -77,7 +139,7 @@ class TestGenerateInteractiveBasic:
         assert len(result.files_generated) == 0
 
         # Check output directory wasn't created
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         if interactive_dir.exists():
             # If directory exists, it should be empty
             assert len(list(interactive_dir.iterdir())) == 0
@@ -100,7 +162,7 @@ class TestGenerateInteractiveBasic:
         )
 
         # Check directory was created
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         assert interactive_dir.exists()
         assert interactive_dir.is_dir()
 
@@ -130,7 +192,7 @@ class TestGenerateInteractivePCAPlots:
         )
 
         # Check interactive PCA plot exists
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         pca_html = interactive_dir / "interactive_pca.html"
         assert pca_html.exists(), "Missing interactive_pca.html"
 
@@ -155,7 +217,7 @@ class TestGenerateInteractivePCAPlots:
         )
 
         # Check no interactive PCA plot exists
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         if interactive_dir.exists():
             pca_html = interactive_dir / "interactive_pca.html"
             assert not pca_html.exists()
@@ -181,7 +243,7 @@ class TestGenerateInteractivePCAPlots:
         )
 
         # Check no interactive PCA plot exists
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         if interactive_dir.exists():
             pca_html = interactive_dir / "interactive_pca.html"
             assert not pca_html.exists()
@@ -208,7 +270,7 @@ class TestGenerateInteractiveUMAPPlots:
         )
 
         # Check interactive UMAP plot exists
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         umap_html = interactive_dir / "interactive_umap.html"
         assert umap_html.exists(), "Missing interactive_umap.html"
 
@@ -233,7 +295,7 @@ class TestGenerateInteractiveUMAPPlots:
         )
 
         # Check no interactive UMAP plot exists
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         if interactive_dir.exists():
             umap_html = interactive_dir / "interactive_umap.html"
             assert not umap_html.exists()
@@ -259,7 +321,7 @@ class TestGenerateInteractiveUMAPPlots:
         )
 
         # Check no interactive UMAP plot exists
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         if interactive_dir.exists():
             umap_html = interactive_dir / "interactive_umap.html"
             assert not umap_html.exists()
@@ -295,7 +357,7 @@ class TestGenerateInteractiveDependencyHandling:
         assert result.data.equals(sample_trait_data)
 
         # No figures should be generated
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         if interactive_dir.exists():
             assert len(list(interactive_dir.glob("*.html"))) == 0
 
@@ -397,7 +459,7 @@ class TestGenerateInteractiveHTMLValidity:
         )
 
         # Check PCA HTML contains plotly references
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         pca_html = interactive_dir / "interactive_pca.html"
 
         if pca_html.exists():
@@ -423,7 +485,7 @@ class TestGenerateInteractiveHTMLValidity:
         )
 
         # Check HTML has complete structure
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         pca_html = interactive_dir / "interactive_pca.html"
 
         if pca_html.exists():
@@ -535,7 +597,7 @@ class TestInteractiveImageDependentPlots:
         )
 
         # Check image-dependent plots don't exist (no image paths available)
-        interactive_dir = tmp_path / "interactive_figures"
+        interactive_dir = tmp_path / "figures" / "interactive"
         if interactive_dir.exists():
             scatter_with_images = interactive_dir / "scatter_with_images.html"
             pca_image_viewer = interactive_dir / "pca_image_viewer.html"
@@ -577,3 +639,229 @@ class TestInteractiveImageDependentPlots:
         # Check result is valid
         assert isinstance(result, StepResult)
         assert result.data.equals(sample_trait_data)
+
+    def test_scatter_with_images_generated_when_image_paths_available(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Task 11.3: This test MUST FAIL until task 11.7 is implemented.
+
+        The step should call create_interactive_scatter_with_images()
+        when image_paths metadata is present and config is enabled.
+        """
+        import numpy as np
+        import pandas as pd
+
+        step = GenerateInteractiveStep()
+
+        # Enable scatter with images
+        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = True
+
+        n_samples = len(sample_trait_data)
+        n_components = 3
+
+        # Create mock PCA results
+        mock_pca = {
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "cumulative_variance_ratio": np.array([0.50, 0.75, 0.95]),
+            "explained_variance_ratio": np.array([0.50, 0.25, 0.20]),
+        }
+
+        # Create mock image paths (one per sample)
+        image_paths = pd.Series(
+            [f"/mock/path/image_{i}.png" for i in range(n_samples)],
+            index=sample_trait_data.index,
+        )
+
+        # Create prev_result with both PCA results AND image paths
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "pca_results": mock_pca,
+                "image_paths": image_paths,  # Key addition - image paths available
+            },
+        )
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Check that scatter_with_images.html was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        scatter_file = interactive_dir / "scatter_with_images.html"
+
+        assert scatter_file.exists(), (
+            "Should generate scatter_with_images.html when image paths are available. "
+            "Task 11.7: create_interactive_scatter_with_images() must be wired into "
+            "generate_interactive.py, guarded by image path availability."
+        )
+
+    def test_pca_image_viewer_generated_when_image_paths_available(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Task 11.4: This test MUST FAIL until task 11.8 is implemented.
+
+        The step should call create_html_with_image_viewer() using PCA plot as base
+        when image_paths metadata is present and PCA plot exists.
+        """
+        import numpy as np
+        import pandas as pd
+
+        step = GenerateInteractiveStep()
+
+        # Enable image viewer
+        interactive_viz_config_enabled.interactive_viz.create_image_viewer = True
+
+        n_samples = len(sample_trait_data)
+        n_components = 3
+
+        # Create mock PCA results
+        mock_pca = {
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "cumulative_variance_ratio": np.array([0.50, 0.75, 0.95]),
+            "explained_variance_ratio": np.array([0.50, 0.25, 0.20]),
+        }
+
+        # Create mock image paths (one per sample)
+        image_paths = pd.Series(
+            [f"/mock/path/image_{i}.png" for i in range(n_samples)],
+            index=sample_trait_data.index,
+        )
+
+        # Create prev_result with both PCA results AND image paths
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "pca_results": mock_pca,
+                "image_paths": image_paths,  # Key addition - image paths available
+            },
+        )
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Check that pca_image_viewer.html was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        viewer_file = interactive_dir / "pca_image_viewer.html"
+
+        assert viewer_file.exists(), (
+            "Should generate pca_image_viewer.html when image paths and PCA plot are available. "
+            "Task 11.8: create_html_with_image_viewer() must be wired into "
+            "generate_interactive.py, using PCA plot as base figure."
+        )
+
+    def test_image_gallery_generated_when_image_paths_available(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Task 11.5: This test MUST FAIL until task 11.9 is implemented.
+
+        The step should call create_interactive_image_gallery()
+        when image_paths metadata is present and config is enabled.
+        """
+        import numpy as np
+        import pandas as pd
+
+        step = GenerateInteractiveStep()
+
+        # Enable image gallery
+        interactive_viz_config_enabled.interactive_viz.create_image_gallery = True
+
+        n_samples = len(sample_trait_data)
+
+        # Create mock image paths (one per sample)
+        image_paths = pd.Series(
+            [f"/mock/path/image_{i}.png" for i in range(n_samples)],
+            index=sample_trait_data.index,
+        )
+
+        # Create prev_result with image paths (PCA not required for gallery)
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "image_paths": image_paths,  # Key addition - image paths available
+            },
+        )
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Check that image_gallery.html was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        gallery_file = interactive_dir / "image_gallery.html"
+
+        assert gallery_file.exists(), (
+            "Should generate image_gallery.html when image paths are available. "
+            "Task 11.9: create_interactive_image_gallery() must be wired into "
+            "generate_interactive.py, guarded by image path availability."
+        )
+
+    def test_image_dependent_plots_skipped_with_log_message(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        caplog,
+    ):
+        """Task 11.6: Test that image-dependent plots are skipped WITH LOG MESSAGE.
+
+        This test ensures that when image paths are not available:
+        1. No image-dependent HTML files are generated
+        2. A log message explains WHY the plots were skipped
+
+        This test MUST FAIL until tasks 11.7-11.9 are implemented with skip logging.
+        """
+        import logging
+
+        step = GenerateInteractiveStep()
+
+        # Enable all image-dependent plots
+        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = True
+        interactive_viz_config_enabled.interactive_viz.create_image_viewer = True
+        interactive_viz_config_enabled.interactive_viz.create_image_gallery = True
+
+        with caplog.at_level(logging.INFO):
+            result = step.execute(
+                data=sample_trait_data,
+                config=interactive_viz_config_enabled,
+                run_dir=tmp_path,
+                prev_result=prev_result_with_pca,  # Has PCA but NO image paths
+            )
+
+        # Check image-dependent plots don't exist
+        interactive_dir = tmp_path / "figures" / "interactive"
+        if interactive_dir.exists():
+            assert not (interactive_dir / "scatter_with_images.html").exists()
+            assert not (interactive_dir / "pca_image_viewer.html").exists()
+            assert not (interactive_dir / "image_gallery.html").exists()
+
+        # CRITICAL: Check that a skip log message was emitted
+        # This ensures the code has actual skip logic, not just missing implementation
+        log_messages = caplog.text.lower()
+        assert "image" in log_messages and "skip" in log_messages, (
+            "Should log a message explaining that image-dependent plots were skipped "
+            "due to missing image paths. Tasks 11.7-11.9 must include skip logging. "
+            f"Actual log: {caplog.text}"
+        )

@@ -243,5 +243,8 @@ data/
 pipeline_runs/
 PIPELINE_RUNS_SUMMARY.md
 
+# Local notes and analysis documentation (not checked in)
+local_notes/
+
 # Temporary test/example output
 examples/heritability_diagnostics/

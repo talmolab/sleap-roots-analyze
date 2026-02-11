@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
@@ -15,6 +16,7 @@ from sleap_roots_analyze.visualization import (
     create_correlation_heatmap,
     create_feature_contribution_heatmap,
     create_feature_contribution_plot,
+    create_genotype_image_grid,
     create_heritability_plot,
     create_pc_genotype_boxplots,
     create_pca_biplot,
@@ -23,6 +25,7 @@ from sleap_roots_analyze.visualization import (
     create_regression_plot,
     create_trait_boxplots_by_genotype_batched,
     create_trait_histograms_batched,
+    identify_extreme_genotypes_by_pc,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,8 +110,9 @@ class GenerateStaticFiguresStep(BaseStep):
         logger.info("Generating static figures...")
         df = data.copy()
 
-        # Create output directory
-        figures_dir = run_dir / "static_figures"
+        # Create output directory structure
+        # NOTE: We use figures/ with subdirectories instead of flat static_figures/
+        figures_dir = run_dir / "figures"
         figures_dir.mkdir(parents=True, exist_ok=True)
 
         # Get metadata from previous steps
@@ -116,6 +120,7 @@ class GenerateStaticFiguresStep(BaseStep):
         trait_cols = metadata.get("trait_names", metadata.get("valid_trait_names", []))
         pca_results = metadata.get("pca_results")
         heritability_results = metadata.get("heritability_results")
+        image_paths = metadata.get("image_paths")
 
         # Track generated files
         generated_files = []
@@ -126,83 +131,116 @@ class GenerateStaticFiguresStep(BaseStep):
         dpi = config.static_viz.dpi
 
         try:
-            # 1. PCA Plots
+            # 1. PCA Plots (saved to figures/pca/)
             if config.static_viz.create_pca_plots and pca_results:
                 logger.info("  Creating PCA plots...")
+                pca_dir = figures_dir / "pca"
+                pca_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_pca_plots(
                         df,
                         pca_results,
                         trait_cols,
                         config,
-                        figures_dir,
+                        pca_dir,
                         formats,
                         dpi,
                     )
                 )
 
-            # 2. Trait Distribution Plots
+            # 2. Trait Distribution Plots (saved to figures/trait_histograms/ and figures/trait_boxplots/)
             if config.static_viz.create_trait_distributions and trait_cols:
                 logger.info("  Creating trait distribution plots...")
+                histograms_dir = figures_dir / "trait_histograms"
+                histograms_dir.mkdir(parents=True, exist_ok=True)
+                boxplots_dir = figures_dir / "trait_boxplots"
+                boxplots_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_trait_distributions(
-                        df, trait_cols, config, figures_dir, formats, dpi
+                        df, trait_cols, config, histograms_dir, boxplots_dir, formats, dpi
                     )
                 )
 
-            # 3. Correlation Heatmap
+            # 3. Correlation Heatmap (saved to figures/overview/)
             if config.static_viz.create_trait_correlations and trait_cols:
                 logger.info("  Creating correlation heatmap...")
+                overview_dir = figures_dir / "overview"
+                overview_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_correlation_plot(
-                        df, trait_cols, config, figures_dir, formats, dpi
+                        df, trait_cols, config, overview_dir, formats, dpi
                     )
                 )
 
-            # 4. Heritability Plots
+            # 4. Heritability Plots (saved to figures/heritability/)
             if config.static_viz.create_heritability_plots and heritability_results:
                 logger.info("  Creating heritability plots...")
+                heritability_dir = figures_dir / "heritability"
+                heritability_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_heritability_plots(
-                        heritability_results, config, figures_dir, formats, dpi
+                        heritability_results, config, heritability_dir, formats, dpi
                     )
                 )
 
-            # 5. Phenotype Variation Plots (requires heritability results)
+            # 5. Phenotype Variation Plots (saved to figures/phenotype_variation/)
             if (
                 config.static_viz.create_phenotype_variation_plots
                 and heritability_results
                 and trait_cols
             ):
                 logger.info("  Creating phenotype variation plots...")
+                variation_dir = figures_dir / "phenotype_variation"
+                variation_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_phenotype_variation_plots(
                         df,
                         heritability_results,
                         config,
-                        figures_dir,
+                        variation_dir,
                         formats,
                         dpi,
                     )
                 )
 
-            # 6. Genotype Comparison Plots
+            # 6. Genotype Comparison Plots (saved to figures/overview/)
             if config.static_viz.create_genotype_comparisons and trait_cols:
                 logger.info("  Creating genotype comparison plots...")
+                overview_dir = figures_dir / "overview"
+                overview_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_genotype_comparisons(
-                        df, trait_cols, config, figures_dir, formats, dpi
+                        df, trait_cols, config, overview_dir, formats, dpi
                     )
                 )
 
-            # 7. Regression Plots (based on configured trait pairs)
+            # 7. Regression Plots (saved to figures/overview/)
             if config.static_viz.regression_trait_pairs:
                 logger.info("  Creating regression plots...")
+                overview_dir = figures_dir / "overview"
+                overview_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_regression_plots(
-                        df, config, figures_dir, formats, dpi
+                        df, config, overview_dir, formats, dpi
                     )
                 )
+
+            # 8. Genotype Image Grids (saved to figures/extreme_genotypes/)
+            # Task 10.20: Wire identify_extreme_genotypes_by_pc + create_genotype_image_grid
+            if config.static_viz.create_genotype_image_grids:
+                if image_paths is not None and pca_results:
+                    logger.info("  Creating genotype image grids...")
+                    extreme_dir = figures_dir / "extreme_genotypes"
+                    extreme_dir.mkdir(parents=True, exist_ok=True)
+                    generated_files.extend(
+                        self._create_genotype_image_grids(
+                            df, pca_results, image_paths, config, extreme_dir, formats, dpi
+                        )
+                    )
+                else:
+                    logger.info(
+                        "  Skipping genotype image grids: image paths not available"
+                    )
 
             logger.info(f"Generated {len(generated_files)} static figures")
 
@@ -364,6 +402,37 @@ class GenerateStaticFiguresStep(BaseStep):
                 pc_variance_threshold = None
                 pc_n_components = config.static_viz.pca_n_components
 
+            # Calculate adaptive figsize based on genotype count and PC count
+            n_genotypes = df[genotype_col].nunique()
+
+            # Determine actual number of PCs that will be shown
+            if pc_n_components is not None:
+                n_pcs = min(pc_n_components, pca_results["transformed_data"].shape[1])
+            else:
+                # Use variance threshold to determine PC count
+                cumvar = pca_results.get("cumulative_variance_ratio", [1.0])
+                threshold = pc_variance_threshold or 0.95
+                n_pcs = int(np.argmax(cumvar >= threshold) + 1)
+                n_pcs = min(n_pcs, pca_results["transformed_data"].shape[1])
+
+            # Use adaptive_sizing config if enabled
+            if config.adaptive_sizing.enabled:
+                sizing = config.adaptive_sizing
+                # Width scales with genotype count (min ~0.25 inches per genotype)
+                adaptive_width = max(
+                    sizing.min_width,
+                    min(sizing.max_width, sizing.base_width + n_genotypes * 0.25),
+                )
+                # Height scales with PC count (at least 3 inches per PC)
+                adaptive_height = max(
+                    sizing.min_height,
+                    min(sizing.max_height, n_pcs * sizing.height_per_item * 1.5),
+                )
+                pc_figsize = (adaptive_width, adaptive_height)
+            else:
+                # Default sizing
+                pc_figsize = (20, max(6, n_pcs * 3))
+
             fig = create_pc_genotype_boxplots(
                 pca_results,
                 df,
@@ -371,6 +440,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 n_components=pc_n_components,
                 variance_threshold=pc_variance_threshold,
                 highlight_genotypes=config.static_viz.highlight_genotypes,
+                figsize=pc_figsize,
             )
             files.extend(
                 self._save_figure(
@@ -392,23 +462,58 @@ class GenerateStaticFiguresStep(BaseStep):
         df: pd.DataFrame,
         trait_cols: list,
         config: Any,
-        output_dir: Path,
+        histograms_dir: Path,
+        boxplots_dir: Path,
         formats: list,
         dpi: int,
     ) -> list[Path]:
-        """Create trait distribution plots."""
+        """Create trait distribution plots.
+
+        Args:
+            df: DataFrame with trait data.
+            trait_cols: List of trait column names.
+            config: Pipeline configuration.
+            histograms_dir: Directory to save histogram plots (figures/trait_histograms/).
+            boxplots_dir: Directory to save boxplot plots (figures/trait_boxplots/).
+            formats: Output formats.
+            dpi: DPI for figures.
+
+        Returns:
+            List of generated file paths.
+        """
         files = []
 
-        # Histograms (batched)
+        # Calculate adaptive batch sizes if enabled (Task 8.4)
+        n_traits = len(trait_cols)
+        histogram_batch_size = config.static_viz.histogram_batch_size
+        boxplot_batch_size = config.static_viz.boxplot_batch_size
+
+        if (
+            config.adaptive_sizing.enabled
+            and config.adaptive_sizing.adaptive_batch_size
+            and n_traits > config.adaptive_sizing.batch_size_threshold
+        ):
+            # Increase batch size to reduce number of output files
+            # Target: fewer than ~20 batch files per plot type
+            max_batch = config.adaptive_sizing.max_batch_size
+            histogram_batch_size = min(max_batch, max(histogram_batch_size, 36))
+            boxplot_batch_size = min(max_batch, max(boxplot_batch_size, 36))
+            logger.info(
+                f"Adaptive batch sizing: {n_traits} traits, "
+                f"using histogram_batch_size={histogram_batch_size}, "
+                f"boxplot_batch_size={boxplot_batch_size}"
+            )
+
+        # Histograms (batched) - saved to figures/trait_histograms/
         fig = create_trait_histograms_batched(
-            df, trait_cols, batch_size=config.static_viz.histogram_batch_size
+            df, trait_cols, batch_size=histogram_batch_size
         )
         for i, subfig in enumerate(fig):
             files.extend(
                 self._save_figure(
                     subfig,
                     f"trait_histograms_batch{i + 1}",
-                    output_dir,
+                    histograms_dir,
                     formats,
                     dpi,
                     bbox_inches=config.static_viz.bbox_inches,
@@ -420,22 +525,34 @@ class GenerateStaticFiguresStep(BaseStep):
             if (i + 1) % 10 == 0:
                 gc.collect()
 
-        # Boxplots by genotype (batched)
+        # Boxplots by genotype (batched) - saved to figures/trait_boxplots/
         # Use hardcoded sanitized column name (data from QC pipeline already sanitized)
         genotype_col = "Genotype"
         if genotype_col in df.columns:
+            # Build kwargs for boxplot function
+            boxplot_kwargs = {
+                "genotype_col": genotype_col,
+                "batch_size": boxplot_batch_size,  # Uses adaptive size if enabled
+            }
+            # Use adaptive_sizing config for subplot dimensions if enabled (Task 6c.5)
+            if config.adaptive_sizing.enabled:
+                sizing = config.adaptive_sizing
+                boxplot_kwargs["subplot_size"] = (
+                    sizing.width_per_item,
+                    sizing.height_per_item,
+                )
+
             fig = create_trait_boxplots_by_genotype_batched(
                 df,
                 trait_cols,
-                genotype_col=genotype_col,
-                batch_size=config.static_viz.boxplot_batch_size,
+                **boxplot_kwargs,
             )
             for i, subfig in enumerate(fig):
                 files.extend(
                     self._save_figure(
                         subfig,
-                        f"trait_boxplots_by_genotype_batch{i + 1}",
-                        output_dir,
+                        f"trait_boxplots_batch{i + 1}",
+                        boxplots_dir,
                         formats,
                         dpi,
                         bbox_inches=config.static_viz.bbox_inches,
@@ -666,6 +783,95 @@ class GenerateStaticFiguresStep(BaseStep):
             except Exception as e:
                 logger.warning(f"Failed to create regression plot for {x_col} vs {y_col}: {e}")
                 continue
+
+        return files
+
+    def _create_genotype_image_grids(
+        self,
+        df: pd.DataFrame,
+        pca_results: dict,
+        image_paths: pd.Series,
+        config: Any,
+        output_dir: Path,
+        formats: list,
+        dpi: int,
+    ) -> list[Path]:
+        """Create genotype image grids for extreme genotypes identified by PCA.
+
+        Task 10.20: Wire identify_extreme_genotypes_by_pc + create_genotype_image_grid
+        into the pipeline.
+
+        Args:
+            df: DataFrame with trait data.
+            pca_results: PCA analysis results from previous step.
+            image_paths: Series mapping sample indices to image file paths.
+            config: Pipeline configuration.
+            output_dir: Directory to save figures.
+            formats: List of output formats.
+            dpi: Output DPI.
+
+        Returns:
+            List of generated file paths.
+        """
+        files = []
+        genotype_col = config.columns.genotype
+        barcode_col = config.columns.barcode
+
+        try:
+            # Identify extreme genotypes based on PCA
+            extreme_df = identify_extreme_genotypes_by_pc(
+                pca_results=pca_results,
+                df=df,
+                genotype_col=genotype_col,
+                n_extreme=3,  # Top 3 extreme genotypes per PC
+            )
+
+            if extreme_df.empty:
+                logger.info("    No extreme genotypes identified by PCA")
+                return files
+
+            # Convert image_paths to the image_links format expected by create_genotype_image_grid
+            # image_links is Dict[barcode, Dict[image_type, Path]]
+            image_links = {}
+            for idx, path in image_paths.items():
+                if idx in df.index:
+                    barcode = df.loc[idx, barcode_col] if barcode_col in df.columns else str(idx)
+                    image_links[barcode] = {"features.png": Path(path)}
+
+            # Get unique extreme genotypes (column name matches genotype_col)
+            unique_genotypes = extreme_df[genotype_col].unique()
+
+            for genotype in unique_genotypes:
+                try:
+                    fig = create_genotype_image_grid(
+                        df=df,
+                        image_links=image_links,
+                        genotype=genotype,
+                        genotype_col=genotype_col,
+                        barcode_col=barcode_col,
+                    )
+                    # Sanitize genotype name for filename
+                    safe_genotype = str(genotype).replace("/", "_").replace("\\", "_").replace(" ", "_")
+                    files.extend(
+                        self._save_figure(
+                            fig,
+                            f"extreme_genotype_grid_{safe_genotype}",
+                            output_dir,
+                            formats,
+                            dpi,
+                            bbox_inches=config.static_viz.bbox_inches,
+                            transparent=config.static_viz.transparent,
+                        )
+                    )
+                    plt.close(fig)
+                except Exception as e:
+                    logger.warning(f"Failed to create image grid for genotype {genotype}: {e}")
+                    continue
+
+            gc.collect()  # Clean up memory after generating grids
+
+        except Exception as e:
+            logger.warning(f"Failed to create genotype image grids: {e}")
 
         return files
 
