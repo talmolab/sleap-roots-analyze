@@ -189,9 +189,7 @@ class TestOutlierMethodComparisonBarChart:
         """
         step = VisualizeOutliersStep()
 
-        result = step.execute(
-            sample_data, config, tmp_path, prev_result_two_methods
-        )
+        result = step.execute(sample_data, config, tmp_path, prev_result_two_methods)
 
         # Check that outlier_method_comparison file was generated
         figures_dir = tmp_path / "figures"
@@ -205,9 +203,9 @@ class TestOutlierMethodComparisonBarChart:
 
         # Also verify it's in files_generated
         file_names = [f.name for f in result.files_generated]
-        assert any("outlier_method_comparison" in name for name in file_names), (
-            "outlier_method_comparison should be in files_generated list"
-        )
+        assert any(
+            "outlier_method_comparison" in name for name in file_names
+        ), "outlier_method_comparison should be in files_generated list"
 
     def test_comparison_bar_chart_not_generated_for_single_method(
         self, sample_data, config, prev_result_one_method, tmp_path
@@ -219,9 +217,7 @@ class TestOutlierMethodComparisonBarChart:
         """
         step = VisualizeOutliersStep()
 
-        result = step.execute(
-            sample_data, config, tmp_path, prev_result_one_method
-        )
+        result = step.execute(sample_data, config, tmp_path, prev_result_one_method)
 
         # Check that outlier_method_comparison file was NOT generated
         figures_dir = tmp_path / "figures"

@@ -231,7 +231,9 @@ class StatisticalAnalysisStep(BaseStep):
         files.append(self.save_json(trait_stats, "08_trait_statistics.json", data_dir))
         files.append(self.save_dataframe(anova_df, "08_anova_results.csv", data_dir))
         files.append(
-            self.save_dataframe(heritability_df, "08_heritability_results.csv", data_dir)
+            self.save_dataframe(
+                heritability_df, "08_heritability_results.csv", data_dir
+            )
         )
         files.append(
             self.save_json(summary, "08_statistical_analysis_summary.json", data_dir)

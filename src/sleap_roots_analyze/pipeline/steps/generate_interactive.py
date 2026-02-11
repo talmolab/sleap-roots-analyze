@@ -314,7 +314,9 @@ class GenerateInteractiveStep(BaseStep):
         image_links = {}
         for idx, path in image_paths.items():
             if idx in df.index:
-                barcode = df.loc[idx, barcode_col] if barcode_col in df.columns else str(idx)
+                barcode = (
+                    df.loc[idx, barcode_col] if barcode_col in df.columns else str(idx)
+                )
                 image_links[barcode] = {"features.png": PathLib(path)}
 
         # Get trait columns for gallery
@@ -380,7 +382,9 @@ class GenerateInteractiveStep(BaseStep):
                 create_interactive_image_gallery(
                     df=df,
                     image_links=image_links,
-                    trait_cols=trait_cols[:5] if trait_cols else [],  # Limit to 5 traits
+                    trait_cols=(
+                        trait_cols[:5] if trait_cols else []
+                    ),  # Limit to 5 traits
                     output_path=filepath,
                     id_col=barcode_col,
                 )

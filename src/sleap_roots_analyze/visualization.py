@@ -864,9 +864,7 @@ def create_heritability_plot(
     n_traits = len(traits)
     if n_traits <= traits_per_page:
         # Single figure for small datasets (backward compatibility)
-        return _create_single_heritability_figure(
-            traits, h2_values, threshold, figsize
-        )
+        return _create_single_heritability_figure(traits, h2_values, threshold, figsize)
 
     # Create paginated figures for large datasets
     figures = []
@@ -932,7 +930,9 @@ def _create_single_heritability_figure(
 
     # Add page info to title if paginated
     if page_info:
-        title = f"Broad-sense Heritability Estimates (Page {page_info[0]}/{page_info[1]})"
+        title = (
+            f"Broad-sense Heritability Estimates (Page {page_info[0]}/{page_info[1]})"
+        )
     else:
         title = "Broad-sense Heritability Estimates"
     ax.set_title(title)
@@ -1146,7 +1146,9 @@ def create_variance_decomposition_plot(
     )
     ax.legend()
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize)
+    ax.set_xticklabels(
+        comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize
+    )
     ax.set_xlabel("")
 
     # Panel 2: Variance components (stacked bar)
@@ -1171,7 +1173,9 @@ def create_variance_decomposition_plot(
     ax.set_title("Genetic vs Residual Variance")
     ax.legend()
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize)
+    ax.set_xticklabels(
+        comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize
+    )
     ax.set_xlabel("")
 
     # Panel 3: Sample size and CV
@@ -1202,7 +1206,9 @@ def create_variance_decomposition_plot(
     ax2.set_ylabel("Coefficient of Variation (%)", color="purple")
     ax.set_title("Sample Size and Coefficient of Variation")
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize)
+    ax.set_xticklabels(
+        comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize
+    )
     ax.tick_params(axis="y", labelcolor="goldenrod")
     ax2.tick_params(axis="y", labelcolor="purple")
     ax.set_xlabel("")

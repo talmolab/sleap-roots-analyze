@@ -261,7 +261,9 @@ class TestValidateVizConfig:
             warnings.simplefilter("always")
             validate_viz_config(config)
             umap_warnings = [warning for warning in w if "UMAP" in str(warning.message)]
-            assert len(umap_warnings) == 0, "No UMAP warning should be emitted when UMAP is disabled"
+            assert (
+                len(umap_warnings) == 0
+            ), "No UMAP warning should be emitted when UMAP is disabled"
 
 
 class TestLoadVizConfig:

@@ -64,7 +64,9 @@ class TestInteractiveFigureOrganization:
 
         # Check interactive figures exist in figures/interactive/
         interactive_dir = tmp_path / "figures" / "interactive"
-        assert interactive_dir.exists(), "figures/interactive/ directory should be created"
+        assert (
+            interactive_dir.exists()
+        ), "figures/interactive/ directory should be created"
 
         # Should have at least one HTML file
         html_files = list(interactive_dir.glob("*.html"))
@@ -604,15 +606,15 @@ class TestInteractiveImageDependentPlots:
             image_gallery = interactive_dir / "image_gallery.html"
 
             # These should not exist because no image paths are in metadata
-            assert not scatter_with_images.exists(), (
-                "scatter_with_images.html should not exist without image paths"
-            )
-            assert not pca_image_viewer.exists(), (
-                "pca_image_viewer.html should not exist without image paths"
-            )
-            assert not image_gallery.exists(), (
-                "image_gallery.html should not exist without image paths"
-            )
+            assert (
+                not scatter_with_images.exists()
+            ), "scatter_with_images.html should not exist without image paths"
+            assert (
+                not pca_image_viewer.exists()
+            ), "pca_image_viewer.html should not exist without image paths"
+            assert (
+                not image_gallery.exists()
+            ), "image_gallery.html should not exist without image paths"
 
     def test_image_dependent_plots_disabled_in_config(
         self,
@@ -625,7 +627,9 @@ class TestInteractiveImageDependentPlots:
         step = GenerateInteractiveStep()
 
         # Disable all image-dependent plots
-        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = False
+        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = (
+            False
+        )
         interactive_viz_config_enabled.interactive_viz.create_image_viewer = False
         interactive_viz_config_enabled.interactive_viz.create_image_gallery = False
 

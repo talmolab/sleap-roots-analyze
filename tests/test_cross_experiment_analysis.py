@@ -1329,7 +1329,9 @@ class TestCrossExperimentLabelFormatting:
         exp1_means, exp2_means = cross_experiment_means_fixture
 
         # Use a long trait name to test truncation
-        long_trait1 = "very_long_trait_name_that_exceeds_normal_length_limits_for_display"
+        long_trait1 = (
+            "very_long_trait_name_that_exceeds_normal_length_limits_for_display"
+        )
         long_trait2 = "another_extremely_long_trait_name_for_testing_purposes"
 
         # Create mock data with long trait names
@@ -1362,20 +1364,22 @@ class TestCrossExperimentLabelFormatting:
 
     def test_boxplot_axis_labels_readable(self, cross_experiment_data_fixture):
         """Test that boxplot axis labels are readable."""
-        from sleap_roots_analyze.cross_experiment_analysis import create_genotype_boxplots
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            create_genotype_boxplots,
+        )
 
         exp1_df, exp2_df = cross_experiment_data_fixture
 
         # Standardize column names - fixture uses different casing
         # exp1_df has "Geno", "Rep"; exp2_df has "geno", "rep"
-        exp2_df_standardized = exp2_df.rename(
-            columns={"geno": "Geno", "rep": "Rep"}
-        )
+        exp2_df_standardized = exp2_df.rename(columns={"geno": "Geno", "rep": "Rep"})
 
         # Use standardized genotype column
         genotype_col = "Geno"
         trait1 = [c for c in exp1_df.columns if c not in [genotype_col, "Rep"]][0]
-        trait2 = [c for c in exp2_df_standardized.columns if c not in [genotype_col, "Rep"]][0]
+        trait2 = [
+            c for c in exp2_df_standardized.columns if c not in [genotype_col, "Rep"]
+        ][0]
 
         fig = create_genotype_boxplots(
             exp1_df,
@@ -1413,12 +1417,14 @@ class TestCrossExperimentLabelFormatting:
         for exp1_t in exp1_traits:
             for exp2_t in exp2_traits:
                 corr = np.random.uniform(-0.8, 0.8)
-                rows.append({
-                    "exp1_trait": exp1_t,
-                    "exp2_trait": exp2_t,
-                    "correlation": corr,
-                    "abs_correlation": abs(corr),
-                })
+                rows.append(
+                    {
+                        "exp1_trait": exp1_t,
+                        "exp2_trait": exp2_t,
+                        "correlation": corr,
+                        "abs_correlation": abs(corr),
+                    }
+                )
         correlation_df = pd.DataFrame(rows)
 
         fig = create_cross_experiment_heatmap(

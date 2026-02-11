@@ -89,9 +89,9 @@ class TestFigureOrganization:
         # Verify NO PCA plots in root figures/ directory
         figures_dir = tmp_path / "figures"
         root_pca_files = list(figures_dir.glob("pca_*.png"))
-        assert len(root_pca_files) == 0, (
-            f"No PCA plots should exist in root figures/ directory. Found: {root_pca_files}"
-        )
+        assert (
+            len(root_pca_files) == 0
+        ), f"No PCA plots should exist in root figures/ directory. Found: {root_pca_files}"
 
     def test_heritability_plots_saved_to_figures_heritability_subdirectory(
         self,
@@ -116,10 +116,14 @@ class TestFigureOrganization:
 
         # Check heritability plots exist in figures/heritability/
         heritability_dir = tmp_path / "figures" / "heritability"
-        assert heritability_dir.exists(), "figures/heritability/ directory should be created"
+        assert (
+            heritability_dir.exists()
+        ), "figures/heritability/ directory should be created"
 
         heritability_files = list(heritability_dir.glob("heritability_*.png"))
-        assert len(heritability_files) > 0, "Should have heritability plots in figures/heritability/"
+        assert (
+            len(heritability_files) > 0
+        ), "Should have heritability plots in figures/heritability/"
 
     def test_trait_histograms_saved_to_figures_trait_histograms_subdirectory(
         self,
@@ -144,10 +148,14 @@ class TestFigureOrganization:
 
         # Check histograms exist in figures/trait_histograms/
         histograms_dir = tmp_path / "figures" / "trait_histograms"
-        assert histograms_dir.exists(), "figures/trait_histograms/ directory should be created"
+        assert (
+            histograms_dir.exists()
+        ), "figures/trait_histograms/ directory should be created"
 
         histogram_files = list(histograms_dir.glob("trait_histograms_*.png"))
-        assert len(histogram_files) > 0, "Should have histogram plots in figures/trait_histograms/"
+        assert (
+            len(histogram_files) > 0
+        ), "Should have histogram plots in figures/trait_histograms/"
 
     def test_trait_boxplots_saved_to_figures_trait_boxplots_subdirectory(
         self,
@@ -172,10 +180,14 @@ class TestFigureOrganization:
 
         # Check boxplots exist in figures/trait_boxplots/
         boxplots_dir = tmp_path / "figures" / "trait_boxplots"
-        assert boxplots_dir.exists(), "figures/trait_boxplots/ directory should be created"
+        assert (
+            boxplots_dir.exists()
+        ), "figures/trait_boxplots/ directory should be created"
 
         boxplot_files = list(boxplots_dir.glob("trait_boxplots_*.png"))
-        assert len(boxplot_files) > 0, "Should have boxplot plots in figures/trait_boxplots/"
+        assert (
+            len(boxplot_files) > 0
+        ), "Should have boxplot plots in figures/trait_boxplots/"
 
     def test_correlation_heatmap_saved_to_figures_overview_subdirectory(
         self,
@@ -201,9 +213,9 @@ class TestFigureOrganization:
         # Check correlation heatmap exists in figures/overview/
         overview_dir = tmp_path / "figures" / "overview"
         assert overview_dir.exists(), "figures/overview/ directory should be created"
-        assert (overview_dir / "trait_correlations.png").exists(), (
-            "trait_correlations.png should be in figures/overview/"
-        )
+        assert (
+            overview_dir / "trait_correlations.png"
+        ).exists(), "trait_correlations.png should be in figures/overview/"
 
     def test_phenotype_variation_saved_to_figures_phenotype_variation_subdirectory(
         self,
@@ -231,12 +243,14 @@ class TestFigureOrganization:
 
         # Check phenotype variation plots exist in figures/phenotype_variation/
         variation_dir = tmp_path / "figures" / "phenotype_variation"
-        assert variation_dir.exists(), "figures/phenotype_variation/ directory should be created"
+        assert (
+            variation_dir.exists()
+        ), "figures/phenotype_variation/ directory should be created"
 
         variation_files = list(variation_dir.glob("phenotype_variation_*.png"))
-        assert len(variation_files) >= 1, (
-            "Should have phenotype variation plots in figures/phenotype_variation/"
-        )
+        assert (
+            len(variation_files) >= 1
+        ), "Should have phenotype variation plots in figures/phenotype_variation/"
 
 
 class TestGenerateStaticFiguresBasic:
@@ -1092,7 +1106,12 @@ class TestMemoryManagement:
     """Tests for memory management during figure generation."""
 
     def test_plt_close_called_after_batch_figure_save(
-        self, sample_trait_data, static_viz_config_enabled, prev_result_minimal, tmp_path, monkeypatch
+        self,
+        sample_trait_data,
+        static_viz_config_enabled,
+        prev_result_minimal,
+        tmp_path,
+        monkeypatch,
     ):
         """Verify plt.close() is called after saving each batch figure."""
         import matplotlib.pyplot as plt
@@ -1128,9 +1147,7 @@ class TestMemoryManagement:
         # Should have called plt.close at least once for histogram batches
         assert len(close_calls) > 0, "plt.close should be called after saving figures"
 
-    def test_gc_collect_called_periodically_in_batch_generation(
-        self, monkeypatch
-    ):
+    def test_gc_collect_called_periodically_in_batch_generation(self, monkeypatch):
         """Verify gc.collect() is called periodically during batch generation."""
         import gc
         from sleap_roots_analyze.pipeline.steps import generate_static_figures
@@ -1140,8 +1157,11 @@ class TestMemoryManagement:
 
         # Verify the code has gc.collect() calls by inspecting the module
         import inspect
+
         source = inspect.getsource(generate_static_figures.GenerateStaticFiguresStep)
-        assert "gc.collect()" in source, "gc.collect() should be called in batch generation loops"
+        assert (
+            "gc.collect()" in source
+        ), "gc.collect() should be called in batch generation loops"
 
     def test_no_figure_handle_accumulation(self):
         """Test that generating many figures in sequence doesn't accumulate handles."""
@@ -1158,10 +1178,12 @@ class TestMemoryManagement:
         # Generate 20 figures in sequence (simulating batch generation)
         for i in range(20):
             # Create simple test data
-            data = pd.DataFrame({
-                "trait1": np.random.randn(50),
-                "trait2": np.random.randn(50),
-            })
+            data = pd.DataFrame(
+                {
+                    "trait1": np.random.randn(50),
+                    "trait2": np.random.randn(50),
+                }
+            )
             fig = create_trait_histograms(data, ["trait1", "trait2"])
             plt.close(fig)
 
@@ -1175,7 +1197,11 @@ class TestMemoryManagement:
         )
 
     def test_batch_generation_memory_bounds(
-        self, sample_trait_data, static_viz_config_enabled, prev_result_minimal, tmp_path
+        self,
+        sample_trait_data,
+        static_viz_config_enabled,
+        prev_result_minimal,
+        tmp_path,
     ):
         """Test that batch generation keeps figure count within reasonable bounds."""
         import matplotlib.pyplot as plt
@@ -1224,7 +1250,11 @@ class TestBatchFileReduction:
         assert static_viz_config_enabled.static_viz.save_pdf is True
 
     def test_no_pdf_files_when_save_pdf_disabled(
-        self, static_viz_config_enabled, sample_trait_data, prev_result_minimal, tmp_path
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_minimal,
+        tmp_path,
     ):
         """Test that no PDF files are generated when save_pdf is False, even if pdf in formats."""
         setup_matplotlib_backend()
@@ -1233,7 +1263,10 @@ class TestBatchFileReduction:
         # Disable PDF generation but include pdf in formats
         # The pipeline should respect save_pdf=False and skip PDF generation
         static_viz_config_enabled.static_viz.save_pdf = False
-        static_viz_config_enabled.static_viz.formats = ["png", "pdf"]  # PDF is in formats
+        static_viz_config_enabled.static_viz.formats = [
+            "png",
+            "pdf",
+        ]  # PDF is in formats
 
         result = step.execute(
             data=sample_trait_data,
@@ -1245,12 +1278,16 @@ class TestBatchFileReduction:
         # Check no PDF files exist in any figures/ subdirectory
         figures_dir = tmp_path / "figures"
         pdf_files = list(figures_dir.rglob("*.pdf"))
-        assert len(pdf_files) == 0, (
-            f"Should not generate PDF files when save_pdf=False, found: {pdf_files}"
-        )
+        assert (
+            len(pdf_files) == 0
+        ), f"Should not generate PDF files when save_pdf=False, found: {pdf_files}"
 
     def test_pdf_files_generated_when_save_pdf_enabled(
-        self, static_viz_config_enabled, sample_trait_data, prev_result_minimal, tmp_path
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_minimal,
+        tmp_path,
     ):
         """Test that PDF files are generated when save_pdf is True."""
         setup_matplotlib_backend()
@@ -1270,9 +1307,9 @@ class TestBatchFileReduction:
         # Check PDF files exist in figures/ subdirectories
         figures_dir = tmp_path / "figures"
         pdf_files = list(figures_dir.rglob("*.pdf"))
-        assert len(pdf_files) > 0, (
-            "Should generate PDF files when save_pdf=True and pdf in formats"
-        )
+        assert (
+            len(pdf_files) > 0
+        ), "Should generate PDF files when save_pdf=True and pdf in formats"
 
 
 class TestMissingPlotsWiring:
@@ -1304,9 +1341,9 @@ class TestMissingPlotsWiring:
 
         # Check feature contributions plot exists in figures/pca/
         pca_dir = tmp_path / "figures" / "pca"
-        assert (pca_dir / "pca_feature_contributions.png").exists(), (
-            "Missing pca_feature_contributions.png in figures/pca/ when PCA results exist"
-        )
+        assert (
+            pca_dir / "pca_feature_contributions.png"
+        ).exists(), "Missing pca_feature_contributions.png in figures/pca/ when PCA results exist"
 
     def test_pca_feature_contributions_not_generated_without_pca_results(
         self,
@@ -1329,7 +1366,9 @@ class TestMissingPlotsWiring:
         # Check feature contributions plot does NOT exist in figures/pca/
         pca_dir = tmp_path / "figures" / "pca"
         if pca_dir.exists():
-            assert not (pca_dir / "pca_feature_contributions.png").exists(), (
+            assert not (
+                pca_dir / "pca_feature_contributions.png"
+            ).exists(), (
                 "pca_feature_contributions.png should not exist without PCA results"
             )
 
@@ -1344,11 +1383,17 @@ class TestMissingPlotsWiring:
         Task 10.3a-b: StaticVisualizationConfig should have variance_threshold and top_n.
         """
         assert hasattr(
-            static_viz_config_enabled.static_viz, "feature_contribution_variance_threshold"
+            static_viz_config_enabled.static_viz,
+            "feature_contribution_variance_threshold",
         )
-        assert hasattr(static_viz_config_enabled.static_viz, "feature_contribution_top_n")
+        assert hasattr(
+            static_viz_config_enabled.static_viz, "feature_contribution_top_n"
+        )
         # Check defaults
-        assert static_viz_config_enabled.static_viz.feature_contribution_variance_threshold is None
+        assert (
+            static_viz_config_enabled.static_viz.feature_contribution_variance_threshold
+            is None
+        )
         assert static_viz_config_enabled.static_viz.feature_contribution_top_n == 20
 
     def test_passes_variance_threshold_from_pca_config_when_none(
@@ -1367,7 +1412,9 @@ class TestMissingPlotsWiring:
         from sleap_roots_analyze.pipeline.steps import generate_static_figures
 
         # Set up config
-        static_viz_config_enabled.static_viz.feature_contribution_variance_threshold = None
+        static_viz_config_enabled.static_viz.feature_contribution_variance_threshold = (
+            None
+        )
         static_viz_config_enabled.pca.n_components = 0.80  # Variance threshold
 
         # Mock the function to capture call args
@@ -1408,7 +1455,9 @@ class TestMissingPlotsWiring:
         from sleap_roots_analyze.pipeline.steps import generate_static_figures
 
         # Set explicit variance threshold different from pca.n_components
-        static_viz_config_enabled.static_viz.feature_contribution_variance_threshold = 0.90
+        static_viz_config_enabled.static_viz.feature_contribution_variance_threshold = (
+            0.90
+        )
         static_viz_config_enabled.pca.n_components = 0.80
 
         # Mock the function to capture call args
@@ -1528,9 +1577,16 @@ class TestMissingPlotsWiring:
     ):
         """Test that config accepts phenotype variation plot fields."""
         # Check that fields exist and have correct defaults
-        assert hasattr(static_viz_config_enabled.static_viz, "create_phenotype_variation_plots")
-        assert hasattr(static_viz_config_enabled.static_viz, "phenotype_variation_top_n")
-        assert static_viz_config_enabled.static_viz.create_phenotype_variation_plots is True
+        assert hasattr(
+            static_viz_config_enabled.static_viz, "create_phenotype_variation_plots"
+        )
+        assert hasattr(
+            static_viz_config_enabled.static_viz, "phenotype_variation_top_n"
+        )
+        assert (
+            static_viz_config_enabled.static_viz.create_phenotype_variation_plots
+            is True
+        )
         assert static_viz_config_enabled.static_viz.phenotype_variation_top_n == 10
 
     def test_phenotype_variation_plots_generated_when_heritability_exists(
@@ -1557,9 +1613,9 @@ class TestMissingPlotsWiring:
         # Check phenotype variation plots exist in figures/phenotype_variation/
         variation_dir = tmp_path / "figures" / "phenotype_variation"
         variation_files = list(variation_dir.glob("phenotype_variation_*.png"))
-        assert len(variation_files) >= 1, (
-            "Should generate at least 1 phenotype variation plot when heritability exists"
-        )
+        assert (
+            len(variation_files) >= 1
+        ), "Should generate at least 1 phenotype variation plot when heritability exists"
 
     def test_phenotype_variation_plots_skipped_without_heritability(
         self,
@@ -1583,9 +1639,9 @@ class TestMissingPlotsWiring:
         variation_dir = tmp_path / "figures" / "phenotype_variation"
         if variation_dir.exists():
             variation_files = list(variation_dir.glob("phenotype_variation_*.png"))
-            assert len(variation_files) == 0, (
-                "Should not generate phenotype variation plots without heritability results"
-            )
+            assert (
+                len(variation_files) == 0
+            ), "Should not generate phenotype variation plots without heritability results"
 
     def test_phenotype_variation_plots_disabled_in_config(
         self,
@@ -1612,9 +1668,9 @@ class TestMissingPlotsWiring:
         variation_dir = tmp_path / "figures" / "phenotype_variation"
         if variation_dir.exists():
             variation_files = list(variation_dir.glob("phenotype_variation_*.png"))
-            assert len(variation_files) == 0, (
-                "Should not generate phenotype variation plots when disabled in config"
-            )
+            assert (
+                len(variation_files) == 0
+            ), "Should not generate phenotype variation plots when disabled in config"
 
     # --- 10c: Regression Plots ---
 
@@ -1654,9 +1710,9 @@ class TestMissingPlotsWiring:
         # Check regression plots exist in figures/overview/
         overview_dir = tmp_path / "figures" / "overview"
         regression_files = list(overview_dir.glob("regression_*.png"))
-        assert len(regression_files) == 2, (
-            f"Expected 2 regression plots in figures/overview/, got {len(regression_files)}"
-        )
+        assert (
+            len(regression_files) == 2
+        ), f"Expected 2 regression plots in figures/overview/, got {len(regression_files)}"
 
     def test_no_regression_plots_when_pairs_empty(
         self,
@@ -1683,9 +1739,9 @@ class TestMissingPlotsWiring:
         overview_dir = tmp_path / "figures" / "overview"
         if overview_dir.exists():
             regression_files = list(overview_dir.glob("regression_*.png"))
-            assert len(regression_files) == 0, (
-                "Should not generate regression plots when pairs list is empty"
-            )
+            assert (
+                len(regression_files) == 0
+            ), "Should not generate regression plots when pairs list is empty"
 
     # --- 10d: Genotype Image Grids ---
 
@@ -1694,7 +1750,9 @@ class TestMissingPlotsWiring:
         static_viz_config_enabled,
     ):
         """Test that config accepts create_genotype_image_grids field."""
-        assert hasattr(static_viz_config_enabled.static_viz, "create_genotype_image_grids")
+        assert hasattr(
+            static_viz_config_enabled.static_viz, "create_genotype_image_grids"
+        )
         # Default should be True
         assert static_viz_config_enabled.static_viz.create_genotype_image_grids is True
 
@@ -1732,9 +1790,9 @@ class TestMissingPlotsWiring:
         # Check no image grid files exist in figures/ subdirectories
         figures_dir = tmp_path / "figures"
         grid_files = list(figures_dir.rglob("genotype_grid_*.png"))
-        assert len(grid_files) == 0, (
-            "Should skip genotype image grids when image paths not available"
-        )
+        assert (
+            len(grid_files) == 0
+        ), "Should skip genotype image grids when image paths not available"
 
         # CRITICAL: Check that a skip log message was emitted
         # This ensures the code has actual skip logic, not just missing implementation
@@ -1769,9 +1827,9 @@ class TestMissingPlotsWiring:
         # Check no image grid files exist in figures/ subdirectories
         figures_dir = tmp_path / "figures"
         grid_files = list(figures_dir.rglob("genotype_grid_*.png"))
-        assert len(grid_files) == 0, (
-            "Should not generate genotype image grids when disabled in config"
-        )
+        assert (
+            len(grid_files) == 0
+        ), "Should not generate genotype image grids when disabled in config"
 
     def test_genotype_image_grids_generated_when_image_paths_available(
         self,
@@ -1830,19 +1888,26 @@ class TestMissingPlotsWiring:
 
         # Mock all PCA plotting functions to avoid dimension errors
         # Also mock create_genotype_image_grid since test images don't exist
-        with patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
-        ) as mock_scree, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
-        ) as mock_biplot, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
-        ) as mock_heatmap, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
-        ) as mock_contrib, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
-        ) as mock_boxplots, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_genotype_image_grid"
-        ) as mock_image_grid:
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
+            ) as mock_scree,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
+            ) as mock_biplot,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
+            ) as mock_heatmap,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
+            ) as mock_contrib,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
+            ) as mock_boxplots,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_genotype_image_grid"
+            ) as mock_image_grid,
+        ):
             mock_scree.return_value = plt.figure()
             mock_biplot.return_value = plt.figure()
             mock_heatmap.return_value = (plt.figure(), plt.figure())
@@ -1927,21 +1992,29 @@ class TestMissingPlotsWiring:
             return fig
 
         # Mock all plotting functions
-        with patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
-        ) as mock_scree, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
-        ) as mock_biplot, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
-        ) as mock_heatmap, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
-        ) as mock_contrib, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
-        ) as mock_boxplots, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_genotype_image_grid"
-        ) as mock_image_grid, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.plt.close"
-        ) as mock_plt_close:
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
+            ) as mock_scree,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
+            ) as mock_biplot,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
+            ) as mock_heatmap,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
+            ) as mock_contrib,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
+            ) as mock_boxplots,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_genotype_image_grid"
+            ) as mock_image_grid,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.plt.close"
+            ) as mock_plt_close,
+        ):
             mock_scree.return_value = plt.figure()
             mock_biplot.return_value = plt.figure()
             mock_heatmap.return_value = (plt.figure(), plt.figure())
@@ -2037,17 +2110,23 @@ class TestPCABoxplotsAdaptiveSizing:
         step = GenerateStaticFiguresStep()
 
         # Mock all PCA plotting functions to avoid errors, but capture boxplot call
-        with patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
-        ) as mock_scree, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
-        ) as mock_biplot, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
-        ) as mock_heatmap, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
-        ) as mock_contrib, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
-        ) as mock_boxplots:
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
+            ) as mock_scree,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
+            ) as mock_biplot,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
+            ) as mock_heatmap,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
+            ) as mock_contrib,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
+            ) as mock_boxplots,
+        ):
             # Return mock figures for all
             mock_scree.return_value = plt.figure()
             mock_biplot.return_value = plt.figure()
@@ -2072,10 +2151,12 @@ class TestPCABoxplotsAdaptiveSizing:
             # With 150 genotypes, width should be scaled up significantly
             # adaptive_sizing.min_width = 6.0, max_width = 20.0
             # 150 genotypes * 0.25 = 37.5, so should hit max_width
-            assert figsize is not None, "figsize should be passed to create_pc_genotype_boxplots"
-            assert figsize[0] >= 15, (
-                f"With 150 genotypes, figure width should be at least 15 inches, got {figsize[0]}"
-            )
+            assert (
+                figsize is not None
+            ), "figsize should be passed to create_pc_genotype_boxplots"
+            assert (
+                figsize[0] >= 15
+            ), f"With 150 genotypes, figure width should be at least 15 inches, got {figsize[0]}"
 
             plt.close("all")
 
@@ -2131,17 +2212,23 @@ class TestPCABoxplotsAdaptiveSizing:
 
         step = GenerateStaticFiguresStep()
 
-        with patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
-        ) as mock_scree, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
-        ) as mock_biplot, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
-        ) as mock_heatmap, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
-        ) as mock_contrib, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
-        ) as mock_boxplots:
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
+            ) as mock_scree,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
+            ) as mock_biplot,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
+            ) as mock_heatmap,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
+            ) as mock_contrib,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
+            ) as mock_boxplots,
+        ):
             mock_scree.return_value = plt.figure()
             mock_biplot.return_value = plt.figure()
             mock_heatmap.return_value = (plt.figure(), plt.figure())
@@ -2163,9 +2250,9 @@ class TestPCABoxplotsAdaptiveSizing:
             # With 5 PCs, height should be at least 5 * 3 = 15 inches
             # (capped at adaptive_sizing.max_height = 16)
             assert figsize is not None, "figsize should be passed"
-            assert figsize[1] >= 12, (
-                f"With 5 PCs, figure height should be at least 12 inches, got {figsize[1]}"
-            )
+            assert (
+                figsize[1] >= 12
+            ), f"With 5 PCs, figure height should be at least 12 inches, got {figsize[1]}"
 
             plt.close("all")
 
@@ -2197,17 +2284,23 @@ class TestPCABoxplotsAdaptiveSizing:
 
         step = GenerateStaticFiguresStep()
 
-        with patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
-        ) as mock_scree, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
-        ) as mock_biplot, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
-        ) as mock_heatmap, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
-        ) as mock_contrib, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
-        ) as mock_boxplots:
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
+            ) as mock_scree,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
+            ) as mock_biplot,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
+            ) as mock_heatmap,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
+            ) as mock_contrib,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
+            ) as mock_boxplots,
+        ):
             mock_scree.return_value = plt.figure()
             mock_biplot.return_value = plt.figure()
             mock_heatmap.return_value = (plt.figure(), plt.figure())
@@ -2287,11 +2380,14 @@ class TestAdaptiveBatchSize:
 
         step = GenerateStaticFiguresStep()
 
-        with patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_histograms_batched"
-        ) as mock_histograms, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_boxplots_by_genotype_batched"
-        ) as mock_boxplots:
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_histograms_batched"
+            ) as mock_histograms,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_boxplots_by_genotype_batched"
+            ) as mock_boxplots,
+        ):
             mock_histograms.return_value = [plt.figure() for _ in range(5)]
             mock_boxplots.return_value = [plt.figure() for _ in range(5)]
 
@@ -2359,11 +2455,14 @@ class TestAdaptiveBatchSize:
 
         step = GenerateStaticFiguresStep()
 
-        with patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_histograms_batched"
-        ) as mock_histograms, patch(
-            "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_boxplots_by_genotype_batched"
-        ) as mock_boxplots:
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_histograms_batched"
+            ) as mock_histograms,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_boxplots_by_genotype_batched"
+            ) as mock_boxplots,
+        ):
             # Calculate expected batch counts based on adaptive sizing
             # With adaptive=True and 350 traits, batch_size should be ~49 (7x7 grid)
             # So: ceil(350/49) = 8 batches max

@@ -959,8 +959,12 @@ class TestSanitizeTraitNames:
         result = sanitize_trait_names(df, trait_cols, abbreviate=False)
 
         # DW and FW should stay uppercase
-        assert "Root DW (g)" in result.columns, f"Expected 'Root DW (g)', got {list(result.columns)}"
-        assert "Shoot FW (g)" in result.columns, f"Expected 'Shoot FW (g)', got {list(result.columns)}"
+        assert (
+            "Root DW (g)" in result.columns
+        ), f"Expected 'Root DW (g)', got {list(result.columns)}"
+        assert (
+            "Shoot FW (g)" in result.columns
+        ), f"Expected 'Shoot FW (g)', got {list(result.columns)}"
         # Should NOT have title-cased versions
         assert "Root Dw (g)" not in result.columns
         assert "Shoot Fw (g)" not in result.columns
@@ -1011,7 +1015,10 @@ class TestSanitizeSingleTraitName:
 
     def test_matches_dataframe_function(self):
         """Test that single name function matches DataFrame function output."""
-        from sleap_roots_analyze.data_utils import sanitize_single_trait_name, sanitize_trait_names
+        from sleap_roots_analyze.data_utils import (
+            sanitize_single_trait_name,
+            sanitize_trait_names,
+        )
 
         trait_names = ["root_length_cm", "Root_DW_g", "Median.Number.of.Roots"]
 
@@ -1024,7 +1031,9 @@ class TestSanitizeSingleTraitName:
             df_result = sanitize_trait_names(df, [trait])
             df_col_name = df_result.columns[0]
 
-            assert single_result == df_col_name, f"Mismatch for '{trait}': single='{single_result}', df='{df_col_name}'"
+            assert (
+                single_result == df_col_name
+            ), f"Mismatch for '{trait}': single='{single_result}', df='{df_col_name}'"
 
 
 class TestConvertToJsonSerializable:

@@ -370,9 +370,7 @@ class TestPCADataOrganization:
         old_pca_dir = tmp_path / "pca"
         assert not old_pca_dir.exists(), "pca/ at root should not exist"
 
-    def test_pca_output_files_content(
-        self, config, sample_data, prev_result, tmp_path
-    ):
+    def test_pca_output_files_content(self, config, sample_data, prev_result, tmp_path):
         """Test that PCA output file contents are correct in new location."""
         step = PCAAnalysisStep()
 
@@ -393,7 +391,9 @@ class TestPCADataOrganization:
         loadings = pd.read_csv(data_pca_dir / "loadings.csv", index_col=0)
         assert loadings.shape == (6, 2)  # n_traits x n_components
 
-        explained_var = pd.read_csv(data_pca_dir / "explained_variance.csv", index_col=0)
+        explained_var = pd.read_csv(
+            data_pca_dir / "explained_variance.csv", index_col=0
+        )
         assert explained_var.shape == (2, 3)  # n_components x 3 metrics
 
         top_features = pd.read_csv(data_pca_dir / "top_features.csv")

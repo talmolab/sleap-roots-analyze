@@ -1733,7 +1733,9 @@ def create_outlier_method_comparison_plot(
     fig, ax = plt.subplots(figsize=figsize)
 
     # Sort methods by outlier count for consistent ordering
-    sorted_methods = sorted(method_counts.keys(), key=lambda m: method_counts[m], reverse=True)
+    sorted_methods = sorted(
+        method_counts.keys(), key=lambda m: method_counts[m], reverse=True
+    )
     counts = [method_counts[m] for m in sorted_methods]
 
     # Format method names for display
@@ -1759,7 +1761,9 @@ def create_outlier_method_comparison_plot(
     # Formatting
     ax.set_xlabel("Outlier Detection Method", fontsize=12)
     ax.set_ylabel("Number of Outliers Detected", fontsize=12)
-    ax.set_title("Comparison of Outlier Detection Methods", fontsize=14, fontweight="bold")
+    ax.set_title(
+        "Comparison of Outlier Detection Methods", fontsize=14, fontweight="bold"
+    )
     ax.set_xticks(x)
     ax.set_xticklabels(display_names, rotation=45, ha="right")
     ax.grid(True, alpha=0.3, axis="y")

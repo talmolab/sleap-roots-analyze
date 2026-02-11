@@ -418,7 +418,8 @@ class ReduceTraitRedundancyStep(BaseStep):
 
         # Sanitize tick labels for better readability
         sanitized_labels = [
-            sanitize_single_trait_name(trait, abbreviate=False) for trait in ordered_traits
+            sanitize_single_trait_name(trait, abbreviate=False)
+            for trait in ordered_traits
         ]
         ax.set_xticklabels(sanitized_labels)
         ax.set_yticklabels(sanitized_labels)

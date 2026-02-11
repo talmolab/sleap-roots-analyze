@@ -157,7 +157,13 @@ class GenerateStaticFiguresStep(BaseStep):
                 boxplots_dir.mkdir(parents=True, exist_ok=True)
                 generated_files.extend(
                     self._create_trait_distributions(
-                        df, trait_cols, config, histograms_dir, boxplots_dir, formats, dpi
+                        df,
+                        trait_cols,
+                        config,
+                        histograms_dir,
+                        boxplots_dir,
+                        formats,
+                        dpi,
                     )
                 )
 
@@ -234,7 +240,13 @@ class GenerateStaticFiguresStep(BaseStep):
                     extreme_dir.mkdir(parents=True, exist_ok=True)
                     generated_files.extend(
                         self._create_genotype_image_grids(
-                            df, pca_results, image_paths, config, extreme_dir, formats, dpi
+                            df,
+                            pca_results,
+                            image_paths,
+                            config,
+                            extreme_dir,
+                            formats,
+                            dpi,
                         )
                     )
                 else:
@@ -362,7 +374,9 @@ class GenerateStaticFiguresStep(BaseStep):
         # Feature contribution bar chart
         # Determine variance threshold: use explicit config, or inherit from pca.n_components
         if config.static_viz.feature_contribution_variance_threshold is not None:
-            variance_threshold = config.static_viz.feature_contribution_variance_threshold
+            variance_threshold = (
+                config.static_viz.feature_contribution_variance_threshold
+            )
         elif config.pca.n_components < 1:
             # pca.n_components < 1 means it's a variance threshold
             variance_threshold = config.pca.n_components
@@ -708,7 +722,9 @@ class GenerateStaticFiguresStep(BaseStep):
                 )
                 plt.close(fig)
             except Exception as e:
-                logger.warning(f"Failed to create phenotype variation plot for {trait}: {e}")
+                logger.warning(
+                    f"Failed to create phenotype variation plot for {trait}: {e}"
+                )
                 continue
 
         return files
@@ -781,7 +797,9 @@ class GenerateStaticFiguresStep(BaseStep):
                 )
                 plt.close(fig)
             except Exception as e:
-                logger.warning(f"Failed to create regression plot for {x_col} vs {y_col}: {e}")
+                logger.warning(
+                    f"Failed to create regression plot for {x_col} vs {y_col}: {e}"
+                )
                 continue
 
         return files
@@ -835,7 +853,11 @@ class GenerateStaticFiguresStep(BaseStep):
             image_links = {}
             for idx, path in image_paths.items():
                 if idx in df.index:
-                    barcode = df.loc[idx, barcode_col] if barcode_col in df.columns else str(idx)
+                    barcode = (
+                        df.loc[idx, barcode_col]
+                        if barcode_col in df.columns
+                        else str(idx)
+                    )
                     image_links[barcode] = {"features.png": Path(path)}
 
             # Get unique extreme genotypes (column name matches genotype_col)
@@ -851,7 +873,12 @@ class GenerateStaticFiguresStep(BaseStep):
                         barcode_col=barcode_col,
                     )
                     # Sanitize genotype name for filename
-                    safe_genotype = str(genotype).replace("/", "_").replace("\\", "_").replace(" ", "_")
+                    safe_genotype = (
+                        str(genotype)
+                        .replace("/", "_")
+                        .replace("\\", "_")
+                        .replace(" ", "_")
+                    )
                     files.extend(
                         self._save_figure(
                             fig,
@@ -865,7 +892,9 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                     plt.close(fig)
                 except Exception as e:
-                    logger.warning(f"Failed to create image grid for genotype {genotype}: {e}")
+                    logger.warning(
+                        f"Failed to create image grid for genotype {genotype}: {e}"
+                    )
                     continue
 
             gc.collect()  # Clean up memory after generating grids
