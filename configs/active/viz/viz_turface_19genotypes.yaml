@@ -22,7 +22,7 @@ data:
   csv_path: "qc_runs/turface_19genotypes_qc_20251215_121336/10_final_data.csv"
 
   # Optional: Directory containing root images for hover visualization
-  image_dir: null
+  image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/turface_rve_processed_images/Rhizovision_processed_images"
 
 # Column names (post-sanitization from QC pipeline)
 columns:
