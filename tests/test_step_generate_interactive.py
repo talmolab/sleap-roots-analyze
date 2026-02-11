@@ -869,3 +869,148 @@ class TestInteractiveImageDependentPlots:
             "due to missing image paths. Tasks 11.7-11.9 must include skip logging. "
             f"Actual log: {caplog.text}"
         )
+
+    def test_scatter_with_images_handles_dict_format_from_link_function(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """TDD Test: _create_image_dependent_plots handles dict format.
+
+        The link_rhizovision_images_to_samples() function returns:
+            Dict[str, Dict[str, Optional[Path]]]
+            i.e., {barcode: {"features.png": Path, "seg.png": Path}}
+
+        The current code incorrectly assumes image_paths is a pd.Series
+        indexed by DataFrame row numbers. This test verifies the fix.
+        """
+        import numpy as np
+        from pathlib import Path
+
+        step = GenerateInteractiveStep()
+
+        # Enable scatter with images
+        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = True
+
+        # Get existing barcode values from sample_trait_data (they are like "sample_0", "sample_1")
+        # The config uses barcode="Barcode" (capital B) which matches sample_trait_data column
+        barcodes = sample_trait_data["Barcode"].tolist()
+
+        n_samples = len(sample_trait_data)
+        n_components = 3
+
+        # Create mock PCA results
+        mock_pca = {
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "cumulative_variance_ratio": np.array([0.50, 0.75, 0.95]),
+            "explained_variance_ratio": np.array([0.50, 0.25, 0.20]),
+        }
+
+        # Create mock image paths in DICT format (as returned by link_rhizovision_images_to_samples)
+        # Keys must match the EXISTING Barcode column values in the data
+        # Format: {barcode: {img_type: Path}}
+        image_paths_dict = {
+            barcode: {"features.png": Path(f"/mock/path/{barcode}_features.png")}
+            for barcode in barcodes
+        }
+
+        # Create prev_result with dict-format image paths
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "pca_results": mock_pca,
+                "image_paths": image_paths_dict,  # Dict format, NOT pd.Series
+            },
+        )
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Check that scatter_with_images.html was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        scatter_file = interactive_dir / "scatter_with_images.html"
+
+        assert scatter_file.exists(), (
+            "Should generate scatter_with_images.html when image paths are provided "
+            "in dict format {barcode: {img_type: Path}} from link_rhizovision_images_to_samples(). "
+            "Fix: _create_image_dependent_plots must handle both dict and Series formats."
+        )
+
+        # CRITICAL: Verify that the HTML actually contains barcode references
+        # This ensures image_links was properly populated from the dict format
+        html_content = scatter_file.read_text(encoding="utf-8", errors="ignore")
+
+        # Check that at least some barcodes appear in the HTML (hover data or customdata)
+        # Barcodes are like "sample_0", "sample_1", etc.
+        barcode_found = any(barcode in html_content for barcode in barcodes[:3])
+        assert barcode_found, (
+            "scatter_with_images.html should contain barcode references from image_links. "
+            "This indicates the dict format {barcode: {img_type: Path}} was properly converted. "
+            "Bug: _create_image_dependent_plots checks 'if idx in df.index' but df.index is "
+            "integers (0,1,2...) while idx is a barcode string. This always fails."
+        )
+
+    def test_image_gallery_handles_dict_format_from_link_function(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """TDD Test: Image gallery works with dict format from link function."""
+        import numpy as np
+        from pathlib import Path
+
+        step = GenerateInteractiveStep()
+
+        # Enable image gallery
+        interactive_viz_config_enabled.interactive_viz.create_image_gallery = True
+
+        # Get existing barcode values from sample_trait_data
+        barcodes = sample_trait_data["Barcode"].tolist()
+
+        n_samples = len(sample_trait_data)
+        n_components = 3
+
+        # Create mock PCA results
+        mock_pca = {
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "cumulative_variance_ratio": np.array([0.50, 0.75, 0.95]),
+            "explained_variance_ratio": np.array([0.50, 0.25, 0.20]),
+        }
+
+        # Create mock image paths in DICT format (keys match Barcode column values)
+        image_paths_dict = {
+            barcode: {"features.png": Path(f"/mock/path/{barcode}_features.png")}
+            for barcode in barcodes
+        }
+
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "pca_results": mock_pca,
+                "image_paths": image_paths_dict,
+            },
+        )
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Check that image_gallery.html was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        gallery_file = interactive_dir / "image_gallery.html"
+
+        assert gallery_file.exists(), (
+            "Should generate image_gallery.html when image paths are provided "
+            "in dict format from link_rhizovision_images_to_samples()."
+        )

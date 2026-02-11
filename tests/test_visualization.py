@@ -259,6 +259,98 @@ class TestCreateTraitBoxplotsByGenotype:
         assert height == 12
         plt.close(fig)
 
+    def test_horizontal_orientation_with_many_genotypes(self):
+        """TDD Test: Boxplots use horizontal orientation when n_genotypes > threshold.
+
+        When there are many genotypes (>15), vertical boxplots have unreadable
+        x-axis labels due to overlap. Horizontal orientation puts genotypes on
+        Y-axis where they have more space.
+        """
+        import numpy as np
+
+        # Create data with many genotypes (20 genotypes)
+        n_genotypes = 20
+        n_samples_per_genotype = 5
+        n_samples = n_genotypes * n_samples_per_genotype
+
+        df = pd.DataFrame(
+            {
+                "geno": [f"Genotype_{i:03d}" for i in range(n_genotypes)]
+                * n_samples_per_genotype,
+                "trait1": np.random.randn(n_samples) * 10 + 50,
+                "trait2": np.random.randn(n_samples) * 5 + 20,
+            }
+        )
+
+        trait_cols = ["trait1", "trait2"]
+
+        # Create boxplot with horizontal orientation for many genotypes
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, genotype_col="geno", orientation="horizontal"
+        )
+
+        assert isinstance(fig, plt.Figure)
+        axes = fig.get_axes()
+
+        # Verify orientation is horizontal by checking axis labels
+        # In horizontal boxplots, genotypes should be on Y-axis, trait values on X-axis
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 2
+
+        # Y-axis should have genotype labels
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(label) for label in y_labels if label)
+
+        assert genotype_on_y, (
+            "With horizontal orientation, genotypes should appear on Y-axis. "
+            "This makes labels readable when there are many genotypes."
+        )
+
+        plt.close(fig)
+
+    def test_auto_orientation_switches_to_horizontal_for_many_genotypes(self):
+        """TDD Test: Auto orientation switches to horizontal when genotypes > threshold.
+
+        When orientation='auto' (default), the function should automatically
+        switch to horizontal when n_genotypes exceeds the threshold (e.g., 15).
+        """
+        import numpy as np
+
+        # Create data with many genotypes (20 genotypes)
+        n_genotypes = 20
+        n_samples_per_genotype = 5
+        n_samples = n_genotypes * n_samples_per_genotype
+
+        df = pd.DataFrame(
+            {
+                "geno": [f"Genotype_{i:03d}" for i in range(n_genotypes)]
+                * n_samples_per_genotype,
+                "trait1": np.random.randn(n_samples) * 10 + 50,
+            }
+        )
+
+        trait_cols = ["trait1"]
+
+        # Create boxplot with auto orientation (should detect many genotypes)
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, genotype_col="geno", orientation="auto"
+        )
+
+        assert isinstance(fig, plt.Figure)
+        axes = fig.get_axes()
+
+        # Y-axis should have genotype labels (auto-switched to horizontal)
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(label) for label in y_labels if label)
+
+        assert genotype_on_y, (
+            "With 20 genotypes and orientation='auto', should auto-switch to horizontal. "
+            "Threshold for switching should be ~15 genotypes."
+        )
+
+        plt.close(fig)
+
 
 class TestCreateCorrelationHeatmap:
     """Tests for create_correlation_heatmap function."""
@@ -3493,6 +3585,56 @@ class TestTraitBoxplotsAdaptiveSizing:
         assert (
             height < full_height
         ), f"Partial batch height {height} should be less than full batch {full_height}"
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_partial_batch_width_scales_with_actual_columns(self):
+        """TDD Test: Partial batches should have width scaled to actual columns used.
+
+        When a final batch has only 2 traits and n_cols=3, the figure width
+        should be for 2 columns, not 3 columns (avoiding whitespace).
+        """
+        from sleap_roots_analyze.visualization import (
+            create_trait_boxplots_by_genotype_batched,
+        )
+
+        n_samples = 50
+        n_traits = 8  # 6 in first batch, 2 in second batch
+        np.random.seed(42)
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [f"geno_{i % 5}" for i in range(n_samples)]
+        df = pd.DataFrame(data)
+        trait_cols = [c for c in df.columns if c.startswith("trait")]
+
+        # batch_size=6, n_cols=3 -> first batch: 6 traits in 3x2, second batch: 2 traits
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=6, n_cols=3
+        )
+
+        assert len(figures) == 2
+
+        full_fig = figures[0]
+        partial_fig = figures[1]
+
+        full_width, _ = full_fig.get_size_inches()
+        partial_width, _ = partial_fig.get_size_inches()
+
+        # Partial batch with 2 traits should have narrower width than full batch with 3 cols
+        # The width should be approximately 2/3 of the full width
+        assert partial_width < full_width, (
+            f"Partial batch width ({partial_width}) should be less than "
+            f"full batch width ({full_width}) to avoid whitespace"
+        )
+
+        # More specifically, with 2 traits in a batch that has n_cols=3,
+        # the width should be 2/3 of the full width (within tolerance)
+        expected_ratio = 2 / 3
+        actual_ratio = partial_width / full_width
+        assert 0.5 <= actual_ratio <= 0.8, (
+            f"Partial batch width ratio ({actual_ratio:.2f}) should be close to "
+            f"{expected_ratio:.2f} (2 cols / 3 cols)"
+        )
 
         for fig in figures:
             plt.close(fig)

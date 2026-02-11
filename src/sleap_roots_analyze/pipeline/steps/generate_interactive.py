@@ -309,15 +309,40 @@ class GenerateInteractiveStep(BaseStep):
         genotype_col = config.columns.genotype
         barcode_col = config.columns.barcode
 
-        # Convert image_paths Series to image_links Dict format
+        # Convert image_paths to image_links Dict format
         # image_links: Dict[barcode, Dict[image_type, Path]]
+        # Handle both formats:
+        #   1. Dict[str, Dict[str, Path]] from link_rhizovision_images_to_samples()
+        #   2. pd.Series indexed by DataFrame row numbers (legacy format)
+        import pandas as pd
+
         image_links = {}
-        for idx, path in image_paths.items():
-            if idx in df.index:
-                barcode = (
-                    df.loc[idx, barcode_col] if barcode_col in df.columns else str(idx)
-                )
-                image_links[barcode] = {"features.png": PathLib(path)}
+
+        # Detect format by checking if it's a dict (not Series) with nested dict values
+        is_nested_dict_format = (
+            isinstance(image_paths, dict)
+            and len(image_paths) > 0
+            and isinstance(next(iter(image_paths.values())), dict)
+        )
+
+        if is_nested_dict_format:
+            # Format: {barcode: {"features.png": Path, ...}}
+            # Use directly, converting paths to PathLib
+            for barcode, img_dict in image_paths.items():
+                image_links[barcode] = {
+                    img_type: PathLib(path) if path else None
+                    for img_type, path in img_dict.items()
+                }
+        else:
+            # Legacy format: pd.Series indexed by DataFrame row numbers
+            for idx, path in image_paths.items():
+                if idx in df.index:
+                    barcode = (
+                        df.loc[idx, barcode_col]
+                        if barcode_col in df.columns
+                        else str(idx)
+                    )
+                    image_links[barcode] = {"features.png": PathLib(path)}
 
         # Get trait columns for gallery
         trait_cols = [
