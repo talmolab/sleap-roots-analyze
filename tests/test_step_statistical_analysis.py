@@ -114,6 +114,84 @@ class TestStatisticalAnalysisStepMetadata:
 
         assert result.metadata["valid_trait_names"] == ["trait1", "trait2", "trait3"]
 
+    def test_image_paths_metadata_preserved(self, sample_data, config, tmp_path):
+        """TDD Test: image_paths from previous step must be preserved in output metadata.
+
+        Bug: StatisticalAnalysisStep creates a new metadata dict without **prev_result.metadata,
+        causing image_paths (set by LoadDataAndImagesStep) to be lost.
+
+        This breaks the image-dependent interactive plots in the Viz pipeline because
+        GenerateInteractiveStep receives image_paths=None from PCA step metadata.
+
+        Flow:
+            LoadDataAndImagesStep -> sets image_paths in metadata
+            StatisticalAnalysisStep -> MUST preserve image_paths
+            PCAAnalysisStep -> preserves with **prev_result.metadata
+            GenerateInteractiveStep -> reads image_paths from metadata
+
+        Fix: Add **prev_result.metadata to metadata dict in StatisticalAnalysisStep.
+        """
+        from pathlib import Path
+
+        # Create mock image_paths dict (as returned by link_rhizovision_images_to_samples)
+        mock_image_paths = {
+            "plant0": {"features.png": Path("/mock/plant0_features.png")},
+            "plant1": {"features.png": Path("/mock/plant1_features.png")},
+        }
+
+        # Previous result with image_paths in metadata
+        prev_result_with_images = StepResult(
+            data=sample_data,
+            metadata={
+                "valid_trait_names": ["trait1", "trait2", "trait3"],
+                "image_paths": mock_image_paths,  # This MUST be preserved
+                "n_samples": 30,
+                "other_metadata": "should_also_be_preserved",
+            },
+            files_generated=[],
+        )
+
+        step = StatisticalAnalysisStep()
+        result = step.execute(sample_data, config, tmp_path, prev_result_with_images)
+
+        # CRITICAL: image_paths must be preserved in output metadata
+        assert "image_paths" in result.metadata, (
+            "StatisticalAnalysisStep must preserve image_paths from previous step metadata. "
+            "Fix: Add **prev_result.metadata to the metadata dict creation. "
+            "Without this, GenerateInteractiveStep receives image_paths=None and "
+            "skips all image-dependent plots (scatter_with_images, image_gallery, etc.)"
+        )
+        assert result.metadata["image_paths"] == mock_image_paths
+
+    def test_all_previous_metadata_preserved(self, sample_data, config, tmp_path):
+        """TDD Test: All metadata from previous step should be preserved.
+
+        Ensures **prev_result.metadata is used in the metadata dict.
+        """
+        # Create previous result with various metadata keys
+        prev_result_with_metadata = StepResult(
+            data=sample_data,
+            metadata={
+                "valid_trait_names": ["trait1", "trait2", "trait3"],
+                "n_samples": 30,
+                "n_traits": 3,
+                "barcode_col": "Barcode",
+                "genotype_col": "Genotype",
+                "custom_key": "custom_value",
+            },
+            files_generated=[],
+        )
+
+        step = StatisticalAnalysisStep()
+        result = step.execute(sample_data, config, tmp_path, prev_result_with_metadata)
+
+        # All previous metadata keys should be preserved
+        assert result.metadata.get("n_samples") == 30
+        assert result.metadata.get("n_traits") == 3
+        assert result.metadata.get("barcode_col") == "Barcode"
+        assert result.metadata.get("genotype_col") == "Genotype"
+        assert result.metadata.get("custom_key") == "custom_value"
+
 
 class TestStatisticalAnalysisNoHeritabilityPlots:
     """Test that statistical_analysis step does NOT generate heritability plots.

@@ -1014,3 +1014,117 @@ class TestInteractiveImageDependentPlots:
             "Should generate image_gallery.html when image paths are provided "
             "in dict format from link_rhizovision_images_to_samples()."
         )
+
+
+class TestImagePathsMetadataFlowIntegration:
+    """Integration tests for image_paths metadata flow through Viz pipeline.
+
+    These tests verify that image_paths set by LoadDataAndImagesStep
+    flows through StatisticalAnalysisStep and PCAAnalysisStep to
+    GenerateInteractiveStep, enabling image-dependent plots.
+
+    The bug fixed: StatisticalAnalysisStep was not preserving previous
+    step's metadata (missing **prev_result.metadata), causing image_paths
+    to be lost and all image-dependent interactive plots to be skipped.
+    """
+
+    def test_image_paths_flows_through_statistical_to_pca_to_interactive(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Integration test: image_paths flows from load -> stats -> pca -> interactive.
+
+        This simulates the real Viz pipeline flow:
+        1. LoadDataAndImagesStep sets image_paths in metadata
+        2. StatisticalAnalysisStep MUST preserve image_paths
+        3. PCAAnalysisStep preserves image_paths
+        4. GenerateInteractiveStep reads image_paths and creates image-dependent plots
+
+        Without the fix, step 2 would drop image_paths and step 4 would skip all
+        image-dependent plots (scatter_with_images, image_gallery, etc.).
+        """
+        import numpy as np
+        from pathlib import Path
+
+        from sleap_roots_analyze.pipeline.steps import (
+            StatisticalAnalysisStep,
+            PCAAnalysisStep,
+            GenerateInteractiveStep,
+        )
+
+        # Get existing barcode values
+        barcodes = sample_trait_data["Barcode"].tolist()
+
+        # Step 1: Simulate LoadDataAndImagesStep output (with image_paths)
+        mock_image_paths = {
+            barcode: {"features.png": Path(f"/mock/path/{barcode}_features.png")}
+            for barcode in barcodes
+        }
+
+        load_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "valid_trait_names": ["trait1", "trait2", "trait3"],
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "n_samples": len(sample_trait_data),
+                "image_paths": mock_image_paths,  # This must flow through
+            },
+        )
+
+        # Step 2: Run StatisticalAnalysisStep
+        stats_step = StatisticalAnalysisStep()
+        stats_result = stats_step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=load_result,
+        )
+
+        # Verify image_paths is preserved after StatisticalAnalysisStep
+        assert "image_paths" in stats_result.metadata, (
+            "StatisticalAnalysisStep must preserve image_paths from previous step. "
+            "This is the critical fix - without **prev_result.metadata, image_paths is lost."
+        )
+
+        # Step 3: Run PCAAnalysisStep
+        pca_step = PCAAnalysisStep()
+        pca_result = pca_step.execute(
+            data=stats_result.data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=stats_result,
+        )
+
+        # Verify image_paths is still preserved after PCAAnalysisStep
+        assert (
+            "image_paths" in pca_result.metadata
+        ), "PCAAnalysisStep must preserve image_paths."
+        assert pca_result.metadata["image_paths"] == mock_image_paths
+
+        # Step 4: Run GenerateInteractiveStep
+        interactive_viz_config_enabled.interactive_viz.create_scatter_with_images = True
+        interactive_viz_config_enabled.interactive_viz.create_image_gallery = True
+
+        interactive_step = GenerateInteractiveStep()
+        interactive_result = interactive_step.execute(
+            data=pca_result.data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=pca_result,
+        )
+
+        # Verify image-dependent plots were generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        scatter_file = interactive_dir / "scatter_with_images.html"
+        gallery_file = interactive_dir / "image_gallery.html"
+
+        assert scatter_file.exists(), (
+            "scatter_with_images.html should be generated when image_paths "
+            "flows through the pipeline. This proves the metadata propagation fix works."
+        )
+        assert gallery_file.exists(), (
+            "image_gallery.html should be generated when image_paths "
+            "flows through the pipeline."
+        )
