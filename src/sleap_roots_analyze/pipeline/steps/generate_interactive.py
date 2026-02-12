@@ -233,10 +233,10 @@ class GenerateInteractiveStep(BaseStep):
             and "transformed_data" in pca_results
         ):
             fig = create_interactive_pca_with_images(
-                pca_results["transformed_data"],
+                pca_results,  # Pass full dict, not just transformed_data
                 df,
                 image_paths,
-                genotype_col=genotype_col,
+                color_by=genotype_col,  # Use color_by, not genotype_col
                 id_col=barcode_col,
                 title="Interactive PCA with Image Hover",
             )

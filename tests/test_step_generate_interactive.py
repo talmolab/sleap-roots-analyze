@@ -706,6 +706,79 @@ class TestInteractiveImageDependentPlots:
             "generate_interactive.py, guarded by image path availability."
         )
 
+    def test_pca_with_images_generates_when_show_images_on_hover_enabled(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """TDD Test: PCA with images plot generates without error.
+
+        Bug: _create_interactive_pca() passes wrong arguments to
+        create_interactive_pca_with_images():
+        - Passes pca_results["transformed_data"] instead of full pca_results dict
+        - Passes genotype_col= instead of color_by=
+
+        This causes: TypeError: create_interactive_pca_with_images()
+        got an unexpected keyword argument 'genotype_col'
+
+        Fix: Use correct parameter names and pass full pca_results dict.
+        """
+        import numpy as np
+        from pathlib import Path
+
+        step = GenerateInteractiveStep()
+
+        # Enable show_images_on_hover which triggers create_interactive_pca_with_images
+        interactive_viz_config_enabled.interactive_viz.show_images_on_hover = True
+
+        # Get barcodes for image paths dict
+        barcodes = sample_trait_data["Barcode"].tolist()
+        n_samples = len(sample_trait_data)
+        n_components = 3
+
+        # Create mock PCA results (full dict required, not just transformed_data)
+        mock_pca = {
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "cumulative_variance_ratio": np.array([0.50, 0.75, 0.95]),
+            "explained_variance_ratio": np.array([0.50, 0.25, 0.20]),
+            "loadings": np.random.randn(3, n_components),  # Needed for loadings display
+            "eigenvalues": np.array([2.5, 1.5, 0.5]),
+        }
+
+        # Create mock image paths in DICT format (matching barcodes)
+        image_paths_dict = {
+            barcode: {"features.png": Path(f"/mock/path/{barcode}_features.png")}
+            for barcode in barcodes
+        }
+
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "pca_results": mock_pca,
+                "image_paths": image_paths_dict,
+            },
+        )
+
+        # This should NOT raise TypeError about 'genotype_col'
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Verify pca_with_images.html was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        pca_images_file = interactive_dir / "pca_with_images.html"
+
+        assert pca_images_file.exists(), (
+            "Should generate pca_with_images.html when show_images_on_hover is True "
+            "and image_paths are available. Bug: _create_interactive_pca passes "
+            "genotype_col= instead of color_by= to create_interactive_pca_with_images()"
+        )
+
     def test_pca_image_viewer_generated_when_image_paths_available(
         self,
         interactive_viz_config_enabled,
