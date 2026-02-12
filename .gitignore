@@ -231,6 +231,7 @@ cleanup_diff.txt
 runs/
 qc_runs/
 viz_runs/
+viz_runs_test*/
 heritability_diagnostics/
 test_explicit_args_run/
 test_run/
@@ -238,6 +239,13 @@ test_run_*/
 biomass_correlation_analysis/
 cross_platform_runs/
 data/
+
+# Config backups (local only)
+configs/saved_backups/
+
+# Debug and scratch scripts (temporary)
+scripts/debug_*.py
+scripts/boxplot_*.py
 
 # Pipeline run outputs (timestamped runs from run-all command)
 pipeline_runs/

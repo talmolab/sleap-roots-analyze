@@ -1,0 +1,96 @@
+# Visualization Pipeline Configuration: Alfalfa GWAS Wave 2
+#
+# Dataset: Mauricio Chiurazzi Alfalfa GWAS wave 2 (Feb 2026)
+# Created: 2026-02-05 for urgent analysis run
+
+pipeline_name: "viz_alfalfa_gwas_wave_2"
+version: "1.0"
+
+data:
+  csv_path: "Z:/users/eberrigan/20260204_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_2/sleap-roots-analyze-output/alfalfa_gwas_wave_2_qc_20260205_144808/10_final_data.csv"
+  image_dir: null
+
+columns:
+  barcode: "Barcode"
+  genotype: "Genotype"
+  replicate: "Replicate"
+  image_path: null
+
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 10
+
+umap:
+  enabled: false
+
+clustering:
+  enabled: false
+
+heritability:
+  enabled: false
+  threshold: 0.60
+
+interesting_genotypes:
+  enabled: true
+  methods:
+    - pc_extreme
+    - trait_extreme
+    - heritable_extreme
+  pc_threshold: 2.0
+  trait_percentile: 95.0
+  min_heritability: 0.60
+  max_genotypes: 10
+  generate_image_grids: false
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: false
+  create_cluster_plots: false
+  show_images_on_hover: false
+
+dashboard:
+  enabled: false
+
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

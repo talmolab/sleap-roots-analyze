@@ -1,0 +1,70 @@
+# QC Pipeline Configuration: Alfalfa GWAS Wave 1
+#
+# Dataset: Mauricio Chiurazzi Alfalfa GWAS wave 1 (Dec 2025)
+# Created: 2026-02-05 for urgent analysis run
+
+pipeline_name: "alfalfa_gwas_wave_1_qc"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20251213_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_Dec2025/sleap_roots_traits_output/traits_summary.csv"
+  image_dir: null
+  additional_exclude_cols: []
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "accession_id"
+  replicate: "plant_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 10
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.95
+  feature_selection_strategy: "top_variance"
+
+heritability:
+  enabled: true
+  threshold: 0.60
+  generate_diagnostics: true
+
+visualization:
+  dpi: 300
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"
