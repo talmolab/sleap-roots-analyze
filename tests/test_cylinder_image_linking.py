@@ -11,7 +11,7 @@ TDD: These tests are written before implementation and should fail initially.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
