@@ -254,24 +254,73 @@ class GenerateInteractiveStep(BaseStep):
         config: Any,
         output_dir: Path,
     ) -> list[Path]:
-        """Create interactive UMAP plots."""
+        """Create interactive UMAP plots.
+
+        Args:
+            df: DataFrame with trait data.
+            umap_results: UMAP results containing 'embedding' and 'clean_indices'.
+            image_paths: Optional image paths for hover images.
+            config: Pipeline configuration.
+            output_dir: Directory to save HTML files.
+
+        Returns:
+            List of generated HTML file paths.
+        """
         from sleap_roots_analyze.interactive_visualization import (
-            create_interactive_umap_with_hover_highlight,
+            create_interactive_scatter_plot,
+            create_interactive_umap_with_images,
         )
 
         files = []
         genotype_col = config.columns.genotype
+        barcode_col = config.columns.barcode
 
-        # Interactive UMAP with hover highlighting
-        fig = create_interactive_umap_with_hover_highlight(
-            umap_results,
-            df,
-            genotype_col=genotype_col,
-            title="Interactive UMAP Visualization",
+        # Get clean indices from UMAP results to align data with embedding
+        # (UMAP drops NaN values, so embedding may have fewer samples than df)
+        clean_indices = umap_results.get("clean_indices")
+        if clean_indices is not None:
+            df_aligned = df.loc[clean_indices].copy()
+        else:
+            # Fallback: assume all samples were used
+            df_aligned = df.copy()
+
+        # Add UMAP coordinates to DataFrame for plotting
+        embedding = umap_results["embedding"]
+        df_aligned["UMAP1"] = embedding[:, 0]
+        df_aligned["UMAP2"] = embedding[:, 1] if embedding.shape[1] > 1 else 0
+
+        # Build title with UMAP parameters
+        n_neighbors = umap_results.get("n_neighbors", "?")
+        min_dist = umap_results.get("min_dist", "?")
+        title = f"Interactive UMAP (n_neighbors={n_neighbors}, min_dist={min_dist})"
+
+        # Interactive UMAP colored by genotype with Barcode on hover
+        # (matches interactive PCA style)
+        fig = create_interactive_scatter_plot(
+            df_aligned,
+            x_col="UMAP1",
+            y_col="UMAP2",
+            color_by=genotype_col,
+            hover_data=[barcode_col, genotype_col],
+            title=title,
         )
         filepath = output_dir / "interactive_umap.html"
         fig.write_html(filepath)
         files.append(filepath)
+
+        # Interactive UMAP with image hover (if images available)
+        if config.interactive_viz.show_images_on_hover and image_paths is not None:
+            fig = create_interactive_umap_with_images(
+                umap_results,
+                df_aligned,
+                image_paths,
+                color_by=genotype_col,
+                id_col=barcode_col,
+                title="Interactive UMAP with Image Hover",
+            )
+            filepath = output_dir / "umap_with_images.html"
+            fig.write_html(filepath)
+            files.append(filepath)
 
         return files
 

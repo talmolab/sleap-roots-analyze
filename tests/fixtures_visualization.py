@@ -77,7 +77,9 @@ def mock_umap_results():
         "embedding": np.random.randn(n_samples, 2),
         "n_neighbors": 15,
         "min_dist": 0.1,
-        "metric": "euclidean",
+        "random_state": 42,
+        "n_samples": n_samples,
+        "clean_indices": list(range(n_samples)),  # All samples used
     }
 
 
@@ -155,6 +157,35 @@ def static_viz_config_disabled():
     )
     config.data.csv_path = "dummy.csv"
     config.static_viz = StaticVisualizationConfig(enabled=False)
+    return config
+
+
+@pytest.fixture
+def static_viz_config_with_umap():
+    """QCPipelineConfig with static UMAP visualization enabled."""
+    from sleap_roots_analyze.pipeline.config import (
+        ColumnConfig,
+        QCPipelineConfig,
+        StaticVisualizationConfig,
+    )
+
+    config = QCPipelineConfig(pipeline_name="test_static_viz_umap")
+    config.columns = ColumnConfig(
+        barcode="Barcode", genotype="Genotype", replicate="Replicate"
+    )
+    config.data.csv_path = "dummy.csv"
+    config.static_viz = StaticVisualizationConfig(
+        enabled=True,
+        formats=["png"],
+        dpi=100,
+        create_pca_plots=False,
+        create_umap_plots=True,
+        create_cluster_plots=False,
+        create_trait_distributions=False,
+        create_trait_correlations=False,
+        create_heritability_plots=False,
+        create_genotype_comparisons=False,
+    )
     return config
 
 

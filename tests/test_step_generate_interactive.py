@@ -1201,3 +1201,334 @@ class TestImagePathsMetadataFlowIntegration:
             "image_gallery.html should be generated when image_paths "
             "flows through the pipeline."
         )
+
+
+class TestInteractiveUMAPVisualizationQuality:
+    """Test interactive UMAP visualization quality requirements.
+
+    These tests verify that interactive UMAP matches interactive PCA quality:
+    - Points colored by genotype (not all grey)
+    - Barcode shown on hover
+    """
+
+    def test_interactive_umap_colored_by_genotype(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_all_viz_data,
+        tmp_path,
+    ):
+        """TDD Test: Interactive UMAP should color points by genotype.
+
+        The current implementation uses create_interactive_umap_with_hover_highlight()
+        which shows all points in grey. It should instead use a function that
+        colors points by genotype, like the interactive PCA does.
+
+        This test checks that the HTML output contains multiple colors (not just grey).
+        """
+        step = GenerateInteractiveStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_all_viz_data,
+        )
+
+        # Check interactive UMAP exists
+        interactive_dir = tmp_path / "figures" / "interactive"
+        umap_html = interactive_dir / "interactive_umap.html"
+        assert umap_html.exists(), "interactive_umap.html should exist"
+
+        # Read HTML content
+        html_content = umap_html.read_text(encoding="utf-8", errors="ignore")
+
+        # The HTML should NOT contain "lightgrey" as the dominant color
+        # (create_interactive_umap_with_hover_highlight uses lightgrey for all points)
+        # Instead, it should contain color scale references for genotypes
+
+        # Check for genotype coloring indicators:
+        # 1. Multiple genotype names should appear (geno_0, geno_1, etc.)
+        genotypes = sample_trait_data["Genotype"].unique()
+        genotype_found = any(g in html_content for g in genotypes)
+        assert genotype_found, (
+            "Interactive UMAP should display genotype names in the visualization. "
+            "Current implementation shows all points in grey."
+        )
+
+        # 2. Should NOT use the "legendonly" visibility pattern for colored traces
+        # (create_interactive_umap_with_hover_highlight hides colored traces by default)
+        # The new implementation should show colored traces directly
+        assert '"visible":"legendonly"' not in html_content or html_content.count(
+            '"visible":"legendonly"'
+        ) < len(genotypes), (
+            "Interactive UMAP should NOT hide genotype traces by default. "
+            "Points should be colored by genotype and visible immediately."
+        )
+
+    def test_interactive_umap_shows_barcode_on_hover(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_all_viz_data,
+        tmp_path,
+    ):
+        """TDD Test: Interactive UMAP should show Barcode on hover.
+
+        The current implementation shows genotype name on hover, but should
+        also show the Barcode for sample identification.
+
+        This test checks that barcode values appear in hover data.
+        """
+        step = GenerateInteractiveStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_all_viz_data,
+        )
+
+        # Check interactive UMAP exists
+        interactive_dir = tmp_path / "figures" / "interactive"
+        umap_html = interactive_dir / "interactive_umap.html"
+        assert umap_html.exists(), "interactive_umap.html should exist"
+
+        # Read HTML content
+        html_content = umap_html.read_text(encoding="utf-8", errors="ignore")
+
+        # Check that barcode values appear in the HTML
+        # Barcodes are like "sample_0", "sample_1", etc.
+        barcodes = sample_trait_data["Barcode"].tolist()
+        barcode_found = any(b in html_content for b in barcodes[:5])
+
+        assert barcode_found, (
+            "Interactive UMAP should include Barcode values for hover display. "
+            "This allows users to identify individual samples. "
+            f"Expected barcodes like: {barcodes[:3]}"
+        )
+
+    def test_interactive_umap_matches_pca_style(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_all_viz_data,
+        tmp_path,
+    ):
+        """TDD Test: Interactive UMAP should have similar style to interactive PCA.
+
+        Both plots should:
+        - Color points by genotype
+        - Show sample info on hover (including Barcode)
+        - Use the same color palette
+
+        This test verifies structural similarity between the two HTML outputs.
+        """
+        step = GenerateInteractiveStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_all_viz_data,
+        )
+
+        # Both plots should exist
+        interactive_dir = tmp_path / "figures" / "interactive"
+        pca_html = interactive_dir / "interactive_pca.html"
+        umap_html = interactive_dir / "interactive_umap.html"
+
+        assert pca_html.exists(), "interactive_pca.html should exist"
+        assert umap_html.exists(), "interactive_umap.html should exist"
+
+        pca_content = pca_html.read_text(encoding="utf-8", errors="ignore")
+        umap_content = umap_html.read_text(encoding="utf-8", errors="ignore")
+
+        # Both should use scatter plot type
+        assert "scatter" in pca_content.lower()
+        assert "scatter" in umap_content.lower()
+
+        # Both should reference the genotype column
+        genotype_col = interactive_viz_config_enabled.columns.genotype
+        assert genotype_col in pca_content or "Genotype" in pca_content
+        assert (
+            genotype_col in umap_content or "Genotype" in umap_content
+        ), f"UMAP should reference genotype column '{genotype_col}' like PCA does"
+
+
+class TestInteractiveUMAPMetadataAndAlignment:
+    """Integration tests for UMAP metadata preservation and data alignment.
+
+    These tests verify that:
+    - Metadata flows correctly through the interactive step
+    - Data is properly aligned with UMAP embedding using clean_indices
+    """
+
+    def test_umap_metadata_preserved_through_interactive_step(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_all_viz_data,
+        tmp_path,
+    ):
+        """Integration test: Metadata is preserved through GenerateInteractiveStep.
+
+        Verifies:
+        - umap_results flows from UMAPAnalysisStep to GenerateInteractiveStep
+        - image_paths preserved in output metadata
+        - trait_names preserved in output metadata
+        """
+        step = GenerateInteractiveStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_all_viz_data,
+        )
+
+        # Verify umap_results preserved
+        assert (
+            "umap_results" in result.metadata
+        ), "umap_results should be preserved in output metadata"
+        assert (
+            "embedding" in result.metadata["umap_results"]
+        ), "umap_results should contain embedding"
+
+        # Verify trait_names preserved
+        assert (
+            "trait_names" in result.metadata
+        ), "trait_names should be preserved in output metadata"
+        assert (
+            result.metadata["trait_names"]
+            == prev_result_with_all_viz_data.metadata["trait_names"]
+        ), "trait_names should be unchanged"
+
+    def test_interactive_umap_uses_clean_indices_for_alignment(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Integration test: DataFrame is aligned with UMAP embedding using clean_indices.
+
+        Verifies that when UMAP drops rows (due to NaN), the DataFrame is properly
+        aligned so that Barcode values in hover data match the correct samples.
+        """
+        import numpy as np
+
+        step = GenerateInteractiveStep()
+
+        # Create UMAP results with only a subset of samples (simulating NaN removal)
+        n_samples = len(sample_trait_data)
+        subset_indices = list(range(0, n_samples, 2))  # Every other sample
+        n_subset = len(subset_indices)
+
+        mock_umap = {
+            "embedding": np.random.randn(n_subset, 2),
+            "n_neighbors": 15,
+            "min_dist": 0.1,
+            "clean_indices": subset_indices,  # Key: only these rows were used
+        }
+
+        mock_pca = {
+            "transformed_data": np.random.randn(n_samples, 3),
+            "explained_variance_ratio": np.array([0.5, 0.3, 0.2]),
+            "cumulative_variance_ratio": np.array([0.5, 0.8, 1.0]),
+        }
+
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "umap_results": mock_umap,
+                "pca_results": mock_pca,
+            },
+        )
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Check UMAP plot was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        umap_html = interactive_dir / "interactive_umap.html"
+        assert umap_html.exists(), "interactive_umap.html should exist"
+
+        # Read HTML and verify correct barcodes are present
+        html_content = umap_html.read_text(encoding="utf-8", errors="ignore")
+
+        # Only barcodes from subset_indices should appear
+        # (since those are the samples in the embedding)
+        expected_barcodes = [
+            sample_trait_data.iloc[i]["Barcode"] for i in subset_indices[:3]
+        ]
+        barcode_found = any(b in html_content for b in expected_barcodes)
+
+        assert barcode_found, (
+            f"UMAP should contain barcodes from clean_indices samples. "
+            f"Expected barcodes like: {expected_barcodes}"
+        )
+
+    def test_interactive_umap_full_dataframe_when_no_clean_indices(
+        self,
+        interactive_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Test: Full DataFrame used when UMAP results have no clean_indices.
+
+        When clean_indices is not provided, all samples should be used.
+        """
+        import numpy as np
+
+        step = GenerateInteractiveStep()
+
+        n_samples = len(sample_trait_data)
+
+        # UMAP results WITHOUT clean_indices
+        mock_umap = {
+            "embedding": np.random.randn(n_samples, 2),
+            "n_neighbors": 15,
+            "min_dist": 0.1,
+            # No clean_indices key
+        }
+
+        mock_pca = {
+            "transformed_data": np.random.randn(n_samples, 3),
+            "explained_variance_ratio": np.array([0.5, 0.3, 0.2]),
+            "cumulative_variance_ratio": np.array([0.5, 0.8, 1.0]),
+        }
+
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "umap_results": mock_umap,
+                "pca_results": mock_pca,
+            },
+        )
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=interactive_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        # Check UMAP plot was generated
+        interactive_dir = tmp_path / "figures" / "interactive"
+        umap_html = interactive_dir / "interactive_umap.html"
+        assert umap_html.exists(), "interactive_umap.html should exist"
+
+        # All barcodes should be present since full DataFrame is used
+        html_content = umap_html.read_text(encoding="utf-8", errors="ignore")
+        all_barcodes = sample_trait_data["Barcode"].tolist()
+        barcode_found = any(b in html_content for b in all_barcodes[:5])
+
+        assert (
+            barcode_found
+        ), "UMAP should contain barcodes when no clean_indices provided"

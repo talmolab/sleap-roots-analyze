@@ -418,32 +418,43 @@ class VizPipeline(BasePipeline):
         prev_task_result = kwargs.get("08_genotype_aggregation")
         prev_step_result = prev_task_result.data
 
-        # CRITICAL FIX: Merge PCA results into metadata
-        # The static figures step needs PCA results, but they're on a different
+        # CRITICAL FIX: Merge PCA and UMAP results into metadata
+        # The static figures step needs PCA/UMAP results, but they're on a different
         # branch of the DAG (PCA → interesting_genotypes vs statistics → heritability → aggregation)
-        # So we explicitly grab PCA results from kwargs and merge them in
+        # So we explicitly grab PCA and UMAP results from kwargs and merge them in
+        combined_metadata = {**prev_step_result.metadata}
+
+        # Merge PCA results
         pca_task_result = kwargs.get("03_pca_analysis")
         if pca_task_result:
             pca_step_result = pca_task_result.data
-            # Merge PCA metadata into the combined result
-            combined_metadata = {
-                **prev_step_result.metadata,
-                "pca_results": pca_step_result.metadata.get("pca_results"),
-                "top_features": pca_step_result.metadata.get("top_features"),
-                "n_pca_components": pca_step_result.metadata.get("n_pca_components"),
-                "pca_explained_variance": pca_step_result.metadata.get(
-                    "pca_explained_variance"
-                ),
-            }
-            # Create combined result with merged metadata
-            combined_result = StepResult(
-                data=prev_step_result.data,
-                metadata=combined_metadata,
-                files_generated=prev_step_result.files_generated,
+            combined_metadata.update(
+                {
+                    "pca_results": pca_step_result.metadata.get("pca_results"),
+                    "top_features": pca_step_result.metadata.get("top_features"),
+                    "n_pca_components": pca_step_result.metadata.get(
+                        "n_pca_components"
+                    ),
+                    "pca_explained_variance": pca_step_result.metadata.get(
+                        "pca_explained_variance"
+                    ),
+                }
             )
-        else:
-            # Fallback if PCA not available (shouldn't happen given dependencies)
-            combined_result = prev_step_result
+
+        # Merge UMAP results
+        umap_task_result = kwargs.get("04_umap_analysis")
+        if umap_task_result:
+            umap_step_result = umap_task_result.data
+            umap_results = umap_step_result.metadata.get("umap_results")
+            if umap_results:
+                combined_metadata["umap_results"] = umap_results
+
+        # Create combined result with merged metadata
+        combined_result = StepResult(
+            data=prev_step_result.data,
+            metadata=combined_metadata,
+            files_generated=prev_step_result.files_generated,
+        )
 
         result = self.step_9_generate_static_figures.execute(
             data=combined_result.data,
@@ -456,9 +467,15 @@ class VizPipeline(BasePipeline):
     def _run_generate_interactive(self, config, run_dir, logger, **kwargs):
         """Execute Step 10: Generate Interactive Visualizations."""
         logger.info("Step 10/12: Generating interactive visualizations...")
-        # Primary input from PCA analysis
-        prev_task_result = kwargs.get("03_pca_analysis")
-        prev_step_result = prev_task_result.data
+        # Get results from UMAP analysis (has most complete metadata including
+        # PCA results, image_paths, and umap_results)
+        umap_task_result = kwargs.get("04_umap_analysis")
+        if umap_task_result and umap_task_result.data:
+            prev_step_result = umap_task_result.data
+        else:
+            # Fallback to PCA if UMAP didn't run
+            pca_task_result = kwargs.get("03_pca_analysis")
+            prev_step_result = pca_task_result.data
         result = self.step_10_generate_interactive.execute(
             data=prev_step_result.data,
             config=config,

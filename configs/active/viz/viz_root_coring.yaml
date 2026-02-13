@@ -134,6 +134,12 @@ static_viz:
   #   - Example use case: Mark your positive/negative controls or extreme phenotypes
   highlight_genotypes: ["GH_7418", "GH_7371", "GH_7417"]  # Matches notebook GENOTYPES_TO_HIGHLIGHT
 
+  # Genotype image grid configuration (RhizoVision flatbed scanner images)
+  # RhizoVision outputs: "features.png" (default), "seg.png" (segmentation)
+  genotype_image_grid_image_type: "features.png"
+  # Traits to show statistics for in the genotype image grid (null = no stats)
+  genotype_image_grid_trait_cols: null
+
 # Interactive visualization settings
 interactive_viz:
   enabled: true

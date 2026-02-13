@@ -47,9 +47,9 @@ pca:
   feature_selection_strategy: "extreme"
   n_top_features: 1              # 1 feature per extreme = 2 features per PC
 
-# UMAP configuration (disabled by default)
+# UMAP configuration
 umap:
-  enabled: false
+  enabled: true
   n_neighbors: 15
   min_dist: 0.1
   metric: "euclidean"
@@ -101,7 +101,7 @@ static_viz:
     - pdf
   dpi: 300
   create_pca_plots: true
-  create_umap_plots: false
+  create_umap_plots: true
   create_cluster_plots: false
   create_trait_distributions: true
   create_trait_correlations: true
@@ -109,11 +109,17 @@ static_viz:
   create_genotype_comparisons: true
   pca_biplot_top_features: 1     # Match pca.n_top_features for extreme strategy
 
+  # Genotype image grid configuration (RhizoVision flatbed scanner images)
+  # RhizoVision outputs: "features.png" (default), "seg.png" (segmentation)
+  genotype_image_grid_image_type: "features.png"
+  # Traits to show statistics for in the genotype image grid (null = no stats)
+  genotype_image_grid_trait_cols: null
+
 # Interactive visualization settings
 interactive_viz:
   enabled: true
   create_pca_plots: true
-  create_umap_plots: false
+  create_umap_plots: true
   create_cluster_plots: false
   show_images_on_hover: true   # Requires image_dir
 

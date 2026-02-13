@@ -252,6 +252,34 @@ class TestFigureOrganization:
             len(variation_files) >= 1
         ), "Should have phenotype variation plots in figures/phenotype_variation/"
 
+    def test_umap_plots_saved_to_figures_umap_subdirectory(
+        self,
+        static_viz_config_with_umap,
+        sample_trait_data,
+        prev_result_with_all_viz_data,
+        tmp_path,
+    ):
+        """Test that UMAP plots are saved to figures/umap/ subdirectory.
+
+        Per VIZ-OUTPUT-001: UMAP figures saved to figures/umap/
+        """
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        result = step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_with_umap,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_all_viz_data,
+        )
+
+        # Check UMAP plots exist in figures/umap/
+        umap_dir = tmp_path / "figures" / "umap"
+        assert umap_dir.exists(), "figures/umap/ directory should be created"
+        assert (
+            umap_dir / "umap_top_traits.png"
+        ).exists(), "umap_top_traits.png should be in figures/umap/"
+
 
 class TestGenerateStaticFiguresBasic:
     """Test basic functionality of GenerateStaticFiguresStep."""
@@ -2040,6 +2068,254 @@ class TestMissingPlotsWiring:
                     f"plt.close should be called at least {mock_image_grid.call_count} times "
                     f"(once per image grid), but was called {mock_plt_close.call_count} times. "
                     "Task 10.19: Each image grid figure must be closed after saving."
+                )
+
+        plt.close("all")
+
+    # --- 10e: Genotype Image Grid Configuration (add-cylinder-image-grid-config) ---
+
+    def test_config_accepts_genotype_image_grid_image_type(
+        self,
+        static_viz_config_enabled,
+    ):
+        """Test that config accepts genotype_image_grid_image_type field.
+
+        Task 1.1: StaticVizConfig accepts genotype_image_grid_image_type field.
+        Default should be "features.png" for RhizoVision compatibility.
+        """
+        assert hasattr(
+            static_viz_config_enabled.static_viz, "genotype_image_grid_image_type"
+        )
+        # Default should be "features.png"
+        assert (
+            static_viz_config_enabled.static_viz.genotype_image_grid_image_type
+            == "features.png"
+        )
+
+    def test_config_accepts_genotype_image_grid_trait_cols(
+        self,
+        static_viz_config_enabled,
+    ):
+        """Test that config accepts genotype_image_grid_trait_cols field.
+
+        Task 1.2: StaticVizConfig accepts genotype_image_grid_trait_cols field.
+        Default should be None (no statistics shown).
+        """
+        assert hasattr(
+            static_viz_config_enabled.static_viz, "genotype_image_grid_trait_cols"
+        )
+        # Default should be None
+        assert (
+            static_viz_config_enabled.static_viz.genotype_image_grid_trait_cols is None
+        )
+
+    def test_genotype_image_grid_uses_configured_image_type(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Test that _create_genotype_image_grids uses image_type from config.
+
+        Task 1.3: _create_genotype_image_grids() uses image_type from config.
+        """
+        setup_matplotlib_backend()
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import pandas as pd
+        from unittest.mock import patch
+
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.steps import GenerateStaticFiguresStep
+
+        step = GenerateStaticFiguresStep()
+
+        # Set cylinder-style image type
+        static_viz_config_enabled.static_viz.create_genotype_image_grids = True
+        static_viz_config_enabled.static_viz.genotype_image_grid_image_type = "1.jpg"
+
+        n_samples = len(sample_trait_data)
+        n_features = 3
+        n_components = 3
+
+        # Create image paths for each sample
+        image_paths = pd.Series(
+            {i: f"/path/to/sample_{i}/1.jpg" for i in range(n_samples)},
+            name="image_path",
+        )
+
+        # Create mock PCA results
+        pca_results = {
+            "pc_scores": pd.DataFrame(
+                np.random.randn(n_samples, n_components),
+                columns=[f"PC{i + 1}" for i in range(n_components)],
+            ),
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "loadings": np.random.randn(n_features, n_components),
+            "explained_variance": np.array([3.5, 1.8, 0.9]),
+            "explained_variance_ratio": np.array([0.45, 0.30, 0.15]),
+            "cumulative_variance_ratio": np.array([0.45, 0.75, 0.90]),
+            "eigenvalues": np.array([3.5, 1.8, 0.9]),
+            "feature_names": ["trait1", "trait2", "trait3"],
+            "n_components": n_components,
+            "total_variance_explained": 0.90,
+        }
+
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "pca_results": pca_results,
+                "image_paths": image_paths,
+            },
+        )
+
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
+            ) as mock_scree,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
+            ) as mock_biplot,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
+            ) as mock_heatmap,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
+            ) as mock_contrib,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
+            ) as mock_boxplots,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_genotype_image_grid"
+            ) as mock_image_grid,
+        ):
+            mock_scree.return_value = plt.figure()
+            mock_biplot.return_value = plt.figure()
+            mock_heatmap.return_value = (plt.figure(), plt.figure())
+            mock_contrib.return_value = plt.figure()
+            mock_boxplots.return_value = plt.figure()
+            mock_image_grid.return_value = plt.figure()
+
+            result = step.execute(
+                data=sample_trait_data,
+                config=static_viz_config_enabled,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+            # Verify create_genotype_image_grid was called with the configured image_type
+            if mock_image_grid.called:
+                call_kwargs = mock_image_grid.call_args.kwargs
+                assert call_kwargs.get("image_type") == "1.jpg", (
+                    "Should pass configured image_type='1.jpg' to create_genotype_image_grid(). "
+                    "Task 2.3: Use config.static_viz.genotype_image_grid_image_type"
+                )
+
+        plt.close("all")
+
+    def test_genotype_image_grid_passes_configured_trait_cols(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        tmp_path,
+    ):
+        """Test that _create_genotype_image_grids passes trait_cols from config.
+
+        Task 1.4: _create_genotype_image_grids() passes trait_cols to create_genotype_image_grid().
+        """
+        setup_matplotlib_backend()
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import pandas as pd
+        from unittest.mock import patch
+
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.steps import GenerateStaticFiguresStep
+
+        step = GenerateStaticFiguresStep()
+
+        # Set trait columns to show statistics for
+        static_viz_config_enabled.static_viz.create_genotype_image_grids = True
+        static_viz_config_enabled.static_viz.genotype_image_grid_trait_cols = [
+            "trait1",
+            "trait2",
+        ]
+
+        n_samples = len(sample_trait_data)
+        n_features = 3
+        n_components = 3
+
+        # Create image paths for each sample
+        image_paths = pd.Series(
+            {i: f"/path/to/sample_{i}/features.png" for i in range(n_samples)},
+            name="image_path",
+        )
+
+        # Create mock PCA results
+        pca_results = {
+            "pc_scores": pd.DataFrame(
+                np.random.randn(n_samples, n_components),
+                columns=[f"PC{i + 1}" for i in range(n_components)],
+            ),
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "loadings": np.random.randn(n_features, n_components),
+            "explained_variance": np.array([3.5, 1.8, 0.9]),
+            "explained_variance_ratio": np.array([0.45, 0.30, 0.15]),
+            "cumulative_variance_ratio": np.array([0.45, 0.75, 0.90]),
+            "eigenvalues": np.array([3.5, 1.8, 0.9]),
+            "feature_names": ["trait1", "trait2", "trait3"],
+            "n_components": n_components,
+            "total_variance_explained": 0.90,
+        }
+
+        prev_result = StepResult(
+            data=sample_trait_data,
+            metadata={
+                "pca_results": pca_results,
+                "image_paths": image_paths,
+            },
+        )
+
+        with (
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_scree_plot"
+            ) as mock_scree,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pca_biplot"
+            ) as mock_biplot,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_heatmap"
+            ) as mock_heatmap,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_feature_contribution_plot"
+            ) as mock_contrib,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_pc_genotype_boxplots"
+            ) as mock_boxplots,
+            patch(
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_genotype_image_grid"
+            ) as mock_image_grid,
+        ):
+            mock_scree.return_value = plt.figure()
+            mock_biplot.return_value = plt.figure()
+            mock_heatmap.return_value = (plt.figure(), plt.figure())
+            mock_contrib.return_value = plt.figure()
+            mock_boxplots.return_value = plt.figure()
+            mock_image_grid.return_value = plt.figure()
+
+            result = step.execute(
+                data=sample_trait_data,
+                config=static_viz_config_enabled,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+            # Verify create_genotype_image_grid was called with the configured trait_cols
+            if mock_image_grid.called:
+                call_kwargs = mock_image_grid.call_args.kwargs
+                assert call_kwargs.get("trait_cols") == ["trait1", "trait2"], (
+                    "Should pass configured trait_cols to create_genotype_image_grid(). "
+                    "Task 2.4: Use config.static_viz.genotype_image_grid_trait_cols"
                 )
 
         plt.close("all")
