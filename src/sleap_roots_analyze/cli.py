@@ -105,6 +105,12 @@ def cli():
     is_flag=True,
     help="Validate configuration without running the pipeline",
 )
+@click.option(
+    "--group-by",
+    type=str,
+    default=None,
+    help="Column name to group data by for separate analyses per group (e.g., plant_age_days)",
+)
 def qc(
     config: Path,
     output_dir: Path,
@@ -112,6 +118,7 @@ def qc(
     quiet: bool,
     log_file: str | None,
     dry_run: bool,
+    group_by: str | None,
 ):
     """Run QC pipeline on trait data.
 
@@ -239,6 +246,13 @@ def qc(
             console.print("\n[green]Configuration is valid [OK][/green]")
             return
 
+        # Apply CLI overrides
+        if group_by is not None:
+            cfg.data.group_by = group_by
+            console.print(f"[cyan]Group by:[/cyan] {group_by} (CLI override)")
+        elif cfg.data.group_by is not None:
+            console.print(f"[cyan]Group by:[/cyan] {cfg.data.group_by}")
+
         # Create and run pipeline
         console.print("\n[cyan]Initializing QC pipeline...[/cyan]")
         # Pass config's log filename to pipeline (creates log in run_dir)
@@ -308,6 +322,12 @@ def qc(
     is_flag=True,
     help="Validate configuration without running the pipeline",
 )
+@click.option(
+    "--group-by",
+    type=str,
+    default=None,
+    help="Column name to group data by for separate analyses per group (e.g., plant_age_days)",
+)
 def viz(
     config: Path,
     output_dir: Path,
@@ -315,6 +335,7 @@ def viz(
     quiet: bool,
     log_file: str | None,
     dry_run: bool,
+    group_by: str | None,
 ):
     """Run visualization pipeline on trait data.
 
@@ -372,6 +393,13 @@ def viz(
 
             console.print("\n[green]Configuration is valid [OK][/green]")
             return
+
+        # Apply CLI overrides
+        if group_by is not None:
+            cfg.data.group_by = group_by
+            console.print(f"[cyan]Group by:[/cyan] {group_by} (CLI override)")
+        elif cfg.data.group_by is not None:
+            console.print(f"[cyan]Group by:[/cyan] {cfg.data.group_by}")
 
         # Create and run pipeline
         console.print("\n[cyan]Initializing Viz pipeline...[/cyan]")
