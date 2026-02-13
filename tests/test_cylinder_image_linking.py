@@ -493,7 +493,13 @@ class TestImagePathsMetadataFlowWithCylinder:
         np.random.seed(42)
         df = pd.DataFrame(
             {
-                "Barcode": ["plant_001", "plant_002", "plant_003", "plant_004", "plant_005"],
+                "Barcode": [
+                    "plant_001",
+                    "plant_002",
+                    "plant_003",
+                    "plant_004",
+                    "plant_005",
+                ],
                 "Genotype": ["geno_A", "geno_B", "geno_A", "geno_B", "geno_C"],
                 "Replicate": [1, 1, 2, 2, 1],
                 "trait1": np.random.randn(5) * 10 + 50,
@@ -626,9 +632,7 @@ class TestImagePathsFormatHandling:
 
         assert is_nested_dict_format is False
 
-    def test_cylinder_format_creates_correct_image_links(
-        self, nested_dict_image_paths
-    ):
+    def test_cylinder_format_creates_correct_image_links(self, nested_dict_image_paths):
         """Test that cylinder format creates correct image_links structure (Task 2.7)."""
         image_paths = nested_dict_image_paths
 
