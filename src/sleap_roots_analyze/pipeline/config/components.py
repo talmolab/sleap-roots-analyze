@@ -149,6 +149,9 @@ class DataConfig:
               Requires scan_path column in data.
         scan_path_col: Column name containing scan paths for cylinder image linking.
             Only used when image_linking_method="cylinder". Default: "scan_path".
+        group_by: Column name to group data by for separate pipeline runs per group.
+            If None, all data is processed as a single group. Common use: "plant_age_days"
+            to analyze each timepoint separately. Optional.
     """
 
     csv_path: str | None = MISSING
@@ -159,6 +162,7 @@ class DataConfig:
     traits_to_exclude: List[str] = field(default_factory=list)
     image_linking_method: str = "rhizovision"
     scan_path_col: str = "scan_path"
+    group_by: Optional[str] = None
 
 
 @dataclass

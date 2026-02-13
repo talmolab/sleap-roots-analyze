@@ -38,6 +38,20 @@ def test_data_config_creation():
     assert config.traits_to_exclude == []
 
 
+def test_data_config_group_by_defaults_to_none():
+    """Test that DataConfig.group_by defaults to None."""
+    config = DataConfig(csv_path="data.csv")
+
+    assert config.group_by is None
+
+
+def test_data_config_group_by_can_be_set():
+    """Test that DataConfig.group_by can be set to a column name."""
+    config = DataConfig(csv_path="data.csv", group_by="plant_age_days")
+
+    assert config.group_by == "plant_age_days"
+
+
 def test_outlier_detection_config_defaults():
     """Test OutlierDetectionConfig defaults."""
     config = OutlierDetectionConfig()
@@ -365,3 +379,14 @@ def test_validate_config_valid_logging_levels():
     for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
         config.logging.level = level
         validate_qc_config(config)  # Should not raise
+
+
+def test_validate_config_with_group_by():
+    """Test validation passes when group_by is set."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.data.group_by = "plant_age_days"
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
+
+    # Should not raise - group_by column existence validated at data load time
+    validate_qc_config(config)
