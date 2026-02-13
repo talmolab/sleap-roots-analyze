@@ -35,8 +35,14 @@ data:
   # Path to cleaned trait data from QC pipeline
   csv_path: "qc_runs/cylinder_edpie_qc_20251215_121413/10_final_data.csv"
 
-  # Optional: Directory containing root images for hover visualization
-  image_dir: null
+  # Optional: Directory containing cylinder scanner images for image grids
+  # Cylinder images are in subdirectories named by plant_qr_code, with rotation images (1.jpg to 72.jpg)
+  image_dir: "Z:/users/eberrigan/20250328_Charlotte_Rambla_EDPIE_Feb_2025/images_downloader_output"
+
+  # Image linking method: "cylinder" uses scan_path column to find images
+  # (as opposed to "rhizovision" which uses barcode naming convention)
+  image_linking_method: "cylinder"
+  scan_path_col: "scan_path"  # Column containing relative paths like "./images_downloader_output/images/Wave1/..."
 
 # Column names (post-sanitization from QC pipeline)
 columns:
@@ -135,6 +141,15 @@ static_viz:
   #   - Black edge colors for visibility
   #   - Bold, colored labels in PC boxplots
   highlight_genotypes: ["GH_7293", "GH_7378", "GH_7327"]
+
+  # Genotype image grid configuration (cylinder scanner images)
+  # Cylinder scanners capture 72 images per sample (1.jpg to 72.jpg)
+  # Common choices: "1.jpg" (front), "36.jpg" (back/180 degrees)
+  genotype_image_grid_image_type: "1.jpg"
+  # Traits to show statistics for in the genotype image grid
+  genotype_image_grid_trait_cols:
+    - "Seminal Base Tip Dists P95 Mean"
+    - "Seminal Angles Proximal Mean Med"
 
 # Interactive visualization settings
 interactive_viz:

@@ -9,7 +9,10 @@ from typing import Optional
 import pandas as pd
 
 from sleap_roots_analyze.data_cleanup import get_trait_columns
-from sleap_roots_analyze.data_utils import link_rhizovision_images_to_samples
+from sleap_roots_analyze.data_utils import (
+    link_cylinder_images_from_scan_path,
+    link_rhizovision_images_to_samples,
+)
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
 logger = logging.getLogger(__name__)
@@ -95,13 +98,38 @@ class LoadDataAndImagesStep(BaseStep):
         if config.data.image_dir is not None:
             image_dir = Path(config.data.image_dir)
             if image_dir.exists():
-                logger.info(f"Linking images from: {image_dir}")
-                image_paths = link_rhizovision_images_to_samples(
-                    df,
-                    image_dir=image_dir,
-                    barcode_col=config.columns.barcode,
+                # Get image linking method from config (default: "rhizovision")
+                image_linking_method = getattr(
+                    config.data, "image_linking_method", "rhizovision"
                 )
-                logger.info(f"Linked {len(image_paths)} images to samples")
+                logger.info(
+                    f"Linking images from: {image_dir} (method: {image_linking_method})"
+                )
+
+                if image_linking_method == "cylinder":
+                    # Cylinder scanner: use scan_path column to build image paths
+                    scan_path_col = getattr(config.data, "scan_path_col", "scan_path")
+                    if scan_path_col not in df.columns:
+                        logger.warning(
+                            f"Cylinder image linking requires '{scan_path_col}' column, "
+                            f"but it was not found in data. Skipping image linking."
+                        )
+                    else:
+                        image_paths = link_cylinder_images_from_scan_path(
+                            df,
+                            base_dir=image_dir,
+                            barcode_col=config.columns.barcode,
+                            scan_path_col=scan_path_col,
+                        )
+                        logger.info(f"Linked {len(image_paths)} cylinder images")
+                else:
+                    # RhizoVision flatbed scanner: use barcode naming convention
+                    image_paths = link_rhizovision_images_to_samples(
+                        df,
+                        image_dir=image_dir,
+                        barcode_col=config.columns.barcode,
+                    )
+                    logger.info(f"Linked {len(image_paths)} RhizoVision images")
             else:
                 logger.warning(f"Image directory not found: {image_dir}")
 

@@ -25,6 +25,7 @@ from sleap_roots_analyze.visualization import (
     create_regression_plot,
     create_trait_boxplots_by_genotype_batched,
     create_trait_histograms_batched,
+    create_umap_colored_by_top_traits,
     identify_extreme_genotypes_by_pc,
 )
 
@@ -119,6 +120,7 @@ class GenerateStaticFiguresStep(BaseStep):
         metadata = prev_result.metadata if prev_result else {}
         trait_cols = metadata.get("trait_names", metadata.get("valid_trait_names", []))
         pca_results = metadata.get("pca_results")
+        umap_results = metadata.get("umap_results")
         heritability_results = metadata.get("heritability_results")
         image_paths = metadata.get("image_paths")
 
@@ -148,7 +150,25 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 2. Trait Distribution Plots (saved to figures/trait_histograms/ and figures/trait_boxplots/)
+            # 2. UMAP Plots (saved to figures/umap/)
+            if config.static_viz.create_umap_plots and umap_results and pca_results:
+                logger.info("  Creating UMAP plots...")
+                umap_dir = figures_dir / "umap"
+                umap_dir.mkdir(parents=True, exist_ok=True)
+                generated_files.extend(
+                    self._create_umap_plots(
+                        df,
+                        umap_results,
+                        pca_results,
+                        trait_cols,
+                        config,
+                        umap_dir,
+                        formats,
+                        dpi,
+                    )
+                )
+
+            # 3. Trait Distribution Plots (saved to figures/trait_histograms/ and figures/trait_boxplots/)
             if config.static_viz.create_trait_distributions and trait_cols:
                 logger.info("  Creating trait distribution plots...")
                 histograms_dir = figures_dir / "trait_histograms"
@@ -167,7 +187,7 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 3. Correlation Heatmap (saved to figures/overview/)
+            # 4. Correlation Heatmap (saved to figures/overview/)
             if config.static_viz.create_trait_correlations and trait_cols:
                 logger.info("  Creating correlation heatmap...")
                 overview_dir = figures_dir / "overview"
@@ -178,7 +198,7 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 4. Heritability Plots (saved to figures/heritability/)
+            # 5. Heritability Plots (saved to figures/heritability/)
             if config.static_viz.create_heritability_plots and heritability_results:
                 logger.info("  Creating heritability plots...")
                 heritability_dir = figures_dir / "heritability"
@@ -189,7 +209,7 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 5. Phenotype Variation Plots (saved to figures/phenotype_variation/)
+            # 6. Phenotype Variation Plots (saved to figures/phenotype_variation/)
             if (
                 config.static_viz.create_phenotype_variation_plots
                 and heritability_results
@@ -209,7 +229,7 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 6. Genotype Comparison Plots (saved to figures/overview/)
+            # 7. Genotype Comparison Plots (saved to figures/overview/)
             if config.static_viz.create_genotype_comparisons and trait_cols:
                 logger.info("  Creating genotype comparison plots...")
                 overview_dir = figures_dir / "overview"
@@ -220,7 +240,7 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 7. Regression Plots (saved to figures/overview/)
+            # 8. Regression Plots (saved to figures/overview/)
             if config.static_viz.regression_trait_pairs:
                 logger.info("  Creating regression plots...")
                 overview_dir = figures_dir / "overview"
@@ -231,7 +251,7 @@ class GenerateStaticFiguresStep(BaseStep):
                     )
                 )
 
-            # 8. Genotype Image Grids (saved to figures/extreme_genotypes/)
+            # 9. Genotype Image Grids (saved to figures/extreme_genotypes/)
             # Task 10.20: Wire identify_extreme_genotypes_by_pc + create_genotype_image_grid
             if config.static_viz.create_genotype_image_grids:
                 if image_paths is not None and pca_results:
@@ -468,6 +488,71 @@ class GenerateStaticFiguresStep(BaseStep):
                 )
             )
             plt.close(fig)
+
+        return files
+
+    def _create_umap_plots(
+        self,
+        df: pd.DataFrame,
+        umap_results: dict,
+        pca_results: dict,
+        trait_cols: list,
+        config: Any,
+        output_dir: Path,
+        formats: list,
+        dpi: int,
+    ) -> list[Path]:
+        """Create UMAP-related plots.
+
+        Args:
+            df: DataFrame with trait data.
+            umap_results: UMAP analysis results from UMAPAnalysisStep.
+            pca_results: PCA analysis results (for feature selection).
+            trait_cols: List of trait column names.
+            config: Pipeline configuration.
+            output_dir: Directory to save plots (figures/umap/).
+            formats: Output formats.
+            dpi: DPI for figures.
+
+        Returns:
+            List of generated file paths.
+        """
+        files = []
+
+        # Get clean indices from UMAP results to align data
+        clean_indices = umap_results.get("clean_indices")
+        if clean_indices is not None:
+            df_clean = df.loc[clean_indices].copy()
+        else:
+            # Fallback: use rows without NaN in trait columns
+            df_clean = df[trait_cols].dropna()
+            df_clean = df.loc[df_clean.index].copy()
+
+        # UMAP colored by top traits (uses PCA for feature selection)
+        try:
+            fig = create_umap_colored_by_top_traits(
+                umap_results=umap_results,
+                df=df_clean,
+                trait_columns=trait_cols,
+                trait_names=trait_cols,  # Use column names as display names
+                pca_results=pca_results,
+                n_traits=6,  # Show top 6 traits
+                feature_selection=config.pca.feature_selection_strategy,
+            )
+            files.extend(
+                self._save_figure(
+                    fig,
+                    "umap_top_traits",
+                    output_dir,
+                    formats,
+                    dpi,
+                    bbox_inches=config.static_viz.bbox_inches,
+                    transparent=config.static_viz.transparent,
+                )
+            )
+            plt.close(fig)
+        except Exception as e:
+            logger.warning(f"Failed to create UMAP top traits plot: {e}")
 
         return files
 
@@ -850,15 +935,39 @@ class GenerateStaticFiguresStep(BaseStep):
 
             # Convert image_paths to the image_links format expected by create_genotype_image_grid
             # image_links is Dict[barcode, Dict[image_type, Path]]
+            # Use configured image_type (default: "features.png" for RhizoVision,
+            # or "1.jpg"/"36.jpg" for cylinder scanners)
+            image_type = config.static_viz.genotype_image_grid_image_type
+            trait_cols = config.static_viz.genotype_image_grid_trait_cols
+
             image_links = {}
-            for idx, path in image_paths.items():
-                if idx in df.index:
-                    barcode = (
-                        df.loc[idx, barcode_col]
-                        if barcode_col in df.columns
-                        else str(idx)
-                    )
-                    image_links[barcode] = {"features.png": Path(path)}
+
+            # Detect format by checking if it's a dict with nested dict values
+            # (from link_rhizovision_images_to_samples or link_cylinder_images_from_scan_path)
+            is_nested_dict_format = (
+                isinstance(image_paths, dict)
+                and len(image_paths) > 0
+                and isinstance(next(iter(image_paths.values())), dict)
+            )
+
+            if is_nested_dict_format:
+                # Format: {barcode: {"features.png": Path, "1.jpg": Path, ...}}
+                # Use directly, converting paths to Path objects
+                for barcode, img_dict in image_paths.items():
+                    image_links[barcode] = {
+                        img_type: Path(path) if path else None
+                        for img_type, path in img_dict.items()
+                    }
+            else:
+                # Legacy format: pd.Series indexed by DataFrame row numbers
+                for idx, path in image_paths.items():
+                    if idx in df.index:
+                        barcode = (
+                            df.loc[idx, barcode_col]
+                            if barcode_col in df.columns
+                            else str(idx)
+                        )
+                        image_links[barcode] = {image_type: Path(path)}
 
             # Get unique extreme genotypes (column name matches genotype_col)
             unique_genotypes = extreme_df[genotype_col].unique()
@@ -871,6 +980,8 @@ class GenerateStaticFiguresStep(BaseStep):
                         genotype=genotype,
                         genotype_col=genotype_col,
                         barcode_col=barcode_col,
+                        image_type=image_type,
+                        trait_cols=trait_cols,
                     )
                     # Sanitize genotype name for filename
                     safe_genotype = (

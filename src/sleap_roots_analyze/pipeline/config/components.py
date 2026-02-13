@@ -141,6 +141,14 @@ class DataConfig:
         additional_exclude_cols: Additional columns to exclude from analysis.
         traits_to_include: List of trait names to include. If None, includes all.
         traits_to_exclude: List of trait names to exclude.
+        image_linking_method: Method for linking images to samples:
+            - "rhizovision": RhizoVision flatbed scanner (default). Expects files like
+              {barcode}_c1_p1_features.png in a flat directory.
+            - "cylinder": Cylinder scanner with rotation images. Expects subdirectories
+              organized by scan_path containing numbered images (1.jpg to 72.jpg).
+              Requires scan_path column in data.
+        scan_path_col: Column name containing scan paths for cylinder image linking.
+            Only used when image_linking_method="cylinder". Default: "scan_path".
     """
 
     csv_path: str | None = MISSING
@@ -149,6 +157,8 @@ class DataConfig:
     additional_exclude_cols: Optional[List[str]] = None
     traits_to_include: Optional[List[str]] = None
     traits_to_exclude: List[str] = field(default_factory=list)
+    image_linking_method: str = "rhizovision"
+    scan_path_col: str = "scan_path"
 
 
 @dataclass
@@ -411,6 +421,11 @@ class StaticVisualizationConfig:
             Empty list (default) means no regression plots are generated.
         create_genotype_image_grids: Whether to create genotype image grids for
             extreme genotypes (requires image paths in metadata).
+        genotype_image_grid_image_type: Image filename/type to display in grids.
+            For RhizoVision: "features.png" (default), "seg.png", etc.
+            For cylinder scanners: "1.jpg" (front), "36.jpg" (back/180 degrees), etc.
+        genotype_image_grid_trait_cols: Optional list of trait column names to show
+            statistics for in the image grid. If None, no trait statistics are shown.
         feature_contribution_variance_threshold: Variance threshold for determining
             number of PCs to show in feature contribution plot. When None (default),
             inherits from pca.n_components (if < 1) or uses 0.95.
@@ -451,6 +466,8 @@ class StaticVisualizationConfig:
     phenotype_variation_top_n: int = 10
     regression_trait_pairs: List[List[str]] = field(default_factory=list)
     create_genotype_image_grids: bool = True
+    genotype_image_grid_image_type: str = "features.png"
+    genotype_image_grid_trait_cols: Optional[List[str]] = None
     # Feature contribution plot parameters
     feature_contribution_variance_threshold: Optional[float] = None
     feature_contribution_top_n: int = 20
