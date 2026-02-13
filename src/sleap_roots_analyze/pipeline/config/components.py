@@ -26,6 +26,11 @@ class AdaptiveSizingConfig:
         max_width: Maximum figure width.
         min_height: Minimum figure height.
         max_height: Maximum figure height.
+        adaptive_batch_size: Whether to automatically increase batch size for many traits.
+            When enabled and trait count > batch_size_threshold, batch size increases
+            to reduce output files (e.g., from 9 per page to 36 per page).
+        batch_size_threshold: Trait count threshold for adaptive batch sizing (default: 100).
+        max_batch_size: Maximum batch size when adaptive sizing is enabled (default: 49).
     """
 
     enabled: bool = True
@@ -37,6 +42,9 @@ class AdaptiveSizingConfig:
     max_width: float = 20.0
     min_height: float = 4.0
     max_height: float = 16.0
+    adaptive_batch_size: bool = False
+    batch_size_threshold: int = 100
+    max_batch_size: int = 49
 
 
 @dataclass
@@ -133,6 +141,14 @@ class DataConfig:
         additional_exclude_cols: Additional columns to exclude from analysis.
         traits_to_include: List of trait names to include. If None, includes all.
         traits_to_exclude: List of trait names to exclude.
+        image_linking_method: Method for linking images to samples:
+            - "rhizovision": RhizoVision flatbed scanner (default). Expects files like
+              {barcode}_c1_p1_features.png in a flat directory.
+            - "cylinder": Cylinder scanner with rotation images. Expects subdirectories
+              organized by scan_path containing numbered images (1.jpg to 72.jpg).
+              Requires scan_path column in data.
+        scan_path_col: Column name containing scan paths for cylinder image linking.
+            Only used when image_linking_method="cylinder". Default: "scan_path".
     """
 
     csv_path: str | None = MISSING
@@ -141,6 +157,8 @@ class DataConfig:
     additional_exclude_cols: Optional[List[str]] = None
     traits_to_include: Optional[List[str]] = None
     traits_to_exclude: List[str] = field(default_factory=list)
+    image_linking_method: str = "rhizovision"
+    scan_path_col: str = "scan_path"
 
 
 @dataclass
@@ -207,6 +225,9 @@ class InteractiveVisualizationConfig:
         create_umap_plots: Whether to create interactive UMAP plots.
         create_cluster_plots: Whether to create interactive clustering plots.
         show_images_on_hover: Whether to show images on hover.
+        create_scatter_with_images: Whether to create scatter plot with image tooltips.
+        create_image_viewer: Whether to create HTML image viewer with PCA overlay.
+        create_image_gallery: Whether to create interactive image gallery.
     """
 
     enabled: bool = True
@@ -214,6 +235,9 @@ class InteractiveVisualizationConfig:
     create_umap_plots: bool = False
     create_cluster_plots: bool = False
     show_images_on_hover: bool = True
+    create_scatter_with_images: bool = True
+    create_image_viewer: bool = True
+    create_image_gallery: bool = True
 
 
 @dataclass
@@ -388,6 +412,25 @@ class StaticVisualizationConfig:
         create_trait_correlations: Whether to create correlation plots.
         create_heritability_plots: Whether to create heritability plots.
         create_genotype_comparisons: Whether to create genotype comparison plots.
+        create_phenotype_variation_plots: Whether to create phenotype variation plots
+            showing box plots with jittered points for top heritable traits.
+        phenotype_variation_top_n: Number of top heritable traits to generate
+            phenotype variation plots for (default: 10).
+        regression_trait_pairs: List of trait pairs [[x, y], ...] for regression plots.
+            Each pair specifies the x and y trait names for a regression analysis.
+            Empty list (default) means no regression plots are generated.
+        create_genotype_image_grids: Whether to create genotype image grids for
+            extreme genotypes (requires image paths in metadata).
+        genotype_image_grid_image_type: Image filename/type to display in grids.
+            For RhizoVision: "features.png" (default), "seg.png", etc.
+            For cylinder scanners: "1.jpg" (front), "36.jpg" (back/180 degrees), etc.
+        genotype_image_grid_trait_cols: Optional list of trait column names to show
+            statistics for in the image grid. If None, no trait statistics are shown.
+        feature_contribution_variance_threshold: Variance threshold for determining
+            number of PCs to show in feature contribution plot. When None (default),
+            inherits from pca.n_components (if < 1) or uses 0.95.
+        feature_contribution_top_n: Number of top features to show in the feature
+            contribution bar chart (default: 20).
         pca_biplot_top_features: Number of top features to show in PCA biplot (default: 10).
         pca_heatmap_features: Number of features to show in PCA contribution heatmap (default: 20).
         pca_n_components: Number of principal components to show in PC boxplots (default: 3).
@@ -406,6 +449,7 @@ class StaticVisualizationConfig:
         legend_fontsize: Font size for legend text.
         bbox_inches: Bounding box mode for savefig ("tight" or None).
         transparent: Whether to save with transparent background.
+        save_pdf: Whether to generate PDF files alongside other formats (default: True).
     """
 
     enabled: bool = True
@@ -418,6 +462,15 @@ class StaticVisualizationConfig:
     create_trait_correlations: bool = True
     create_heritability_plots: bool = True
     create_genotype_comparisons: bool = True
+    create_phenotype_variation_plots: bool = True
+    phenotype_variation_top_n: int = 10
+    regression_trait_pairs: List[List[str]] = field(default_factory=list)
+    create_genotype_image_grids: bool = True
+    genotype_image_grid_image_type: str = "features.png"
+    genotype_image_grid_trait_cols: Optional[List[str]] = None
+    # Feature contribution plot parameters
+    feature_contribution_variance_threshold: Optional[float] = None
+    feature_contribution_top_n: int = 20
     # Visualization parameters
     pca_biplot_top_features: int = 10
     pca_heatmap_features: int = 20
@@ -435,6 +488,8 @@ class StaticVisualizationConfig:
     # Savefig parameters
     bbox_inches: Optional[str] = "tight"
     transparent: bool = False
+    # File output options
+    save_pdf: bool = True  # Whether to generate PDF files alongside other formats
 
 
 @dataclass

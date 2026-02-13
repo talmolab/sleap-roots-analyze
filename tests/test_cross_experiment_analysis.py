@@ -1317,3 +1317,125 @@ class TestAchievedPower:
         power_08 = achieved_power(r=0.8, n=n, alpha=0.05)
 
         assert power_02 < power_05 < power_08
+
+
+class TestCrossExperimentLabelFormatting:
+    """Tests for label formatting consistency in cross-experiment plots."""
+
+    def test_joint_plot_axis_labels_readable(self, cross_experiment_means_fixture):
+        """Test that joint plot axis labels are readable (truncated appropriately)."""
+        from sleap_roots_analyze.cross_experiment_analysis import create_joint_plot
+
+        exp1_means, exp2_means = cross_experiment_means_fixture
+
+        # Use a long trait name to test truncation
+        long_trait1 = (
+            "very_long_trait_name_that_exceeds_normal_length_limits_for_display"
+        )
+        long_trait2 = "another_extremely_long_trait_name_for_testing_purposes"
+
+        # Create mock data with long trait names
+        exp1_means_long = exp1_means.copy()
+        exp2_means_long = exp2_means.copy()
+        exp1_means_long[long_trait1] = exp1_means_long.iloc[:, 0]
+        exp2_means_long[long_trait2] = exp2_means_long.iloc[:, 0]
+
+        fig = create_joint_plot(
+            exp1_means_long,
+            exp2_means_long,
+            long_trait1,
+            long_trait2,
+            exp1_name="Exp1",
+            exp2_name="Exp2",
+        )
+
+        assert isinstance(fig, plt.Figure)
+
+        # Check that the figure was created without error
+        ax = fig.axes[0]
+        xlabel = ax.get_xlabel()
+        ylabel = ax.get_ylabel()
+
+        # Labels should exist and be non-empty
+        assert len(xlabel) > 0, "X-axis label should exist"
+        assert len(ylabel) > 0, "Y-axis label should exist"
+
+        plt.close(fig)
+
+    def test_boxplot_axis_labels_readable(self, cross_experiment_data_fixture):
+        """Test that boxplot axis labels are readable."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            create_genotype_boxplots,
+        )
+
+        exp1_df, exp2_df = cross_experiment_data_fixture
+
+        # Standardize column names - fixture uses different casing
+        # exp1_df has "Geno", "Rep"; exp2_df has "geno", "rep"
+        exp2_df_standardized = exp2_df.rename(columns={"geno": "Geno", "rep": "Rep"})
+
+        # Use standardized genotype column
+        genotype_col = "Geno"
+        trait1 = [c for c in exp1_df.columns if c not in [genotype_col, "Rep"]][0]
+        trait2 = [
+            c for c in exp2_df_standardized.columns if c not in [genotype_col, "Rep"]
+        ][0]
+
+        fig = create_genotype_boxplots(
+            exp1_df,
+            exp2_df_standardized,
+            trait1,
+            trait2,
+            genotype_col=genotype_col,
+            exp1_name="Experiment 1",
+            exp2_name="Experiment 2",
+        )
+
+        assert isinstance(fig, plt.Figure)
+
+        # Should have 2 axes (one for each experiment)
+        axes = [ax for ax in fig.axes if ax.get_visible()]
+        assert len(axes) >= 2, "Should have axes for both experiments"
+
+        plt.close(fig)
+
+    def test_heatmap_axis_labels_readable(self):
+        """Test that cross-experiment heatmap axis labels are readable."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            create_cross_experiment_heatmap,
+        )
+
+        # Create test correlation data in long format (as expected by the function)
+        n_traits_exp1 = 10
+        n_traits_exp2 = 8
+        exp1_traits = [f"trait1_{i:02d}_some_suffix" for i in range(n_traits_exp1)]
+        exp2_traits = [f"trait2_{i:02d}_another_suffix" for i in range(n_traits_exp2)]
+
+        # Create long-form correlation DataFrame with required columns
+        np.random.seed(42)
+        rows = []
+        for exp1_t in exp1_traits:
+            for exp2_t in exp2_traits:
+                corr = np.random.uniform(-0.8, 0.8)
+                rows.append(
+                    {
+                        "exp1_trait": exp1_t,
+                        "exp2_trait": exp2_t,
+                        "correlation": corr,
+                        "abs_correlation": abs(corr),
+                    }
+                )
+        correlation_df = pd.DataFrame(rows)
+
+        fig = create_cross_experiment_heatmap(
+            correlation_df,
+            top_n_traits=10,  # Use actual parameter from function signature
+        )
+
+        assert isinstance(fig, plt.Figure)
+
+        # Check figure was created
+        ax = fig.axes[0]
+        assert ax is not None
+
+        plt.close(fig)

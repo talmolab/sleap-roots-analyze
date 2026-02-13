@@ -34,11 +34,14 @@ statistics:
   alpha: 0.05
 
 # PCA configuration
+# Note: pca.n_top_features controls how many features are selected for ANALYSIS purposes
+# (e.g., identifying interesting genotypes). This is separate from visualization settings.
+# See static_viz.pca_biplot_top_features for controlling biplot arrow count.
 pca:
   n_components: 0.95
   standardize: true
   feature_selection_strategy: "top_variance"
-  n_top_features: 10
+  n_top_features: 10  # Features used for analysis (e.g., interesting genotype identification)
 
 # UMAP configuration (optional for publications)
 umap:
@@ -79,6 +82,10 @@ adaptive_sizing:
   max_height: 9.0
 
 # Static visualization settings (HIGH QUALITY)
+# Note: pca_biplot_top_features controls how many feature arrows appear on the PCA biplot.
+# This is separate from pca.n_top_features (analysis). For "extreme" selection strategies,
+# set this to match the desired per-extreme count (e.g., 1 shows the most extreme feature
+# in each direction per PC, giving up to 4 total arrows for 2 PCs).
 static_viz:
   enabled: true
   formats:
@@ -86,6 +93,7 @@ static_viz:
     - pdf  # Vector for journals
     - svg  # Vector for presentations/editing
   dpi: 600  # Publication quality
+  pca_biplot_top_features: 6  # Fewer arrows for cleaner publication figures
   create_pca_plots: true
   create_umap_plots: false
   create_cluster_plots: false

@@ -766,8 +766,8 @@ class PipelineRunner:
     def _format_viz_summary(self) -> list[str]:
         """Format Viz results for summary with figure counts.
 
-        Counts PNG figures from static_figures directory and HTML interactive files
-        from interactive_figures, pca, and umap directories.
+        Counts PNG figures from figures/ directory (recursively) and HTML
+        interactive files from figures/interactive/.
         """
         lines = [
             "## Visualization Pipeline Results",
@@ -788,24 +788,15 @@ class PipelineRunner:
             if result.get("success") and output != "N/A":
                 output_path = Path(output)
 
-                # Count PNG files in static_figures directory (primary location)
-                static_figures_dir = output_path / "static_figures"
-                png_count = self._count_files(static_figures_dir, "*.png")
-                # Also check figures/ for backwards compatibility
+                # Count PNG files recursively in figures/ directory
+                # (includes pca/, heritability/, overview/, etc. subdirectories)
                 figures_dir = output_path / "figures"
-                png_count += self._count_files(figures_dir, "*.png")
-                # Count any PNG in root as well
-                png_count += self._count_files(output_path, "*.png")
+                png_count = self._count_files_recursive(figures_dir, "*.png")
                 figure_count = str(png_count) if png_count > 0 else "0"
 
-                # Count interactive HTML files from multiple locations
-                interactive_figures_dir = output_path / "interactive_figures"
-                html_count = self._count_files(interactive_figures_dir, "*.html")
-                # Also check pca/ and umap/ directories
-                pca_dir = output_path / "pca"
-                html_count += self._count_files(pca_dir, "*.html")
-                umap_dir = output_path / "umap"
-                html_count += self._count_files(umap_dir, "*.html")
+                # Count interactive HTML files from figures/interactive/
+                interactive_dir = output_path / "figures" / "interactive"
+                html_count = self._count_files(interactive_dir, "*.html")
                 interactive_count = str(html_count) if html_count > 0 else "0"
 
             lines.append(
@@ -1065,6 +1056,21 @@ class PipelineRunner:
         return len(list(directory.glob(pattern)))
 
     @staticmethod
+    def _count_files_recursive(directory: Path, pattern: str) -> int:
+        """Count files matching a pattern recursively in a directory.
+
+        Args:
+            directory: Directory to search recursively
+            pattern: Glob pattern (e.g., '*.png')
+
+        Returns:
+            Count of matching files in directory and all subdirectories
+        """
+        if not directory.exists():
+            return 0
+        return len(list(directory.rglob(pattern)))
+
+    @staticmethod
     def _read_csv_safe(csv_path: Path) -> dict[str, Any]:
         """Read a CSV file safely and return as dict.
 
@@ -1212,9 +1218,11 @@ class PipelineRunner:
                 values["h2_threshold"].append(h2_config["threshold"])
 
             # Extract outlier detection chi2 percentile if available
+            # Chi2 percentile is nested under outlier_detection.mahalanobis
             outlier_config = config_data.get("outlier_detection", {})
-            if "chi2_percentile" in outlier_config:
-                values["chi2_percentile"].append(outlier_config["chi2_percentile"])
+            mahalanobis_config = outlier_config.get("mahalanobis", {})
+            if "chi2_percentile" in mahalanobis_config:
+                values["chi2_percentile"].append(mahalanobis_config["chi2_percentile"])
 
         return values
 

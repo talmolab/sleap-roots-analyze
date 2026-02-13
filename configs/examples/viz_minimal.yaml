@@ -33,11 +33,13 @@ statistics:
   alpha: 0.05
 
 # PCA configuration
+# Note: pca.n_top_features controls analysis features, separate from biplot display.
+# See static_viz.pca_biplot_top_features for controlling biplot arrow count.
 pca:
   n_components: 0.95
   standardize: true
   feature_selection_strategy: "top_variance"
-  n_top_features: 5  # Fewer features for speed
+  n_top_features: 5  # Fewer features for speed (analysis only)
 
 # UMAP configuration (DISABLED)
 umap:

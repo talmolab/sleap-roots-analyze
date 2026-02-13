@@ -35,8 +35,14 @@ data:
   # Path to cleaned trait data from QC pipeline
   csv_path: "qc_runs/cylinder_edpie_qc_20251215_121413/10_final_data.csv"
 
-  # Optional: Directory containing root images for hover visualization
-  image_dir: null
+  # Optional: Directory containing cylinder scanner images for image grids
+  # Cylinder images are in subdirectories named by plant_qr_code, with rotation images (1.jpg to 72.jpg)
+  image_dir: "Z:/users/eberrigan/20250328_Charlotte_Rambla_EDPIE_Feb_2025/images_downloader_output"
+
+  # Image linking method: "cylinder" uses scan_path column to find images
+  # (as opposed to "rhizovision" which uses barcode naming convention)
+  image_linking_method: "cylinder"
+  scan_path_col: "scan_path"  # Column containing relative paths like "./images_downloader_output/images/Wave1/..."
 
 # Column names (post-sanitization from QC pipeline)
 columns:
@@ -52,11 +58,14 @@ statistics:
   alpha: 0.05
 
 # PCA configuration (matches notebook: trait_viz_cylinder_20251105.ipynb, Cell 6)
+# Note: n_top_features controls how many features are selected during PCA analysis.
+# For "extreme" strategy, this is the count per extreme (top + bottom).
+# See static_viz.pca_biplot_top_features for display settings.
 pca:
   n_components: 0.75             # Keep components explaining 75% variance (PCA_EXPLAINED_VARIANCE_THRESHOLD)
   standardize: true
   feature_selection_strategy: "extreme"
-  n_top_features: 1             # Show more features due to large trait count
+  n_top_features: 1              # 1 feature per extreme = 2 features per PC
 
 # UMAP configuration (disabled by default)
 umap:
@@ -102,6 +111,8 @@ adaptive_sizing:
   max_height: 20.0
 
 # Static visualization settings
+# Note: pca_biplot_top_features controls how many feature arrows are shown on the
+# PCA biplot. This is separate from pca.n_top_features (analysis).
 static_viz:
   enabled: true
   formats:
@@ -116,6 +127,9 @@ static_viz:
   create_heritability_plots: true
   create_genotype_comparisons: true
 
+  # PCA biplot feature control - matches pca.n_top_features for extreme strategy
+  pca_biplot_top_features: 1
+
   # Genotype highlighting (from notebook: trait_viz_cylinder_20251105.ipynb, Cell 7)
   # genotypes_to_color: List of genotypes to color distinctly in PCA plots
   #   - All listed genotypes get unique colors from the palette
@@ -127,6 +141,15 @@ static_viz:
   #   - Black edge colors for visibility
   #   - Bold, colored labels in PC boxplots
   highlight_genotypes: ["GH_7293", "GH_7378", "GH_7327"]
+
+  # Genotype image grid configuration (cylinder scanner images)
+  # Cylinder scanners capture 72 images per sample (1.jpg to 72.jpg)
+  # Common choices: "1.jpg" (front), "36.jpg" (back/180 degrees)
+  genotype_image_grid_image_type: "1.jpg"
+  # Traits to show statistics for in the genotype image grid
+  genotype_image_grid_trait_cols:
+    - "Seminal Base Tip Dists P95 Mean"
+    - "Seminal Angles Proximal Mean Med"
 
 # Interactive visualization settings
 interactive_viz:

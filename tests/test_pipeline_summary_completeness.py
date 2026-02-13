@@ -228,22 +228,27 @@ class TestVizFigureCounting:
         viz_output = runner.run_dir / "viz" / "test_viz_run"
         viz_output.mkdir(parents=True)
 
-        # Create static_figures directory with PNG files
-        static_dir = viz_output / "static_figures"
-        static_dir.mkdir()
-        for i in range(5):
-            (static_dir / f"fig_{i}.png").write_text("dummy")
+        # Create figures directory with subdirectories (new structure per VIZ-OUTPUT-001)
+        figures_dir = viz_output / "figures"
+        figures_dir.mkdir()
 
-        # Create interactive_figures directory with HTML files
-        interactive_dir = viz_output / "interactive_figures"
-        interactive_dir.mkdir()
-        for i in range(3):
-            (interactive_dir / f"plot_{i}.html").write_text("dummy")
-
-        # Create pca directory with HTML files
-        pca_dir = viz_output / "pca"
+        # Create PCA subdirectory with PNG files
+        pca_dir = figures_dir / "pca"
         pca_dir.mkdir()
-        (pca_dir / "pca_biplot.html").write_text("dummy")
+        for i in range(3):
+            (pca_dir / f"pca_fig_{i}.png").write_text("dummy")
+
+        # Create overview subdirectory with PNG files
+        overview_dir = figures_dir / "overview"
+        overview_dir.mkdir()
+        for i in range(2):
+            (overview_dir / f"overview_{i}.png").write_text("dummy")
+
+        # Create interactive subdirectory with HTML files
+        interactive_dir = figures_dir / "interactive"
+        interactive_dir.mkdir()
+        for i in range(4):
+            (interactive_dir / f"plot_{i}.html").write_text("dummy")
 
         runner.run_results = {
             "qc": {},
@@ -261,9 +266,9 @@ class TestVizFigureCounting:
         lines = runner._format_viz_summary()
         summary_text = "\n".join(lines)
 
-        # Should count static figures (5) not just figures/ dir
+        # Should count PNG figures recursively (3 in pca + 2 in overview = 5)
         assert "| 5 |" in summary_text or "5" in summary_text
-        # Should count interactive figures (3 + 1 from pca)
+        # Should count interactive HTML files (4 in figures/interactive)
         assert "| 4 |" in summary_text or "4" in summary_text
 
 
@@ -574,3 +579,93 @@ class TestSummaryFigures:
         fig_path = runner.run_dir / "heritability_distribution.png"
         # Note: This test will initially fail until we implement the feature
         # assert fig_path.exists(), "heritability_distribution.png should be created"
+
+
+class TestUMAPStubIndicator:
+    """Tests for UMAP stub status display in summaries."""
+
+    def test_umap_skip_reason_in_summary(self, tmp_path):
+        """Verify UMAP skip reason is shown when UMAP is enabled but stubbed."""
+        from sleap_roots_analyze.pipeline.steps.generate_summary_viz import (
+            GenerateSummaryStep,
+        )
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.config import VizPipelineConfig
+
+        # Create config with UMAP enabled
+        config = VizPipelineConfig(pipeline_name="test_viz")
+        config.data.csv_path = "test.csv"
+        config.umap.enabled = True
+        config.summary.formats = ["markdown"]
+
+        # Create minimal DataFrame
+        data = pd.DataFrame({"geno": ["A", "B"], "trait1": [1.0, 2.0]})
+
+        # Create previous result with UMAP skipped_stub status (as set by UMAPAnalysisStep)
+        prev_result = StepResult(
+            data=data,
+            metadata={
+                "n_samples": 2,
+                "n_traits": 1,
+                "trait_names": ["trait1"],
+                "umap_status": "skipped_stub",
+                "umap_skip_reason": "Not yet implemented (Phase 2C)",
+            },
+        )
+
+        # Execute summary step
+        step = GenerateSummaryStep()
+        result = step.execute(data, config, tmp_path, prev_result)
+
+        # Read the generated markdown
+        summary_path = tmp_path / "SUMMARY.md"
+        assert summary_path.exists(), "SUMMARY.md should be created"
+
+        content = summary_path.read_text(encoding="utf-8")
+
+        # Check that UMAP shows skip reason
+        assert "UMAP" in content, "UMAP should be mentioned in summary"
+        assert "skipped" in content.lower(), "Summary should indicate UMAP was skipped"
+        assert (
+            "Not yet implemented" in content or "Phase 2C" in content
+        ), "Summary should include skip reason"
+
+    def test_umap_disabled_no_skip_message(self, tmp_path):
+        """Verify no skip message when UMAP is disabled."""
+        from sleap_roots_analyze.pipeline.steps.generate_summary_viz import (
+            GenerateSummaryStep,
+        )
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.config import VizPipelineConfig
+
+        # Create config with UMAP disabled
+        config = VizPipelineConfig(pipeline_name="test_viz")
+        config.data.csv_path = "test.csv"
+        config.umap.enabled = False  # Default
+        config.summary.formats = ["markdown"]
+
+        # Create minimal DataFrame
+        data = pd.DataFrame({"geno": ["A", "B"], "trait1": [1.0, 2.0]})
+
+        # Create previous result with UMAP disabled status
+        prev_result = StepResult(
+            data=data,
+            metadata={
+                "n_samples": 2,
+                "n_traits": 1,
+                "trait_names": ["trait1"],
+                "umap_status": "disabled",
+            },
+        )
+
+        # Execute summary step
+        step = GenerateSummaryStep()
+        result = step.execute(data, config, tmp_path, prev_result)
+
+        # Read the generated markdown
+        summary_path = tmp_path / "SUMMARY.md"
+        content = summary_path.read_text(encoding="utf-8")
+
+        # Check that UMAP shows as disabled, not skipped
+        assert "UMAP:** Disabled" in content, "UMAP should show as Disabled"
+        assert "skipped" not in content.lower(), "No skip message for disabled UMAP"

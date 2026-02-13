@@ -17,6 +17,7 @@ from sleap_roots_analyze.cross_experiment_analysis import (
     cluster_correlated_traits,
     select_cluster_representatives,
 )
+from sleap_roots_analyze.data_utils import sanitize_single_trait_name
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
 logger = logging.getLogger(__name__)
@@ -414,6 +415,17 @@ class ReduceTraitRedundancyStep(BaseStep):
         for boundary in cluster_boundaries[:-1]:
             ax.axhline(y=boundary, color="black", linewidth=2)
             ax.axvline(x=boundary, color="black", linewidth=2)
+
+        # Sanitize tick labels for better readability
+        sanitized_labels = [
+            sanitize_single_trait_name(trait, abbreviate=False)
+            for trait in ordered_traits
+        ]
+        ax.set_xticklabels(sanitized_labels)
+        ax.set_yticklabels(sanitized_labels)
+
+        # Create mapping from sanitized back to original for representative highlighting
+        sanitized_to_original = dict(zip(sanitized_labels, ordered_traits))
 
         # Mark representative traits
         for i, trait in enumerate(ordered_traits):

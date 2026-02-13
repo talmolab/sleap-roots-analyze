@@ -33,7 +33,7 @@ class GenerateInteractiveStep(BaseStep):
         - show_images_on_hover: Show image thumbnails on hover (requires image_paths)
 
     Outputs:
-        - interactive_figures/*.html: Generated interactive plots
+        - figures/interactive/*.html: Generated interactive plots
         - 10_interactive_figures_manifest.json: List of generated files
 
     Example:
@@ -45,7 +45,7 @@ class GenerateInteractiveStep(BaseStep):
         step = GenerateInteractiveStep()
         result = step.execute(data, config, run_dir, prev_result)
 
-        # Open in browser: open interactive_figures/interactive_pca.html
+        # Open in browser: open figures/interactive/interactive_pca.html
         ```
     """
 
@@ -84,8 +84,8 @@ class GenerateInteractiveStep(BaseStep):
         logger.info("Generating interactive visualizations...")
         df = data.copy()
 
-        # Create output directory
-        figures_dir = run_dir / "interactive_figures"
+        # Create output directory (figures/interactive/ per VIZ-OUTPUT-001)
+        figures_dir = run_dir / "figures" / "interactive"
         figures_dir.mkdir(parents=True, exist_ok=True)
 
         # Get metadata from previous steps
@@ -101,8 +101,11 @@ class GenerateInteractiveStep(BaseStep):
             # Import interactive visualization functions
             # (deferred to avoid plotly dependency issues)
             from sleap_roots_analyze.interactive_visualization import (
+                create_html_with_image_viewer,
+                create_interactive_image_gallery,
                 create_interactive_pca_plot,
                 create_interactive_pca_with_images,
+                create_interactive_scatter_with_images,
                 create_interactive_umap_with_hover_highlight,
             )
 
@@ -135,6 +138,28 @@ class GenerateInteractiveStep(BaseStep):
                         figures_dir,
                     )
                 )
+
+            # 3. Image-dependent interactive plots (Tasks 11.7-11.9)
+            if image_paths is not None:
+                generated_files.extend(
+                    self._create_image_dependent_plots(
+                        df,
+                        pca_results,
+                        image_paths,
+                        config,
+                        figures_dir,
+                    )
+                )
+            else:
+                # Log skipping message when image paths not available
+                if (
+                    config.interactive_viz.create_scatter_with_images
+                    or config.interactive_viz.create_image_viewer
+                    or config.interactive_viz.create_image_gallery
+                ):
+                    logger.info(
+                        "  Skipping image-dependent interactive plots: image paths not available"
+                    )
 
             logger.info(f"Generated {len(generated_files)} interactive figures")
 
@@ -208,10 +233,10 @@ class GenerateInteractiveStep(BaseStep):
             and "transformed_data" in pca_results
         ):
             fig = create_interactive_pca_with_images(
-                pca_results["transformed_data"],
+                pca_results,  # Pass full dict, not just transformed_data
                 df,
                 image_paths,
-                genotype_col=genotype_col,
+                color_by=genotype_col,  # Use color_by, not genotype_col
                 id_col=barcode_col,
                 title="Interactive PCA with Image Hover",
             )
@@ -229,23 +254,216 @@ class GenerateInteractiveStep(BaseStep):
         config: Any,
         output_dir: Path,
     ) -> list[Path]:
-        """Create interactive UMAP plots."""
+        """Create interactive UMAP plots.
+
+        Args:
+            df: DataFrame with trait data.
+            umap_results: UMAP results containing 'embedding' and 'clean_indices'.
+            image_paths: Optional image paths for hover images.
+            config: Pipeline configuration.
+            output_dir: Directory to save HTML files.
+
+        Returns:
+            List of generated HTML file paths.
+        """
         from sleap_roots_analyze.interactive_visualization import (
-            create_interactive_umap_with_hover_highlight,
+            create_interactive_scatter_plot,
+            create_interactive_umap_with_images,
         )
 
         files = []
         genotype_col = config.columns.genotype
+        barcode_col = config.columns.barcode
 
-        # Interactive UMAP with hover highlighting
-        fig = create_interactive_umap_with_hover_highlight(
-            umap_results,
-            df,
-            genotype_col=genotype_col,
-            title="Interactive UMAP Visualization",
+        # Get clean indices from UMAP results to align data with embedding
+        # (UMAP drops NaN values, so embedding may have fewer samples than df)
+        clean_indices = umap_results.get("clean_indices")
+        if clean_indices is not None:
+            df_aligned = df.loc[clean_indices].copy()
+        else:
+            # Fallback: assume all samples were used
+            df_aligned = df.copy()
+
+        # Add UMAP coordinates to DataFrame for plotting
+        embedding = umap_results["embedding"]
+        df_aligned["UMAP1"] = embedding[:, 0]
+        df_aligned["UMAP2"] = embedding[:, 1] if embedding.shape[1] > 1 else 0
+
+        # Build title with UMAP parameters
+        n_neighbors = umap_results.get("n_neighbors", "?")
+        min_dist = umap_results.get("min_dist", "?")
+        title = f"Interactive UMAP (n_neighbors={n_neighbors}, min_dist={min_dist})"
+
+        # Interactive UMAP colored by genotype with Barcode on hover
+        # (matches interactive PCA style)
+        fig = create_interactive_scatter_plot(
+            df_aligned,
+            x_col="UMAP1",
+            y_col="UMAP2",
+            color_by=genotype_col,
+            hover_data=[barcode_col, genotype_col],
+            title=title,
         )
         filepath = output_dir / "interactive_umap.html"
         fig.write_html(filepath)
         files.append(filepath)
+
+        # Interactive UMAP with image hover (if images available)
+        if config.interactive_viz.show_images_on_hover and image_paths is not None:
+            fig = create_interactive_umap_with_images(
+                umap_results,
+                df_aligned,
+                image_paths,
+                color_by=genotype_col,
+                id_col=barcode_col,
+                title="Interactive UMAP with Image Hover",
+            )
+            filepath = output_dir / "umap_with_images.html"
+            fig.write_html(filepath)
+            files.append(filepath)
+
+        return files
+
+    def _create_image_dependent_plots(
+        self,
+        df: pd.DataFrame,
+        pca_results: Optional[dict],
+        image_paths: pd.Series,
+        config: Any,
+        output_dir: Path,
+    ) -> list[Path]:
+        """Create image-dependent interactive plots (Tasks 11.7-11.9).
+
+        These plots require image paths to be available in metadata.
+
+        Args:
+            df: DataFrame with trait data.
+            pca_results: PCA results if available (for image viewer).
+            image_paths: Series mapping sample indices to image file paths.
+            config: Pipeline configuration.
+            output_dir: Directory to save HTML files.
+
+        Returns:
+            List of generated HTML file paths.
+        """
+        from pathlib import Path as PathLib
+
+        from sleap_roots_analyze.interactive_visualization import (
+            create_html_with_image_viewer,
+            create_interactive_image_gallery,
+            create_interactive_scatter_with_images,
+        )
+
+        files = []
+        genotype_col = config.columns.genotype
+        barcode_col = config.columns.barcode
+
+        # Convert image_paths to image_links Dict format
+        # image_links: Dict[barcode, Dict[image_type, Path]]
+        # Handle both formats:
+        #   1. Dict[str, Dict[str, Path]] from link_rhizovision_images_to_samples()
+        #   2. pd.Series indexed by DataFrame row numbers (legacy format)
+        import pandas as pd
+
+        image_links = {}
+
+        # Detect format by checking if it's a dict (not Series) with nested dict values
+        is_nested_dict_format = (
+            isinstance(image_paths, dict)
+            and len(image_paths) > 0
+            and isinstance(next(iter(image_paths.values())), dict)
+        )
+
+        if is_nested_dict_format:
+            # Format: {barcode: {"features.png": Path, ...}}
+            # Use directly, converting paths to PathLib
+            for barcode, img_dict in image_paths.items():
+                image_links[barcode] = {
+                    img_type: PathLib(path) if path else None
+                    for img_type, path in img_dict.items()
+                }
+        else:
+            # Legacy format: pd.Series indexed by DataFrame row numbers
+            for idx, path in image_paths.items():
+                if idx in df.index:
+                    barcode = (
+                        df.loc[idx, barcode_col]
+                        if barcode_col in df.columns
+                        else str(idx)
+                    )
+                    image_links[barcode] = {"features.png": PathLib(path)}
+
+        # Get trait columns for gallery
+        trait_cols = [
+            col
+            for col in df.columns
+            if col not in [genotype_col, barcode_col, "Barcode", "geno", "rep"]
+            and df[col].dtype in ["float64", "int64"]
+        ]
+
+        # Task 11.7: Scatter with images
+        if config.interactive_viz.create_scatter_with_images:
+            logger.info("  Creating scatter with images plot...")
+            try:
+                if len(trait_cols) >= 2:
+                    fig = create_interactive_scatter_with_images(
+                        df=df,
+                        x_col=trait_cols[0],
+                        y_col=trait_cols[1],
+                        image_links=image_links,
+                        color_by=genotype_col if genotype_col in df.columns else None,
+                        id_col=barcode_col,
+                        title="Interactive Scatter with Images",
+                    )
+                    filepath = output_dir / "scatter_with_images.html"
+                    fig.write_html(filepath)
+                    files.append(filepath)
+            except Exception as e:
+                logger.warning(f"Failed to create scatter with images: {e}")
+
+        # Task 11.8: PCA image viewer (requires PCA results)
+        if config.interactive_viz.create_image_viewer and pca_results:
+            logger.info("  Creating PCA image viewer...")
+            try:
+                # Use PCA plot as base for image viewer
+                if "transformed_data" in pca_results:
+                    from sleap_roots_analyze.interactive_visualization import (
+                        create_interactive_pca_plot,
+                    )
+
+                    pca_fig = create_interactive_pca_plot(
+                        pca_results,
+                        df,
+                        color_by=genotype_col if genotype_col in df.columns else None,
+                    )
+                    filepath = output_dir / "pca_image_viewer.html"
+                    create_html_with_image_viewer(
+                        fig=pca_fig,
+                        df=df,
+                        image_links=image_links,
+                        output_path=filepath,
+                        id_col=barcode_col,
+                    )
+                    files.append(filepath)
+            except Exception as e:
+                logger.warning(f"Failed to create PCA image viewer: {e}")
+
+        # Task 11.9: Image gallery
+        if config.interactive_viz.create_image_gallery:
+            logger.info("  Creating image gallery...")
+            try:
+                filepath = output_dir / "image_gallery.html"
+                create_interactive_image_gallery(
+                    df=df,
+                    image_links=image_links,
+                    trait_cols=(
+                        trait_cols[:5] if trait_cols else []
+                    ),  # Limit to 5 traits
+                    output_path=filepath,
+                    id_col=barcode_col,
+                )
+                files.append(filepath)
+            except Exception as e:
+                logger.warning(f"Failed to create image gallery: {e}")
 
         return files

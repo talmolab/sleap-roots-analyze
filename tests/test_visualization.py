@@ -259,6 +259,98 @@ class TestCreateTraitBoxplotsByGenotype:
         assert height == 12
         plt.close(fig)
 
+    def test_horizontal_orientation_with_many_genotypes(self):
+        """TDD Test: Boxplots use horizontal orientation when n_genotypes > threshold.
+
+        When there are many genotypes (>15), vertical boxplots have unreadable
+        x-axis labels due to overlap. Horizontal orientation puts genotypes on
+        Y-axis where they have more space.
+        """
+        import numpy as np
+
+        # Create data with many genotypes (20 genotypes)
+        n_genotypes = 20
+        n_samples_per_genotype = 5
+        n_samples = n_genotypes * n_samples_per_genotype
+
+        df = pd.DataFrame(
+            {
+                "geno": [f"Genotype_{i:03d}" for i in range(n_genotypes)]
+                * n_samples_per_genotype,
+                "trait1": np.random.randn(n_samples) * 10 + 50,
+                "trait2": np.random.randn(n_samples) * 5 + 20,
+            }
+        )
+
+        trait_cols = ["trait1", "trait2"]
+
+        # Create boxplot with horizontal orientation for many genotypes
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, genotype_col="geno", orientation="horizontal"
+        )
+
+        assert isinstance(fig, plt.Figure)
+        axes = fig.get_axes()
+
+        # Verify orientation is horizontal by checking axis labels
+        # In horizontal boxplots, genotypes should be on Y-axis, trait values on X-axis
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 2
+
+        # Y-axis should have genotype labels
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(label) for label in y_labels if label)
+
+        assert genotype_on_y, (
+            "With horizontal orientation, genotypes should appear on Y-axis. "
+            "This makes labels readable when there are many genotypes."
+        )
+
+        plt.close(fig)
+
+    def test_auto_orientation_switches_to_horizontal_for_many_genotypes(self):
+        """TDD Test: Auto orientation switches to horizontal when genotypes > threshold.
+
+        When orientation='auto' (default), the function should automatically
+        switch to horizontal when n_genotypes exceeds the threshold (e.g., 15).
+        """
+        import numpy as np
+
+        # Create data with many genotypes (20 genotypes)
+        n_genotypes = 20
+        n_samples_per_genotype = 5
+        n_samples = n_genotypes * n_samples_per_genotype
+
+        df = pd.DataFrame(
+            {
+                "geno": [f"Genotype_{i:03d}" for i in range(n_genotypes)]
+                * n_samples_per_genotype,
+                "trait1": np.random.randn(n_samples) * 10 + 50,
+            }
+        )
+
+        trait_cols = ["trait1"]
+
+        # Create boxplot with auto orientation (should detect many genotypes)
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, genotype_col="geno", orientation="auto"
+        )
+
+        assert isinstance(fig, plt.Figure)
+        axes = fig.get_axes()
+
+        # Y-axis should have genotype labels (auto-switched to horizontal)
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(label) for label in y_labels if label)
+
+        assert genotype_on_y, (
+            "With 20 genotypes and orientation='auto', should auto-switch to horizontal. "
+            "Threshold for switching should be ~15 genotypes."
+        )
+
+        plt.close(fig)
+
 
 class TestCreateCorrelationHeatmap:
     """Tests for create_correlation_heatmap function."""
@@ -344,6 +436,89 @@ class TestCreateCorrelationHeatmap:
 
         assert isinstance(fig, plt.Figure)
         # Should handle large correlation matrix
+        plt.close(fig)
+
+    def test_small_dataset_original_dimensions(self):
+        """Test that small dataset (19 traits) uses original dimensions.
+
+        Backward compatibility: small datasets should work as before.
+        """
+        # Create 19-trait dataset
+        n_samples = 50
+        n_traits = 19
+        np.random.seed(42)
+        data = {f"trait_{i:02d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        fig = create_correlation_heatmap(df, trait_cols, figsize=(12, 12))
+
+        assert isinstance(fig, plt.Figure)
+        width, height = fig.get_size_inches()
+        # For small datasets, should use the default figsize
+        assert width == 12
+        assert height == 12
+        plt.close(fig)
+
+    def test_large_dataset_adaptive_sizing(self):
+        """Test that large dataset (200+ traits) scales figure size adaptively."""
+        # Create 200-trait dataset
+        n_samples = 50
+        n_traits = 200
+        np.random.seed(42)
+        data = {f"trait_{i:03d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        fig = create_correlation_heatmap(df, trait_cols)
+
+        assert isinstance(fig, plt.Figure)
+        width, height = fig.get_size_inches()
+        # For large datasets, figure should scale up
+        assert width > 12, f"Expected width > 12 for {n_traits} traits, got {width}"
+        assert height > 12, f"Expected height > 12 for {n_traits} traits, got {height}"
+        plt.close(fig)
+
+    def test_heatmap_label_font_minimum(self):
+        """Test that heatmap labels have minimum 6pt font for readability."""
+        # Create moderately large dataset
+        n_samples = 50
+        n_traits = 100
+        np.random.seed(42)
+        data = {f"trait_{i:03d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        fig = create_correlation_heatmap(df, trait_cols)
+
+        ax = fig.axes[0]
+        # Check x and y tick labels
+        for label in ax.get_xticklabels() + ax.get_yticklabels():
+            fontsize = label.get_fontsize()
+            assert fontsize >= 6, f"Label font size {fontsize} should be >= 6pt"
+
+        plt.close(fig)
+
+    def test_heatmap_label_font_minimum_500_traits(self):
+        """Test that heatmap labels maintain 6pt floor even for 500 traits."""
+        # Create very large dataset (500 traits)
+        n_samples = 20
+        n_traits = 500
+        np.random.seed(42)
+        data = {f"trait_{i:03d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        fig = create_correlation_heatmap(df, trait_cols)
+
+        ax = fig.axes[0]
+        # Check x and y tick labels - all should be >= 6pt (the floor)
+        for label in ax.get_xticklabels() + ax.get_yticklabels():
+            fontsize = label.get_fontsize()
+            assert (
+                fontsize >= 6
+            ), f"Label font size {fontsize} should be >= 6pt for 500 traits"
+
         plt.close(fig)
 
 
@@ -1068,6 +1243,138 @@ class TestEDAIntegration:
                 assert path.exists()
 
 
+class TestEDAScalability:
+    """Tests for EDA plot scalability with large datasets."""
+
+    def test_small_dataset_original_dimensions(self, viz_eda_thresholds):
+        """Test that small dataset (<50 traits) uses original dimensions."""
+        n_samples = 100
+        n_traits = 30
+        np.random.seed(42)
+        data = {f"trait_{i:02d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        figures = create_trait_eda_plots(df, trait_cols, viz_eda_thresholds)
+
+        assert "trait_eda_overview" in figures
+        fig = figures["trait_eda_overview"]
+        width, height = fig.get_size_inches()
+        # For small datasets, should use default dimensions
+        assert width == 18
+        assert height == 14
+
+        for f in figures.values():
+            plt.close(f)
+
+    def test_large_dataset_adaptive_width(self, viz_eda_thresholds):
+        """Test that large dataset (200+ traits) scales figure width adaptively."""
+        n_samples = 100
+        n_traits = 200
+        np.random.seed(42)
+        data = {f"trait_{i:03d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        figures = create_trait_eda_plots(df, trait_cols, viz_eda_thresholds)
+
+        assert "trait_eda_overview" in figures
+        fig = figures["trait_eda_overview"]
+        width, height = fig.get_size_inches()
+        # For large datasets, figure should scale width
+        assert width > 18, f"Expected width > 18 for {n_traits} traits, got {width}"
+
+        for f in figures.values():
+            plt.close(f)
+
+    def test_large_dataset_readable_labels(self, viz_eda_thresholds):
+        """Test that large dataset has readable x-axis labels (min 6pt font)."""
+        n_samples = 100
+        n_traits = 100
+        np.random.seed(42)
+        data = {f"trait_{i:03d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        figures = create_trait_eda_plots(df, trait_cols, viz_eda_thresholds)
+
+        assert "trait_eda_overview" in figures
+        fig = figures["trait_eda_overview"]
+
+        # Check that x-tick labels have minimum font size
+        for ax in fig.axes:
+            for label in ax.get_xticklabels():
+                if label.get_text():  # Non-empty label
+                    fontsize = label.get_fontsize()
+                    assert fontsize >= 6, f"Label font size {fontsize} should be >= 6pt"
+
+        for f in figures.values():
+            plt.close(f)
+
+
+class TestVarianceDecompositionScalability:
+    """Tests for variance decomposition plot scalability."""
+
+    def test_small_dataset_original_dimensions(self):
+        """Test that small dataset (<50 traits) uses original dimensions."""
+        from sleap_roots_analyze.visualization import create_variance_decomposition_plot
+
+        n_traits = 20
+        np.random.seed(42)
+        comparison_df = pd.DataFrame(
+            {
+                "trait": [f"trait_{i:02d}" for i in range(n_traits)],
+                "heritability": np.random.uniform(0.1, 0.8, n_traits),
+                "var_genetic": np.random.uniform(0.5, 2.0, n_traits),
+                "var_residual": np.random.uniform(0.3, 1.5, n_traits),
+                "n_observations": np.random.randint(10, 50, n_traits),
+                "trait_cv": np.random.uniform(10, 50, n_traits),  # CV in percentage
+            }
+        )
+
+        fig = create_variance_decomposition_plot(comparison_df)
+
+        assert isinstance(fig, plt.Figure)
+        width, height = fig.get_size_inches()
+        # For small datasets, should use default dimensions
+        assert width == 14
+        assert height == 8
+
+        plt.close(fig)
+
+    def test_large_dataset_adaptive_sizing(self):
+        """Test that large dataset (200+ traits) returns paginated or top-N figures."""
+        from sleap_roots_analyze.visualization import create_variance_decomposition_plot
+
+        n_traits = 200
+        np.random.seed(42)
+        comparison_df = pd.DataFrame(
+            {
+                "trait": [f"trait_{i:03d}" for i in range(n_traits)],
+                "heritability": np.random.uniform(0.1, 0.8, n_traits),
+                "var_genetic": np.random.uniform(0.5, 2.0, n_traits),
+                "var_residual": np.random.uniform(0.3, 1.5, n_traits),
+                "n_observations": np.random.randint(10, 50, n_traits),
+                "trait_cv": np.random.uniform(10, 50, n_traits),  # CV in percentage
+            }
+        )
+
+        result = create_variance_decomposition_plot(comparison_df)
+
+        # Should either return paginated list or a scaled figure
+        if isinstance(result, list):
+            assert len(result) > 1, "Should have multiple pages for 200+ traits"
+            for fig in result:
+                assert isinstance(fig, plt.Figure)
+                plt.close(fig)
+        else:
+            # Single figure with adaptive sizing
+            assert isinstance(result, plt.Figure)
+            width, height = result.get_size_inches()
+            assert width > 14, f"Expected width > 14 for {n_traits} traits, got {width}"
+            plt.close(result)
+
+
 class TestVisualizationIntegration:
     """Integration tests for visualization module."""
 
@@ -1277,6 +1584,197 @@ class TestCreateHeritabilityPlot:
         size = fig.get_size_inches()
         assert size[0] == 15
         assert size[1] == 8
+
+        plt.close("all")
+
+    def test_heritability_plot_small_dataset_single_figure(self):
+        """Test that small dataset (<50 traits) returns single figure.
+
+        Backward compatibility: small datasets should work exactly as before.
+        """
+        from sleap_roots_analyze.visualization import create_heritability_plot
+
+        # Create small dataset with 20 traits
+        small_results = {
+            f"trait_{i}": {"heritability": 0.3 + 0.03 * i} for i in range(20)
+        }
+
+        result = create_heritability_plot(small_results)
+
+        # Should return a single figure, not a list
+        assert isinstance(result, plt.Figure)
+
+        plt.close("all")
+
+    def test_heritability_plot_large_dataset_paginated(self):
+        """Test that large dataset (200+ traits) returns list of paginated figures."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+
+        # Create large dataset with 200 traits
+        large_results = {
+            f"trait_{i:03d}": {"heritability": (i % 100) / 100} for i in range(200)
+        }
+
+        result = create_heritability_plot(large_results)
+
+        # Should return a list of figures for pagination
+        assert isinstance(result, list), "Large dataset should return list of figures"
+        assert len(result) > 1, "Should have multiple pages for 200+ traits"
+        assert all(isinstance(fig, plt.Figure) for fig in result)
+
+        plt.close("all")
+
+    def test_heritability_plot_pagination_has_readable_labels(self):
+        """Test that paginated heritability figures have readable labels."""
+        from sleap_roots_analyze.visualization import create_heritability_plot
+
+        # Create dataset with 100 traits
+        large_results = {
+            f"trait_{i:03d}": {"heritability": (i % 100) / 100} for i in range(100)
+        }
+
+        result = create_heritability_plot(large_results)
+
+        if isinstance(result, list):
+            for fig in result:
+                ax = fig.axes[0]
+                # Check that x-tick labels exist
+                labels = ax.get_xticklabels()
+                assert len(labels) > 0, "Each page should have trait labels"
+                # Font should be at least 6pt
+                for label in labels:
+                    fontsize = label.get_fontsize()
+                    assert fontsize >= 6, f"Label font size {fontsize} should be >= 6pt"
+
+        plt.close("all")
+
+    def test_heritability_bar_labels_adaptive_font_size_many_traits(self):
+        """Test that bar value labels use smaller font when there are many traits.
+
+        Task 3.7: Bar value labels should use fontsize <= 6 when traits > 30.
+        """
+        from sleap_roots_analyze.visualization import create_heritability_plot
+
+        # Create dataset with 40 traits (> 30 threshold)
+        large_results = {
+            f"trait_{i:03d}": {"heritability": 0.3 + (i % 50) / 100} for i in range(40)
+        }
+
+        result = create_heritability_plot(large_results)
+
+        # With 40 traits, should be a single figure (under 50 per page)
+        assert isinstance(result, plt.Figure)
+        ax = result.axes[0]
+
+        # Find bar value labels (text annotations on top of bars)
+        bar_value_texts = [
+            t for t in ax.texts if t.get_text().replace(".", "").isdigit()
+        ]
+
+        # Should have text labels
+        assert len(bar_value_texts) > 0, "Should have bar value labels"
+
+        # All bar value labels should have fontsize <= 6 for many traits
+        for text in bar_value_texts:
+            fontsize = text.get_fontsize()
+            assert (
+                fontsize <= 6
+            ), f"Bar label fontsize {fontsize} should be <= 6 for >30 traits"
+
+        plt.close("all")
+
+    def test_heritability_bar_labels_rotation_many_traits(self):
+        """Test that bar value labels use rotation when there are many traits.
+
+        Task 3.8: Bar value labels should use rotation when traits > 15.
+        """
+        from sleap_roots_analyze.visualization import create_heritability_plot
+
+        # Create dataset with 25 traits (> 15 but < 30)
+        medium_results = {
+            f"trait_{i:02d}": {"heritability": 0.3 + (i % 50) / 100} for i in range(25)
+        }
+
+        result = create_heritability_plot(medium_results)
+
+        assert isinstance(result, plt.Figure)
+        ax = result.axes[0]
+
+        # Find bar value labels
+        bar_value_texts = [
+            t for t in ax.texts if t.get_text().replace(".", "").isdigit()
+        ]
+
+        # Should have text labels
+        assert len(bar_value_texts) > 0, "Should have bar value labels"
+
+        # All bar value labels should have rotation for medium-large trait counts
+        for text in bar_value_texts:
+            rotation = text.get_rotation()
+            assert (
+                rotation > 0
+            ), f"Bar label rotation {rotation} should be > 0 for >15 traits"
+
+        plt.close("all")
+
+    def test_heritability_xaxis_labels_adaptive_font_many_traits(self):
+        """Test that x-axis tick labels use smaller font for many traits.
+
+        Task 3.10: X-axis tick labels should use smaller font when traits > 30.
+        """
+        from sleap_roots_analyze.visualization import create_heritability_plot
+
+        # Create dataset with 40 traits
+        large_results = {
+            f"trait_{i:03d}": {"heritability": 0.3 + (i % 50) / 100} for i in range(40)
+        }
+
+        result = create_heritability_plot(large_results)
+
+        assert isinstance(result, plt.Figure)
+        ax = result.axes[0]
+
+        # Check x-axis tick label font sizes
+        for label in ax.get_xticklabels():
+            fontsize = label.get_fontsize()
+            assert (
+                fontsize <= 8
+            ), f"X-axis label fontsize {fontsize} should be <= 8 for >30 traits"
+
+        plt.close("all")
+
+    def test_heritability_bar_labels_no_rotation_few_traits(self):
+        """Test that bar value labels don't have rotation for few traits.
+
+        Verifies backward compatibility: <= 15 traits should not change appearance.
+        """
+        from sleap_roots_analyze.visualization import create_heritability_plot
+
+        # Create dataset with 10 traits
+        small_results = {
+            f"trait_{i:02d}": {"heritability": 0.3 + (i % 50) / 100} for i in range(10)
+        }
+
+        result = create_heritability_plot(small_results)
+
+        assert isinstance(result, plt.Figure)
+        ax = result.axes[0]
+
+        # Find bar value labels
+        bar_value_texts = [
+            t for t in ax.texts if t.get_text().replace(".", "").isdigit()
+        ]
+
+        # Small datasets should NOT have rotation (backward compatibility)
+        for text in bar_value_texts:
+            rotation = text.get_rotation()
+            assert (
+                rotation == 0
+            ), f"Bar label rotation {rotation} should be 0 for <=15 traits"
+            fontsize = text.get_fontsize()
+            assert (
+                fontsize == 8
+            ), f"Bar label fontsize {fontsize} should be 8 for <=15 traits"
 
         plt.close("all")
 
@@ -2477,6 +2975,117 @@ class TestPCAVisualization:
             )
 
 
+class TestBiplotLabelOverlap:
+    """Tests for PCA biplot label overlap prevention."""
+
+    def test_small_feature_count_unchanged(self, pca_viz_results, pca_viz_dataframe):
+        """Test that small feature count (<10) has unchanged label placement."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            top_n_features=5,  # Small number of features
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Check that labels exist
+        texts = ax.texts
+        assert len(texts) > 0, "Should have feature labels"
+
+        plt.close(fig)
+
+    def test_many_features_non_overlapping(self, pca_viz_dataframe):
+        """Test that many features (10+) have non-overlapping labels using adjustText."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+        from sklearn.decomposition import PCA
+
+        # Create dataset with many features
+        n_features = 20
+        n_samples = len(pca_viz_dataframe)
+        np.random.seed(42)
+
+        # Create feature data
+        feature_data = np.random.randn(n_samples, n_features)
+        trait_names = [f"trait_{i:02d}" for i in range(n_features)]
+
+        # Perform PCA
+        pca = PCA(n_components=min(5, n_features, n_samples))
+        transformed = pca.fit_transform(feature_data)
+
+        pca_results = {
+            "transformed_data": transformed,
+            "loadings": pca.components_.T,
+            "explained_variance_ratio": pca.explained_variance_ratio_,
+            "eigenvalues": pca.explained_variance_,
+            "feature_names": trait_names,
+        }
+
+        fig = create_pca_biplot(
+            pca_results,
+            pca_viz_dataframe,
+            trait_names,
+            top_n_features=15,  # Many features
+        )
+
+        assert isinstance(fig, plt.Figure)
+        ax = fig.axes[0]
+
+        # Check that labels exist
+        texts = ax.texts
+        # For many features, adjustText should be applied
+        assert len(texts) > 0, "Should have feature labels even with many features"
+
+        plt.close(fig)
+
+    def test_biplot_with_100_genotypes(self, pca_viz_dataframe):
+        """Test biplot renders without error for 100+ genotype datasets."""
+        from sleap_roots_analyze.visualization import create_pca_biplot
+        from sklearn.decomposition import PCA
+
+        # Create large dataset
+        n_samples = 150
+        n_features = 10
+        np.random.seed(42)
+
+        # Create synthetic data with many genotypes
+        feature_data = np.random.randn(n_samples, n_features)
+        df = pd.DataFrame(
+            feature_data, columns=[f"trait_{i}" for i in range(n_features)]
+        )
+        df["geno"] = [f"geno_{i:03d}" for i in range(n_samples)]  # 150 unique genotypes
+
+        trait_names = [f"trait_{i}" for i in range(n_features)]
+
+        # Perform PCA
+        pca = PCA(n_components=5)
+        transformed = pca.fit_transform(feature_data)
+
+        pca_results = {
+            "transformed_data": transformed,
+            "loadings": pca.components_.T,
+            "explained_variance_ratio": pca.explained_variance_ratio_,
+            "eigenvalues": pca.explained_variance_,
+            "feature_names": trait_names,
+        }
+
+        fig = create_pca_biplot(
+            pca_results,
+            df,
+            trait_names,
+            color_by="geno",
+            top_n_features=5,
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+
 class TestFeatureContributionHeatmap:
     """Tests for create_feature_contribution_heatmap function."""
 
@@ -2788,3 +3397,460 @@ class TestCreatePhenotypeVariationPlot:
         assert np.allclose(plot_df["trait_B_high_threshold"].iloc[0], expected_high)
 
         plt.close("all")
+
+
+class TestBatchedHistogramsFileReduction:
+    """Tests for batched histogram file reduction with large datasets."""
+
+    def test_default_batch_size_small_dataset(self):
+        """Test that small datasets (<100 traits) use default batch size of 16."""
+        from sleap_roots_analyze.visualization import create_trait_histograms_batched
+
+        n_samples = 50
+        n_traits = 50
+        np.random.seed(42)
+        data = {f"trait_{i:02d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        figures = create_trait_histograms_batched(df, trait_cols)
+
+        # With 50 traits and batch_size=16, expect 4 figures
+        expected_figs = (n_traits + 15) // 16  # ceil(50/16) = 4
+        assert len(figures) == expected_figs
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_large_dataset_reasonable_file_count(self):
+        """Test that large datasets (300+ traits) generate reasonable file count."""
+        from sleap_roots_analyze.visualization import create_trait_histograms_batched
+
+        n_samples = 50
+        n_traits = 300
+        np.random.seed(42)
+        data = {f"trait_{i:03d}": np.random.randn(n_samples) for i in range(n_traits)}
+        df = pd.DataFrame(data)
+        trait_cols = list(data.keys())
+
+        figures = create_trait_histograms_batched(df, trait_cols)
+
+        # With default batch_size=16, would generate 19 figures
+        # Should be no more than 30 figures for reasonable file management
+        assert len(figures) <= 30, (
+            f"Too many batch files generated: {len(figures)}. "
+            "Should be <= 30 for 300 traits"
+        )
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_boxplots_large_dataset_reasonable_file_count(self):
+        """Test that boxplot batches for large datasets are reasonable."""
+        from sleap_roots_analyze.visualization import (
+            create_trait_boxplots_by_genotype_batched,
+        )
+
+        n_samples = 100
+        n_traits = 200
+        np.random.seed(42)
+        data = {f"trait_{i:03d}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [f"geno_{i % 10}" for i in range(n_samples)]
+        df = pd.DataFrame(data)
+        trait_cols = [c for c in df.columns if c.startswith("trait")]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        # Should generate reasonable number of files
+        assert len(figures) <= 20, (
+            f"Too many boxplot batch files: {len(figures)}. "
+            "Should be <= 20 for 200 traits"
+        )
+
+        for fig in figures:
+            plt.close(fig)
+
+
+class TestTraitBoxplotsAdaptiveSizing:
+    """Tests for Section 6c: Trait Boxplots by Genotype Adaptive Sizing.
+
+    The issue: figsize was hardcoded assuming batch_size=16, causing vertically
+    stretched plots when actual batch_size is smaller (e.g., 6).
+    """
+
+    def test_boxplots_figsize_scales_with_batch_size(self):
+        """Test that figsize is calculated based on actual batch_size, not hardcoded 16.
+
+        Task 6c.1: figsize should be based on actual batch_size and n_cols.
+        """
+        from sleap_roots_analyze.visualization import (
+            create_trait_boxplots_by_genotype_batched,
+        )
+
+        n_samples = 50
+        n_traits = 6  # Exactly one batch
+        np.random.seed(42)
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [f"geno_{i % 5}" for i in range(n_samples)]
+        df = pd.DataFrame(data)
+        trait_cols = [c for c in df.columns if c.startswith("trait")]
+
+        # Use batch_size=6, n_cols=4 -> 2 rows
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=6, n_cols=4
+        )
+
+        assert len(figures) == 1
+        fig = figures[0]
+
+        # With 6 traits in 4 cols: 2 rows needed
+        # Each subplot should be ~4x4 inches, so figsize should be ~(16, 8)
+        width, height = fig.get_size_inches()
+
+        # Height should be proportional to number of rows (2), not hardcoded 16
+        # With 2 rows and ~4 inches per row, height should be ~8, not 16
+        assert height <= 10, f"Figure height {height} too tall for 2 rows of subplots"
+
+        plt.close(fig)
+
+    def test_boxplots_subplots_not_vertically_stretched(self):
+        """Test that subplot dimensions are proportional (not vertically stretched).
+
+        Task 6c.2: Subplots should have reasonable aspect ratio, not 1:2 stretched.
+        """
+        from sleap_roots_analyze.visualization import (
+            create_trait_boxplots_by_genotype_batched,
+        )
+
+        n_samples = 50
+        n_traits = 6
+        np.random.seed(42)
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [f"geno_{i % 5}" for i in range(n_samples)]
+        df = pd.DataFrame(data)
+        trait_cols = [c for c in df.columns if c.startswith("trait")]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=6, n_cols=4
+        )
+
+        fig = figures[0]
+        width, height = fig.get_size_inches()
+
+        # n_cols=4, n_rows=2 for batch_size=6
+        # Width per col = width / 4
+        # Height per row = height / 2
+        # Aspect ratio should be reasonable (close to 1:1, not 1:2)
+        width_per_col = width / 4
+        height_per_row = height / 2
+
+        aspect_ratio = height_per_row / width_per_col
+        # Aspect ratio should be between 0.5 and 2.0 (reasonable range)
+        assert 0.5 <= aspect_ratio <= 2.0, (
+            f"Subplot aspect ratio {aspect_ratio:.2f} is too extreme. "
+            f"Width/col={width_per_col:.1f}, Height/row={height_per_row:.1f}"
+        )
+
+        plt.close(fig)
+
+    def test_boxplots_partial_batch_sizing(self):
+        """Test that partial batches also have proportional sizing."""
+        from sleap_roots_analyze.visualization import (
+            create_trait_boxplots_by_genotype_batched,
+        )
+
+        n_samples = 50
+        n_traits = 10  # 6 in first batch, 4 in second (partial)
+        np.random.seed(42)
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [f"geno_{i % 5}" for i in range(n_samples)]
+        df = pd.DataFrame(data)
+        trait_cols = [c for c in df.columns if c.startswith("trait")]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=6, n_cols=4
+        )
+
+        assert len(figures) == 2
+
+        # Check the partial batch (4 traits = 1 row)
+        partial_fig = figures[1]
+        _, height = partial_fig.get_size_inches()
+
+        # 4 traits in 4 cols = 1 row, height should be much smaller than full batch
+        full_fig = figures[0]
+        _, full_height = full_fig.get_size_inches()
+
+        # Partial batch with 1 row should be shorter than full batch with 2 rows
+        assert (
+            height < full_height
+        ), f"Partial batch height {height} should be less than full batch {full_height}"
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_partial_batch_width_scales_with_actual_columns(self):
+        """TDD Test: Partial batches should have width scaled to actual columns used.
+
+        When a final batch has only 2 traits and n_cols=3, the figure width
+        should be for 2 columns, not 3 columns (avoiding whitespace).
+        """
+        from sleap_roots_analyze.visualization import (
+            create_trait_boxplots_by_genotype_batched,
+        )
+
+        n_samples = 50
+        n_traits = 8  # 6 in first batch, 2 in second batch
+        np.random.seed(42)
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [f"geno_{i % 5}" for i in range(n_samples)]
+        df = pd.DataFrame(data)
+        trait_cols = [c for c in df.columns if c.startswith("trait")]
+
+        # batch_size=6, n_cols=3 -> first batch: 6 traits in 3x2, second batch: 2 traits
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=6, n_cols=3
+        )
+
+        assert len(figures) == 2
+
+        full_fig = figures[0]
+        partial_fig = figures[1]
+
+        full_width, _ = full_fig.get_size_inches()
+        partial_width, _ = partial_fig.get_size_inches()
+
+        # Partial batch with 2 traits should have narrower width than full batch with 3 cols
+        # The width should be approximately 2/3 of the full width
+        assert partial_width < full_width, (
+            f"Partial batch width ({partial_width}) should be less than "
+            f"full batch width ({full_width}) to avoid whitespace"
+        )
+
+        # More specifically, with 2 traits in a batch that has n_cols=3,
+        # the width should be 2/3 of the full width (within tolerance)
+        expected_ratio = 2 / 3
+        actual_ratio = partial_width / full_width
+        assert 0.5 <= actual_ratio <= 0.8, (
+            f"Partial batch width ratio ({actual_ratio:.2f}) should be close to "
+            f"{expected_ratio:.2f} (2 cols / 3 cols)"
+        )
+
+        for fig in figures:
+            plt.close(fig)
+
+
+class TestPCBoxplotsAdaptiveSizing:
+    """Tests for Section 6b: PCA PC Boxplots Adaptive Sizing.
+
+    The issue: figsize was too small for many genotypes, and PC selection
+    should use variance threshold like feature contribution plot.
+    """
+
+    def test_pc_boxplots_width_scales_with_genotype_count(self):
+        """Test that figure width scales with number of genotypes.
+
+        Task 6b.1: Width should adapt to genotype count for readability.
+        """
+        from sleap_roots_analyze.visualization import create_pc_genotype_boxplots
+
+        # Create data with many genotypes
+        n_samples = 300
+        n_genotypes = 150
+        np.random.seed(42)
+
+        # Create mock PCA results
+        n_components = 3
+        pca_results = {
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "explained_variance_ratio": np.array([0.5, 0.3, 0.15]),
+            "cumulative_variance_ratio": np.array([0.5, 0.8, 0.95]),
+        }
+
+        # Create dataframe with many genotypes
+        df = pd.DataFrame(
+            {
+                "geno": [f"geno_{i % n_genotypes:03d}" for i in range(n_samples)],
+            }
+        )
+
+        fig = create_pc_genotype_boxplots(
+            pca_results, df, genotype_col="geno", n_components=3
+        )
+
+        width, height = fig.get_size_inches()
+
+        # With 150 genotypes, width should be larger than default (20)
+        # Each genotype needs some horizontal space
+        assert (
+            width >= 20
+        ), f"Figure width {width} too small for {n_genotypes} genotypes"
+
+        plt.close(fig)
+
+    def test_pc_boxplots_height_scales_with_n_components(self):
+        """Test that figure height scales with number of PCs.
+
+        Task 6b.1: Height should adapt to n_components.
+        """
+        from sleap_roots_analyze.visualization import create_pc_genotype_boxplots
+
+        n_samples = 100
+        n_genotypes = 20
+        np.random.seed(42)
+
+        # Test with 5 components
+        n_components = 5
+        pca_results = {
+            "transformed_data": np.random.randn(n_samples, n_components),
+            "explained_variance_ratio": np.array([0.3, 0.25, 0.2, 0.15, 0.1]),
+            "cumulative_variance_ratio": np.array([0.3, 0.55, 0.75, 0.9, 1.0]),
+        }
+
+        df = pd.DataFrame(
+            {
+                "geno": [f"geno_{i % n_genotypes:02d}" for i in range(n_samples)],
+            }
+        )
+
+        fig = create_pc_genotype_boxplots(
+            pca_results, df, genotype_col="geno", n_components=5
+        )
+
+        width, height = fig.get_size_inches()
+
+        # With 5 PCs (5 rows), height should be larger than default (6)
+        assert (
+            height >= 10
+        ), f"Figure height {height} too small for {n_components} PC rows"
+
+        plt.close(fig)
+
+    def test_pc_boxplots_uses_variance_threshold(self):
+        """Test that variance_threshold determines number of PCs when n_components=None.
+
+        Task 6b.2: Same logic as feature contribution plot.
+        """
+        from sleap_roots_analyze.visualization import create_pc_genotype_boxplots
+
+        n_samples = 100
+        np.random.seed(42)
+
+        # Create PCA results where 3 PCs reach 80% variance
+        pca_results = {
+            "transformed_data": np.random.randn(n_samples, 5),
+            "explained_variance_ratio": np.array([0.4, 0.25, 0.15, 0.12, 0.08]),
+            "cumulative_variance_ratio": np.array([0.4, 0.65, 0.8, 0.92, 1.0]),
+        }
+
+        df = pd.DataFrame(
+            {
+                "geno": [f"geno_{i % 10}" for i in range(n_samples)],
+            }
+        )
+
+        # Use variance_threshold=0.8, should select 3 PCs
+        fig = create_pc_genotype_boxplots(
+            pca_results,
+            df,
+            genotype_col="geno",
+            n_components=None,
+            variance_threshold=0.8,
+        )
+
+        # Count number of subplots (should be 3)
+        n_axes = len(fig.axes)
+        assert n_axes == 3, f"Expected 3 PCs for 80% variance, got {n_axes}"
+
+        plt.close(fig)
+
+
+class TestOutlierMethodComparisonPlot:
+    """Tests for Section 12: Outlier Method Comparison Plot."""
+
+    def test_comparison_plot_bar_count_matches_methods(self):
+        """Test that bar count matches number of methods."""
+        from sleap_roots_analyze.outlier_visualization import (
+            create_outlier_method_comparison_plot,
+        )
+
+        # Mock outlier results with 3 methods
+        all_outlier_results = {
+            "zscore": {"outlier_indices": [0, 1, 2]},
+            "iqr": {"outlier_indices": [1, 2, 3, 4]},
+            "mahalanobis": {"outlier_indices": [0, 5]},
+        }
+
+        fig = create_outlier_method_comparison_plot(all_outlier_results)
+
+        assert isinstance(fig, plt.Figure)
+
+        # Get the axes and bars
+        ax = fig.axes[0]
+        bars = [p for p in ax.patches if hasattr(p, "get_height")]
+        assert len(bars) == 3, f"Expected 3 bars for 3 methods, got {len(bars)}"
+
+        plt.close(fig)
+
+    def test_comparison_plot_value_labels(self):
+        """Test that bar chart includes value labels on each bar."""
+        from sleap_roots_analyze.outlier_visualization import (
+            create_outlier_method_comparison_plot,
+        )
+
+        all_outlier_results = {
+            "zscore": {"outlier_indices": [0, 1, 2]},  # 3 outliers
+            "iqr": {"outlier_indices": [1, 2, 3, 4]},  # 4 outliers
+        }
+
+        fig = create_outlier_method_comparison_plot(all_outlier_results)
+
+        ax = fig.axes[0]
+
+        # Check that text annotations exist with the correct counts
+        texts = [t for t in ax.texts if t.get_text().isdigit()]
+        text_values = sorted([int(t.get_text()) for t in texts])
+
+        assert 3 in text_values, "Should have label for 3 outliers"
+        assert 4 in text_values, "Should have label for 4 outliers"
+
+        plt.close(fig)
+
+    def test_comparison_plot_requires_two_methods(self):
+        """Test that comparison plot raises error with less than 2 methods."""
+        from sleap_roots_analyze.outlier_visualization import (
+            create_outlier_method_comparison_plot,
+        )
+
+        # Only 1 method - should raise error
+        all_outlier_results = {
+            "zscore": {"outlier_indices": [0, 1, 2]},
+        }
+
+        with pytest.raises(ValueError, match="Need at least 2 methods"):
+            create_outlier_method_comparison_plot(all_outlier_results)
+
+    def test_comparison_plot_skips_combined_and_invalid(self):
+        """Test that combined and invalid results are skipped."""
+        from sleap_roots_analyze.outlier_visualization import (
+            create_outlier_method_comparison_plot,
+        )
+
+        all_outlier_results = {
+            "zscore": {"outlier_indices": [0, 1]},
+            "iqr": {"outlier_indices": [1, 2, 3]},
+            "combined": {"outlier_indices": [0, 1, 2, 3]},  # Should be skipped
+            "invalid": {"error": "No data"},  # Should be skipped
+        }
+
+        fig = create_outlier_method_comparison_plot(all_outlier_results)
+
+        ax = fig.axes[0]
+        bars = [p for p in ax.patches if hasattr(p, "get_height")]
+
+        # Should only have 2 bars (zscore and iqr)
+        assert (
+            len(bars) == 2
+        ), f"Expected 2 bars (combined/invalid skipped), got {len(bars)}"
+
+        plt.close(fig)

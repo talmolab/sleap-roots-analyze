@@ -118,6 +118,12 @@ static_viz:
   genotypes_to_color: null  # Set to list of genotypes to color distinctly
   highlight_genotypes: null  # Set to list of genotypes to emphasize
 
+  # Genotype image grid configuration (RhizoVision flatbed scanner images)
+  # RhizoVision outputs: "features.png" (default), "seg.png" (segmentation)
+  genotype_image_grid_image_type: "features.png"
+  # Traits to show statistics for in the genotype image grid (null = no stats)
+  genotype_image_grid_trait_cols: null
+
 # Interactive visualization settings
 interactive_viz:
   enabled: true

@@ -112,6 +112,8 @@ def create_trait_boxplots_by_genotype(
     n_cols: int = 3,
     figsize: Tuple[int, int] = (15, 10),
     adaptive_config: Optional[Any] = None,
+    orientation: str = "auto",
+    horizontal_threshold: int = 15,
 ) -> plt.Figure:
     """Create boxplots for traits grouped by genotype.
 
@@ -122,10 +124,16 @@ def create_trait_boxplots_by_genotype(
         n_cols: Number of columns in subplot grid
         figsize: Figure size (only used if adaptive_config is None)
         adaptive_config: Optional adaptive sizing configuration
+        orientation: Boxplot orientation - "vertical", "horizontal", or "auto".
+            "auto" switches to horizontal when n_genotypes > horizontal_threshold.
+        horizontal_threshold: Number of genotypes above which auto orientation
+            switches to horizontal (default: 15).
 
     Returns:
         Matplotlib figure object
     """
+    import seaborn as sns
+
     n_traits = len(trait_cols)
     if n_traits == 0:
         # Handle empty case
@@ -140,18 +148,26 @@ def create_trait_boxplots_by_genotype(
         )
         return fig
 
+    # Determine actual orientation based on genotype count
+    n_genotypes = df[genotype_col].nunique() if genotype_col in df.columns else 0
+    if orientation == "auto":
+        actual_orientation = (
+            "horizontal" if n_genotypes > horizontal_threshold else "vertical"
+        )
+    else:
+        actual_orientation = orientation
+
     # Calculate adaptive size based on genotype count
     if adaptive_config is not None and genotype_col in df.columns:
         from sleap_roots_analyze.viz_utils import calculate_barplot_size
 
-        n_genotypes = df[genotype_col].nunique()
         n_rows = (n_traits + n_cols - 1) // n_cols
 
         # Each subplot needs width based on genotype count
         subplot_width, subplot_height = calculate_barplot_size(
             n_items=n_genotypes,
             config=adaptive_config,
-            orientation="vertical",  # Genotypes on X-axis
+            orientation=actual_orientation,
             as_subplot=True,
             n_subplots=n_traits,
         )
@@ -169,6 +185,13 @@ def create_trait_boxplots_by_genotype(
         )
 
         figsize = (fig_width, fig_height)
+    elif actual_orientation == "horizontal":
+        # For horizontal orientation, adjust figsize for readability
+        # Height needs to scale with number of genotypes
+        n_rows = (n_traits + n_cols - 1) // n_cols
+        height_per_genotype = 0.3  # inches per genotype
+        min_subplot_height = max(4, n_genotypes * height_per_genotype)
+        figsize = (figsize[0], min_subplot_height * n_rows)
 
     n_rows = (n_traits + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
@@ -185,11 +208,28 @@ def create_trait_boxplots_by_genotype(
             df_plot = df[[trait, genotype_col]].dropna()
 
             if len(df_plot) > 0:
-                df_plot.boxplot(column=trait, by=genotype_col, ax=axes[i])
-                axes[i].set_title(f"{trait}")
-                axes[i].set_xlabel("Genotype")
-                axes[i].set_ylabel(trait)
-                plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=90)
+                if actual_orientation == "horizontal":
+                    # Use seaborn for horizontal boxplots
+                    # Sort genotypes for consistent ordering
+                    genotype_order = sorted(df_plot[genotype_col].unique())
+                    sns.boxplot(
+                        data=df_plot,
+                        x=trait,
+                        y=genotype_col,
+                        ax=axes[i],
+                        order=genotype_order,
+                        orientation="horizontal",
+                    )
+                    axes[i].set_title(f"{trait}")
+                    axes[i].set_xlabel(trait)
+                    axes[i].set_ylabel("Genotype")
+                else:
+                    # Vertical orientation (original behavior)
+                    df_plot.boxplot(column=trait, by=genotype_col, ax=axes[i])
+                    axes[i].set_title(f"{trait}")
+                    axes[i].set_xlabel("Genotype")
+                    axes[i].set_ylabel(trait)
+                    plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=90)
             else:
                 axes[i].text(
                     0.5,
@@ -270,7 +310,10 @@ def create_trait_boxplots_by_genotype_batched(
     genotype_col: str = "geno",
     batch_size: int = 16,
     n_cols: int = 4,
-    figsize: Tuple[int, int] = (16, 16),
+    figsize: Optional[Tuple[int, int]] = None,
+    subplot_size: Tuple[float, float] = (4.0, 4.0),
+    orientation: str = "auto",
+    horizontal_threshold: int = 15,
 ) -> List[plt.Figure]:
     """Create batched boxplot plots by genotype (multiple figures for many traits).
 
@@ -280,7 +323,14 @@ def create_trait_boxplots_by_genotype_batched(
         genotype_col: Column name for genotype grouping
         batch_size: Number of traits per figure (default: 16)
         n_cols: Number of columns in subplot grid
-        figsize: Figure size for FULL batches (default: (16, 16))
+        figsize: Optional explicit figure size. If None (default), calculated adaptively
+            based on n_cols, batch_size, and subplot_size.
+        subplot_size: Size of each subplot (width, height) in inches when figsize is None.
+            Default (4.0, 4.0) for square subplots.
+        orientation: Boxplot orientation - "vertical", "horizontal", or "auto".
+            "auto" switches to horizontal when n_genotypes > horizontal_threshold.
+        horizontal_threshold: Number of genotypes above which auto orientation
+            switches to horizontal (default: 15).
 
     Returns:
         List of matplotlib figure objects (one per batch)
@@ -289,23 +339,45 @@ def create_trait_boxplots_by_genotype_batched(
     if n_traits == 0:
         return []
 
+    # Determine actual orientation for sizing calculations
+    n_genotypes = df[genotype_col].nunique() if genotype_col in df.columns else 0
+    if orientation == "auto":
+        actual_orientation = (
+            "horizontal" if n_genotypes > horizontal_threshold else "vertical"
+        )
+    else:
+        actual_orientation = orientation
+
     figures = []
     for batch_start in range(0, n_traits, batch_size):
         batch_end = min(batch_start + batch_size, n_traits)
         batch_traits = trait_cols[batch_start:batch_end]
 
-        # Calculate adaptive figsize for this batch
+        # Calculate adaptive figsize for this batch based on actual rows needed
         n_traits_in_batch = len(batch_traits)
         n_rows = (n_traits_in_batch + n_cols - 1) // n_cols
 
-        # Scale figsize proportionally for partial batches
-        if n_traits_in_batch < batch_size:
-            # Calculate full batch dimensions
+        # Calculate actual columns used in this batch (may be fewer than n_cols)
+        actual_cols = min(n_cols, n_traits_in_batch)
+
+        if figsize is not None:
+            # Explicit figsize provided - scale both dimensions for partial batches
             full_n_rows = (batch_size + n_cols - 1) // n_cols
-            # Scale height proportionally
-            batch_figsize = (figsize[0], figsize[1] * (n_rows / full_n_rows))
+            width_scale = actual_cols / n_cols
+            height_scale = n_rows / full_n_rows
+            batch_figsize = (figsize[0] * width_scale, figsize[1] * height_scale)
         else:
-            batch_figsize = figsize
+            # Adaptive sizing: calculate based on actual layout
+            if actual_orientation == "horizontal":
+                # For horizontal, height scales with genotype count
+                height_per_genotype = 0.3
+                subplot_height = max(subplot_size[1], n_genotypes * height_per_genotype)
+                batch_figsize = (actual_cols * subplot_size[0], n_rows * subplot_height)
+            else:
+                batch_figsize = (
+                    actual_cols * subplot_size[0],
+                    n_rows * subplot_size[1],
+                )
 
         # Create figure for this batch
         fig = create_trait_boxplots_by_genotype(
@@ -314,6 +386,8 @@ def create_trait_boxplots_by_genotype_batched(
             genotype_col=genotype_col,
             n_cols=n_cols,
             figsize=batch_figsize,
+            orientation=orientation,
+            horizontal_threshold=horizontal_threshold,
         )
         fig.suptitle(
             f"Trait Boxplots by Genotype (Traits {batch_start + 1}-{batch_end} of {n_traits})",
@@ -326,14 +400,24 @@ def create_trait_boxplots_by_genotype_batched(
 
 
 def create_correlation_heatmap(
-    df: pd.DataFrame, trait_cols: List[str], figsize: Tuple[int, int] = (12, 12)
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    figsize: Tuple[int, int] = (12, 12),
+    min_cell_size: float = 0.15,
+    annot_threshold: int = 50,
 ) -> plt.Figure:
     """Create correlation heatmap for traits.
+
+    For large datasets, the figure size scales adaptively to maintain readability.
+    Annotations are disabled when trait count exceeds a threshold.
 
     Args:
         df: DataFrame with trait data
         trait_cols: List of trait column names
-        figsize: Figure size (will be made square using the larger dimension)
+        figsize: Base figure size (will be made square using the larger dimension).
+            For large datasets (>50 traits), figure scales adaptively.
+        min_cell_size: Minimum cell size in inches for readability (default 0.15)
+        annot_threshold: Maximum number of traits to show annotations (default 50)
 
     Returns:
         Matplotlib figure object
@@ -345,28 +429,56 @@ def create_correlation_heatmap(
     # Create mask for upper triangle
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
 
-    # Ensure square figure by using the larger dimension
-    square_size = max(figsize[0], figsize[1])
+    # Adaptive sizing: scale figure with trait count for large datasets
+    n_traits = len(trait_cols)
+    base_size = max(figsize[0], figsize[1])
+
+    if n_traits > 50:
+        # Scale figure size with trait count to maintain cell readability
+        # Each cell needs at least min_cell_size inches
+        adaptive_size = max(base_size, n_traits * min_cell_size)
+        square_size = min(adaptive_size, 60)  # Cap at 60 inches
+    else:
+        square_size = base_size
+
     square_figsize = (square_size, square_size)
 
     # Create heatmap
     fig, ax = plt.subplots(figsize=square_figsize)
 
+    # Disable annotations for large datasets (unreadable anyway)
+    show_annot = n_traits <= annot_threshold
+
+    # Calculate appropriate font sizes
+    if n_traits <= 30:
+        label_fontsize = 10
+        annot_fontsize = 8
+    elif n_traits <= 50:
+        label_fontsize = 8
+        annot_fontsize = 6
+    elif n_traits <= 100:
+        label_fontsize = 7
+        annot_fontsize = 5
+    else:
+        label_fontsize = max(6, int(400 / n_traits))  # Floor at 6pt
+        annot_fontsize = 4
+
     sns.heatmap(
         corr_matrix,
         mask=mask,
-        annot=True,
+        annot=show_annot,
         cmap="coolwarm",
         center=0,
         square=True,
         ax=ax,
-        fmt=".2f",
+        fmt=".2f" if show_annot else "",
+        annot_kws={"size": annot_fontsize} if show_annot else {},
         cbar_kws={"shrink": 0.8},
     )
 
     ax.set_title("Trait Correlation Matrix")
-    plt.xticks(rotation=90, ha="center")
-    plt.yticks(rotation=0)
+    plt.xticks(rotation=90, ha="center", fontsize=label_fontsize)
+    plt.yticks(rotation=0, fontsize=label_fontsize)
     plt.tight_layout()
 
     return fig
@@ -550,8 +662,26 @@ def create_trait_eda_plots(
         lambda x: x.split("_")[0] if "_" in x else "NoPrefix"
     )
 
+    # Adaptive figure sizing based on trait count
+    n_traits = len(trait_cols)
+    if n_traits <= 50:
+        fig_width = 18
+        label_fontsize = 10
+    else:
+        # Scale width with trait count (min 0.3 inches per trait)
+        fig_width = max(18, n_traits * 0.3)
+        # Cap at reasonable size
+        fig_width = min(fig_width, 80)
+        # Reduce font size for many traits
+        if n_traits <= 100:
+            label_fontsize = 8
+        elif n_traits <= 200:
+            label_fontsize = 7
+        else:
+            label_fontsize = max(6, int(600 / n_traits))
+
     # 1. Trait overview plot (similar to plot_eda_summary)
-    fig, axes = plt.subplots(3, 1, figsize=(18, 14), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(fig_width, 14), sharex=True)
 
     # NaN fraction
     sns.barplot(x="Trait", y="Fraction_NaNs", hue="Prefix", data=eda_df, ax=axes[0])
@@ -590,7 +720,7 @@ def create_trait_eda_plots(
     )
     axes[2].set_title("Fraction of IQR Outliers per Trait")
     axes[2].set_xlabel("Trait")
-    axes[2].tick_params(axis="x", rotation=90)
+    axes[2].tick_params(axis="x", rotation=90, labelsize=label_fontsize)
     axes[2].legend(title="Prefix", bbox_to_anchor=(1.05, 1), loc="upper left")
 
     plt.tight_layout()
@@ -755,16 +885,24 @@ def create_heritability_plot(
     heritability_results: Dict,
     threshold: float = 0.5,
     figsize: Tuple[int, int] = (12, 6),
-) -> plt.Figure:
+    traits_per_page: int = 50,
+) -> Union[plt.Figure, List[plt.Figure]]:
     """Create bar plot of heritability estimates.
+
+    For large datasets (>traits_per_page traits), returns a list of paginated
+    figures to maintain readability. For small datasets, returns a single figure
+    for backward compatibility.
 
     Args:
         heritability_results: Results from heritability analysis
         threshold: Threshold line for high heritability
         figsize: Figure size
+        traits_per_page: Maximum number of traits per page (default 50).
+            If total traits exceed this, multiple figures are returned.
 
     Returns:
-        Matplotlib figure object
+        Single matplotlib figure for small datasets (<=traits_per_page),
+        or list of figures for large datasets (>traits_per_page).
     """
     # Extract valid heritability values
     traits = []
@@ -788,7 +926,59 @@ def create_heritability_plot(
         ax.set_title("Heritability Estimates")
         return fig
 
-    # Create plot
+    # Sort by heritability value (descending) for better visualization
+    sorted_indices = np.argsort(h2_values)[::-1]
+    traits = [traits[i] for i in sorted_indices]
+    h2_values = [h2_values[i] for i in sorted_indices]
+
+    # Check if pagination is needed
+    n_traits = len(traits)
+    if n_traits <= traits_per_page:
+        # Single figure for small datasets (backward compatibility)
+        return _create_single_heritability_figure(traits, h2_values, threshold, figsize)
+
+    # Create paginated figures for large datasets
+    figures = []
+    n_pages = (n_traits + traits_per_page - 1) // traits_per_page
+
+    for page in range(n_pages):
+        start_idx = page * traits_per_page
+        end_idx = min(start_idx + traits_per_page, n_traits)
+
+        page_traits = traits[start_idx:end_idx]
+        page_h2_values = h2_values[start_idx:end_idx]
+
+        fig = _create_single_heritability_figure(
+            page_traits,
+            page_h2_values,
+            threshold,
+            figsize,
+            page_info=(page + 1, n_pages),
+        )
+        figures.append(fig)
+
+    return figures
+
+
+def _create_single_heritability_figure(
+    traits: List[str],
+    h2_values: List[float],
+    threshold: float,
+    figsize: Tuple[int, int],
+    page_info: Optional[Tuple[int, int]] = None,
+) -> plt.Figure:
+    """Create a single heritability bar plot figure.
+
+    Args:
+        traits: List of trait names
+        h2_values: List of heritability values
+        threshold: Threshold line for high heritability
+        figsize: Figure size
+        page_info: Optional tuple of (current_page, total_pages) for pagination
+
+    Returns:
+        Matplotlib figure object
+    """
     fig, ax = plt.subplots(figsize=figsize)
 
     # Color bars based on threshold
@@ -808,23 +998,41 @@ def create_heritability_plot(
     # Customize plot
     ax.set_xlabel("Traits")
     ax.set_ylabel("Heritability (H²)")
-    ax.set_title("Broad-sense Heritability Estimates")
+
+    # Add page info to title if paginated
+    if page_info:
+        title = (
+            f"Broad-sense Heritability Estimates (Page {page_info[0]}/{page_info[1]})"
+        )
+    else:
+        title = "Broad-sense Heritability Estimates"
+    ax.set_title(title)
+
     ax.set_xticks(range(len(traits)))
-    ax.set_xticklabels(traits, rotation=90, ha="center")
-    ax.set_ylim(0, 1)
+    # Adaptive font size for x-axis tick labels based on trait count
+    n_traits = len(traits)
+    tick_fontsize = 6 if n_traits > 30 else 8 if n_traits > 15 else 10
+    ax.set_xticklabels(traits, rotation=90, ha="center", fontsize=tick_fontsize)
+    ax.set_ylim(0, 1.15)  # Extra space for rotated bar labels
     ax.legend()
     ax.grid(True, alpha=0.3, axis="y")
 
     # Add value labels on bars
+    # Adaptive font size and rotation based on trait count to prevent overlap
+    label_fontsize = 5 if n_traits > 30 else 6 if n_traits > 15 else 8
+    label_rotation = 90 if n_traits > 30 else 45 if n_traits > 15 else 0
+    label_ha = "left" if label_rotation > 0 else "center"
+
     for bar, h2 in zip(bars, h2_values):
         height = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width() / 2.0,
             height + 0.01,
-            f"{h2:.3f}",
-            ha="center",
+            f"{h2:.2f}",
+            ha=label_ha,
             va="bottom",
-            fontsize=8,
+            fontsize=label_fontsize,
+            rotation=label_rotation,
         )
 
     plt.tight_layout()
@@ -938,9 +1146,13 @@ def create_variance_decomposition_plot(
     Displays heritability estimates, variance components, and sample statistics.
     Uses Linear Mixed Model (LMM) with genotype as random effect for estimation.
 
+    For large datasets (>50 traits), the figure width scales adaptively to
+    maintain readability.
+
     Args:
         comparison_df: DataFrame from compare_trait_heritabilities()
-        figsize: Figure size (width, height) in inches
+        figsize: Base figure size (width, height) in inches.
+            For large datasets (>50 traits), width scales adaptively.
         output_path: Optional path to save figure
         threshold: Heritability threshold for reference lines (default: 0.3)
 
@@ -952,7 +1164,27 @@ def create_variance_decomposition_plot(
         >>> fig = create_variance_decomposition_plot(comparison)
         >>> plt.show()
     """
-    fig, axes = plt.subplots(1, 3, figsize=figsize)
+    # Adaptive sizing based on trait count
+    n_traits = len(comparison_df)
+    base_width, base_height = figsize
+
+    if n_traits <= 50:
+        fig_width = base_width
+        label_fontsize = 10
+    else:
+        # Scale width with trait count (min 0.25 inches per trait)
+        fig_width = max(base_width, n_traits * 0.25)
+        # Cap at reasonable size
+        fig_width = min(fig_width, 60)
+        # Reduce font size for many traits
+        if n_traits <= 100:
+            label_fontsize = 8
+        elif n_traits <= 200:
+            label_fontsize = 7
+        else:
+            label_fontsize = max(6, int(600 / n_traits))
+
+    fig, axes = plt.subplots(1, 3, figsize=(fig_width, base_height))
 
     if len(comparison_df) == 0:
         # Handle empty data
@@ -985,7 +1217,9 @@ def create_variance_decomposition_plot(
     )
     ax.legend()
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
+    ax.set_xticklabels(
+        comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize
+    )
     ax.set_xlabel("")
 
     # Panel 2: Variance components (stacked bar)
@@ -1010,7 +1244,9 @@ def create_variance_decomposition_plot(
     ax.set_title("Genetic vs Residual Variance")
     ax.legend()
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
+    ax.set_xticklabels(
+        comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize
+    )
     ax.set_xlabel("")
 
     # Panel 3: Sample size and CV
@@ -1041,7 +1277,9 @@ def create_variance_decomposition_plot(
     ax2.set_ylabel("Coefficient of Variation (%)", color="purple")
     ax.set_title("Sample Size and Coefficient of Variation")
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(comparison_df["trait"], rotation=90, ha="center")
+    ax.set_xticklabels(
+        comparison_df["trait"], rotation=90, ha="center", fontsize=label_fontsize
+    )
     ax.tick_params(axis="y", labelcolor="goldenrod")
     ax2.tick_params(axis="y", labelcolor="purple")
     ax.set_xlabel("")
@@ -2130,6 +2368,10 @@ def create_pca_biplot(
             arrow_scale = 1.0
 
     # Plot feature vectors (only selected features)
+    # Collect text objects for adjustText processing
+    text_objects = []
+    arrow_endpoints = []  # Store arrow endpoints for avoidance
+
     for idx in top_indices:
         # Skip if index is out of bounds for trait_names
         if idx >= len(trait_names):
@@ -2151,6 +2393,7 @@ def create_pca_biplot(
             alpha=0.8,
             linewidth=1.5,
         )
+        arrow_endpoints.append((x_load, y_load))
 
         # Add label with smart positioning to avoid overlaps
         angle = np.arctan2(y_load, x_load)
@@ -2171,7 +2414,7 @@ def create_pca_biplot(
         ha = "left" if label_x > 0 else "right"
         va = "bottom" if label_y > 0 else "top"
 
-        ax.text(
+        text = ax.text(
             label_x,
             label_y,
             trait_names[idx],
@@ -2180,6 +2423,29 @@ def create_pca_biplot(
             va=va,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7),
         )
+        text_objects.append(text)
+
+    # Apply adjustText for better label positioning when there are many features
+    if len(text_objects) >= 5:
+        try:
+            from adjustText import adjust_text
+
+            # Create scatter points at arrow endpoints for avoidance
+            if arrow_endpoints:
+                arrow_x = [p[0] for p in arrow_endpoints]
+                arrow_y = [p[1] for p in arrow_endpoints]
+                adjust_text(
+                    text_objects,
+                    x=arrow_x,
+                    y=arrow_y,
+                    arrowprops=dict(arrowstyle="-", color="gray", alpha=0.5),
+                    expand_points=(1.5, 1.5),
+                    force_text=(0.5, 0.5),
+                    ax=ax,
+                )
+        except ImportError:
+            # adjustText not available, keep manual positioning
+            pass
 
     # Set axis labels and title
     ax.set_xlabel(f"PC{pc_x} ({explained_var[pc_x - 1] * 100:.1f}% variance)")

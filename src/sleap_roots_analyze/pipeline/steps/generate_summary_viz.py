@@ -62,7 +62,7 @@ class GenerateSummaryStep(BaseStep):
                 or metadata.get("valid_trait_names")
                 or metadata.get("trait_cols", [])
             ),
-            "configuration": self._extract_config_summary(config),
+            "configuration": self._extract_config_summary(config, metadata),
             "results": self._extract_results_summary(metadata),
         }
 
@@ -89,8 +89,28 @@ class GenerateSummaryStep(BaseStep):
             metadata={**metadata, "summary_data": summary_data},
         )
 
-    def _extract_config_summary(self, config) -> dict:
-        """Extract key configuration settings for summary."""
+    def _extract_config_summary(self, config, metadata: dict = None) -> dict:
+        """Extract key configuration settings for summary.
+
+        Args:
+            config: Pipeline configuration.
+            metadata: Pipeline metadata containing step results.
+
+        Returns:
+            Dictionary of configuration summary.
+        """
+        # Determine UMAP status
+        umap_status = "disabled"
+        umap_skip_reason = None
+        if config.umap.enabled:
+            if metadata and metadata.get("umap_status") == "skipped_stub":
+                umap_status = "skipped"
+                umap_skip_reason = metadata.get(
+                    "umap_skip_reason", "Not yet implemented"
+                )
+            else:
+                umap_status = "enabled"
+
         return {
             "pca": {
                 "n_components": config.pca.n_components,
@@ -98,6 +118,8 @@ class GenerateSummaryStep(BaseStep):
                 "feature_selection_strategy": config.pca.feature_selection_strategy,
             },
             "umap_enabled": config.umap.enabled,
+            "umap_status": umap_status,
+            "umap_skip_reason": umap_skip_reason,
             "clustering_enabled": config.clustering.enabled,
             "statistics": {
                 "calculate_anova": config.statistics.calculate_anova,
@@ -182,9 +204,15 @@ class GenerateSummaryStep(BaseStep):
             )
 
             f.write(f"### Analysis Features\n")
-            f.write(
-                f"- **UMAP:** {'Enabled' if config['umap_enabled'] else 'Disabled'}\n"
-            )
+            # Format UMAP status with skip reason if applicable
+            if config.get("umap_status") == "skipped":
+                skip_reason = config.get("umap_skip_reason", "Not yet implemented")
+                umap_display = f"Enabled (skipped - {skip_reason})"
+            elif config.get("umap_enabled"):
+                umap_display = "Enabled"
+            else:
+                umap_display = "Disabled"
+            f.write(f"- **UMAP:** {umap_display}\n")
             f.write(
                 f"- **Clustering:** {'Enabled' if config['clustering_enabled'] else 'Disabled'}\n"
             )

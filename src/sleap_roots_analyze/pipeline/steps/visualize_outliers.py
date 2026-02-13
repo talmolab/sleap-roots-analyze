@@ -15,6 +15,7 @@ from sleap_roots_analyze.outlier_visualization import (
     create_isolation_forest_plots,
     create_kmeans_outlier_plots,
     create_mahalanobis_outlier_plots,
+    create_outlier_method_comparison_plot,
     create_outlier_overlap_heatmap,
     create_outliers_per_genotype_plot,
     create_pca_outlier_plot,
@@ -236,6 +237,25 @@ class VisualizeOutliersStep(BaseStep):
             fig_path = (
                 figures_dir
                 / f"outlier_overlap_heatmap.{config.visualization.figure_format}"
+            )
+            fig.savefig(
+                fig_path,
+                dpi=config.visualization.dpi,
+                bbox_inches=config.visualization.bbox_inches,
+                facecolor=config.visualization.facecolor,
+                edgecolor=config.visualization.edgecolor,
+                transparent=config.visualization.transparent,
+            )
+            plt.close(fig)
+            files.append(fig_path)
+
+            # Method comparison bar chart (Task 12.6)
+            fig = create_outlier_method_comparison_plot(
+                all_outlier_results=outlier_results
+            )
+            fig_path = (
+                figures_dir
+                / f"outlier_method_comparison.{config.visualization.figure_format}"
             )
             fig.savefig(
                 fig_path,

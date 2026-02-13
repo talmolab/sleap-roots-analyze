@@ -18,6 +18,8 @@ from scipy import stats
 from scipy.cluster.hierarchy import linkage as hierarchical_linkage, fcluster
 from scipy.spatial.distance import squareform
 
+from sleap_roots_analyze.data_utils import sanitize_single_trait_name
+
 
 def _calculate_correlations(
     values1: np.ndarray, values2: np.ndarray
@@ -1503,10 +1505,10 @@ def create_joint_plot(
         height=figsize[0],
     )
 
-    # Add labels
+    # Add labels - use sanitize_single_trait_name for consistent formatting
     g.set_axis_labels(
-        f"{exp1_name}: {exp1_trait.replace('_', ' ').title()}",
-        f"{exp2_name}: {exp2_trait.replace('_', ' ').title()}",
+        f"{exp1_name}: {sanitize_single_trait_name(exp1_trait, abbreviate=False)}",
+        f"{exp2_name}: {sanitize_single_trait_name(exp2_trait, abbreviate=False)}",
         fontsize=12,
     )
 
@@ -1766,8 +1768,9 @@ def create_genotype_boxplots(
         patch.set_alpha(0.7)
 
     ax1.set_xlabel("Genotype", fontsize=10)
-    ax1.set_ylabel(exp1_trait[:50], fontsize=9)
-    ax1.set_title(f"{exp1_name}: {exp1_trait[:60]}", fontsize=11)
+    sanitized_exp1_trait = sanitize_single_trait_name(exp1_trait, abbreviate=False)
+    ax1.set_ylabel(sanitized_exp1_trait[:50], fontsize=9)
+    ax1.set_title(f"{exp1_name}: {sanitized_exp1_trait[:60]}", fontsize=11)
     ax1.tick_params(axis="x", rotation=45, labelsize=8)
     ax1.grid(True, alpha=0.3, axis="y")
 
@@ -1794,8 +1797,9 @@ def create_genotype_boxplots(
         patch.set_alpha(0.7)
 
     ax2.set_xlabel("Genotype", fontsize=10)
-    ax2.set_ylabel(exp2_trait[:50], fontsize=9)
-    ax2.set_title(f"{exp2_name}: {exp2_trait[:60]}", fontsize=11)
+    sanitized_exp2_trait = sanitize_single_trait_name(exp2_trait, abbreviate=False)
+    ax2.set_ylabel(sanitized_exp2_trait[:50], fontsize=9)
+    ax2.set_title(f"{exp2_name}: {sanitized_exp2_trait[:60]}", fontsize=11)
     ax2.tick_params(axis="x", rotation=45, labelsize=8)
     ax2.grid(True, alpha=0.3, axis="y")
 

@@ -237,6 +237,34 @@ class TestValidateVizConfig:
         with pytest.raises(ValueError, match="contains invalid format"):
             validate_viz_config(config)
 
+    def test_umap_enabled_emits_stub_warning(self):
+        """Test that enabling UMAP emits warning since UMAP is not implemented (Phase 2C stub)."""
+        import warnings
+
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.umap.enabled = True
+
+        with pytest.warns(UserWarning, match="UMAP.*not yet implemented|Phase 2C"):
+            validate_viz_config(config)
+
+    def test_umap_disabled_no_warning(self):
+        """Test that disabled UMAP does not emit any warning."""
+        import warnings
+
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.umap.enabled = False  # Default
+
+        # Capture warnings - should be none related to UMAP
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            validate_viz_config(config)
+            umap_warnings = [warning for warning in w if "UMAP" in str(warning.message)]
+            assert (
+                len(umap_warnings) == 0
+            ), "No UMAP warning should be emitted when UMAP is disabled"
+
 
 class TestLoadVizConfig:
     """Tests for load_viz_config function."""
@@ -432,6 +460,72 @@ static_viz:
         loaded = OmegaConf.load(config_path)
         assert loaded.static_viz.genotypes_to_color == ["GH_7401", "GH_7391"]
         assert loaded.static_viz.highlight_genotypes == ["GH_7401"]
+
+
+class TestStaticVisualizationConfigFeatureContribution:
+    """Tests for feature contribution config in StaticVisualizationConfig.
+
+    Task 10.3a-c: Config fields for PCA feature contribution plot.
+    """
+
+    def test_feature_contribution_variance_threshold_defaults_to_none(self):
+        """Test feature_contribution_variance_threshold defaults to None.
+
+        Task 10.3a: When None, inherit from pca.n_components.
+        """
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        config = StaticVisualizationConfig()
+        assert config.feature_contribution_variance_threshold is None
+
+    def test_feature_contribution_top_n_defaults_to_20(self):
+        """Test feature_contribution_top_n defaults to 20.
+
+        Task 10.3b: Default top N features for contribution plot.
+        """
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        config = StaticVisualizationConfig()
+        assert config.feature_contribution_top_n == 20
+
+    def test_feature_contribution_variance_threshold_accepts_float(self):
+        """Test that feature_contribution_variance_threshold accepts float values."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        config = StaticVisualizationConfig(feature_contribution_variance_threshold=0.80)
+        assert config.feature_contribution_variance_threshold == 0.80
+
+    def test_feature_contribution_top_n_accepts_int(self):
+        """Test that feature_contribution_top_n accepts integer values."""
+        from sleap_roots_analyze.pipeline.config.components import (
+            StaticVisualizationConfig,
+        )
+
+        config = StaticVisualizationConfig(feature_contribution_top_n=15)
+        assert config.feature_contribution_top_n == 15
+
+    def test_config_loads_from_yaml_with_feature_contribution(self, tmp_path):
+        """Test that config loads feature contribution settings from YAML."""
+        yaml_content = """
+pipeline_name: test_with_feature_contribution
+data:
+  csv_path: test.csv
+static_viz:
+  feature_contribution_variance_threshold: 0.85
+  feature_contribution_top_n: 25
+"""
+        config_path = tmp_path / "test_config.yaml"
+        config_path.write_text(yaml_content)
+
+        omega_conf = OmegaConf.load(config_path)
+        assert omega_conf.static_viz.feature_contribution_variance_threshold == 0.85
+        assert omega_conf.static_viz.feature_contribution_top_n == 25
 
 
 class TestConfigIntegration:
