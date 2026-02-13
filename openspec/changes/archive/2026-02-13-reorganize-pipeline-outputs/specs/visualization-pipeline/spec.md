@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: VIZ-OUTPUT-001 - Figures organized into subdirectories by plot type
 
@@ -54,20 +54,3 @@ Analysis outputs (CSVs, JSONs) MUST be saved to a `data/` subdirectory, separate
 - **THEN** heritability_results.csv, anova_results.csv are saved to `data/`
 - **AND** trait_statistics.json is saved to `data/`
 
-## REMOVED Requirements
-
-### Requirement: VIZ-LEGACY-001 - Legacy folder structure
-
-The following legacy folder structures are removed:
-- `static_figures/` flat directory at run root
-- `interactive_figures/` directory at run root
-- `pca/` directory at run root (moved to `data/pca/`)
-- `figures/` with only heritability from stats step
-
-#### Scenario: No static_figures directory created
-- **GIVEN** a viz pipeline run completes
-- **THEN** no `static_figures/` directory exists at the run root
-
-#### Scenario: No interactive_figures directory created
-- **GIVEN** a viz pipeline run completes
-- **THEN** no `interactive_figures/` directory exists at the run root
