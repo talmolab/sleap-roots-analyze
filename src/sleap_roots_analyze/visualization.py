@@ -210,14 +210,12 @@ def create_trait_boxplots_by_genotype(
             if len(df_plot) > 0:
                 if actual_orientation == "horizontal":
                     # Use seaborn for horizontal boxplots
-                    # Sort genotypes for consistent ordering
-                    genotype_order = sorted(df_plot[genotype_col].unique())
+                    # Let seaborn determine order from data (avoids position mismatch errors)
                     sns.boxplot(
                         data=df_plot,
                         x=trait,
                         y=genotype_col,
                         ax=axes[i],
-                        order=genotype_order,
                         orientation="horizontal",
                     )
                     axes[i].set_title(f"{trait}")

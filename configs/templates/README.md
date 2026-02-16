@@ -45,6 +45,11 @@ These parameters are required only if certain features are enabled:
   - **WARNING**: You will be warned if this is empty (to ensure conscious choice)
   - This ensures you make a deliberate decision about whether to include outlier detection
 
+- **`data.group_by`** - Column name to group data by for separate per-group analyses
+  - Common use: "plant_age_days" for multi-timepoint experiments
+  - Creates independent output directories and statistics for each group
+  - See "Grouped Analysis by Timepoint" section below for details
+
 ## Templates Explained
 
 ### Cleanup-Only Template
@@ -184,6 +189,76 @@ If you encounter issues:
 3. Read the error messages carefully - they include recommended values
 4. Consult the full documentation at `docs/configuration_guide.md`
 
+## Grouped Analysis by Timepoint
+
+For multi-timepoint experiments (e.g., plants measured at 7, 14, 21 days), you can use `data.group_by` to analyze each timepoint independently.
+
+### Why Use Grouped Analysis?
+
+Combining data across timepoints can **confound temporal and genetic effects**, making heritability estimates invalid. Grouping ensures:
+- Independent statistics per timepoint (ANOVA, heritability)
+- Separate PCA analyses (PC loadings differ by developmental stage)
+- Clean comparison of genetic effects within homogeneous groups
+
+### Configuration
+
+```yaml
+data:
+  csv_path: "multi_timepoint_data.csv"
+  group_by: "plant_age_days"  # Column containing timepoint values
+```
+
+### CLI Usage
+
+```bash
+# Group by config value
+sleap-roots-analyze qc my_config.yaml
+
+# Override with CLI flag
+sleap-roots-analyze qc my_config.yaml --group-by plant_age_days
+
+# Run-all with grouping (applies to all pipelines in manifest)
+sleap-roots-analyze run-all manifest.yaml --group-by plant_age_days
+```
+
+### Output Structure
+
+Each group gets an independent output directory:
+
+```
+qc_runs/
+├── plant_age_days_7_20260216_143052/
+│   ├── config.yaml
+│   ├── pipeline_summary.json
+│   ├── 10_final_data.csv          # Only day 7 samples
+│   ├── 08_heritability_results.csv  # H² for day 7
+│   └── figures/
+├── plant_age_days_14_20260216_143108/
+│   └── ...
+└── plant_age_days_21_20260216_143124/
+    └── ...
+```
+
+### Group Validation
+
+Groups with fewer than `cleanup.min_samples_per_trait` samples are automatically skipped with a warning:
+
+```
+WARNING: Skipping group plant_age_days=28 (3 samples < 10 minimum)
+```
+
+### When to Use Grouping
+
+✅ **Use grouping when:**
+- Data has multiple timepoints/developmental stages
+- Samples were collected at different sites/batches
+- You need per-group heritability estimates
+
+❌ **Don't use grouping when:**
+- All samples are from the same timepoint/condition
+- You intentionally want to analyze temporal trends
+- Groups would have insufficient samples
+
 ## Tips
 
 1. **Start with a template** - Don't write configs from scratch
@@ -191,3 +266,4 @@ If you encounter issues:
 3. **Test with small datasets** - Validate your config before running on full data
 4. **Review outputs** - Check the generated plots and summaries to ensure QC worked as expected
 5. **Learn from examples** - The configs in `configs/` show real-world usage patterns
+6. **Use grouping for multi-timepoint data** - Prevents confounding temporal and genetic effects

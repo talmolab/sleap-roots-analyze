@@ -22,6 +22,7 @@ from sleap_roots_analyze.pipeline import (
     load_qc_config,
     load_viz_config,
 )
+from sleap_roots_analyze.pipeline.utils import run_grouped_pipelines
 
 console = Console()
 
@@ -253,21 +254,33 @@ def qc(
         elif cfg.data.group_by is not None:
             console.print(f"[cyan]Group by:[/cyan] {cfg.data.group_by}")
 
-        # Create and run pipeline
+        # Create and run pipeline(s) with optional grouping
         console.print("\n[cyan]Initializing QC pipeline...[/cyan]")
         # Pass config's log filename to pipeline (creates log in run_dir)
         log_filename = cfg.logging.log_file if cfg.logging.log_to_file else None
-        pipeline = QCPipeline(
-            config=cfg, output_dir=output_dir, log_filename=log_filename
-        )
 
         console.print("[cyan]Running pipeline...[/cyan]")
-        results = pipeline.run()
+        grouped_results = run_grouped_pipelines(
+            config=cfg,
+            output_dir=output_dir,
+            pipeline_class=QCPipeline,
+            log_filename=log_filename,
+        )
 
         # Display summary
         console.print("\n[green]Pipeline completed successfully![/green]")
-        console.print(f"[green]Results saved to:[/green] {pipeline.run_dir}")
-        console.print(f"[green]Steps completed:[/green] {len(results)}")
+        if cfg.data.group_by is not None:
+            # Grouped execution
+            console.print(
+                f"[green]Processed {len(grouped_results)} group(s) by {cfg.data.group_by}:[/green]"
+            )
+            for group_value, group_data in grouped_results.items():
+                console.print(f"  [cyan]{cfg.data.group_by}={group_value}:[/cyan] {group_data['output_dir']}")
+        else:
+            # Single execution
+            single_result = grouped_results[None]
+            console.print(f"[green]Results saved to:[/green] {single_result['output_dir']}")
+            console.print(f"[green]Steps completed:[/green] {len(single_result['results'])}")
 
     except FileNotFoundError as e:
         console.print(f"[red]Error: File not found - {e}[/red]")
@@ -401,21 +414,33 @@ def viz(
         elif cfg.data.group_by is not None:
             console.print(f"[cyan]Group by:[/cyan] {cfg.data.group_by}")
 
-        # Create and run pipeline
+        # Create and run pipeline(s) with optional grouping
         console.print("\n[cyan]Initializing Viz pipeline...[/cyan]")
         # Pass config's log filename to pipeline (creates log in run_dir)
         log_filename = cfg.logging.log_file if cfg.logging.log_to_file else None
-        pipeline = VizPipeline(
-            config=cfg, output_dir=output_dir, log_filename=log_filename
-        )
 
         console.print("[cyan]Running pipeline...[/cyan]")
-        results = pipeline.run()
+        grouped_results = run_grouped_pipelines(
+            config=cfg,
+            output_dir=output_dir,
+            pipeline_class=VizPipeline,
+            log_filename=log_filename,
+        )
 
         # Display summary
         console.print("\n[green]Pipeline completed successfully![/green]")
-        console.print(f"[green]Results saved to:[/green] {pipeline.run_dir}")
-        console.print(f"[green]Steps completed:[/green] {len(results)}")
+        if cfg.data.group_by is not None:
+            # Grouped execution
+            console.print(
+                f"[green]Processed {len(grouped_results)} group(s) by {cfg.data.group_by}:[/green]"
+            )
+            for group_value, group_data in grouped_results.items():
+                console.print(f"  [cyan]{cfg.data.group_by}={group_value}:[/cyan] {group_data['output_dir']}")
+        else:
+            # Single execution
+            single_result = grouped_results[None]
+            console.print(f"[green]Results saved to:[/green] {single_result['output_dir']}")
+            console.print(f"[green]Steps completed:[/green] {len(single_result['results'])}")
 
     except FileNotFoundError as e:
         console.print(f"[red]Error: File not found - {e}[/red]")
@@ -618,6 +643,12 @@ def cross_platform(
     is_flag=True,
     help="Enable verbose output",
 )
+@click.option(
+    "--group-by",
+    type=str,
+    default=None,
+    help="Column name to group data by for separate analyses per group (overrides manifest and config values)",
+)
 def run_all(
     manifest: Path,
     output_dir: Path,
@@ -627,6 +658,7 @@ def run_all(
     cross_only: bool,
     no_summary: bool,
     verbose: bool,
+    group_by: str | None,
 ):
     """Run all pipelines defined in a manifest file.
 
@@ -652,6 +684,7 @@ def run_all(
             manifest_path=manifest,
             output_dir=output_dir,
             verbose=verbose,
+            group_by=group_by,
         )
 
         if dry_run:

@@ -43,6 +43,7 @@ class PipelineRunner:
         manifest_path: Path | str,
         output_dir: Path | str = "pipeline_runs",
         verbose: bool = False,
+        group_by: str | None = None,
     ):
         """Initialize the pipeline runner.
 
@@ -50,10 +51,12 @@ class PipelineRunner:
             manifest_path: Path to the run manifest YAML file
             output_dir: Base directory for pipeline outputs
             verbose: Enable verbose output
+            group_by: Column name to group data by (overrides manifest and config values)
         """
         self.manifest_path = Path(manifest_path)
         self.output_dir = Path(output_dir)
         self.verbose = verbose
+        self.group_by = group_by
         self.run_timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         self.run_dir = self.output_dir / self.run_timestamp
 
@@ -501,6 +504,10 @@ class PipelineRunner:
             "-o",
             str(output_dir),
         ]
+
+        # Add group-by flag if specified
+        if self.group_by is not None:
+            cmd.extend(["--group-by", self.group_by])
 
         if self.verbose:
             print(f"  Command: {' '.join(cmd)}")

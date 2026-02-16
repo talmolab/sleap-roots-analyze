@@ -6,10 +6,15 @@ git information, and package versioning.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def create_run_directory(
@@ -326,3 +331,220 @@ def get_environment_info() -> Dict[str, str]:
     info.update(get_package_versions(packages))
 
     return info
+
+
+def split_data_by_group(
+    df: pd.DataFrame, group_by_column: str
+) -> Dict[Any, pd.DataFrame]:
+    """Split a DataFrame into separate DataFrames based on unique values in a column.
+
+    Args:
+        df: Input DataFrame to split.
+        group_by_column: Name of column to group by.
+
+    Returns:
+        Dictionary mapping group values to DataFrames containing only rows
+        with that group value. Returns empty dict for empty input DataFrame.
+
+    Raises:
+        KeyError: If group_by_column does not exist in DataFrame.
+
+    Example:
+        >>> data = {"day": [7, 7, 14, 14], "trait": [1.0, 2.0, 3.0, 4.0]}
+        >>> df = pd.DataFrame(data)
+        >>> groups = split_data_by_group(df, "day")
+        >>> len(groups)
+        2
+        >>> groups[7].shape
+        (2, 2)
+    """
+    # Validate column exists
+    if group_by_column not in df.columns:
+        raise KeyError(
+            f"Column '{group_by_column}' not found in DataFrame. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+    # Handle empty DataFrame
+    if df.empty:
+        return {}
+
+    # Split by unique values in group column
+    groups = {}
+    for group_value in df[group_by_column].unique():
+        group_df = df[df[group_by_column] == group_value].copy()
+        groups[group_value] = group_df
+
+    return groups
+
+
+def filter_valid_groups(
+    groups: Dict[Any, pd.DataFrame],
+    min_samples: int,
+    group_column_name: str,
+) -> tuple[Dict[Any, pd.DataFrame], Dict[Any, int]]:
+    """Filter groups to only keep those with sufficient samples.
+
+    Args:
+        groups: Dictionary mapping group values to DataFrames
+        min_samples: Minimum number of samples required per group
+        group_column_name: Name of the grouping column (for logging)
+
+    Returns:
+        Tuple of (valid_groups, skipped_groups) where:
+        - valid_groups: Dict of groups with >= min_samples
+        - skipped_groups: Dict mapping skipped group values to their sample counts
+    """
+    valid_groups = {}
+    skipped_groups = {}
+
+    for group_value, group_df in groups.items():
+        sample_count = len(group_df)
+
+        if sample_count >= min_samples:
+            valid_groups[group_value] = group_df
+        else:
+            skipped_groups[group_value] = sample_count
+            logger.warning(
+                f"Skipping group {group_column_name}={group_value} "
+                f"({sample_count} samples < {min_samples} minimum)"
+            )
+
+    return valid_groups, skipped_groups
+
+
+def run_grouped_pipelines(
+    config: Any,
+    output_dir: str | Path,
+    pipeline_class: type,
+    **pipeline_kwargs,
+) -> Dict[Any, Dict[str, Any]]:
+    """Run pipelines with optional grouping by a metadata column.
+
+    If config.data.group_by is set, splits the data into groups and runs
+    separate pipeline instances for each group with isolated output directories.
+    Otherwise, runs a single pipeline instance.
+
+    Args:
+        config: Pipeline configuration object (must have .data.group_by attribute)
+        output_dir: Base output directory for pipeline runs
+        pipeline_class: Pipeline class to instantiate (e.g., QCPipeline, VizPipeline)
+        **pipeline_kwargs: Additional keyword arguments to pass to pipeline constructor
+
+    Returns:
+        Dictionary mapping group values to their results:
+        - If grouped: {group_value: {"pipeline": pipeline_instance, "output_dir": path, "results": task_results}}
+        - If not grouped: {None: {"pipeline": pipeline_instance, "output_dir": path, "results": task_results}}
+
+    Example:
+        >>> config = QCPipelineConfig(...)
+        >>> config.data.group_by = "plant_age_days"
+        >>> results = run_grouped_pipelines(
+        ...     config=config,
+        ...     output_dir="./outputs",
+        ...     pipeline_class=QCPipeline
+        ... )
+        >>> # Creates: outputs/plant_age_days_7_20260213_140530/
+        >>> #          outputs/plant_age_days_14_20260213_140545/
+        >>> #          outputs/plant_age_days_21_20260213_140600/
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if grouping is requested
+    group_by_column = getattr(config.data, "group_by", None)
+
+    if group_by_column is None:
+        # No grouping - run single pipeline
+        logger.info("Running single pipeline (no grouping)")
+        pipeline = pipeline_class(
+            config=config,
+            output_dir=output_dir,
+            **pipeline_kwargs,
+        )
+        results = pipeline.run()
+        return {
+            None: {
+                "pipeline": pipeline,
+                "output_dir": str(pipeline.run_dir),
+                "results": results,
+            }
+        }
+
+    # Grouping requested - load data and split into groups
+    logger.info(f"Grouping pipelines by column: {group_by_column}")
+
+    # Load data
+    df = pd.read_csv(config.data.csv_path)
+    logger.info(f"Loaded {len(df)} samples from {config.data.csv_path}")
+
+    # Split by group column
+    groups = split_data_by_group(df, group_by_column=group_by_column)
+    logger.info(f"Split data into {len(groups)} groups: {list(groups.keys())}")
+
+    # Filter groups by minimum sample count
+    min_samples = getattr(config.cleanup, "min_samples_per_trait", 3)
+    valid_groups, skipped_groups = filter_valid_groups(
+        groups=groups,
+        min_samples=min_samples,
+        group_column_name=group_by_column,
+    )
+    logger.info(f"Retained {len(valid_groups)} valid groups after filtering")
+    if skipped_groups:
+        logger.info(f"Skipped {len(skipped_groups)} groups: {skipped_groups}")
+
+    # Run pipeline for each valid group
+    grouped_results = {}
+    for group_value in sorted(valid_groups.keys()):
+        group_df = valid_groups[group_value]
+        logger.info(
+            f"Processing group {group_by_column}={group_value} ({len(group_df)} samples)"
+        )
+
+        # Create temporary CSV for this group
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, newline=""
+        ) as tmp_file:
+            group_csv_path = Path(tmp_file.name)
+            group_df.to_csv(tmp_file, index=False)
+
+        # Create modified config for this group
+        import copy
+
+        group_config = copy.deepcopy(config)
+        group_config.data.csv_path = str(group_csv_path)
+        # Remove group_by to prevent infinite recursion
+        group_config.data.group_by = None
+
+        # Modify pipeline name to include group information
+        # This will create directories like: plant_age_days_7_20260213_140530/
+        original_pipeline_name = group_config.pipeline_name
+        group_config.pipeline_name = f"{group_by_column}_{group_value}"
+
+        # Run pipeline for this group
+        try:
+            pipeline = pipeline_class(
+                config=group_config,
+                output_dir=output_dir,
+                **pipeline_kwargs,
+            )
+
+            results = pipeline.run()
+            grouped_results[group_value] = {
+                "pipeline": pipeline,
+                "output_dir": str(pipeline.run_dir),
+                "results": results,
+            }
+            logger.info(
+                f"Group {group_by_column}={group_value} completed successfully"
+            )
+        finally:
+            # Clean up temporary CSV
+            group_csv_path.unlink(missing_ok=True)
+
+    logger.info(
+        f"All grouped pipelines completed. Processed {len(grouped_results)} groups."
+    )
+    return grouped_results
