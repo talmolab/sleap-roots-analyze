@@ -221,6 +221,24 @@ sleap-roots-analyze qc my_config.yaml --group-by plant_age_days
 sleap-roots-analyze run-all manifest.yaml --group-by plant_age_days
 ```
 
+### Known Limitation: run-all + group_by only visualizes the last QC group
+
+**GitHub issue [#69](https://github.com/talmolab/sleap-roots-analyze/issues/69):** When a QC config uses `group_by`, `run-all` produces one QC output per group (correct), but the viz path auto-update only targets the **last** group's output. Viz therefore only runs once, for the final group.
+
+**Workaround — run viz per group manually** after QC completes:
+
+```bash
+QC_BASE="path/to/run/qc"
+
+# For each group, update csv_path in viz config then run viz:
+sleap-roots-analyze viz configs/active/viz/my_viz_config.yaml \
+  -o path/to/run/viz/plant_age_days_9
+
+# Repeat for each group directory under QC_BASE, updating csv_path each time.
+```
+
+The `run_manifest.yaml` for a grouped analysis should document all group output paths in a comment block for reference (see `configs/active/run_manifest_alfalfa_wave1_grouped.yaml` as an example).
+
 ### Output Structure
 
 Each group gets an independent output directory:

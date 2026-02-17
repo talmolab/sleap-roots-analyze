@@ -28,6 +28,7 @@ Researchers need to analyze each timepoint separately to understand trait develo
 - `cli-pipeline` - Add `--group-by` flag to qc/viz commands
 - `qc-pipeline-root-core` - Handle grouped execution, validation per group
 - `visualization-pipeline` - Handle grouped execution
+- `pipeline-runner-skill` - run-all grouped viz fan-out (GitHub #69)
 
 **Affected code:**
 - `src/sleap_roots_analyze/cli.py` - Add CLI flag parsing
