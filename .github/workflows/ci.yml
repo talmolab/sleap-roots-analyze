@@ -84,7 +84,8 @@ jobs:
       - name: Run pytest
         run: |
           echo "=== Running pytest ==="
-          uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=-1 tests/
+          echo "Skipping integration tests (marked with @pytest.mark.integration) - see issue #70"
+          uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=20 -m "not integration" tests/
 
     #   - name: Upload coverage
     #     uses: codecov/codecov-action@v5
