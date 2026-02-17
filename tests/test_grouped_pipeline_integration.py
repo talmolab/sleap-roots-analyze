@@ -38,7 +38,9 @@ def test_grouped_qc_pipeline_with_real_data(traits_summary_csv_path, tmp_path):
     config.columns.genotype = "accession_id"
     config.columns.replicate = "plant_id"
     config.cleanup.min_samples_per_trait = 2  # Lower threshold for small subset
-    config.outlier_detection.traditional_methods = []  # Disable outlier detection for speed
+    config.outlier_detection.traditional_methods = (
+        []
+    )  # Disable outlier detection for speed
     config.visualization.create_eda_figures = False  # Disable EDA
     config.heritability.enabled = False  # Disable heritability for speed
 
@@ -56,7 +58,10 @@ def test_grouped_qc_pipeline_with_real_data(traits_summary_csv_path, tmp_path):
 
     # Get the groups that were actually processed
     processed_groups = list(results.keys())
-    assert all(isinstance(g, (int, float)) for g in processed_groups)
+    # Group keys may be numpy numeric types (int64, float64) when read from CSV
+    import numbers
+
+    assert all(isinstance(g, numbers.Number) for g in processed_groups)
 
     # Check that each processed group has correct output structure
     for group_value in processed_groups:
@@ -80,6 +85,7 @@ def test_grouped_qc_pipeline_with_real_data(traits_summary_csv_path, tmp_path):
 
         # Read and verify data
         import pandas as pd
+
         final_df = pd.read_csv(final_data_csv)
         assert len(final_df) > 0
         # All rows should have the correct plant_age_days value

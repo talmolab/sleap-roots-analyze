@@ -6,8 +6,10 @@ git information, and package versioning.
 
 from __future__ import annotations
 
+import copy
 import logging
 import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -490,6 +492,13 @@ def run_grouped_pipelines(
         group_column_name=group_by_column,
     )
     logger.info(f"Retained {len(valid_groups)} valid groups after filtering")
+    if not valid_groups:
+        logger.warning(
+            "No valid groups remain after filtering with min_samples_per_trait=%s. "
+            "This likely indicates a configuration issue or incompatible data.",
+            min_samples,
+        )
+        return {}
     if skipped_groups:
         logger.info(f"Skipped {len(skipped_groups)} groups: {skipped_groups}")
 
@@ -502,8 +511,6 @@ def run_grouped_pipelines(
         )
 
         # Create temporary CSV for this group
-        import tempfile
-
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".csv", delete=False, newline=""
         ) as tmp_file:
@@ -511,8 +518,6 @@ def run_grouped_pipelines(
             group_df.to_csv(tmp_file, index=False)
 
         # Create modified config for this group
-        import copy
-
         group_config = copy.deepcopy(config)
         group_config.data.csv_path = str(group_csv_path)
         # Remove group_by to prevent infinite recursion
@@ -520,7 +525,6 @@ def run_grouped_pipelines(
 
         # Modify pipeline name to include group information
         # This will create directories like: plant_age_days_7_20260213_140530/
-        original_pipeline_name = group_config.pipeline_name
         group_config.pipeline_name = f"{group_by_column}_{group_value}"
 
         # Run pipeline for this group
@@ -537,9 +541,7 @@ def run_grouped_pipelines(
                 "output_dir": str(pipeline.run_dir),
                 "results": results,
             }
-            logger.info(
-                f"Group {group_by_column}={group_value} completed successfully"
-            )
+            logger.info(f"Group {group_by_column}={group_value} completed successfully")
         finally:
             # Clean up temporary CSV
             group_csv_path.unlink(missing_ok=True)

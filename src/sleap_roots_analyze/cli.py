@@ -275,12 +275,18 @@ def qc(
                 f"[green]Processed {len(grouped_results)} group(s) by {cfg.data.group_by}:[/green]"
             )
             for group_value, group_data in grouped_results.items():
-                console.print(f"  [cyan]{cfg.data.group_by}={group_value}:[/cyan] {group_data['output_dir']}")
+                console.print(
+                    f"  [cyan]{cfg.data.group_by}={group_value}:[/cyan] {group_data['output_dir']}"
+                )
         else:
             # Single execution
             single_result = grouped_results[None]
-            console.print(f"[green]Results saved to:[/green] {single_result['output_dir']}")
-            console.print(f"[green]Steps completed:[/green] {len(single_result['results'])}")
+            console.print(
+                f"[green]Results saved to:[/green] {single_result['output_dir']}"
+            )
+            console.print(
+                f"[green]Steps completed:[/green] {len(single_result['results'])}"
+            )
 
     except FileNotFoundError as e:
         console.print(f"[red]Error: File not found - {e}[/red]")
@@ -435,12 +441,18 @@ def viz(
                 f"[green]Processed {len(grouped_results)} group(s) by {cfg.data.group_by}:[/green]"
             )
             for group_value, group_data in grouped_results.items():
-                console.print(f"  [cyan]{cfg.data.group_by}={group_value}:[/cyan] {group_data['output_dir']}")
+                console.print(
+                    f"  [cyan]{cfg.data.group_by}={group_value}:[/cyan] {group_data['output_dir']}"
+                )
         else:
             # Single execution
             single_result = grouped_results[None]
-            console.print(f"[green]Results saved to:[/green] {single_result['output_dir']}")
-            console.print(f"[green]Steps completed:[/green] {len(single_result['results'])}")
+            console.print(
+                f"[green]Results saved to:[/green] {single_result['output_dir']}"
+            )
+            console.print(
+                f"[green]Steps completed:[/green] {len(single_result['results'])}"
+            )
 
     except FileNotFoundError as e:
         console.print(f"[red]Error: File not found - {e}[/red]")
