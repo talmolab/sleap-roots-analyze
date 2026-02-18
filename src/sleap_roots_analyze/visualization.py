@@ -2069,6 +2069,12 @@ def create_pca_biplot(
             else:
                 df_pca = df
 
+        # Integer columns (e.g., numeric accession IDs) are label columns, not
+        # measurements. Cast to string so they route through categorical coloring.
+        if pd.api.types.is_integer_dtype(df_pca[color_by]):
+            df_pca = df_pca.copy()
+            df_pca[color_by] = df_pca[color_by].astype(str)
+
         # Handle categorical coloring
         if df_pca[color_by].dtype == "object" or isinstance(
             df_pca[color_by].dtype, pd.CategoricalDtype
