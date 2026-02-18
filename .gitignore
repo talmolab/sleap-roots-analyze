@@ -242,6 +242,7 @@ data/
 
 # Config backups (local only)
 configs/saved_backups/
+configs/archive/
 
 # Debug and scratch scripts (temporary)
 scripts/debug_*.py

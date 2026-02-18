@@ -2,7 +2,32 @@
 
 Template configuration files to help you get started with the QC pipeline.
 
-## Quick Start
+## Recommended Starting Point: `/configure-run-all`
+
+For new analyses, use the interactive slash command instead of editing templates manually:
+
+```
+/configure-run-all
+```
+
+This command:
+- Inspects your CSV and reports sample counts, column names, and group sizes
+- Guides you through every parameter with statistical rationale and recommended defaults
+- Warns when your sample size is too small for Mahalanobis chi-squared or heritability
+- Creates QC config, Viz config, and run manifest in one session
+- Backs up any existing configs before overwriting
+- Commits the final configs to git for reproducibility
+
+After configuring, run with:
+```
+/run-pipelines --manifest configs/active/run_manifest_<your_analysis>.yaml
+```
+
+---
+
+## Manual Quick Start
+
+If you prefer to create configs manually:
 
 1. **Choose a template** based on your needs:
    - `qc_cleanup_only_template.yaml` - Data cleanup without outlier detection
