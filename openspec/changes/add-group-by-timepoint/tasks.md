@@ -10,7 +10,7 @@ passing as of 2026-02-17. Documentation cleanup (7.2–7.4) deferred.
 ## 1. Configuration Support
 - [x] 1.1 Add `group_by: str | None = None` field to DataConfig in components.py
 - [x] 1.2 Write unit test for DataConfig validation with group_by field
-- [ ] 1.3 Update config validation to check group_by column exists in data
+- [x] 1.3 Update config validation to check group_by column exists in data
 
 ## 2. CLI Flag Support
 - [x] 2.1 Add `--group-by` argument to `qc` command in cli.py
@@ -77,7 +77,7 @@ New helper methods in pipeline_runner.py:
 - [x] 5.2e Add `_run_viz_for_group(config_path, config_rel, group_qc_dir, viz_output_dir)` method
 - [x] 5.2f Modify `_run_qc_pipelines()` to populate `qc_grouped_outputs` when group_by detected
 - [x] 5.2g Modify `_run_viz_pipelines()` to fan out when `qc_grouped_outputs` is populated
-- [ ] 5.4 Update /run-pipelines slash command: remove interim workaround, document native fan-out
+- [x] 5.4 Update /run-pipelines slash command: remove interim workaround, document native fan-out
 
 ## 6. Integration Tests
 
@@ -96,4 +96,4 @@ exercised manually, allowing the fan-out bug to ship undetected.
 - [x] 7.1 Update config templates README with group_by examples
 - [x] 7.2 Remove known limitation note from templates README (issue #69 now fixed)
 - [x] 7.3 Update run manifest header: remove workaround, reference native fan-out
-- [ ] 7.4 Update /run-pipelines slash command: remove workaround steps, document native behavior
+- [x] 7.4 Update /run-pipelines slash command: remove workaround steps, document native behavior
