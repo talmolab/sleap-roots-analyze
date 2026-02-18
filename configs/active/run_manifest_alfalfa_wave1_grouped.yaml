@@ -1,0 +1,25 @@
+# Run Manifest: Alfalfa GWAS Wave 1 (Grouped by Timepoint)
+#
+# Dataset: Mauricio Chiurazzi Alfalfa GWAS wave 1 (Dec 2025)
+# Analysis: QC + Viz per timepoint (plant_age_days: 0, 3, 5, 7, 9, 12)
+#
+# Each plant_age_days group is analyzed independently via group_by in the QC config.
+# run-all automatically fans out viz to run once per QC group output.
+#
+# All paths are relative to configs/active/
+
+run_name: "Alfalfa GWAS Wave 1 Grouped Analysis"
+description: "Per-timepoint QC and Viz for Mauricio Chiurazzi Alfalfa GWAS wave 1 (Dec 2025). Groups: plant_age_days [0, 3, 5, 7, 9, 12]."
+
+# QC configs are run FIRST
+qc_configs:
+  - qc/qc_alfalfa_gwas_wave_1_grouped.yaml
+
+# Viz configs are run AFTER QC (csv_path auto-updated to QC output).
+# When QC uses group_by, viz fans out automatically — once per group.
+viz_configs:
+  - viz/viz_alfalfa_gwas_wave_1_grouped.yaml
+
+# Config-to-QC mapping for path auto-update
+qc_mapping:
+  viz/viz_alfalfa_gwas_wave_1_grouped.yaml: qc/qc_alfalfa_gwas_wave_1_grouped.yaml
