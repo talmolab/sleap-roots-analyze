@@ -209,3 +209,29 @@ def test_run_grouped_pipelines_output_directory_naming(tmp_path):
 
         # Should also have timestamp
         assert len(output_dir.name.split("_")) >= 3  # column_value_timestamp
+
+
+def test_run_grouped_pipelines_raises_value_error_for_missing_group_by_column(
+    tmp_path,
+):
+    """Task 1.3: run_grouped_pipelines raises ValueError when group_by column absent."""
+    # Create CSV without the group_by column
+    data = {
+        "Barcode": ["p1", "p2", "p3"],
+        "Genotype": ["A", "B", "A"],
+        "trait1": [1.0, 2.0, 3.0],
+    }
+    csv_path = tmp_path / "data.csv"
+    pd.DataFrame(data).to_csv(csv_path, index=False)
+
+    config = get_default_qc_config()
+    config.data.csv_path = str(csv_path)
+    config.data.group_by = "plant_age_days"  # column not in CSV
+
+    with pytest.raises(ValueError, match="plant_age_days"):
+        run_grouped_pipelines(
+            config=config,
+            output_dir=tmp_path / "outputs",
+            pipeline_class=Mock(),
+            validate=False,
+        )

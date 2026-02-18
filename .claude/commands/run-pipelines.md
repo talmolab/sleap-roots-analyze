@@ -27,6 +27,8 @@ Supported arguments:
 3. Run all QC pipelines first
 4. Update Viz and Cross-Platform config paths to point to new QC outputs
 5. Run all Viz pipelines
+   - If a QC config uses `group_by`, viz fans out automatically — one run per group,
+     each written to `run_dir/viz/{group_label}/`. No manual workaround needed.
 6. Run all Cross-Platform pipelines
 7. Generate comprehensive summary document
 8. Create `latest` symlink to most recent run

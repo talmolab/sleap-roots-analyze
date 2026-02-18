@@ -480,6 +480,13 @@ def run_grouped_pipelines(
     df = pd.read_csv(config.data.csv_path)
     logger.info(f"Loaded {len(df)} samples from {config.data.csv_path}")
 
+    # Validate group_by column exists before attempting to split
+    if group_by_column not in df.columns:
+        raise ValueError(
+            f"group_by column '{group_by_column}' not found in data. "
+            f"Available columns: {list(df.columns)}"
+        )
+
     # Split by group column
     groups = split_data_by_group(df, group_by_column=group_by_column)
     logger.info(f"Split data into {len(groups)} groups: {list(groups.keys())}")
