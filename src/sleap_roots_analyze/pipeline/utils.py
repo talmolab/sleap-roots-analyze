@@ -477,7 +477,13 @@ def run_grouped_pipelines(
     logger.info(f"Grouping pipelines by column: {group_by_column}")
 
     # Load data
-    df = pd.read_csv(config.data.csv_path)
+    try:
+        df = pd.read_csv(config.data.csv_path)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"Failed to read data CSV at '{config.data.csv_path}' while preparing "
+            f"grouped pipelines (group_by='{group_by_column}')."
+        ) from exc
     logger.info(f"Loaded {len(df)} samples from {config.data.csv_path}")
 
     # Validate group_by column exists before attempting to split
