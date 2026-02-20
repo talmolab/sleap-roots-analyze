@@ -3,6 +3,9 @@
 Interactively guide the user through creating a complete, scientifically sound set of pipeline
 configuration files (QC config, Viz config, run manifest) for a new analysis.
 
+This command uses **golden templates** from `configs/templates/` to ensure all required schema
+fields are present. You customize only the fields that need to change for the user's dataset.
+
 This is the companion to `/run-pipelines` — **configure first, then run.**
 
 ## Arguments
@@ -53,80 +56,87 @@ Report to the user:
 
 ---
 
-### Step 2: Interactive Q&A Sequence
+### Step 2: Choose Template Variant
 
-Collect answers **one topic at a time**. Show the recommended default and a brief rationale
-for each question. Do NOT present all questions at once.
+Ask the user two questions to determine which golden templates to use:
 
-**2.1 — Output directory**
+**2.1 — Grouped or ungrouped analysis?**
+- Ask: "Do you want to analyze subgroups separately (e.g., different timepoints, sites)?"
+- If YES: will use `qc_template_grouped.yaml`
+- If NO: will use `qc_template_ungrouped.yaml`
+
+**2.2 — Are images available?**
+- Ask: "Are plant images available for visualization?"
+- If YES: will use `viz_template_with_images.yaml`, ask for `image_dir` path
+- If NO: will use `viz_template_no_images.yaml`
+
+Tell the user which templates will be used:
+```
+Using templates:
+  - QC: configs/templates/<qc_template_grouped or qc_template_ungrouped>.yaml
+  - Viz: configs/templates/<viz_template_with_images or viz_template_no_images>.yaml
+  - Manifest: configs/templates/run_manifest_template.yaml
+```
+
+---
+
+### Step 3: Collect Required Customizations
+
+Collect ONLY the fields that must be customized in the templates. Show the recommended default
+and brief rationale for each question. Do NOT present all questions at once.
+
+**3.1 — Output directory**
 - Ask: "Where should pipeline outputs be written?" (suggest `./pipeline_runs/`)
 
-**2.2 — Analysis name**
+**3.2 — Analysis name**
 - Ask: "What is a short name for this analysis?" (used as `pipeline_name` and `run_name`)
+- This will be used in config filenames: `qc/<name>.yaml`, `viz/<name>.yaml`, `run_manifest_<name>.yaml`
 
-**2.3 — Column assignments**
+**3.3 — Column assignments** (for UNGROUPED template only)
+- The ungrouped template has placeholders for column names
 - Ask which column is the **barcode** (sample ID / plant QR code)
 - Ask which column is the **genotype** (accession, variety, line)
 - Ask which column is the **replicate** (plant ID, rep, block)
 - Show detected candidates from the CSV to help the user choose
 
-**2.4 — Grouped analysis**
-- Ask: "Do you want to analyze subgroups separately?" (e.g., different timepoints)
-- If yes: ask which column to group by (show `group_by_candidates`)
-- Show group sizes; surface any statistical guardrail warnings
+**3.4 — Group-by column** (for GROUPED template only)
+- Ask which column to group by (show `group_by_candidates` from Step 1)
+- Show group sizes; surface any statistical guardrail warnings (n < 30)
 
-**2.5 — Cleanup thresholds**
-- `max_nan_fraction` (default: 0.0 = drop any sample with a NaN; 0.25 = up to 25% NaN allowed)
-- `max_zeros_per_trait` (default: 0.5 = drop traits with >50% zeros)
-- `max_nans_per_trait` (default: 0.2 = drop traits with >20% NaN)
-- `min_samples_per_trait` (default: max(10, n_samples_in_smallest_group // 4))
-  - Explain: also controls minimum group size for grouping
+**3.5 — Image directory** (if images available)
+- Ask for the path to the image directory
+- Explain: "This directory should contain plant images referenced in the CSV"
 
-**2.6 — Outlier detection**
-- Ask: "Enable outlier detection?" (recommended: yes for n ≥ 30)
-- If yes: recommend Mahalanobis (explain chi-squared approximation requires n ≥ 30)
-- Surface any Mahalanobis small-n warnings from Step 1
-- Show default: `chi2_percentile: 99.0`, suggest 95.0 for small groups
+**3.6 — Optional: Configurable parameters**
+Ask if the user wants to customize these (default: use template values):
 
-**2.7 — Heritability filtering**
-- Ask: "Enable heritability filtering?" (recommended: yes when ≥ 3 replicates per genotype)
-- Surface any heritability warnings from Step 1
-- If enabled: ask threshold (default: 0.30 — permissive, show range 0.30–0.60)
-  - 0.30: retains most heritable traits (exploratory)
+- `heritability.threshold` (template default: 0.30 for grouped, 0.40 for ungrouped)
+  - 0.30: permissive (exploratory)
   - 0.40: moderate
-  - 0.50–0.60: only strongly heritable traits
+  - 0.50–0.60: strict (only strongly heritable traits)
+  - Surface heritability warnings from Step 1 if applicable
 
-**2.8 — PCA settings**
-- `n_components` (default: 0.95 = keep PCs explaining 95% of variance)
-- `feature_selection_strategy`:
-  - `"top_variance"` — traits with highest total variance contribution (good for general exploration)
-  - `"extreme"` — traits with most extreme positive AND negative PC loadings (better for mechanistic interpretation)
-  - **Clarify**: this controls which traits are selected for UMAP coloring and metadata storage.
-    It does NOT affect the feature contribution bar chart, which always ranks all traits by variance.
-- `n_top_features` (default: 5) — how many traits the strategy selects for UMAP coloring
-- `pca_biplot_top_features` (default: 1–2 for >100 traits, up to 5 for smaller datasets)
-  - **Clarify**: this is INDEPENDENT of `n_top_features`. It controls biplot arrow count only.
-  - For `"extreme"` strategy: a value of 1 gives 2 arrows per PC (one positive, one negative)
-  - Keep small (1–5) for high-dimensional datasets to avoid arrow crowding
+- `cleanup.min_samples_per_trait` (template default: 10)
+  - Recommend: `max(10, n_samples_in_smallest_group // 4)`
 
-**2.9 — UMAP**
-- Ask: "Enable UMAP?" (recommended: yes when n ≥ 15)
-- If yes: recommend n_neighbors:
-  ```python
-  from sleap_roots_analyze.config_authoring import recommend_umap_n_neighbors
-  n, warning = recommend_umap_n_neighbors(n_samples)
-  ```
-  Show the recommendation and any warning.
-- `min_dist` (default: 0.1), `random_state` (default: 42)
+- `pca.n_top_features` (template default: 5)
+  - Controls how many traits are selected for UMAP coloring and metadata storage
 
-**2.10 — Images**
-- Ask: "Are plant images available for visualization?"
-- If yes: ask for `image_dir` path
-- If no: set `image_dir: null`
+- `umap.n_neighbors` (template default: 10 for grouped, 10 for ungrouped)
+  - Recommend:
+    ```python
+    from sleap_roots_analyze.config_authoring import recommend_umap_n_neighbors
+    n, warning = recommend_umap_n_neighbors(n_samples)
+    ```
+
+- `static_viz.pca_biplot_top_features` (template default: 1)
+  - Controls biplot arrow count (independent of `n_top_features`)
+  - For "extreme" strategy: 1 → 2 arrows/PC, 2 → 4 arrows/PC
+  - Keep small (1–5) for high-dimensional datasets
 
 ---
 
-### Step 3: Critical Parameter Review
+### Step 4: Critical Parameter Review
 
 Before writing any files, present a review table:
 
@@ -135,11 +145,13 @@ CRITICAL PARAMETER REVIEW
 ═══════════════════════════════════════════════════════════════
 Parameter                  Value      Status
 ───────────────────────────────────────────────────────────────
+csv_path                   <path>     OK
+group_by                   <col>      OK (n=25, 30, 35)
+columns.barcode            <col>      OK
 heritability.threshold     0.30       OK (permissive)
-outlier chi2_percentile    99.0       ⚠ CHECK: n=25 < 30
 min_samples_per_trait      10         OK
-umap.n_neighbors           5          OK for n=25
-group sizes                25, 30     ⚠ CHECK: day 0 has n=25
+umap.n_neighbors           10         OK for n=90
+image_dir                  <path>     OK
 ═══════════════════════════════════════════════════════════════
 ```
 
@@ -148,12 +160,12 @@ Ask the user to confirm or modify each flagged parameter before proceeding.
 
 ---
 
-### Step 4: Backup Check
+### Step 5: Backup Check
 
 For each config file that will be written, check if it already exists in `configs/active/`.
 
 If a file exists:
-1. Inform the user: "A config file already exists at `configs/active/<name>.yaml`."
+1. Inform the user: "A config file already exists at `configs/active/<path>`."
 2. Ask: "Would you like to save a backup before overwriting?"
 3. If yes, create the backup:
    ```python
@@ -172,74 +184,159 @@ If a file exists:
 
 ---
 
-### Step 5: Write Config Files
+### Step 6: Copy and Customize Templates
 
-Write three files using the Write tool:
+**CRITICAL**: Use Read → Edit → Write workflow to preserve all template fields.
+**NEVER** write configs from scratch — always start from a golden template.
 
-**5.1 — QC Config** → `configs/active/qc/<analysis_name>.yaml`
+**6.1 — QC Config** → `configs/active/qc/<analysis_name>.yaml`
 
-Include a self-documenting header:
-```yaml
-# QC Pipeline Configuration: <Analysis Name>
-#
-# Dataset: <csv_path>
-# Analysis date: <YYYY-MM-DD>
-# Generated by: /configure-run-all
-#
-# Key choices:
-#   heritability.threshold: <value> — <brief rationale>
-#   group_by: <column or "not used"> — <brief rationale>
-#   chi2_percentile: <value> — <brief rationale>
-```
+1. **Read** the appropriate QC template:
+   ```python
+   # For grouped:
+   template_path = "configs/templates/qc_template_grouped.yaml"
+   # For ungrouped:
+   template_path = "configs/templates/qc_template_ungrouped.yaml"
+   ```
 
-**5.2 — Viz Config** → `configs/active/viz/<analysis_name>.yaml`
+2. **Edit** ONLY the placeholders:
+   - Replace `FILL_IN_PIPELINE_NAME` with the analysis name
+   - Replace `FILL_IN_CSV_PATH` with the dataset CSV path
+   - For UNGROUPED: Replace `FILL_IN_BARCODE_COLUMN`, `FILL_IN_GENOTYPE_COLUMN`, `FILL_IN_REPLICATE_COLUMN`
+   - For GROUPED: The `group_by` column is already set in the template, but you may need to update it
+   - If user customized optional parameters (heritability threshold, min_samples, etc.), update those values
 
-Include a self-documenting header:
-```yaml
-# Visualization Pipeline Configuration: <Analysis Name>
-#
-# Dataset: QC output from qc/<analysis_name>.yaml
-# Analysis date: <YYYY-MM-DD>
-# Generated by: /configure-run-all
-#
-# Note: When run via run-all, csv_path is auto-updated to the QC output.
-#
-# Key choices:
-#   feature_selection_strategy: <value> — <brief rationale>
-#   pca_biplot_top_features: <value> — <brief rationale>
-```
+3. **Add** a self-documenting header (replace the template comment header):
+   ```yaml
+   # QC Pipeline Configuration: <Analysis Name>
+   #
+   # Dataset: <csv_path>
+   # Analysis date: <YYYY-MM-DD>
+   # Generated from: <qc_template_grouped.yaml or qc_template_ungrouped.yaml>
+   #
+   # Key choices:
+   #   heritability.threshold: <value> — <brief rationale>
+   #   group_by: <column or null> — <brief rationale if grouped>
+   ```
 
-Use sanitized column names in the Viz config (Barcode, Genotype, Replicate — these are
-what the QC pipeline outputs after column renaming).
+4. **Write** the modified config to `configs/active/qc/<analysis_name>.yaml`
 
-**5.3 — Run Manifest** → `configs/active/run_manifest_<analysis_name>.yaml`
+**6.2 — Viz Config** → `configs/active/viz/<analysis_name>.yaml`
 
-Include a self-documenting header:
-```yaml
-# Run Manifest: <Analysis Name>
-#
-# Dataset: <csv_path>
-# Analysis date: <YYYY-MM-DD>
-# Generated by: /configure-run-all
-#
-# Reproduce this run:
-#   sleap-roots-analyze run-all configs/active/run_manifest_<analysis_name>.yaml
-#
-# All paths are relative to configs/active/
-```
+1. **Read** the appropriate Viz template:
+   ```python
+   # For with images:
+   template_path = "configs/templates/viz_template_with_images.yaml"
+   # For no images:
+   template_path = "configs/templates/viz_template_no_images.yaml"
+   ```
+
+2. **Edit** ONLY the placeholders:
+   - Replace `FILL_IN_PIPELINE_NAME` with the analysis name
+   - Replace `FILL_IN_CSV_PATH` with a placeholder (explain it will be auto-updated by run-all)
+   - For WITH IMAGES: Replace `FILL_IN_IMAGE_DIR` with the image directory path
+   - If user customized optional parameters (n_top_features, n_neighbors, pca_biplot_top_features), update those values
+
+3. **Use sanitized column names** in the Viz config:
+   - `columns.barcode: "Barcode"`
+   - `columns.genotype: "Genotype"`
+   - `columns.replicate: "Replicate"`
+   - `columns.image_path: "Image_Path"` (if images available, else `null`)
+   - Explain: "These are the standardized names that the QC pipeline outputs after column renaming."
+
+4. **Add** a self-documenting header (replace the template comment header):
+   ```yaml
+   # Visualization Pipeline Configuration: <Analysis Name>
+   #
+   # Dataset: QC output from qc/<analysis_name>.yaml
+   # Analysis date: <YYYY-MM-DD>
+   # Generated from: <viz_template_with_images.yaml or viz_template_no_images.yaml>
+   #
+   # Note: csv_path will be auto-updated to QC output when run via run-all.
+   ```
+
+5. **Write** the modified config to `configs/active/viz/<analysis_name>.yaml`
+
+**6.3 — Run Manifest** → `configs/active/run_manifest_<analysis_name>.yaml`
+
+1. **Read** the manifest template:
+   ```python
+   template_path = "configs/templates/run_manifest_template.yaml"
+   ```
+
+2. **Edit** ONLY the placeholders:
+   - Replace `FILL_IN_RUN_NAME` with the analysis name
+   - Replace `FILL_IN_DESCRIPTION` with: "QC and Viz for <dataset description>. [Groups: <group info if applicable>]"
+   - Replace `FILL_IN_QC_CONFIG_PATH` with: `qc/<analysis_name>.yaml`
+   - Replace `FILL_IN_VIZ_CONFIG_PATH` with: `viz/<analysis_name>.yaml`
+   - Update the `qc_mapping` dictionary: `{"viz/<analysis_name>.yaml": "qc/<analysis_name>.yaml"}`
+
+3. **Add** a self-documenting header (replace the template comment header):
+   ```yaml
+   # Run Manifest: <Analysis Name>
+   #
+   # Dataset: <csv_path>
+   # Analysis date: <YYYY-MM-DD>
+   # Generated from: run_manifest_template.yaml
+   #
+   # Reproduce this run:
+   #   sleap-roots-analyze run-all configs/active/run_manifest_<analysis_name>.yaml
+   #
+   # All paths are relative to configs/active/
+   ```
+
+4. **Write** the modified manifest to `configs/active/run_manifest_<analysis_name>.yaml`
 
 ---
 
-### Step 6: User Validation Gate
+### Step 7: Validate Configs
 
-After writing the files, display the full content of each config file.
+**CRITICAL**: Validate the QC and Viz configs BEFORE showing them to the user.
+
+```python
+from sleap_roots_analyze.pipeline.config.utils import load_qc_config, load_viz_config, validate_qc_config, validate_viz_config
+
+# Validate QC config
+qc_config = load_qc_config("configs/active/qc/<analysis_name>.yaml")
+validate_qc_config(qc_config)  # Will raise ValueError if invalid
+
+# Validate Viz config
+viz_config = load_viz_config("configs/active/viz/<analysis_name>.yaml")
+validate_viz_config(viz_config)  # Will raise ValueError if invalid
+```
+
+If validation fails:
+- Show the error message to the user
+- Explain which field(s) are invalid
+- Offer to fix and re-validate
+- DO NOT proceed to user validation gate until configs pass validation
+
+If validation succeeds, proceed to Step 8.
+
+---
+
+### Step 8: User Validation Gate
+
+After validation passes, display a summary of each config file (not the full content — just key parameters).
 
 Highlight (in bold text) the most consequential parameters:
-- `heritability.threshold`
-- `outlier_detection.traditional_methods` and `chi2_percentile`
-- `data.group_by`
-- `cleanup.min_samples_per_trait`
-- `pca.feature_selection_strategy` and `pca_biplot_top_features`
+- **QC config**:
+  - `data.csv_path`
+  - `data.group_by` (if grouped)
+  - `columns.barcode`, `columns.genotype`, `columns.replicate` (if ungrouped)
+  - `heritability.threshold`
+  - `cleanup.min_samples_per_trait`
+
+- **Viz config**:
+  - `data.image_dir` (if images available)
+  - `pca.n_top_features`
+  - `umap.n_neighbors`
+  - `static_viz.pca_biplot_top_features`
+
+- **Run manifest**:
+  - `run_name`
+  - `qc_configs`
+  - `viz_configs`
 
 Ask the user: "Do these configs look correct? Confirm with 'yes' / 'looks good' to commit and proceed."
 
@@ -247,7 +344,7 @@ Wait for explicit confirmation before continuing.
 
 ---
 
-### Step 7: Git Commit
+### Step 9: Git Commit
 
 After user approval, commit the config files:
 
@@ -259,7 +356,9 @@ Dataset: <csv_path>
 Config files:
   - configs/active/qc/<analysis_name>.yaml
   - configs/active/viz/<analysis_name>.yaml
-  - configs/active/run_manifest_<analysis_name>.yaml"
+  - configs/active/run_manifest_<analysis_name>.yaml
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
 
 Report the resulting SHA to the user:
@@ -277,7 +376,7 @@ If the git commit fails (e.g., no changes, detached HEAD):
 
 ---
 
-### Step 8: Handoff
+### Step 10: Handoff
 
 Tell the user:
 1. The configs are written and committed.
@@ -305,3 +404,13 @@ Do NOT invoke `/run-pipelines` automatically.
 | Mahalanobis n | n ≥ 30 | `warn_mahalanobis_small_n(n)` |
 | Heritability replicates | ≥ 3 reps/genotype | `warn_heritability_low_replicates(n)` |
 | UMAP n_neighbors | min(15, n//4) | `recommend_umap_n_neighbors(n)` |
+
+## Golden Template Reference
+
+| Template | Use When | Placeholders |
+|---|---|---|
+| `qc_template_grouped.yaml` | Multi-group analysis (timepoints, sites, batches) | `FILL_IN_PIPELINE_NAME`, `FILL_IN_CSV_PATH` |
+| `qc_template_ungrouped.yaml` | Single-group analysis | `FILL_IN_PIPELINE_NAME`, `FILL_IN_CSV_PATH`, `FILL_IN_*_COLUMN` |
+| `viz_template_with_images.yaml` | Images available | `FILL_IN_PIPELINE_NAME`, `FILL_IN_CSV_PATH`, `FILL_IN_IMAGE_DIR` |
+| `viz_template_no_images.yaml` | No images | `FILL_IN_PIPELINE_NAME`, `FILL_IN_CSV_PATH` |
+| `run_manifest_template.yaml` | Always | `FILL_IN_RUN_NAME`, `FILL_IN_*_CONFIG_PATH` |

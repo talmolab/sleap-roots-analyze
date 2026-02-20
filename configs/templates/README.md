@@ -1,6 +1,8 @@
-# QC Pipeline Configuration Templates
+# Pipeline Configuration Templates
 
-Template configuration files to help you get started with the QC pipeline.
+Golden configuration templates for the QC and Viz pipelines.
+
+These templates are **complete and schema-validated** — they include all required fields with clear placeholders for customization. Use them as starting points to ensure your configs are structurally correct.
 
 ## Recommended Starting Point: `/configure-run-all`
 
@@ -12,8 +14,10 @@ For new analyses, use the interactive slash command instead of editing templates
 
 This command:
 - Inspects your CSV and reports sample counts, column names, and group sizes
-- Guides you through every parameter with statistical rationale and recommended defaults
+- Guides you through parameter choices with statistical rationale and recommended defaults
 - Warns when your sample size is too small for Mahalanobis chi-squared or heritability
+- **Copies golden templates** and customizes only the fields that need to change
+- **Validates configs** before writing them (catches schema errors early)
 - Creates QC config, Viz config, and run manifest in one session
 - Backs up any existing configs before overwriting
 - Commits the final configs to git for reproducibility
@@ -25,198 +29,206 @@ After configuring, run with:
 
 ---
 
+## Golden Templates
+
+These templates are the source of truth for schema completeness. They are derived from known-working configs in `configs/active/` and validated against the config schema before each release.
+
+### QC Templates
+
+**`qc_template_grouped.yaml`** — For multi-group analyses (e.g., multiple timepoints, sites, batches)
+- Uses `data.group_by` to split data by a metadata column
+- Each group is analyzed independently (separate statistics, PCA, outlier detection)
+- Heritability threshold default: 0.30 (permissive, suitable for exploratory grouped analyses)
+- **Use when**: You have multiple timepoints, sites, or conditions and want to prevent confounding
+
+**`qc_template_ungrouped.yaml`** — For single-group analyses
+- All samples analyzed together as one dataset
+- Heritability threshold default: 0.40 (moderate)
+- **Use when**: All samples are from the same condition/timepoint
+
+### Viz Templates
+
+**`viz_template_with_images.yaml`** — When plant images are available
+- `data.image_dir` enabled
+- `interactive_viz.show_images_on_hover: true` (hover over plot points to see images)
+- `interesting_genotypes.generate_image_grids: true` (creates image grids for extreme genotypes)
+- **Use when**: You have a directory of plant images referenced in your CSV
+
+**`viz_template_no_images.yaml`** — When images are NOT available
+- `data.image_dir: null`
+- Image-related features disabled
+- All other viz features still available (PCA, UMAP, clustering, statistics)
+- **Use when**: You only have trait data, no images
+
+### Run Manifest Template
+
+**`run_manifest_template.yaml`** — Orchestrates QC → Viz pipeline execution
+- Lists QC configs to run first
+- Lists Viz configs to run after (with csv_path auto-updated to QC output)
+- Maps viz configs to their corresponding QC configs for path auto-update
+
+---
+
 ## Manual Quick Start
 
-If you prefer to create configs manually:
+If you prefer to create configs manually instead of using `/configure-run-all`:
 
-1. **Choose a template** based on your needs:
-   - `qc_cleanup_only_template.yaml` - Data cleanup without outlier detection
-   - `qc_full_pipeline_template.yaml` - Full QC with outlier detection
+### Step 1: Choose Templates
 
-2. **Copy and customize**:
-   ```bash
-   cp configs/templates/qc_full_pipeline_template.yaml configs/my_analysis.yaml
-   # Edit my_analysis.yaml with your dataset-specific values
-   ```
+Based on your analysis needs, choose:
 
-3. **Run the pipeline**:
-   ```bash
-   sleap-roots-analyze qc configs/my_analysis.yaml
-   ```
+| Your Analysis | QC Template | Viz Template |
+|---|---|---|
+| Multi-timepoint, with images | `qc_template_grouped.yaml` | `viz_template_with_images.yaml` |
+| Multi-timepoint, no images | `qc_template_grouped.yaml` | `viz_template_no_images.yaml` |
+| Single timepoint, with images | `qc_template_ungrouped.yaml` | `viz_template_with_images.yaml` |
+| Single timepoint, no images | `qc_template_ungrouped.yaml` | `viz_template_no_images.yaml` |
 
-## Required Parameters
-
-You MUST set these parameters in your config:
-
-- **`columns.genotype`** - Your genotype column name (e.g., "geno", "accession")
-- **`columns.replicate`** - Your replicate column name (e.g., "rep", "block")
-- **`data.csv_path`** - Path to your trait CSV file
-- **`cleanup.max_nan_fraction`** - Max NaN per sample (typical: 0.25)
-- **`cleanup.max_zeros_per_trait`** - Max zeros per trait (typical: 0.5)
-- **`cleanup.low_variance_threshold`** - Min trait variance (typical: 1e-10)
-- **`pca.variance_threshold`** - PCA variance threshold (typical: 0.95)
-
-## Conditionally Required
-
-These parameters are required only if certain features are enabled:
-
-- **`heritability.threshold`** - Required if `heritability.enabled: true` (typical: 0.3-0.6)
-- **`outlier_removal.strategy`** - Required if outlier detection methods configured
-- **`root_core.sources[].aggregation_method`** - Required if processing root cores (use "median")
-
-## Optional But Important
-
-- **`outlier_detection.traditional_methods`** - Can be empty for cleanup-only pipeline
-  - **WARNING**: You will be warned if this is empty (to ensure conscious choice)
-  - This ensures you make a deliberate decision about whether to include outlier detection
-
-- **`data.group_by`** - Column name to group data by for separate per-group analyses
-  - Common use: "plant_age_days" for multi-timepoint experiments
-  - Creates independent output directories and statistics for each group
-  - See "Grouped Analysis by Timepoint" section below for details
-
-## Templates Explained
-
-### Cleanup-Only Template
-
-Use `qc_cleanup_only_template.yaml` when you only need data cleanup (removing NaNs, zeros, low-variance traits) without outlier detection.
-
-**Best for**:
-- Quick exploratory analysis
-- Well-characterized datasets without outliers
-- When you want to handle outliers manually
-
-**Outlier detection**: Disabled (empty `traditional_methods` and `clustering_methods`)
-
-### Full Pipeline Template
-
-Use `qc_full_pipeline_template.yaml` for complete QC including outlier detection using multiple methods.
-
-**Best for**:
-- Production analyses requiring robust QC
-- Datasets with potential outliers
-- Maximizing data quality before downstream analysis
-
-**Outlier detection**: Enabled with multiple methods (Mahalanobis, Isolation Forest, DBSCAN)
-
-## Real-World Configs
-
-The parent `configs/` directory contains several real-world configurations you can learn from and reuse:
+### Step 2: Copy and Customize
 
 ```bash
-# Browse available configs
-ls ../configs/*.yaml
-
-# View a specific config
-cat ../configs/qc_turface_150genotypes.yaml
+# Example: grouped analysis with images
+cp configs/templates/qc_template_grouped.yaml configs/active/qc/my_analysis.yaml
+cp configs/templates/viz_template_with_images.yaml configs/active/viz/my_analysis.yaml
+cp configs/templates/run_manifest_template.yaml configs/active/run_manifest_my_analysis.yaml
 ```
 
-These configs show real parameter choices from actual analyses. Feel free to use them directly or as starting points for your own experiments.
+### Step 3: Replace Placeholders
 
-## Common Workflows
+Edit each file and replace the `FILL_IN_*` placeholders:
 
-### Workflow 1: Cleanup Only
+**In QC config:**
+- `FILL_IN_PIPELINE_NAME` → e.g., `"my_analysis_qc"`
+- `FILL_IN_CSV_PATH` → path to your trait CSV
+- For **ungrouped** template only:
+  - `FILL_IN_BARCODE_COLUMN` → your sample ID column (e.g., `"barcode"`)
+  - `FILL_IN_GENOTYPE_COLUMN` → your genotype column (e.g., `"geno"`)
+  - `FILL_IN_REPLICATE_COLUMN` → your replicate column (e.g., `"rep"`)
+
+**In Viz config:**
+- `FILL_IN_PIPELINE_NAME` → e.g., `"my_analysis_viz"`
+- `FILL_IN_CSV_PATH` → placeholder (will be auto-updated by run-all)
+- For **with_images** template only:
+  - `FILL_IN_IMAGE_DIR` → path to your image directory
+
+**In Run Manifest:**
+- `FILL_IN_RUN_NAME` → e.g., `"My Analysis Run"`
+- `FILL_IN_DESCRIPTION` → brief description of your analysis
+- `FILL_IN_QC_CONFIG_PATH` → e.g., `"qc/my_analysis.yaml"`
+- `FILL_IN_VIZ_CONFIG_PATH` → e.g., `"viz/my_analysis.yaml"`
+- Update `qc_mapping` dictionary to map viz → qc
+
+### Step 4: Validate
+
+Before running, validate your configs:
 
 ```bash
-# 1. Copy template
-cp configs/templates/qc_cleanup_only_template.yaml configs/my_cleanup.yaml
-
-# 2. Edit required fields:
-#    - columns.genotype
-#    - columns.replicate
-#    - data.csv_path
-#    - cleanup thresholds
-
-# 3. Run
-sleap-roots-analyze qc configs/my_cleanup.yaml
+/validate-config configs/active/qc/my_analysis.yaml
 ```
 
-You will see a warning that outlier detection is disabled. This is normal and expected for cleanup-only pipelines.
+This checks:
+- All required fields are present
+- Field types are correct
+- Outlier methods are valid
+- Data files exist (if paths specified)
 
-### Workflow 2: Full QC with Outlier Detection
+### Step 5: Run
 
 ```bash
-# 1. Copy template
-cp configs/templates/qc_full_pipeline_template.yaml configs/my_qc.yaml
-
-# 2. Edit required fields (same as cleanup-only, plus):
-#    - outlier_removal.strategy
-#    - heritability.threshold (if enabled)
-
-# 3. Run
-sleap-roots-analyze qc configs/my_qc.yaml
+sleap-roots-analyze run-all configs/active/run_manifest_my_analysis.yaml
 ```
 
-## Parameter Recommendations
+---
 
-### Cleanup Thresholds
+## Required Customizations
 
-- **`max_nan_fraction: 0.25`** - Removes samples with >25% missing data
-  - Lower (0.10-0.20) = stricter, keeps only very complete samples
-  - Higher (0.30-0.40) = permissive, allows more missing data
+These fields **must** be replaced in the templates (marked with `FILL_IN_*` placeholders):
 
-- **`max_zeros_per_trait: 0.5`** - Removes traits with >50% zeros
-  - Lower (0.30-0.40) = stricter, removes traits with many zeros
-  - Higher (0.60-0.70) = permissive, allows traits with frequent zeros
+### QC Config (All Templates)
+- `pipeline_name` - Unique name for this analysis
+- `data.csv_path` - Path to your trait CSV file
 
-- **`low_variance_threshold: 1e-10`** - Removes near-constant traits
-  - Standard value works for most cases
-  - Increase (1e-8, 1e-6) if you want to be more aggressive
+### QC Config (Ungrouped Only)
+- `columns.barcode` - Your sample ID column name
+- `columns.genotype` - Your genotype column name
+- `columns.replicate` - Your replicate column name
+
+### Viz Config (All Templates)
+- `pipeline_name` - Unique name for this analysis
+- `data.csv_path` - Path to QC output (use placeholder for run-all)
+
+### Viz Config (With Images Only)
+- `data.image_dir` - Path to image directory
+
+### Run Manifest
+- `run_name` - Display name for this run
+- `description` - Brief description
+- `qc_configs` - List of QC config paths (relative to configs/active/)
+- `viz_configs` - List of Viz config paths
+- `qc_mapping` - Maps each viz config to its corresponding QC config
+
+---
+
+## Optional Customizations
+
+These parameters have sensible defaults in the templates, but you may want to customize them:
 
 ### Heritability Threshold
 
-- **0.30** - Permissive (retains more traits)
-- **0.40** - Moderate (balanced)
+- **0.30** (grouped template default) - Permissive (retains more traits, good for exploration)
+- **0.40** (ungrouped template default) - Moderate (balanced)
 - **0.50-0.60** - Stringent (only highly heritable traits)
 
 Choose based on your downstream analysis requirements. Higher thresholds give you fewer but more reliable traits.
 
-### PCA Variance Threshold
+### Cleanup Thresholds
 
-- **0.90** - Fewer components (faster, less complete)
-- **0.95** - Standard (good balance)
-- **0.99** - More components (slower, more complete)
+- **`max_nan_fraction`** (template default: 0.0 for ungrouped, varies for grouped)
+  - 0.0 = drop any sample with missing data (strict)
+  - 0.25 = allow up to 25% missing data per sample (permissive)
 
-## Validation Warnings
+- **`max_zeros_per_trait`** (template default: 0.5)
+  - 0.5 = drop traits with >50% zeros
+  - Lower (0.3-0.4) = stricter, higher (0.6-0.7) = more permissive
 
-When you run the pipeline, you may see validation warnings:
+- **`min_samples_per_trait`** (template default: 10)
+  - Recommend: `max(10, n_samples_in_smallest_group // 4)`
+  - Also controls minimum group size when using `data.group_by`
 
-### Warning: No Outlier Detection
+### PCA Settings
 
-```
-UserWarning: No outlier detection methods configured...
-  This is valid if you only want data cleanup (NaN/zero removal).
-  Consider adding outlier detection for robust QC:
-    - traditional_methods: ['mahalanobis_pca', 'isolation_forest']
-```
+- **`n_components`** (template default: 0.95)
+  - 0.95 = retain PCs explaining 95% of variance
+  - Higher (0.99) = more components retained, lower (0.90) = fewer components
 
-**This is normal** for cleanup-only pipelines. The warning ensures you're making a conscious choice not to include outlier detection.
+- **`feature_selection_strategy`** (template default: varies)
+  - `"top_variance"` - Traits with highest total variance contribution
+  - `"extreme"` - Traits with most extreme PC loadings (both positive and negative)
 
-### Error: Missing Required Parameters
+- **`n_top_features`** (template default: 5)
+  - Controls how many traits are selected for UMAP coloring and metadata storage
+  - Does NOT affect the feature contribution bar chart (which always shows all traits)
 
-```
-ValueError: Configuration Validation Failed
-Critical parameters must be explicitly set to avoid silent failures.
+- **`pca_biplot_top_features`** (viz template default: 1)
+  - Controls biplot arrow count (INDEPENDENT of `n_top_features`)
+  - For "extreme" strategy: 1 → 2 arrows/PC, 2 → 4 arrows/PC
+  - Keep small (1–5) for high-dimensional datasets to avoid crowding
 
-cleanup.max_nan_fraction must be explicitly set
-  Recommended: 0.25 (removes samples with >25% missing data)
-  Range: 0.0-1.0 (lower = stricter)
-```
+### UMAP Settings
 
-This error means you forgot to set a required parameter. Edit your config file to set the missing parameters.
+- **`n_neighbors`** (template default: 10)
+  - Recommend: `min(15, max(2, n_samples // 4))`
+  - Smaller n → more local structure, larger n → more global structure
 
-## Getting Help
+- **`min_dist`** (template default: 0.1)
+  - Controls how tightly UMAP packs points together
+  - 0.0 = very tight, 1.0 = very spread out
 
-If you encounter issues:
-
-1. Check that all REQUIRED parameters are set
-2. Review the examples in `configs/` directory
-3. Read the error messages carefully - they include recommended values
-4. Consult the full documentation at `docs/configuration_guide.md`
+---
 
 ## Grouped Analysis by Timepoint
 
-For multi-timepoint experiments (e.g., plants measured at 7, 14, 21 days), you can use `data.group_by` to analyze each timepoint independently.
+For multi-timepoint experiments (e.g., plants measured at 7, 14, 21 days), use `data.group_by` to analyze each timepoint independently.
 
 ### Why Use Grouped Analysis?
 
@@ -226,6 +238,8 @@ Combining data across timepoints can **confound temporal and genetic effects**, 
 - Clean comparison of genetic effects within homogeneous groups
 
 ### Configuration
+
+Use `qc_template_grouped.yaml` and set:
 
 ```yaml
 data:
@@ -246,7 +260,7 @@ sleap-roots-analyze qc my_config.yaml --group-by plant_age_days
 sleap-roots-analyze run-all manifest.yaml --group-by plant_age_days
 ```
 
-### run-all with group_by: automatic viz fan-out
+### run-all with group_by: Automatic Viz Fan-Out
 
 When a QC config uses `group_by`, `run-all` automatically fans out the downstream viz pipeline
 to run once per QC group output. Each group gets its own viz subdirectory and updated config:
@@ -269,24 +283,6 @@ run_dir/
 
 No manual workaround is needed. `run-all` handles the fan-out natively.
 
-### Output Structure
-
-Each group gets an independent output directory:
-
-```
-qc_runs/
-├── plant_age_days_7_20260216_143052/
-│   ├── config.yaml
-│   ├── pipeline_summary.json
-│   ├── 10_final_data.csv          # Only day 7 samples
-│   ├── 08_heritability_results.csv  # H² for day 7
-│   └── figures/
-├── plant_age_days_14_20260216_143108/
-│   └── ...
-└── plant_age_days_21_20260216_143124/
-    └── ...
-```
-
 ### Group Validation
 
 Groups with fewer than `cleanup.min_samples_per_trait` samples are automatically skipped with a warning:
@@ -307,11 +303,74 @@ WARNING: Skipping group plant_age_days=28 (3 samples < 10 minimum)
 - You intentionally want to analyze temporal trends
 - Groups would have insufficient samples
 
+---
+
+## Real-World Configs
+
+The parent `configs/active/` directory contains several real-world configurations you can learn from:
+
+```bash
+# Browse available configs
+ls configs/active/qc/
+ls configs/active/viz/
+
+# View a specific config
+cat configs/active/qc/qc_turface_150genotypes.yaml
+```
+
+These configs show real parameter choices from actual analyses. Feel free to use them as reference or starting points for your own experiments.
+
+---
+
+## Validation
+
+When you run the pipeline, configs are validated automatically. Common issues:
+
+### Error: Missing FILL_IN_ Placeholders
+
+```
+ValueError: data.csv_path is required
+```
+
+**Fix**: Replace all `FILL_IN_*` placeholders with actual values before running.
+
+### Error: Invalid Outlier Method
+
+```
+ValueError: outlier_detection.traditional_methods contains invalid method 'mahalanobis_pca'
+```
+
+**Fix**: Check the template for valid method names. Use `"mahalanobis"`, not `"mahalanobis_pca"`.
+
+### Warning: No Outlier Detection
+
+```
+UserWarning: No outlier detection methods configured...
+```
+
+**This is normal** if `traditional_methods` and `clustering_methods` are both empty. The warning ensures you're making a conscious choice. You can still run the pipeline with cleanup only (no outlier detection).
+
+---
+
+## Getting Help
+
+If you encounter issues:
+
+1. Use `/configure-run-all` instead of editing templates manually (recommended)
+2. Use `/validate-config` to check your config before running
+3. Check that all `FILL_IN_*` placeholders are replaced
+4. Review the examples in `configs/active/` directory
+5. Read the error messages carefully - they include recommended fixes
+
+---
+
 ## Tips
 
-1. **Start with a template** - Don't write configs from scratch
-2. **Document your choices** - Add comments explaining why you chose specific values
-3. **Test with small datasets** - Validate your config before running on full data
-4. **Review outputs** - Check the generated plots and summaries to ensure QC worked as expected
-5. **Learn from examples** - The configs in `configs/` show real-world usage patterns
-6. **Use grouping for multi-timepoint data** - Prevents confounding temporal and genetic effects
+1. **Start with `/configure-run-all`** - It's faster and catches errors earlier than manual editing
+2. **Use golden templates for manual configs** - They're complete and schema-validated
+3. **Validate before running** - Use `/validate-config` to catch errors early
+4. **Document your choices** - Add comments explaining why you chose specific values
+5. **Test with small datasets** - Validate your config before running on full data
+6. **Review outputs** - Check the generated plots and summaries to ensure QC worked as expected
+7. **Learn from examples** - The configs in `configs/active/` show real-world usage patterns
+8. **Use grouping for multi-timepoint data** - Prevents confounding temporal and genetic effects
