@@ -103,59 +103,218 @@ and brief rationale for each question. Do NOT present all questions at once.
 - Ask which column to group by (show `group_by_candidates` from Step 1)
 - Show group sizes; surface any statistical guardrail warnings (n < 30)
 
-**3.5 — Image directory** (if images available)
-- Ask for the path to the image directory
-- Explain: "This directory should contain plant images referenced in the CSV"
+**3.5 — Cleanup thresholds**
 
-**3.6 — Optional: Configurable parameters**
-Ask if the user wants to customize these (default: use template values):
+Ask the user to specify cleanup thresholds **one at a time**. Show recommended default and brief rationale for each.
 
-- `heritability.threshold` (template default: 0.30 for grouped, 0.40 for ungrouped)
-  - 0.30: permissive (exploratory)
-  - 0.40: moderate
-  - 0.50–0.60: strict (only strongly heritable traits)
-  - Surface heritability warnings from Step 1 if applicable
+- **`max_nan_fraction`** (per sample)
+  - Ask: "What fraction of missing trait values should trigger sample removal?"
+  - Explain: "Samples with more than this fraction of NaN trait values will be dropped"
+  - Default: 0.0 (drop any sample with ANY missing trait values - strict)
+  - Alternative: 0.25 (allow up to 25% missing values - permissive)
+  - User specifies or accepts default
 
-- `cleanup.min_samples_per_trait` (template default: 10)
-  - Recommend: `max(10, n_samples_in_smallest_group // 4)`
+- **`max_zeros_per_trait`** (per trait column)
+  - Ask: "What fraction of zero values should trigger trait removal?"
+  - Explain: "Trait columns with more than this fraction of zero values will be dropped"
+  - Default: 0.5 (drop traits with >50% zeros)
+  - Range: 0.0-1.0 (lower = stricter)
+  - User specifies or accepts default
 
-- `pca.n_top_features` (template default: 5)
-  - Controls how many traits are selected for UMAP coloring and metadata storage
+- **`max_nans_per_trait`** (per trait column)
+  - Ask: "What fraction of NaN values should trigger trait removal?"
+  - Explain: "Trait columns with more than this fraction of NaN values will be dropped"
+  - Default: 0.2 (drop traits with >20% NaNs)
+  - Range: 0.0-1.0 (lower = stricter)
+  - User specifies or accepts default
 
-- `umap.n_neighbors` (template default: 10 for grouped, 10 for ungrouped)
-  - Recommend:
+- **`min_samples_per_trait`**
+  - Ask: "What is the minimum number of non-NaN samples required per trait?"
+  - Explain: "This also controls minimum group size when using group_by"
+  - Recommend: `max(10, n_samples_in_smallest_group // 4)` if grouped, else `max(10, n_samples // 4)`
+  - User specifies or accepts recommendation
+
+**3.6 — Outlier detection**
+
+Ask the user about outlier detection **one step at a time**:
+
+- **Enable outlier detection?**
+  - Ask: "Do you want to detect and remove statistical outliers?"
+  - Explain: "Outlier detection identifies samples that are statistically unusual"
+  - Recommended: yes when n ≥ 30 per group
+  - Surface any Mahalanobis warnings from Step 1 if any group has n < 30
+  - User confirms yes/no
+
+- **If enabled, which method?** (can select multiple)
+  - Ask: "Which outlier detection method(s) to use?"
+  - Options:
+    - `"mahalanobis"` — Recommended for n ≥ 30 (uses chi-squared approximation)
+    - `"pca"` — PCA-based outlier detection
+    - `"isolation_forest"` — Good for small datasets or non-Gaussian data
+  - Default: `["mahalanobis"]`
+  - User selects method(s) or accepts default
+
+- **If mahalanobis selected, chi2_percentile?**
+  - Ask: "What chi-squared percentile threshold for outlier detection?"
+  - Explain: "Higher = stricter (fewer outliers flagged)"
+  - Default: 99.0 (strict - only top 1% flagged as outliers)
+  - Alternative: 95.0 (permissive - top 5% flagged)
+  - Adjust recommendation down to 95.0 if any group has n < 30
+  - User specifies or accepts default
+
+**3.7 — Heritability**
+
+Ask the user about heritability **one step at a time**:
+
+- **Enable heritability calculation?**
+  - Ask: "Do you want to calculate broad-sense heritability (H²) per trait?"
+  - Explain: "Requires ≥ 3 replicates per genotype for reliable estimates"
+  - Recommended: yes when sufficient replicates available
+  - Surface heritability warnings from Step 1 if < 3 replicates per genotype
+  - User confirms yes/no
+
+- **If enabled, filter by heritability threshold?**
+  - Ask: "Do you want to FILTER traits based on heritability, or just VISUALIZE?"
+  - Explain: "You can calculate/visualize H² without filtering (set threshold to null)"
+  - Options:
+    - `null` — Calculate and visualize H² but DON'T filter out low-heritability traits
+    - `0.30` — Permissive filtering (retains most heritable traits, good for exploratory analysis)
+    - `0.40` — Moderate filtering
+    - `0.50` — Strict filtering (only highly heritable traits)
+    - `0.60` — Very strict filtering
+  - Default: 0.30 for grouped, 0.40 for ungrouped
+  - User specifies or accepts default
+
+**3.8 — PCA settings**
+
+Ask the user about PCA settings **one at a time**:
+
+- **`n_components`** (variance threshold or fixed count)
+  - Ask: "How many principal components to retain?"
+  - Explain: "Can specify as fraction of variance (0.0-1.0) or fixed number of PCs (int)"
+  - Default: 0.95 (retain PCs explaining 95% of variance)
+  - Alternatives: 0.90 (fewer PCs, faster), 0.99 (more PCs, more complete)
+  - User specifies or accepts default
+
+- **`feature_selection_strategy`**
+  - Ask: "How should top traits be selected for UMAP coloring and metadata?"
+  - Explain: "This does NOT affect the feature contribution bar chart (always shows all traits)"
+  - Options:
+    - `"top_variance"` — Traits with highest total variance contribution (general exploration)
+    - `"extreme"` — Traits with most extreme positive AND negative PC loadings (mechanistic interpretation)
+  - Default: "top_variance"
+  - User selects or accepts default
+
+- **`n_top_features`**
+  - Ask: "How many top traits to select for UMAP coloring and metadata storage?"
+  - Explain: "These traits will be highlighted in UMAP plots and saved to metadata files"
+  - Default: 5
+  - User specifies or accepts default
+
+- **`pca_biplot_top_features`** (for viz config)
+  - Ask: "How many trait arrows to show per PC in biplots?"
+  - Explain: "This is INDEPENDENT of n_top_features - controls biplot arrow count only"
+  - Note: For "extreme" strategy, 1 = 2 arrows/PC (one positive, one negative)
+  - Recommend: 1-2 for high-dimensional datasets (>100 traits) to avoid crowding
+  - Default: 1
+  - User specifies or accepts default
+
+**3.9 — UMAP**
+
+Ask the user about UMAP settings **one step at a time**:
+
+- **Enable UMAP?**
+  - Ask: "Do you want to create UMAP dimensionality reduction plots?"
+  - Explain: "UMAP visualizes high-dimensional data in 2D"
+  - Recommended: yes when n ≥ 15
+  - User confirms yes/no
+
+- **If enabled, `n_neighbors`**
+  - Ask: "What UMAP neighborhood size (n_neighbors)?"
+  - Explain: "Larger = more global structure, smaller = more local structure"
+  - Use `recommend_umap_n_neighbors()` to compute recommendation:
     ```python
     from sleap_roots_analyze.config_authoring import recommend_umap_n_neighbors
-    n, warning = recommend_umap_n_neighbors(n_samples)
+    if group_by_column:
+        smallest_group = min(group_sizes.values())
+        n, warning = recommend_umap_n_neighbors(smallest_group)
+    else:
+        n, warning = recommend_umap_n_neighbors(n_samples)
     ```
+  - Show recommendation and any warning
+  - User specifies or accepts recommendation
 
-- `static_viz.pca_biplot_top_features` (template default: 1)
-  - Controls biplot arrow count (independent of `n_top_features`)
-  - For "extreme" strategy: 1 → 2 arrows/PC, 2 → 4 arrows/PC
-  - Keep small (1–5) for high-dimensional datasets
+- **`min_dist`**
+  - Ask: "What UMAP min_dist parameter?"
+  - Explain: "Controls how tightly UMAP packs points (0.0 = tight, 1.0 = spread out)"
+  - Default: 0.1
+  - User specifies or accepts default
+
+- **`random_state`**
+  - Ask: "What random seed for UMAP reproducibility?"
+  - Explain: "Same seed = same UMAP layout across runs"
+  - Default: 42
+  - User specifies or accepts default
+
+**3.10 — Images**
+
+- Ask: "Are plant images available for visualization?"
+- If yes: ask for `image_dir` path and explain it should contain images referenced in the CSV
+- If no: set `image_dir: null`
 
 ---
 
 ### Step 4: Critical Parameter Review
 
-Before writing any files, present a review table:
+Before writing any files, present a comprehensive review table showing ALL collected parameters:
 
 ```
 CRITICAL PARAMETER REVIEW
 ═══════════════════════════════════════════════════════════════
-Parameter                  Value      Status
+Parameter                      Value        Status
 ───────────────────────────────────────────────────────────────
-csv_path                   <path>     OK
-group_by                   <col>      OK (n=25, 30, 35)
-columns.barcode            <col>      OK
-heritability.threshold     0.30       OK (permissive)
-min_samples_per_trait      10         OK
-umap.n_neighbors           10         OK for n=90
-image_dir                  <path>     OK
+[Dataset]
+csv_path                       <path>       OK
+group_by                       <col>        OK (n=42-72)
+image_dir                      <path>       OK
+
+[Metadata Columns]
+columns.barcode                <col>        OK
+columns.genotype               <col>        OK
+columns.replicate              <col>        OK
+
+[Cleanup Thresholds]
+max_nan_fraction               0.0          OK (strict)
+max_zeros_per_trait            0.5          OK (default)
+max_nans_per_trait             0.2          OK (default)
+min_samples_per_trait          10           OK
+
+[Outlier Detection]
+enabled                        true         OK
+methods                        mahalanobis  OK
+chi2_percentile                99.0         OK (n≥42)
+
+[Heritability]
+enabled                        true         OK
+threshold                      null         ⚠ CUSTOM (viz-only, no filtering)
+
+[PCA - QC Config]
+n_components                   0.75         ⚠ CUSTOM (default: 0.95)
+feature_selection_strategy     extreme      ⚠ CUSTOM (default: top_variance)
+n_top_features                 5            OK
+
+[PCA - Viz Config]
+pca_biplot_top_features        1            OK
+
+[UMAP]
+enabled                        true         OK
+n_neighbors                    10           OK (recommended: 10 for n=42)
+min_dist                       0.1          OK
+random_state                   42           OK
 ═══════════════════════════════════════════════════════════════
 ```
 
-Flag (⚠) any parameter that deviates from recommended values based on the dataset.
+Flag (⚠) any parameter that deviates from template defaults so user is aware of customizations.
 Ask the user to confirm or modify each flagged parameter before proceeding.
 
 ---
@@ -199,12 +358,26 @@ If a file exists:
    template_path = "configs/templates/qc_template_ungrouped.yaml"
    ```
 
-2. **Edit** ONLY the placeholders:
+2. **Edit** placeholders AND customized parameters:
+
+   **Required placeholders**:
    - Replace `FILL_IN_PIPELINE_NAME` with the analysis name
    - Replace `FILL_IN_CSV_PATH` with the dataset CSV path
    - For UNGROUPED: Replace `FILL_IN_BARCODE_COLUMN`, `FILL_IN_GENOTYPE_COLUMN`, `FILL_IN_REPLICATE_COLUMN`
-   - For GROUPED: The `group_by` column is already set in the template, but you may need to update it
-   - If user customized optional parameters (heritability threshold, min_samples, etc.), update those values
+   - For GROUPED: Update `data.group_by` with the selected group-by column
+
+   **Customized parameters from Steps 3.5-3.9** (if different from template defaults):
+   - `cleanup.max_nan_fraction` (user value from Step 3.5)
+   - `cleanup.max_zeros_per_trait` (user value from Step 3.5)
+   - `cleanup.max_nans_per_trait` (user value from Step 3.5)
+   - `cleanup.min_samples_per_trait` (user value from Step 3.5)
+   - `outlier_detection.traditional_methods` (user value from Step 3.6)
+   - `outlier_detection.mahalanobis.chi2_percentile` (user value from Step 3.6, if mahalanobis enabled)
+   - `heritability.enabled` (user value from Step 3.7)
+   - `heritability.threshold` (user value from Step 3.7, may be null for viz-only)
+   - `pca.n_components` (user value from Step 3.8)
+   - `pca.feature_selection_strategy` (user value from Step 3.8)
+   - `pca.n_top_features` (user value from Step 3.8)
 
 3. **Add** a self-documenting header (replace the template comment header):
    ```yaml
@@ -231,11 +404,22 @@ If a file exists:
    template_path = "configs/templates/viz_template_no_images.yaml"
    ```
 
-2. **Edit** ONLY the placeholders:
+2. **Edit** placeholders AND customized parameters:
+
+   **Required placeholders**:
    - Replace `FILL_IN_PIPELINE_NAME` with the analysis name
    - Replace `FILL_IN_CSV_PATH` with a placeholder (explain it will be auto-updated by run-all)
    - For WITH IMAGES: Replace `FILL_IN_IMAGE_DIR` with the image directory path
-   - If user customized optional parameters (n_top_features, n_neighbors, pca_biplot_top_features), update those values
+
+   **Customized parameters from Steps 3.8-3.9** (if different from template defaults):
+   - `pca.n_components` (user value from Step 3.8)
+   - `pca.feature_selection_strategy` (user value from Step 3.8)
+   - `pca.n_top_features` (user value from Step 3.8)
+   - `static_viz.pca_biplot_top_features` (user value from Step 3.8)
+   - `umap.enabled` (user value from Step 3.9)
+   - `umap.n_neighbors` (user value from Step 3.9, if UMAP enabled)
+   - `umap.min_dist` (user value from Step 3.9, if UMAP enabled)
+   - `umap.random_state` (user value from Step 3.9, if UMAP enabled)
 
 3. **Use sanitized column names** in the Viz config:
    - `columns.barcode: "Barcode"`
