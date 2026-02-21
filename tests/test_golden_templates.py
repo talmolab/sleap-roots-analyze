@@ -244,9 +244,7 @@ class TestRunManifestTemplate:
         template_dict["description"] = "Test run description"
         template_dict["qc_configs"] = ["qc/my_qc_config.yaml"]
         template_dict["viz_configs"] = ["viz/my_viz_config.yaml"]
-        template_dict["qc_mapping"] = {
-            "viz/my_viz_config.yaml": "qc/my_qc_config.yaml"
-        }
+        template_dict["qc_mapping"] = {"viz/my_viz_config.yaml": "qc/my_qc_config.yaml"}
 
         # Write modified template to temp file
         temp_manifest_path = tmp_path / "test_manifest.yaml"
