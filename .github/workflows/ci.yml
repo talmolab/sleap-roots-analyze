@@ -84,7 +84,7 @@ jobs:
       - name: Run pytest
         run: |
           echo "=== Running pytest ==="
-          echo "Skipping integration tests (marked with @pytest.mark.integration) - see issue #70"
+          echo "Skipping integration tests (marked with @pytest.mark.integration) - see issue #69"
           uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=20 -m "not integration" tests/
 
     #   - name: Upload coverage
