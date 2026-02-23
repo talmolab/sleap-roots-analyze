@@ -480,10 +480,19 @@ def run_grouped_pipelines(
     try:
         df = pd.read_csv(config.data.csv_path)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(
+        msg = (
             f"Failed to read data CSV at '{config.data.csv_path}' while preparing "
             f"grouped pipelines (group_by='{group_by_column}')."
-        ) from exc
+        )
+        logger.error(msg)
+        raise FileNotFoundError(msg) from exc
+    except pd.errors.EmptyDataError as exc:
+        msg = (
+            f"Data CSV at '{config.data.csv_path}' is empty or invalid while preparing "
+            f"grouped pipelines (group_by='{group_by_column}')."
+        )
+        logger.error(msg)
+        raise pd.errors.EmptyDataError(msg) from exc
     logger.info(f"Loaded {len(df)} samples from {config.data.csv_path}")
 
     # Validate group_by column exists before attempting to split
@@ -517,7 +526,17 @@ def run_grouped_pipelines(
 
     # Run pipeline for each valid group
     grouped_results = {}
-    for group_value in sorted(valid_groups.keys()):
+    try:
+        sorted_group_values = sorted(valid_groups.keys())
+    except TypeError:
+        logger.warning(
+            "Mixed-type group values detected for '%s'; sorting by string "
+            "representation to ensure consistent processing order.",
+            group_by_column,
+        )
+        sorted_group_values = sorted(valid_groups.keys(), key=lambda v: str(v))
+
+    for group_value in sorted_group_values:
         group_df = valid_groups[group_value]
         logger.info(
             f"Processing group {group_by_column}={group_value} ({len(group_df)} samples)"
@@ -555,6 +574,11 @@ def run_grouped_pipelines(
                 "results": results,
             }
             logger.info(f"Group {group_by_column}={group_value} completed successfully")
+        except Exception:
+            logger.exception(
+                f"Group {group_by_column}={group_value} failed during pipeline execution"
+            )
+            # Continue processing remaining groups
         finally:
             # Clean up temporary CSV
             group_csv_path.unlink(missing_ok=True)
