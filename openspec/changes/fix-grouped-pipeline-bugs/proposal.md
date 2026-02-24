@@ -134,6 +134,56 @@ def split_data_by_group(
     return groups
 ```
 
+### Bug #4: ANOVA Error Handling Crashes Pipeline (BLOCKING BUG)
+**File:** `src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:113`
+**Severity:** HIGH - Crashes pipeline, blocks tests
+
+When ANOVA calculation fails (e.g., insufficient data), `calculate_anova_by_genotype()` returns an error message string instead of a result dict. The code then calls `.get()` on this string, causing an `AttributeError`.
+
+```python
+# Line 113 in statistical_analysis.py
+"f_statistic": result.get("f_statistic"),  # ❌ result is a string, not a dict
+```
+
+**Impact:**
+- Pipeline crashes instead of handling error gracefully
+- Blocks tests from running (including our new grouped pipeline tests)
+- No visibility into which traits failed ANOVA
+- Poor user experience
+
+**Why this wasn't caught:**
+- Tests use simple data that always succeeds ANOVA
+- No tests for ANOVA failure cases (low sample count, zero variance, etc.)
+
+**Fix:** Check if result is a string (error message) before calling `.get()`:
+
+```python
+if isinstance(result, str):
+    # Error case: result is an error message
+    anova_records.append({
+        "trait": trait,
+        "f_statistic": None,
+        "p_value": None,
+        "eta_squared": None,
+        "significant": None,
+        "n_groups": None,
+        "total_n": None,
+        "error": result,  # Store the error message
+    })
+else:
+    # Success case: result is a dict
+    anova_records.append({
+        "trait": trait,
+        "f_statistic": result.get("f_statistic"),
+        "p_value": result.get("p_value"),
+        "eta_squared": result.get("eta_squared"),
+        "significant": result.get("significant"),
+        "n_groups": result.get("n_groups"),
+        "total_n": result.get("total_n"),
+        "error": None,
+    })
+```
+
 ## Impact
 
 **Affected specs:**
@@ -142,6 +192,7 @@ def split_data_by_group(
 **Affected code:**
 - `src/sleap_roots_analyze/pipeline/utils.py` - Fix bugs #1 and #3
 - `src/sleap_roots_analyze/pipeline_runner.py` - Fix bug #2
+- `src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py` - Fix bug #4
 
 **Breaking changes:** None (purely fixes)
 
@@ -155,6 +206,7 @@ def split_data_by_group(
 - Bug #1: Test that saved config.yaml has csv_path pointing to existing file
 - Bug #2: Test CLI --group-by triggers viz fan-out when config has no group_by
 - Bug #3: Test NaN handling logs warning and drops/includes based on option
+- Bug #4: Test ANOVA error handling (string result instead of dict)
 
 **Phase 2: Implement Fixes**
 - Fix each bug to make tests pass

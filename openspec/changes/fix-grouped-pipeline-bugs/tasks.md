@@ -3,27 +3,44 @@
 ## Phase 1: Write Failing Tests (TDD RED)
 
 ### Bug #1: Config Persistence Tests
-- [ ] 1.1 Create `tests/test_grouped_pipeline_config_persistence.py`
-- [ ] 1.2 Write `test_saved_config_csv_path_exists`
-- [ ] 1.3 Write `test_saved_config_is_reproducible`
-- [ ] 1.4 Write `test_input_csv_preserved_in_output_directory`
-- [ ] 1.5 Run tests - confirm they FAIL
+- [x] 1.1 Create `tests/test_grouped_pipeline_config_persistence.py`
+- [x] 1.2 Write `test_saved_config_csv_path_exists`
+- [x] 1.3 Write `test_saved_config_is_reproducible`
+- [x] 1.4 Write `test_input_csv_preserved_in_output_directory`
+- [x] 1.5 Write `test_no_temporary_files_in_tmp_dir`
+- [x] 1.6 Run tests - confirmed they FAIL (2/4 failing as expected)
 
 ### Bug #2: CLI Group-By Tests
-- [ ] 2.1 Create `tests/test_run_all_cli_group_by.py`
-- [ ] 2.2 Write `test_cli_group_by_triggers_viz_fanout_when_config_has_no_group_by`
-- [ ] 2.3 Write `test_cli_group_by_overrides_config_group_by_for_viz_fanout`
-- [ ] 2.4 Write `test_effective_group_by_tracked_correctly`
-- [ ] 2.5 Run tests - confirm they FAIL
+- [x] 2.1 Create `tests/test_run_all_cli_group_by.py`
+- [x] 2.2 Write `test_cli_group_by_triggers_viz_fanout_when_config_has_no_group_by`
+- [x] 2.3 Write `test_cli_group_by_overrides_config_group_by_for_viz_fanout`
+- [x] 2.4 Write `test_effective_group_by_logged_correctly`
+- [x] 2.5 Write `test_viz_fanout_creates_per_group_directories`
+- [x] 2.6 Run tests - confirmed they FAIL
 
 ### Bug #3: NaN Handling Tests
-- [ ] 3.1 Create `tests/test_grouped_pipeline_nan_handling.py`
-- [ ] 3.2 Write `test_nan_group_values_logged_and_dropped_by_default`
-- [ ] 3.3 Write `test_nan_group_values_can_be_treated_as_group`
-- [ ] 3.4 Write `test_grouped_pipeline_with_nan_values`
-- [ ] 3.5 Run tests - confirm they FAIL
+- [x] 3.1 Create `tests/test_grouped_pipeline_nan_handling.py`
+- [x] 3.2 Write `test_nan_group_values_logged_and_dropped_by_default`
+- [x] 3.3 Write `test_nan_handling_with_treat_as_group_option`
+- [x] 3.4 Write `test_dropped_nan_samples_saved_to_csv`
+- [x] 3.5 Write `test_dropped_samples_metadata_file_created`
+- [x] 3.6 Write `test_dropped_samples_tracked_in_summary`
+- [x] 3.7 Write `test_no_dropped_samples_when_no_nans`
+- [x] 3.8 Run tests - confirmed they FAIL
+
+### Bug #4: ANOVA Error Handling Tests (BLOCKING)
+- [ ] 4.1 Create `tests/test_statistical_analysis_error_handling.py`
+- [ ] 4.2 Write `test_anova_string_error_handled_gracefully`
+- [ ] 4.3 Write `test_anova_mixed_success_and_failure`
+- [ ] 4.4 Run tests - confirm they FAIL
 
 ## Phase 2: Implement Fixes (TDD GREEN)
+
+### Bug #4: Fix ANOVA Error Handling (PRIORITY - unblocks other tests)
+- [ ] 5.1 Add type check `isinstance(result, str)` before calling `.get()`
+- [ ] 5.2 Store error message in error column when ANOVA fails
+- [ ] 5.3 Run Bug #4 tests - confirm they PASS
+- [ ] 5.4 Re-run Bug #1 tests - should now complete without crashes
 
 ### Bug #1: Fix Config Persistence
 - [ ] 4.1 Modify `run_grouped_pipelines()` to write group CSV to output dir (not temp)

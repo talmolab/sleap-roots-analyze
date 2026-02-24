@@ -518,19 +518,173 @@ def test_dropped_samples_tracked_in_summary(self, tmp_path):
 
 ---
 
+## Bug #4: ANOVA Error Handling Crashes Pipeline
+
+### Test Specification (Write FIRST)
+
+**File:** `tests/test_statistical_analysis_error_handling.py` (new file)
+
+```python
+class TestStatisticalAnalysisErrorHandling:
+    """Test that ANOVA errors are handled gracefully (not crash)."""
+
+    def test_anova_string_error_handled_gracefully(self, tmp_path):
+        """When ANOVA returns error string, should store it (not crash)."""
+        from sleap_roots_analyze.pipeline.steps.statistical_analysis import (
+            StatisticalAnalysisStep,
+        )
+        from sleap_roots_analyze.pipeline.config.utils import get_default_qc_config
+
+        # Create minimal data that will fail ANOVA (insufficient samples)
+        csv_path = tmp_path / "minimal_data.csv"
+        rows = [
+            "barcode,genotype,replicate,trait1,trait2",
+            "p1,A,1,1.0,2.0",
+            "p2,B,1,1.1,2.1",
+            # Only 2 genotypes with 1 sample each - insufficient for ANOVA
+        ]
+        csv_path.write_text("\n".join(rows))
+
+        df = pd.read_csv(csv_path)
+
+        config = get_default_qc_config()
+        config.columns.barcode = "Barcode"
+        config.columns.genotype = "Genotype"
+        config.columns.replicate = "Replicate"
+        config.statistics.calculate_anova = True
+
+        step = StatisticalAnalysisStep()
+
+        # CRITICAL: This should NOT crash
+        result = step.execute(
+            config=config,
+            run_dir=tmp_path,
+            logger=logging.getLogger("test"),
+            df=df,
+            trait_cols=["trait1", "trait2"],
+        )
+
+        # Should return result (not crash)
+        assert result is not None
+        assert "anova_results" in result
+
+        # Check that ANOVA results handle errors
+        anova_df = pd.read_csv(result["files"]["anova_results"])
+
+        # Should have error messages for traits that failed
+        error_rows = anova_df[anova_df["error"].notna()]
+        assert len(error_rows) > 0, (
+            "Should have error entries for failed ANOVA calculations"
+        )
+
+        # Error rows should have None/NaN for statistical values
+        for idx, row in error_rows.iterrows():
+            assert pd.isna(row["f_statistic"])
+            assert pd.isna(row["p_value"])
+            assert row["error"] is not None
+
+    def test_anova_mixed_success_and_failure(self, tmp_path):
+        """Some traits succeed ANOVA, others fail - should handle both."""
+        # Create data where some traits have enough variation, others don't
+        csv_path = tmp_path / "mixed_data.csv"
+        rows = ["barcode,genotype,replicate,good_trait,bad_trait"]
+
+        # good_trait: sufficient data for ANOVA
+        for i in range(30):
+            genotype = ["A", "B", "C"][i % 3]
+            rows.append(f"p{i},{genotype},{i % 3},{1.0 + i * 0.1},{1.0}")  # bad_trait has zero variance
+
+        csv_path.write_text("\n".join(rows))
+
+        df = pd.read_csv(csv_path)
+
+        config = get_default_qc_config()
+        config.columns.barcode = "Barcode"
+        config.columns.genotype = "Genotype"
+        config.columns.replicate = "Replicate"
+        config.statistics.calculate_anova = True
+
+        step = StatisticalAnalysisStep()
+
+        result = step.execute(
+            config=config,
+            run_dir=tmp_path,
+            logger=logging.getLogger("test"),
+            df=df,
+            trait_cols=["good_trait", "bad_trait"],
+        )
+
+        anova_df = pd.read_csv(result["files"]["anova_results"])
+
+        # good_trait should have valid results
+        good_row = anova_df[anova_df["trait"] == "good_trait"].iloc[0]
+        assert not pd.isna(good_row["f_statistic"])
+        assert pd.isna(good_row["error"]) or good_row["error"] is None
+
+        # bad_trait might have error (zero variance)
+        # Just verify it didn't crash - either succeeds or fails gracefully
+```
+
+### Implementation Plan
+
+**Step 1:** Add type check before calling `.get()` on ANOVA result
+
+```python
+# In src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py, line ~110
+
+for trait in trait_cols:
+    result = calculate_anova_by_genotype(
+        df, trait_col=trait, genotype_col=genotype_col
+    )
+
+    # CRITICAL: Check if result is an error message string
+    if isinstance(result, str):
+        # Error case: ANOVA failed, result is error message
+        anova_records.append(
+            {
+                "trait": trait,
+                "f_statistic": None,
+                "p_value": None,
+                "eta_squared": None,
+                "significant": None,
+                "n_groups": None,
+                "total_n": None,
+                "error": result,
+            }
+        )
+    else:
+        # Success case: result is a dict with statistics
+        anova_records.append(
+            {
+                "trait": trait,
+                "f_statistic": result.get("f_statistic"),
+                "p_value": result.get("p_value"),
+                "eta_squared": result.get("eta_squared"),
+                "significant": result.get("significant"),
+                "n_groups": result.get("n_groups"),
+                "total_n": result.get("total_n"),
+                "error": None,
+            }
+        )
+```
+
+---
+
 ## TDD Workflow
 
 ### Phase 1: Write All Tests (RED)
-1. Create `tests/test_grouped_pipeline_config_persistence.py` with 3 tests
-2. Create `tests/test_run_all_cli_group_by.py` with 3 tests
-3. Create `tests/test_grouped_pipeline_nan_handling.py` with 3 tests
-4. Run tests - **confirm they ALL FAIL**
+1. Create `tests/test_grouped_pipeline_config_persistence.py` with 4 tests
+2. Create `tests/test_run_all_cli_group_by.py` with 4 tests
+3. Create `tests/test_grouped_pipeline_nan_handling.py` with 7 tests
+4. Create `tests/test_statistical_analysis_error_handling.py` with 2 tests
+5. Run tests - **confirm they ALL FAIL**
 
 ### Phase 2: Implement Fixes (GREEN)
-1. Fix Bug #1: Modify `run_grouped_pipelines()` to persist CSVs
-2. Fix Bug #2: Track effective group_by in `_run_qc_pipelines()`
-3. Fix Bug #3: Add NaN handling to `split_data_by_group()`
-4. Run tests - **confirm they ALL PASS**
+1. Fix Bug #4: Add type check for ANOVA result (PRIORITY - unblocks other tests)
+2. Fix Bug #1: Modify `run_grouped_pipelines()` to persist CSVs
+3. Fix Bug #2: Track effective group_by in `_run_qc_pipelines()`
+4. Fix Bug #3: Add NaN handling to `split_data_by_group()`
+5. Run tests - **confirm they ALL PASS**
 
 ### Phase 3: Integration Testing
 1. Run existing integration tests - ensure no regressions
