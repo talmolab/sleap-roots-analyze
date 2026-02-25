@@ -93,7 +93,25 @@ class StatisticalAnalysisStep(BaseStep):
         for trait, result in anova_results.items():
             if trait == "__calculation_metadata__":
                 continue
-            if "error" in result:
+
+            # CRITICAL: Check if result is a string (error message) FIRST
+            # before checking for "error" key, to avoid AttributeError
+            if isinstance(result, str):
+                # Error case: result is an error message string
+                anova_records.append(
+                    {
+                        "trait": trait,
+                        "f_statistic": None,
+                        "p_value": None,
+                        "eta_squared": None,
+                        "significant": None,
+                        "n_groups": None,
+                        "total_n": None,
+                        "error": result,
+                    }
+                )
+            elif "error" in result:
+                # Error case: result is a dict with "error" key
                 anova_records.append(
                     {
                         "trait": trait,
@@ -107,6 +125,7 @@ class StatisticalAnalysisStep(BaseStep):
                     }
                 )
             else:
+                # Success case: result is a dict with statistics
                 anova_records.append(
                     {
                         "trait": trait,
@@ -169,11 +188,13 @@ class StatisticalAnalysisStep(BaseStep):
         heritability_df = pd.DataFrame(heritability_records)
 
         # 4. Create combined summary
-        # Count valid ANOVA results
+        # Count valid ANOVA results (filter out strings and error dicts)
         valid_anova = [
             r
             for t, r in anova_results.items()
-            if t != "__calculation_metadata__" and "error" not in r
+            if t != "__calculation_metadata__"
+            and not isinstance(r, str)
+            and "error" not in r
         ]
         significant_p005 = sum(
             1
@@ -186,11 +207,13 @@ class StatisticalAnalysisStep(BaseStep):
             if r.get("p_value") is not None and r["p_value"] < 0.01
         )
 
-        # Count valid heritability results
+        # Count valid heritability results (filter out strings and error dicts)
         valid_h2 = [
             r
             for t, r in heritability_results.items()
-            if t != "__calculation_metadata__" and "error" not in r
+            if t != "__calculation_metadata__"
+            and not isinstance(r, str)
+            and "error" not in r
         ]
         high_h2_60 = sum(
             1
