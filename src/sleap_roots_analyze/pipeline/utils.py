@@ -336,17 +336,23 @@ def get_environment_info() -> Dict[str, str]:
 
 
 def split_data_by_group(
-    df: pd.DataFrame, group_by_column: str
+    df: pd.DataFrame, group_by_column: str, handle_na: str = "warn_and_drop"
 ) -> Dict[Any, pd.DataFrame]:
     """Split a DataFrame into separate DataFrames based on unique values in a column.
 
     Args:
         df: Input DataFrame to split.
         group_by_column: Name of column to group by.
+        handle_na: How to handle NaN values in the group column:
+            - "warn_and_drop" (default): Log warning and exclude NaN rows from groups
+            - "treat_as_group": Include NaN as a separate group
 
     Returns:
         Dictionary mapping group values to DataFrames containing only rows
         with that group value. Returns empty dict for empty input DataFrame.
+
+        When handle_na="warn_and_drop", rows with NaN in group column are excluded.
+        When handle_na="treat_as_group", NaN is included as a group key.
 
     Raises:
         KeyError: If group_by_column does not exist in DataFrame.
@@ -371,11 +377,21 @@ def split_data_by_group(
     if df.empty:
         return {}
 
+    # Check for NaN values and log warning if present
+    na_mask = df[group_by_column].isna()
+    n_na = na_mask.sum()
+
+    if n_na > 0 and handle_na == "warn_and_drop":
+        logger.warning(
+            f"Dropping {n_na}/{len(df)} samples with missing '{group_by_column}' values"
+        )
+
     # Split by unique values in group column
+    # Use pandas groupby with dropna parameter for efficiency
+    dropna = (handle_na == "warn_and_drop")
     groups = {}
-    for group_value in df[group_by_column].unique():
-        group_df = df[df[group_by_column] == group_value].copy()
-        groups[group_value] = group_df
+    for group_value, group_df in df.groupby(group_by_column, dropna=dropna):
+        groups[group_value] = group_df.copy()
 
     return groups
 
@@ -470,6 +486,14 @@ def run_grouped_pipelines(
                 "pipeline": pipeline,
                 "output_dir": str(pipeline.run_dir),
                 "results": results,
+                "dropped_samples": {
+                    "column": None,
+                    "count": 0,
+                    "total": 0,
+                    "fraction": 0.0,
+                    "csv_path": None,
+                    "metadata_path": None,
+                },
             }
         }
 
@@ -502,8 +526,62 @@ def run_grouped_pipelines(
             f"Available columns: {list(df.columns)}"
         )
 
-    # Split by group column
-    groups = split_data_by_group(df, group_by_column=group_by_column)
+    # Check for NaN values BEFORE splitting (for traceability)
+    na_mask = df[group_by_column].isna()
+    n_na = na_mask.sum()
+
+    # Track dropped samples metadata
+    dropped_samples_info = {
+        "column": group_by_column,
+        "count": int(n_na),
+        "total": len(df),
+        "fraction": float(n_na / len(df)) if len(df) > 0 else 0.0,
+        "csv_path": None,
+        "metadata_path": None,
+    }
+
+    # Save dropped samples if any NaN values exist
+    if n_na > 0:
+        dropped_df = df[na_mask].copy()
+        logger.warning(
+            f"Dropped {n_na}/{len(df)} samples with missing '{group_by_column}' values. "
+            f"Saving for traceability."
+        )
+
+        # Save dropped samples CSV
+        dropped_csv_path = output_dir / f"00_dropped_samples_missing_{group_by_column}.csv"
+        dropped_df.to_csv(dropped_csv_path, index=False)
+        logger.info(f"Dropped samples saved to: {dropped_csv_path}")
+
+        # Create metadata file
+        metadata_path = output_dir / f"00_dropped_samples_missing_{group_by_column}.txt"
+        with open(metadata_path, "w") as f:
+            f.write(f"Dropped Samples Report\n")
+            f.write(f"======================\n\n")
+            f.write(f"Summary: {n_na}/{len(df)} samples dropped\n")
+            f.write(f"Reason: Missing values in '{group_by_column}' column\n")
+            f.write(f"Fraction: {100 * n_na / len(df):.2f}%\n\n")
+            f.write(f"These samples were excluded from grouped analysis because they had\n")
+            f.write(f"missing/NaN values in the group-by column ('{group_by_column}').\n\n")
+
+            # List barcodes
+            barcode_cols = [col for col in dropped_df.columns if "barcode" in col.lower()]
+            if barcode_cols:
+                barcode_col = barcode_cols[0]
+                f.write(f"Dropped sample barcodes:\n")
+                for barcode in dropped_df[barcode_col]:
+                    f.write(f"  {barcode}\n")
+            else:
+                f.write(f"(No barcode column found)\n")
+
+        logger.info(f"Dropped samples metadata saved to: {metadata_path}")
+
+        # Update metadata with file paths
+        dropped_samples_info["csv_path"] = str(dropped_csv_path)
+        dropped_samples_info["metadata_path"] = str(metadata_path)
+
+    # Split by group column (NaN values will be dropped by default)
+    groups = split_data_by_group(df, group_by_column=group_by_column, handle_na="warn_and_drop")
     logger.info(f"Split data into {len(groups)} groups: {list(groups.keys())}")
 
     # Filter groups by minimum sample count
@@ -578,6 +656,7 @@ def run_grouped_pipelines(
                 "pipeline": pipeline,
                 "output_dir": str(pipeline.run_dir),
                 "results": results,
+                "dropped_samples": dropped_samples_info,
             }
             logger.info(f"Group {group_by_column}={group_value} completed successfully")
         except Exception:

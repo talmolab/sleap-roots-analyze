@@ -94,8 +94,17 @@ class TestSplitDataByGroupNaNHandling:
         assert len(groups) == 2, "Should have 2 groups (7.0 and 14.0)"
 
         # Groups might be float or string depending on pandas version
-        age_7_group = groups.get(7.0) or groups.get(7) or groups.get("7.0")
-        age_14_group = groups.get(14.0) or groups.get(14) or groups.get("14.0")
+        age_7_group = None
+        for key in [7.0, 7, "7.0"]:
+            if key in groups:
+                age_7_group = groups[key]
+                break
+
+        age_14_group = None
+        for key in [14.0, 14, "14.0"]:
+            if key in groups:
+                age_14_group = groups[key]
+                break
 
         assert age_7_group is not None, "Should have age=7 group"
         assert age_14_group is not None, "Should have age=14 group"
