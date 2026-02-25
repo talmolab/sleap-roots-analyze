@@ -542,30 +542,33 @@ def run_grouped_pipelines(
             f"Processing group {group_by_column}={group_value} ({len(group_df)} samples)"
         )
 
-        # Create temporary CSV for this group
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".csv", delete=False, newline=""
-        ) as tmp_file:
-            group_csv_path = Path(tmp_file.name)
-            group_df.to_csv(tmp_file, index=False)
+        # Modify pipeline name to include group information
+        # This will create directories like: plant_age_days_7_20260213_140530/
+        group_label = f"{group_by_column}_{group_value}"
 
         # Create modified config for this group
         group_config = copy.deepcopy(config)
-        group_config.data.csv_path = str(group_csv_path)
         # Remove group_by to prevent infinite recursion
         group_config.data.group_by = None
-
-        # Modify pipeline name to include group information
-        # This will create directories like: plant_age_days_7_20260213_140530/
-        group_config.pipeline_name = f"{group_by_column}_{group_value}"
+        group_config.pipeline_name = group_label
 
         # Run pipeline for this group
         try:
+            # Create pipeline instance first to get run_dir
             pipeline = pipeline_class(
                 config=group_config,
                 output_dir=output_dir,
                 **pipeline_kwargs,
             )
+
+            # Write group CSV to output directory (NOT temp file)
+            # This ensures saved config.yaml points to a persistent file
+            group_csv_path = pipeline.run_dir / f"00_input_data_{group_label}.csv"
+            group_df.to_csv(group_csv_path, index=False)
+            logger.info(f"Saved group data to {group_csv_path}")
+
+            # Update config to point to persistent CSV
+            group_config.data.csv_path = str(group_csv_path)
 
             results = pipeline.run()
             grouped_results[group_value] = {
@@ -579,9 +582,6 @@ def run_grouped_pipelines(
                 f"Group {group_by_column}={group_value} failed during pipeline execution"
             )
             # Continue processing remaining groups
-        finally:
-            # Clean up temporary CSV
-            group_csv_path.unlink(missing_ok=True)
 
     logger.info(
         f"All grouped pipelines completed. Processed {len(grouped_results)} groups."
