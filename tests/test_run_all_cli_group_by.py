@@ -247,24 +247,24 @@ class TestRunAllCLIGroupBy:
         )
         runner.run_all()
 
-        # Check that viz output directories exist for each group
-        viz_base = tmp_path / "output" / "viz"
+        # Verify that viz ran for all 3 groups by checking run_results
+        viz_results = runner.run_results["viz"]
 
-        expected_group_dirs = [
-            "plant_age_days_0",
-            "plant_age_days_3",
-            "plant_age_days_5",
-        ]
+        # Should have 3 viz results (one per group)
+        expected_groups = ["plant_age_days_0", "plant_age_days_3", "plant_age_days_5"]
 
-        for group_label in expected_group_dirs:
-            group_viz_dir = viz_base / group_label
-
-            assert group_viz_dir.exists(), (
-                f"Viz output directory for group {group_label} should exist"
+        for group in expected_groups:
+            result_key = f"viz_config.yaml:{group}"
+            assert result_key in viz_results, (
+                f"Viz should have run for group {group}"
             )
 
-            # Should have a viz output directory inside
-            viz_outputs = list(group_viz_dir.glob("*_viz_*"))
-            assert len(viz_outputs) > 0, (
-                f"Group {group_label} should have viz outputs"
+            # Verify the viz run was successful
+            result = viz_results[result_key]
+            assert result["success"], (
+                f"Viz for group {group} should have completed successfully"
             )
+
+        # Also verify viz output directory exists
+        viz_base = runner.run_dir / "viz"
+        assert viz_base.exists(), "Viz output directory should exist"

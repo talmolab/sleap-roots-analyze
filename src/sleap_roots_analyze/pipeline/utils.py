@@ -507,7 +507,10 @@ def run_grouped_pipelines(
     logger.info(f"Split data into {len(groups)} groups: {list(groups.keys())}")
 
     # Filter groups by minimum sample count
-    min_samples = getattr(config.cleanup, "min_samples_per_trait", 3)
+    # Check if config has cleanup attribute (QC configs do, Viz configs don't)
+    min_samples = 3  # Default
+    if hasattr(config, "cleanup"):
+        min_samples = getattr(config.cleanup, "min_samples_per_trait", 3)
     valid_groups, skipped_groups = filter_valid_groups(
         groups=groups,
         min_samples=min_samples,
