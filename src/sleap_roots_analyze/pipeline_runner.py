@@ -212,7 +212,9 @@ class PipelineRunner:
                 # Detect grouped QC runs and collect all group output dirs
                 # Use effective group_by: CLI flag takes precedence over config
                 config_group_by = self._get_qc_config_group_by(config_path)
-                effective_group_by = self.group_by if self.group_by is not None else config_group_by
+                effective_group_by = (
+                    self.group_by if self.group_by is not None else config_group_by
+                )
 
                 # Log effective group_by for transparency
                 if self.group_by is not None and config_group_by is not None:
@@ -221,12 +223,18 @@ class PipelineRunner:
                         f"effective={effective_group_by}"
                     )
                 elif self.group_by is not None:
-                    logger.info(f"group_by: CLI={self.group_by}, config=None, effective={effective_group_by}")
+                    logger.info(
+                        f"group_by: CLI={self.group_by}, config=None, effective={effective_group_by}"
+                    )
                 elif config_group_by is not None:
-                    logger.info(f"group_by: CLI=None, config={config_group_by}, effective={effective_group_by}")
+                    logger.info(
+                        f"group_by: CLI=None, config={config_group_by}, effective={effective_group_by}"
+                    )
 
                 if effective_group_by:
-                    group_dirs = self._find_grouped_qc_outputs(qc_output_dir, effective_group_by)
+                    group_dirs = self._find_grouped_qc_outputs(
+                        qc_output_dir, effective_group_by
+                    )
                     if group_dirs:
                         self.qc_grouped_outputs[config_rel] = group_dirs
                         print(

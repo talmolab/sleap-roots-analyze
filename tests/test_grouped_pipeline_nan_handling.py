@@ -18,7 +18,10 @@ import pytest
 
 from sleap_roots_analyze.pipeline.config.utils import get_default_qc_config
 from sleap_roots_analyze.pipeline.pipelines.qc_pipeline import QCPipeline
-from sleap_roots_analyze.pipeline.utils import run_grouped_pipelines, split_data_by_group
+from sleap_roots_analyze.pipeline.utils import (
+    run_grouped_pipelines,
+    split_data_by_group,
+)
 
 
 @pytest.fixture
@@ -86,9 +89,9 @@ class TestSplitDataByGroupNaNHandling:
 
         # NaN rows should NOT be in any group
         all_group_rows = sum(len(group_df) for group_df in groups.values())
-        assert all_group_rows == 20, (
-            "Only 20 non-NaN rows should be in groups (5 NaN rows dropped)"
-        )
+        assert (
+            all_group_rows == 20
+        ), "Only 20 non-NaN rows should be in groups (5 NaN rows dropped)"
 
         # Verify specific groups
         assert len(groups) == 2, "Should have 2 groups (7.0 and 14.0)"
@@ -117,15 +120,11 @@ class TestSplitDataByGroupNaNHandling:
 
         # Split with handle_na="treat_as_group"
         groups = split_data_by_group(
-            df,
-            group_by_column="age",
-            handle_na="treat_as_group"
+            df, group_by_column="age", handle_na="treat_as_group"
         )
 
         # Should have 3 groups: 7.0, 14.0, and NaN
-        assert len(groups) == 3, (
-            "Should have 3 groups when treating NaN as a group"
-        )
+        assert len(groups) == 3, "Should have 3 groups when treating NaN as a group"
 
         # Check for NaN group (pandas represents NaN key in groupby)
         has_nan_group = any(pd.isna(k) for k in groups.keys())
@@ -172,9 +171,9 @@ class TestGroupedPipelineNaNTraceability:
 
         # Check for dropped samples CSV
         dropped_csv = output_dir / "00_dropped_samples_missing_age.csv"
-        assert dropped_csv.exists(), (
-            "Dropped samples CSV must be saved for traceability"
-        )
+        assert (
+            dropped_csv.exists()
+        ), "Dropped samples CSV must be saved for traceability"
 
         # Verify dropped CSV contains exactly the NaN rows
         dropped_df = pd.read_csv(dropped_csv)
@@ -190,15 +189,12 @@ class TestGroupedPipelineNaNTraceability:
 
         # Should log warning about dropped samples
         warning_found = any(
-            "Dropped 5/25 samples" in record.message
-            and "age" in record.message
+            "Dropped 5/25 samples" in record.message and "age" in record.message
             for record in caplog.records
         )
         assert warning_found, "Should log warning about dropped samples"
 
-    def test_dropped_samples_metadata_file_created(
-        self, test_data_with_nans, tmp_path
-    ):
+    def test_dropped_samples_metadata_file_created(self, test_data_with_nans, tmp_path):
         """Metadata file explaining dropped samples must be created."""
         config = get_default_qc_config()
         config.data.csv_path = str(test_data_with_nans)
@@ -227,9 +223,9 @@ class TestGroupedPipelineNaNTraceability:
 
         # Check for metadata file
         metadata_file = output_dir / "00_dropped_samples_missing_age.txt"
-        assert metadata_file.exists(), (
-            "Metadata file explaining dropped samples must be created"
-        )
+        assert (
+            metadata_file.exists()
+        ), "Metadata file explaining dropped samples must be created"
 
         # Verify metadata content
         metadata_text = metadata_file.read_text()
@@ -238,13 +234,11 @@ class TestGroupedPipelineNaNTraceability:
 
         # Should list the dropped barcodes
         for barcode in ["p20", "p21", "p22", "p23", "p24"]:
-            assert barcode in metadata_text, (
-                f"Metadata should list dropped barcode {barcode}"
-            )
+            assert (
+                barcode in metadata_text
+            ), f"Metadata should list dropped barcode {barcode}"
 
-    def test_dropped_samples_tracked_in_summary(
-        self, test_data_with_nans, tmp_path
-    ):
+    def test_dropped_samples_tracked_in_summary(self, test_data_with_nans, tmp_path):
         """Pipeline summary must include dropped sample metadata."""
         config = get_default_qc_config()
         config.data.csv_path = str(test_data_with_nans)
@@ -275,9 +269,9 @@ class TestGroupedPipelineNaNTraceability:
 
         # Each group result should have dropped_samples metadata
         for group_label, group_result in result.items():
-            assert "dropped_samples" in group_result, (
-                f"Group {group_label} result should have dropped_samples metadata"
-            )
+            assert (
+                "dropped_samples" in group_result
+            ), f"Group {group_label} result should have dropped_samples metadata"
 
             dropped_info = group_result["dropped_samples"]
             assert dropped_info["column"] == "age"
@@ -337,9 +331,9 @@ class TestGroupedPipelineNaNTraceability:
 
         # Should NOT create dropped samples files
         dropped_files = list(output_dir.glob("00_dropped_samples_*.csv"))
-        assert len(dropped_files) == 0, (
-            "Should not create dropped samples files when there are no NaN values"
-        )
+        assert (
+            len(dropped_files) == 0
+        ), "Should not create dropped samples files when there are no NaN values"
 
         # Dropped samples metadata should indicate 0 dropped
         for group_label, group_result in result.items():

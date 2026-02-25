@@ -111,9 +111,7 @@ def run_manifest(tmp_path, qc_config_no_group_by, viz_config):
         "description": "Test CLI group-by flag",
         "qc_configs": ["qc_config.yaml"],
         "viz_configs": ["viz_config.yaml"],
-        "qc_mapping": {
-            "viz_config.yaml": "qc_config.yaml"
-        },
+        "qc_mapping": {"viz_config.yaml": "qc_config.yaml"},
     }
 
     with open(manifest_path, "w") as f:
@@ -158,9 +156,9 @@ class TestRunAllCLIGroupBy:
             )
 
         # Should NOT have a non-grouped viz result
-        assert "viz_config.yaml" not in viz_results, (
-            "Should not have non-grouped viz result when using CLI --group-by"
-        )
+        assert (
+            "viz_config.yaml" not in viz_results
+        ), "Should not have non-grouped viz result when using CLI --group-by"
 
     def test_cli_group_by_overrides_config_group_by_for_viz_fanout(
         self, tmp_path, qc_config_with_site_group_by, viz_config
@@ -194,25 +192,20 @@ class TestRunAllCLIGroupBy:
         viz_results = runner.run_results["viz"]
 
         # Should have plant_age_days groups
-        assert any(
-            "plant_age_days_" in key for key in viz_results.keys()
-        ), (
+        assert any("plant_age_days_" in key for key in viz_results.keys()), (
             "Viz should fan out by plant_age_days (CLI flag), "
             f"not site (config). Found: {list(viz_results.keys())}"
         )
 
         # Should NOT have site groups
         assert not any(
-            "site" in key and "plant_age_days" not in key
-            for key in viz_results.keys()
+            "site" in key and "plant_age_days" not in key for key in viz_results.keys()
         ), (
             "Should not have site-based groups when CLI overrides with "
             "plant_age_days"
         )
 
-    def test_effective_group_by_logged_correctly(
-        self, tmp_path, run_manifest, caplog
-    ):
+    def test_effective_group_by_logged_correctly(self, tmp_path, run_manifest, caplog):
         """Runner should log CLI/config/effective group_by for transparency."""
         with caplog.at_level(logging.INFO):
             runner = PipelineRunner(
@@ -227,8 +220,7 @@ class TestRunAllCLIGroupBy:
 
         # Look for log showing CLI/config/effective group_by
         found_effective_log = any(
-            "effective=" in msg and "plant_age_days" in msg
-            for msg in log_messages
+            "effective=" in msg and "plant_age_days" in msg for msg in log_messages
         )
 
         assert found_effective_log, (
@@ -236,9 +228,7 @@ class TestRunAllCLIGroupBy:
             f"Log messages: {log_messages}"
         )
 
-    def test_viz_fanout_creates_per_group_directories(
-        self, tmp_path, run_manifest
-    ):
+    def test_viz_fanout_creates_per_group_directories(self, tmp_path, run_manifest):
         """Viz fan-out should create separate output directories per group."""
         runner = PipelineRunner(
             manifest_path=run_manifest,
@@ -255,15 +245,13 @@ class TestRunAllCLIGroupBy:
 
         for group in expected_groups:
             result_key = f"viz_config.yaml:{group}"
-            assert result_key in viz_results, (
-                f"Viz should have run for group {group}"
-            )
+            assert result_key in viz_results, f"Viz should have run for group {group}"
 
             # Verify the viz run was successful
             result = viz_results[result_key]
-            assert result["success"], (
-                f"Viz for group {group} should have completed successfully"
-            )
+            assert result[
+                "success"
+            ], f"Viz for group {group} should have completed successfully"
 
         # Also verify viz output directory exists
         viz_base = runner.run_dir / "viz"

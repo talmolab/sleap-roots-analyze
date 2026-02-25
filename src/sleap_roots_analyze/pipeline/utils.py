@@ -388,7 +388,7 @@ def split_data_by_group(
 
     # Split by unique values in group column
     # Use pandas groupby with dropna parameter for efficiency
-    dropna = (handle_na == "warn_and_drop")
+    dropna = handle_na == "warn_and_drop"
     groups = {}
     for group_value, group_df in df.groupby(group_by_column, dropna=dropna):
         groups[group_value] = group_df.copy()
@@ -549,7 +549,9 @@ def run_grouped_pipelines(
         )
 
         # Save dropped samples CSV
-        dropped_csv_path = output_dir / f"00_dropped_samples_missing_{group_by_column}.csv"
+        dropped_csv_path = (
+            output_dir / f"00_dropped_samples_missing_{group_by_column}.csv"
+        )
         dropped_df.to_csv(dropped_csv_path, index=False)
         logger.info(f"Dropped samples saved to: {dropped_csv_path}")
 
@@ -561,11 +563,17 @@ def run_grouped_pipelines(
             f.write(f"Summary: {n_na}/{len(df)} samples dropped\n")
             f.write(f"Reason: Missing values in '{group_by_column}' column\n")
             f.write(f"Fraction: {100 * n_na / len(df):.2f}%\n\n")
-            f.write(f"These samples were excluded from grouped analysis because they had\n")
-            f.write(f"missing/NaN values in the group-by column ('{group_by_column}').\n\n")
+            f.write(
+                f"These samples were excluded from grouped analysis because they had\n"
+            )
+            f.write(
+                f"missing/NaN values in the group-by column ('{group_by_column}').\n\n"
+            )
 
             # List barcodes
-            barcode_cols = [col for col in dropped_df.columns if "barcode" in col.lower()]
+            barcode_cols = [
+                col for col in dropped_df.columns if "barcode" in col.lower()
+            ]
             if barcode_cols:
                 barcode_col = barcode_cols[0]
                 f.write(f"Dropped sample barcodes:\n")
@@ -581,7 +589,9 @@ def run_grouped_pipelines(
         dropped_samples_info["metadata_path"] = str(metadata_path)
 
     # Split by group column (NaN values will be dropped by default)
-    groups = split_data_by_group(df, group_by_column=group_by_column, handle_na="warn_and_drop")
+    groups = split_data_by_group(
+        df, group_by_column=group_by_column, handle_na="warn_and_drop"
+    )
     logger.info(f"Split data into {len(groups)} groups: {list(groups.keys())}")
 
     # Filter groups by minimum sample count

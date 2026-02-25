@@ -140,7 +140,9 @@ class TestStatisticalAnalysisErrorHandling:
         # Create prev_result with trait columns in metadata
         prev_result = StepResult(
             data=df,
-            metadata={"valid_trait_names": ["good_trait", "constant_trait", "variable_trait"]},
+            metadata={
+                "valid_trait_names": ["good_trait", "constant_trait", "variable_trait"]
+            },
             files_generated=[],
         )
 
@@ -175,9 +177,7 @@ class TestStatisticalAnalysisErrorHandling:
 
         except AttributeError as e:
             if "'str' object has no attribute 'get'" in str(e):
-                pytest.fail(
-                    f"ANOVA error handling bug not fixed.\nError: {e}"
-                )
+                pytest.fail(f"ANOVA error handling bug not fixed.\nError: {e}")
             else:
                 raise
 
@@ -224,6 +224,6 @@ class TestStatisticalAnalysisErrorHandling:
 
         # normal_trait should have valid results
         normal_row = anova_df[anova_df["trait"] == "normal_trait"].iloc[0]
-        assert not pd.isna(normal_row["f_statistic"]), (
-            "Normal trait should have valid F-statistic"
-        )
+        assert not pd.isna(
+            normal_row["f_statistic"]
+        ), "Normal trait should have valid F-statistic"

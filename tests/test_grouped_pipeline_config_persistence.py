@@ -79,9 +79,9 @@ class TestGroupedPipelineConfigPersistence:
             # Extract run_dir from result structure
             run_dir = Path(group_result["output_dir"])
             saved_config_path = run_dir / "config.yaml"
-            assert saved_config_path.exists(), (
-                f"Group {group_label} should have saved config"
-            )
+            assert (
+                saved_config_path.exists()
+            ), f"Group {group_label} should have saved config"
 
             # Load saved config
             saved_config = load_qc_config(saved_config_path)
@@ -148,9 +148,9 @@ class TestGroupedPipelineConfigPersistence:
             "This means saved configs are not reproducible."
         )
         # Verify some expected outputs exist
-        assert (pipeline.run_dir / "pipeline_summary.json").exists(), (
-            "Pipeline should create summary file"
-        )
+        assert (
+            pipeline.run_dir / "pipeline_summary.json"
+        ).exists(), "Pipeline should create summary file"
 
     def test_input_csv_preserved_in_output_directory(self, grouped_test_data, tmp_path):
         """Each group's input CSV is saved in its output directory.
@@ -180,8 +180,7 @@ class TestGroupedPipelineConfigPersistence:
             input_csvs = list(run_dir.glob("00_input_data_*.csv"))
 
             assert len(input_csvs) == 1, (
-                f"Expected 1 input CSV in {run_dir}, "
-                f"found {len(input_csvs)}"
+                f"Expected 1 input CSV in {run_dir}, " f"found {len(input_csvs)}"
             )
 
             input_csv = input_csvs[0]
@@ -197,14 +196,16 @@ class TestGroupedPipelineConfigPersistence:
             expected_age = group_label
 
             # All rows should belong to this group
-            assert all(df["age"] == expected_age), (
-                f"Input CSV should contain only age={expected_age} rows"
-            )
+            assert all(
+                df["age"] == expected_age
+            ), f"Input CSV should contain only age={expected_age} rows"
 
             # Should have exactly 10 samples per group
             assert len(df) == 10
 
-    def test_no_temporary_files_in_tmp_dir(self, grouped_test_data, tmp_path, monkeypatch):
+    def test_no_temporary_files_in_tmp_dir(
+        self, grouped_test_data, tmp_path, monkeypatch
+    ):
         """Verify that no temp files are created (bug regression test).
 
         Previously, the code created temp CSVs in /tmp and then deleted them.
@@ -246,6 +247,5 @@ class TestGroupedPipelineConfigPersistence:
         ]
 
         assert len(group_csv_temps) == 0, (
-            f"Should not create temp files for group CSVs. "
-            f"Found: {group_csv_temps}"
+            f"Should not create temp files for group CSVs. " f"Found: {group_csv_temps}"
         )
