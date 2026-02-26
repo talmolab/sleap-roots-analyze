@@ -672,8 +672,9 @@ class PipelineRunner:
             str(output_dir),
         ]
 
-        # Add group-by flag if specified
-        if self.group_by is not None:
+        # Add group-by flag if specified (only for QC pipelines)
+        # Viz fan-out is triggered by detecting grouped QC outputs, not by the CLI flag
+        if self.group_by is not None and pipeline_type == "qc":
             cmd.extend(["--group-by", self.group_by])
 
         if self.verbose:
