@@ -9,7 +9,6 @@ from __future__ import annotations
 import copy
 import logging
 import subprocess
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -673,7 +672,7 @@ def run_grouped_pipelines(
             logger.exception(
                 f"Group {group_by_column}={group_value} failed during pipeline execution"
             )
-            # Continue processing remaining groups
+            raise  # Re-raise to fail fast with diagnostic context
 
     logger.info(
         f"All grouped pipelines completed. Processed {len(grouped_results)} groups."

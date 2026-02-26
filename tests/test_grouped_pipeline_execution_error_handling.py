@@ -167,8 +167,8 @@ class TestErrorHandling:
         # Test passes if execution completes without TypeError
         # (The warning check removed since pandas doesn't create mixed types from CSV)
 
-    def test_group_failure_logged_and_continues(self, tmp_path, caplog):
-        """Pipeline failure for one group is logged, but other groups continue."""
+    def test_group_failure_logged_and_fails_fast(self, tmp_path, caplog):
+        """Pipeline failure for one group is logged and re-raised (fail-fast behavior)."""
         csv_path = tmp_path / "data.csv"
         rows = ["barcode,genotype,replicate,age,trait1"]
         for i in range(30):
@@ -183,36 +183,32 @@ class TestErrorHandling:
         config.columns.replicate = "replicate"
         config.cleanup.min_samples_per_trait = 3
 
-        # Mock pipeline that fails for age=1
+        # Mock pipeline that fails for age=0 (first group, sorted)
         class FailingPipeline:
             def __init__(self, config, output_dir, **kwargs):
                 self.config = config
                 self.run_dir = output_dir
 
             def run(self):
-                # Check if this is the age=1 group by looking at data
+                # Check if this is the age=0 group by looking at data
                 df = pd.read_csv(self.config.data.csv_path)
-                if df["age"].iloc[0] == 1:
-                    raise ValueError("Simulated pipeline failure for age=1")
+                if df["age"].iloc[0] == 0:
+                    raise ValueError("Simulated pipeline failure for age=0")
                 return {"status": "success"}
 
-        with caplog.at_level(logging.ERROR):
-            result = run_grouped_pipelines(
-                config=config,
-                output_dir=tmp_path / "outputs",
-                pipeline_class=FailingPipeline,
-                validate=False,
-            )
+        # Should raise exception and fail fast (not continue to other groups)
+        with pytest.raises(ValueError, match="Simulated pipeline failure for age=0"):
+            with caplog.at_level(logging.ERROR):
+                run_grouped_pipelines(
+                    config=config,
+                    output_dir=tmp_path / "outputs",
+                    pipeline_class=FailingPipeline,
+                    validate=False,
+                )
 
-        # Should have results for age=0 and age=2, but not age=1
-        assert len(result) == 2
-        assert 0 in result
-        assert 2 in result
-        assert 1 not in result
-
-        # Should log exception for failed group
+        # Should have logged exception with group context
+        error_logs = [r for r in caplog.records if r.levelname == "ERROR"]
+        assert len(error_logs) > 0, "Should have logged an error"
         assert any(
-            "age=1" in record.message and "failed" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+            "age=0" in r.message and "failed" in r.message for r in error_logs
+        ), f"Error should mention group context. Logs: {[r.message for r in error_logs]}"
