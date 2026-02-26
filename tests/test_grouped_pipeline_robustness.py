@@ -202,7 +202,9 @@ class TestMixedTypeGroupSorting:
         # Check that groups exist (may be int or str keys)
         # Note: pandas reads CSV columns as strings when mixed, so "7" is a string
         group_keys = list(result.keys())
-        assert (7 in group_keys or "7" in group_keys), f"Missing numeric group 7 in {group_keys}"
+        assert (
+            7 in group_keys or "7" in group_keys
+        ), f"Missing numeric group 7 in {group_keys}"
         assert "exp1" in group_keys, f"Missing string group 'exp1' in {group_keys}"
         assert "exp2" in group_keys, f"Missing string group 'exp2' in {group_keys}"
 
@@ -236,9 +238,9 @@ class TestContextualizedErrorMessages:
 
         # Error message should mention group_by for context
         error_msg = str(exc_info.value)
-        assert "group_by" in error_msg or "plant_age_days" in error_msg, (
-            f"Error should mention group_by context. Got: {error_msg}"
-        )
+        assert (
+            "group_by" in error_msg or "plant_age_days" in error_msg
+        ), f"Error should mention group_by context. Got: {error_msg}"
 
     def test_empty_csv_error_message_includes_context(self, tmp_path):
         """Empty CSV should provide clear error with context.
@@ -299,6 +301,6 @@ class TestContextualizedErrorMessages:
 
         # Error should mention the missing column
         error_msg = str(exc_info.value)
-        assert "nonexistent_column" in error_msg, (
-            f"Error should mention missing column name. Got: {error_msg}"
-        )
+        assert (
+            "nonexistent_column" in error_msg
+        ), f"Error should mention missing column name. Got: {error_msg}"
