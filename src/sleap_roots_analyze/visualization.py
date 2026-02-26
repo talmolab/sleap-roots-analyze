@@ -2013,6 +2013,20 @@ def create_pca_biplot(
     pc_x_idx = pc_x - 1
     pc_y_idx = pc_y - 1
 
+    # Check if requested components exist
+    n_components = X_pca.shape[1]
+    if pc_y_idx >= n_components or pc_x_idx >= n_components:
+        # Return empty figure with message
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(
+            0.5, 0.5,
+            f"Cannot create biplot: only {n_components} PCA component(s) available,\n"
+            f"but PC{pc_x} vs PC{pc_y} requested",
+            ha='center', va='center', fontsize=12, transform=ax.transAxes
+        )
+        ax.axis('off')
+        return fig
+
     # Ensure we handle the correct number of features
     n_features = min(len(trait_names), loadings.shape[0])
 
