@@ -2019,12 +2019,16 @@ def create_pca_biplot(
         # Return empty figure with message
         fig, ax = plt.subplots(figsize=figsize)
         ax.text(
-            0.5, 0.5,
+            0.5,
+            0.5,
             f"Cannot create biplot: only {n_components} PCA component(s) available,\n"
             f"but PC{pc_x} vs PC{pc_y} requested",
-            ha='center', va='center', fontsize=12, transform=ax.transAxes
+            ha="center",
+            va="center",
+            fontsize=12,
+            transform=ax.transAxes,
         )
-        ax.axis('off')
+        ax.axis("off")
         return fig
 
     # Ensure we handle the correct number of features

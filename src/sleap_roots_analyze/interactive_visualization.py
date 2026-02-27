@@ -303,9 +303,12 @@ def create_interactive_pca_with_images(
             fig = go.Figure()
             fig.add_annotation(
                 text=f"Only {n_components} PCA component available - cannot create 2D plot",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(size=14)
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
+                font=dict(size=14),
             )
             return fig
 
@@ -1314,9 +1317,12 @@ def create_interactive_pca_plot(
             fig = go.Figure()
             fig.add_annotation(
                 text=f"Only {n_components} PCA component available - cannot create 2D plot",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(size=14)
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
+                font=dict(size=14),
             )
             return fig
 
