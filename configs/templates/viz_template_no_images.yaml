@@ -1,0 +1,123 @@
+# Golden Template: Visualization Pipeline Configuration (No Images)
+#
+# This template is for analyses where images are NOT available.
+# Image-related features (hover images, image grids) are disabled.
+#
+# REQUIRED CUSTOMIZATIONS (replace FILL_IN_* placeholders):
+#   - data.csv_path (usually auto-filled by run-all to point to QC output)
+#   - pipeline_name
+#
+# OPTIONAL CUSTOMIZATIONS:
+#   - pca.n_top_features (default: 5 traits for UMAP coloring)
+#   - static_viz.pca_biplot_top_features (default: 1 = 2 arrows/PC for "extreme" strategy)
+#   - umap.n_neighbors (recommended: min(15, n_samples // 4))
+#
+# This template includes ALL required schema fields. Do not remove sections.
+
+pipeline_name: "FILL_IN_PIPELINE_NAME"  # E.g., "my_analysis_viz"
+version: "1.0"
+
+data:
+  # Path to QC output CSV (auto-updated by run-all to point to 10_final_data.csv)
+  csv_path: "FILL_IN_CSV_PATH"  # E.g., "/path/to/qc_output/10_final_data.csv"
+
+  # No images available
+  image_dir: null
+
+# Column names after QC pipeline sanitization
+columns:
+  barcode: "Barcode"
+  genotype: "Genotype"
+  replicate: "Replicate"
+  image_path: null
+
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "extreme"
+  n_top_features: 5
+
+umap:
+  enabled: true
+  n_neighbors: 10
+  min_dist: 0.1
+  metric: "euclidean"
+  random_state: 42
+
+clustering:
+  enabled: false
+
+heritability:
+  enabled: false
+  threshold: 0.30
+
+interesting_genotypes:
+  # Interesting genotypes detection still enabled, but no image grids generated
+  enabled: true
+  methods:
+    - pc_extreme
+    - trait_extreme
+    - heritable_extreme
+  pc_threshold: 2.0
+  trait_percentile: 95.0
+  min_heritability: 0.30
+  max_genotypes: 6
+
+  # Image grids disabled (no images available)
+  generate_image_grids: false
+  images_per_genotype: 9
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+  pca_biplot_top_features: 1
+
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+
+  # Image hover disabled (no images available)
+  show_images_on_hover: false
+
+dashboard:
+  enabled: false
+
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

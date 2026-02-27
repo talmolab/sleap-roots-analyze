@@ -292,6 +292,25 @@ def create_interactive_pca_with_images(
     # Get PC scores
     pc_x, pc_y = components
     X_pca = pca_results["transformed_data"]
+    n_components = X_pca.shape[1]
+
+    # Check if requested components exist
+    if pc_y >= n_components:
+        # Fall back to using only available components
+        pc_y = min(pc_y, n_components - 1)
+        if pc_x == pc_y:
+            # Can't plot 1D PCA interactively, return empty figure with message
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Only {n_components} PCA component available - cannot create 2D plot",
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
+                font=dict(size=14),
+            )
+            return fig
 
     # Create dataframe for plotting
     plot_df = df.copy()
@@ -1287,6 +1306,25 @@ def create_interactive_pca_plot(
     # Get PC scores
     pc_x, pc_y = components
     X_pca = pca_results["transformed_data"]
+    n_components = X_pca.shape[1]
+
+    # Check if requested components exist
+    if pc_y >= n_components:
+        # Fall back to using only available components
+        pc_y = min(pc_y, n_components - 1)
+        if pc_x == pc_y:
+            # Can't plot 1D PCA interactively, return empty figure with message
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Only {n_components} PCA component available - cannot create 2D plot",
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
+                font=dict(size=14),
+            )
+            return fig
 
     # Create dataframe for plotting
     plot_df = df.copy()

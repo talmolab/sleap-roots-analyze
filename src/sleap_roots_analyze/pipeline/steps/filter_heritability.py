@@ -75,6 +75,13 @@ class FilterHeritabilityStep(BaseStep):
         """
         df = data.copy()
 
+        # Get visualization config (different attribute names in QC vs Viz pipelines)
+        viz_config = (
+            config.visualization
+            if hasattr(config, "visualization")
+            else config.static_viz
+        )
+
         # Get heritability results from previous step
         heritability_results = prev_result.metadata["heritability_results"]
         trait_cols = prev_result.metadata["trait_names"]
@@ -203,11 +210,11 @@ class FilterHeritabilityStep(BaseStep):
                 var_plot_path.parent.mkdir(parents=True, exist_ok=True)
                 fig_var.savefig(
                     var_plot_path,
-                    dpi=config.visualization.dpi,
-                    bbox_inches=config.visualization.bbox_inches,
-                    facecolor=config.visualization.facecolor,
-                    edgecolor=config.visualization.edgecolor,
-                    transparent=config.visualization.transparent,
+                    dpi=viz_config.dpi,
+                    bbox_inches=viz_config.bbox_inches,
+                    facecolor=getattr(viz_config, "facecolor", None),
+                    edgecolor=getattr(viz_config, "edgecolor", None),
+                    transparent=getattr(viz_config, "transparent", False),
                 )
                 plt.close(fig_var)
 
@@ -230,11 +237,11 @@ class FilterHeritabilityStep(BaseStep):
                 box_plot_path = run_dir / "figures" / "09_removed_traits_boxplots.png"
                 fig_box.savefig(
                     box_plot_path,
-                    dpi=config.visualization.dpi,
-                    bbox_inches=config.visualization.bbox_inches,
-                    facecolor=config.visualization.facecolor,
-                    edgecolor=config.visualization.edgecolor,
-                    transparent=config.visualization.transparent,
+                    dpi=viz_config.dpi,
+                    bbox_inches=viz_config.bbox_inches,
+                    facecolor=getattr(viz_config, "facecolor", None),
+                    edgecolor=getattr(viz_config, "edgecolor", None),
+                    transparent=getattr(viz_config, "transparent", False),
                 )
                 plt.close(fig_box)
 
@@ -304,11 +311,11 @@ class FilterHeritabilityStep(BaseStep):
         threshold_plot_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(
             threshold_plot_path,
-            dpi=config.visualization.dpi,
-            bbox_inches=config.visualization.bbox_inches,
-            facecolor=config.visualization.facecolor,
-            edgecolor=config.visualization.edgecolor,
-            transparent=config.visualization.transparent,
+            dpi=viz_config.dpi,
+            bbox_inches=viz_config.bbox_inches,
+            facecolor=getattr(viz_config, "facecolor", None),
+            edgecolor=getattr(viz_config, "edgecolor", None),
+            transparent=getattr(viz_config, "transparent", False),
         )
         plt.close(fig)
 

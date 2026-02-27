@@ -210,14 +210,12 @@ def create_trait_boxplots_by_genotype(
             if len(df_plot) > 0:
                 if actual_orientation == "horizontal":
                     # Use seaborn for horizontal boxplots
-                    # Sort genotypes for consistent ordering
-                    genotype_order = sorted(df_plot[genotype_col].unique())
+                    # Let seaborn determine order from data (avoids position mismatch errors)
                     sns.boxplot(
                         data=df_plot,
                         x=trait,
                         y=genotype_col,
                         ax=axes[i],
-                        order=genotype_order,
                         orientation="horizontal",
                     )
                     axes[i].set_title(f"{trait}")
@@ -2015,6 +2013,24 @@ def create_pca_biplot(
     pc_x_idx = pc_x - 1
     pc_y_idx = pc_y - 1
 
+    # Check if requested components exist
+    n_components = X_pca.shape[1]
+    if pc_y_idx >= n_components or pc_x_idx >= n_components:
+        # Return empty figure with message
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(
+            0.5,
+            0.5,
+            f"Cannot create biplot: only {n_components} PCA component(s) available,\n"
+            f"but PC{pc_x} vs PC{pc_y} requested",
+            ha="center",
+            va="center",
+            fontsize=12,
+            transform=ax.transAxes,
+        )
+        ax.axis("off")
+        return fig
+
     # Ensure we handle the correct number of features
     n_features = min(len(trait_names), loadings.shape[0])
 
@@ -2070,6 +2086,12 @@ def create_pca_biplot(
                     )
             else:
                 df_pca = df
+
+        # Integer columns (e.g., numeric accession IDs) are label columns, not
+        # measurements. Cast to string so they route through categorical coloring.
+        if pd.api.types.is_integer_dtype(df_pca[color_by]):
+            df_pca = df_pca.copy()
+            df_pca[color_by] = df_pca[color_by].astype(str)
 
         # Handle categorical coloring
         if df_pca[color_by].dtype == "object" or isinstance(

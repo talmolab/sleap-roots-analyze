@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
+import pandas as pd
 from omegaconf import MISSING, OmegaConf
 
 from sleap_roots_analyze.pipeline.config.qc_config import QCPipelineConfig
@@ -194,7 +195,7 @@ def validate_explicit_config(config: QCPipelineConfig) -> None:
         warnings.warn(warning_msg, UserWarning, stacklevel=2)
 
 
-def validate_qc_config(config: QCPipelineConfig) -> None:
+def validate_qc_config(config: QCPipelineConfig, check_files: bool = True) -> None:
     """Validate a QC pipeline configuration.
 
     This function performs both explicit configuration validation (checking that
@@ -203,6 +204,7 @@ def validate_qc_config(config: QCPipelineConfig) -> None:
 
     Args:
         config: QCPipelineConfig object to validate.
+        check_files: If True, verify data files exist and validate group_by column (default: True).
 
     Raises:
         ValueError: If configuration is invalid.
@@ -325,6 +327,23 @@ def validate_qc_config(config: QCPipelineConfig) -> None:
     valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     if config.logging.level not in valid_log_levels:
         raise ValueError(f"logging.level must be one of {valid_log_levels}")
+
+    # Validate group_by column exists in data (if group_by specified and check_files enabled)
+    if check_files and config.data.group_by is not None:
+        from pathlib import Path
+
+        if config.data.csv_path and Path(config.data.csv_path).exists():
+            try:
+                df = pd.read_csv(config.data.csv_path, nrows=0)  # Read only header
+                if config.data.group_by not in df.columns:
+                    available = list(df.columns)
+                    raise ValueError(
+                        f"group_by column '{config.data.group_by}' not found in CSV. "
+                        f"Available columns: {available}"
+                    )
+            except pd.errors.EmptyDataError:
+                # Empty CSV will fail at runtime anyway, skip validation
+                pass
 
 
 def merge_qc_configs(

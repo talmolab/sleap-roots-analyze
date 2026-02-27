@@ -1,0 +1,164 @@
+# Golden Template: QC Pipeline Configuration (Ungrouped Analysis)
+#
+# This template is for single-group experiments where all samples are analyzed together.
+# If you have multiple timepoints, batches, or sites, consider using qc_template_grouped.yaml instead.
+#
+# REQUIRED CUSTOMIZATIONS (replace FILL_IN_* placeholders):
+#   - data.csv_path
+#   - columns.barcode, columns.genotype, columns.replicate
+#   - pipeline_name
+#
+# OPTIONAL CUSTOMIZATIONS:
+#   - cleanup thresholds (max_nan_fraction, max_zeros_per_trait, etc.)
+#   - heritability.threshold (default: 0.40 = moderate)
+#   - outlier_detection settings (default: Mahalanobis chi-squared at 99th percentile)
+#
+# This template includes ALL required schema fields. Do not remove sections.
+
+pipeline_name: "FILL_IN_PIPELINE_NAME"  # E.g., "my_analysis_qc"
+version: "1.0"
+enable_parallel: false
+
+data:
+  # Path to your trait CSV file (must exist before running)
+  csv_path: "FILL_IN_CSV_PATH"  # E.g., "/path/to/traits_summary.csv"
+
+  # Image directory (optional; set to null if no images)
+  image_dir: null
+
+  # Additional columns to exclude from analysis (besides standard metadata columns)
+  # E.g., ["File.me", "region", "set"] for columns that are not traits but also not standard metadata
+  additional_exclude_cols: []
+
+  # Group-by column for multi-group analysis (set to null for ungrouped analysis)
+  group_by: null
+
+columns:
+  # Column containing unique sample identifiers (plant QR code, barcode, sample ID)
+  barcode: "FILL_IN_BARCODE_COLUMN"  # E.g., "barcode"
+
+  # Column containing genotype/accession/variety identifiers
+  genotype: "FILL_IN_GENOTYPE_COLUMN"  # E.g., "geno"
+
+  # Column containing replicate/plant ID (within each genotype)
+  replicate: "FILL_IN_REPLICATE_COLUMN"  # E.g., "rep"
+
+cleanup:
+  # Drop trait columns with >50% zero values (helps remove near-constant traits)
+  # Range: 0.0 (strict) to 1.0 (permissive). Typical: 0.4–0.6.
+  max_zeros_per_trait: 0.5
+
+  # Drop trait columns with >20% NaN values (removes sparse traits)
+  # Range: 0.0 (strict) to 1.0 (permissive). Typical: 0.1–0.3.
+  max_nans_per_trait: 0.2
+
+  # Drop samples with >0% NaN values (strict: any NaN drops the sample)
+  # Range: 0.0 (strict) to 1.0 (permissive). 0.0 = no missing data allowed.
+  max_nan_fraction: 0.0
+
+  # Minimum non-NaN values required per trait column
+  # Typical: 10–30 depending on sample size. For ~150 samples, use 10.
+  min_samples_per_trait: 10
+
+outlier_detection:
+  # Traditional outlier detection methods: pca, isolation_forest, mahalanobis
+  # For n ≥ 30, Mahalanobis chi-squared is recommended (fast and reliable).
+  # For small datasets (n < 30), consider isolation_forest or lower chi2_percentile.
+  traditional_methods:
+    - mahalanobis
+
+  # Clustering-based outlier methods: kmeans, gmm, hierarchical
+  # Generally not needed if Mahalanobis is used.
+  clustering_methods: []
+
+  # Mahalanobis distance settings (only if mahalanobis in traditional_methods)
+  mahalanobis:
+    # PCA variance threshold for dimensionality reduction before Mahalanobis
+    variance_threshold: 0.95
+
+    # Use chi-squared approximation for outlier flagging (requires n ≥ 30)
+    use_chi_squared: true
+
+    # Percentile threshold for chi-squared outlier detection
+    # 99.0 = strict (only top 1% flagged), 95.0 = permissive (top 5% flagged)
+    chi2_percentile: 99.0
+
+outlier_removal:
+  # Strategy for removing outliers: "single", "consensus", "subset"
+  # "single" = use one method (specify which in 'method' below)
+  strategy: "single"
+
+  # Which method to use for outlier removal (must be in traditional_methods or clustering_methods)
+  method: "mahalanobis"
+
+pca:
+  # Number of principal components to retain in QC output
+  # If float (0.0–1.0): keep PCs explaining that fraction of variance (e.g., 0.95 = 95%)
+  # If int: keep exactly that many PCs
+  n_components: 0.95
+
+  # Feature selection strategy for selecting top traits (used in downstream viz and metadata)
+  # "top_variance" = rank traits by total variance contribution
+  # "extreme" = select traits with most extreme PC loadings (both positive and negative)
+  feature_selection_strategy: "top_variance"
+
+heritability:
+  # Enable heritability filtering (drop traits with H² below threshold)
+  # Requires ≥ 3 replicates per genotype for reliable estimates.
+  enabled: true
+
+  # Minimum heritability threshold (H² ≥ threshold to retain trait)
+  # 0.30 = permissive (exploratory), 0.40 = moderate, 0.50–0.60 = strict
+  threshold: 0.40
+
+  # Generate diagnostic plots for heritability estimates
+  generate_diagnostics: true
+
+visualization:
+  # DPI for saved figures (300 = publication quality, 100 = faster for exploratory)
+  dpi: 100
+
+  # Default figure size [width, height] in inches
+  figsize: [12, 8]
+
+  # Font sizes (optional; uncomment to customize)
+  # title_fontsize: 16
+  # label_fontsize: 14
+  # tick_fontsize: 12
+  # legend_fontsize: 12
+
+  # Output format: "png", "pdf", "svg"
+  figure_format: "png"
+
+  # Savefig parameters (optional; uncomment to customize)
+  # bbox_inches: "tight"
+  # transparent: false
+
+  # Enable batched plots for large trait sets (splits plots into batches)
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  # Enable adaptive figure sizing based on number of items (genotypes, traits, etc.)
+  enabled: true
+
+  # Base size and scaling factors
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+
+  # Bounds on adaptive sizing
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+
+  # Write logs to a file
+  log_to_file: true
+  log_file: "pipeline.log"

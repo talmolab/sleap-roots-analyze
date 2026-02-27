@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 # FDR correction method name mapping for human-readable display
 FDR_METHOD_NAMES: dict[str, str] = {
@@ -43,6 +46,7 @@ class PipelineRunner:
         manifest_path: Path | str,
         output_dir: Path | str = "pipeline_runs",
         verbose: bool = False,
+        group_by: str | None = None,
     ):
         """Initialize the pipeline runner.
 
@@ -50,10 +54,12 @@ class PipelineRunner:
             manifest_path: Path to the run manifest YAML file
             output_dir: Base directory for pipeline outputs
             verbose: Enable verbose output
+            group_by: Column name to group data by (overrides manifest and config values)
         """
         self.manifest_path = Path(manifest_path)
         self.output_dir = Path(output_dir)
         self.verbose = verbose
+        self.group_by = group_by
         self.run_timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         self.run_dir = self.output_dir / self.run_timestamp
 
@@ -63,6 +69,7 @@ class PipelineRunner:
 
         # Track run results
         self.qc_outputs: dict[str, Path] = {}
+        self.qc_grouped_outputs: dict[str, list[Path]] = {}
         self.viz_outputs: dict[str, Path] = {}
         self.cross_platform_outputs: dict[str, Path] = {}
         self.run_results: dict[str, dict[str, Any]] = {
@@ -202,10 +209,47 @@ class PipelineRunner:
             if result.get("success"):
                 self.qc_outputs[config_rel] = Path(result.get("output_path", ""))
 
+                # Detect grouped QC runs and collect all group output dirs
+                # Use effective group_by: CLI flag takes precedence over config
+                config_group_by = self._get_qc_config_group_by(config_path)
+                effective_group_by = (
+                    self.group_by if self.group_by is not None else config_group_by
+                )
+
+                # Log effective group_by for transparency
+                if self.group_by is not None and config_group_by is not None:
+                    logger.info(
+                        f"group_by: CLI={self.group_by}, config={config_group_by}, "
+                        f"effective={effective_group_by}"
+                    )
+                elif self.group_by is not None:
+                    logger.info(
+                        f"group_by: CLI={self.group_by}, config=None, effective={effective_group_by}"
+                    )
+                elif config_group_by is not None:
+                    logger.info(
+                        f"group_by: CLI=None, config={config_group_by}, effective={effective_group_by}"
+                    )
+
+                if effective_group_by:
+                    group_dirs = self._find_grouped_qc_outputs(
+                        qc_output_dir, effective_group_by
+                    )
+                    if group_dirs:
+                        self.qc_grouped_outputs[config_rel] = group_dirs
+                        print(
+                            f"  Detected {len(group_dirs)} group outputs for {config_rel}"
+                        )
+
             self.run_results["qc"][config_rel] = result
 
     def _run_viz_pipelines(self) -> None:
-        """Run all Viz pipelines with updated paths."""
+        """Run all Viz pipelines with updated paths.
+
+        When the mapped QC config used group_by, fans out to run viz once per
+        QC group output (task 5.2g). Otherwise runs once with the existing
+        path auto-update logic (unchanged behaviour).
+        """
         base_dir = self.manifest_path.parent
         viz_output_dir = self.run_dir / "viz"
         qc_mapping = self.manifest.get("qc_mapping", {})
@@ -216,19 +260,32 @@ class PipelineRunner:
             print(f"Running Viz: {config_rel}")
             print(f"{'=' * 60}")
 
-            # Update config with new QC output path if mapping exists
-            updated_config = self._update_viz_config(
-                config_path, config_rel, qc_mapping
-            )
+            qc_config_rel = qc_mapping.get(config_rel)
 
-            result = self._run_pipeline_command(
-                "viz", updated_config or config_path, viz_output_dir
-            )
+            # Fan-out path: grouped QC produced multiple outputs
+            if qc_config_rel and qc_config_rel in self.qc_grouped_outputs:
+                group_dirs = self.qc_grouped_outputs[qc_config_rel]
+                print(
+                    f"  Grouped QC detected — running viz for {len(group_dirs)} groups"
+                )
+                for group_dir in group_dirs:
+                    self._run_viz_for_group(
+                        config_path, config_rel, group_dir, viz_output_dir
+                    )
+            else:
+                # Existing single-run path
+                updated_config = self._update_viz_config(
+                    config_path, config_rel, qc_mapping
+                )
 
-            if result.get("success"):
-                self.viz_outputs[config_rel] = Path(result.get("output_path", ""))
+                result = self._run_pipeline_command(
+                    "viz", updated_config or config_path, viz_output_dir
+                )
 
-            self.run_results["viz"][config_rel] = result
+                if result.get("success"):
+                    self.viz_outputs[config_rel] = Path(result.get("output_path", ""))
+
+                self.run_results["viz"][config_rel] = result
 
     def _run_cross_platform_pipelines(self) -> None:
         """Run all Cross-Platform pipelines with updated paths."""
@@ -372,6 +429,119 @@ class PipelineRunner:
         print(f"  Updated data.csv_path -> {new_data_path}")
         return updated_path
 
+    @staticmethod
+    def _get_qc_config_group_by(config_path: Path) -> str | None:
+        """Read the data.group_by field from a QC config YAML.
+
+        Returns the column name if set to a non-null string, otherwise None.
+        Handles missing files and malformed YAML gracefully.
+        """
+        try:
+            with open(config_path) as f:
+                config = yaml.safe_load(f) or {}
+            return config.get("data", {}).get("group_by") or None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _find_grouped_qc_outputs(base_dir: Path, group_by_column: str) -> list[Path]:
+        """Find all group output directories under a QC base directory.
+
+        Scans `base_dir` for subdirectories whose names begin with
+        `{group_by_column}_`. Returns a sorted list for deterministic ordering.
+
+        Args:
+            base_dir: Directory containing per-group QC output subdirs
+            group_by_column: The grouping column name (e.g. 'plant_age_days')
+
+        Returns:
+            Sorted list of matching Path objects (empty if none found)
+        """
+        if not base_dir.exists():
+            return []
+        prefix = f"{group_by_column}_"
+        return sorted(
+            [d for d in base_dir.iterdir() if d.is_dir() and d.name.startswith(prefix)],
+            key=lambda d: d.name,
+        )
+
+    @staticmethod
+    def _extract_group_label(dir_name: str) -> str:
+        """Strip the YYYYMMDD_HHMMSS timestamp suffix from a group directory name.
+
+        Example:
+            'plant_age_days_7_20260217_114013'  →  'plant_age_days_7'
+            'experiment_id_exp1_20260217_114013'  →  'experiment_id_exp1'
+
+        If no timestamp pattern is found the name is returned unchanged.
+        """
+        parts = dir_name.split("_")
+        # Timestamp = last two segments: YYYYMMDD (8 digits) + HHMMSS (6 digits)
+        if (
+            len(parts) >= 3
+            and len(parts[-1]) == 6
+            and parts[-1].isdigit()
+            and len(parts[-2]) == 8
+            and parts[-2].isdigit()
+        ):
+            return "_".join(parts[:-2])
+        return dir_name
+
+    def _run_viz_for_group(
+        self,
+        config_path: Path,
+        config_rel: str,
+        group_qc_dir: Path,
+        viz_output_dir: Path,
+    ) -> None:
+        """Run viz pipeline for a single QC group output.
+
+        Writes a group-specific updated config under
+        `viz_output_dir/{group_label}/_updated_{config_name}` (consistent with
+        the existing `_updated_*` convention for non-grouped runs) then invokes
+        the viz pipeline with that group's 10_final_data.csv.
+
+        Results are stored in run_results["viz"]["{config_rel}:{group_label}"].
+        """
+        group_label = self._extract_group_label(group_qc_dir.name)
+        result_key = f"{config_rel}:{group_label}"
+
+        print(f"\n  Group: {group_label}")
+
+        # Locate the final CSV produced by this group's QC run
+        csv_path = group_qc_dir / "10_final_data.csv"
+        if not csv_path.exists():
+            print(f"  Warning: 10_final_data.csv not found in {group_qc_dir}")
+            self.run_results["viz"][result_key] = {
+                "success": False,
+                "error": f"10_final_data.csv not found in {group_qc_dir}",
+            }
+            return
+
+        # Build group-specific output dir (created before viz runs so the
+        # _updated_* config can be written into it)
+        group_output_dir = viz_output_dir / group_label
+        group_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write updated viz config with group's csv_path, preserving structure
+        content = config_path.read_text(encoding="utf-8")
+        updated_content = self._update_yaml_path_preserving_structure(
+            content, r"csv_path", group_qc_dir, "10_final_data.csv"
+        )
+        updated_path = group_output_dir / f"_updated_{config_path.name}"
+        updated_path.write_text(updated_content, encoding="utf-8")
+
+        print(f"  Updated data.csv_path -> {csv_path}")
+
+        result = self._run_pipeline_command("viz", updated_path, group_output_dir)
+
+        if result.get("success"):
+            output_path = result.get("output_path")
+            if output_path is not None:
+                self.viz_outputs[result_key] = Path(output_path)
+
+        self.run_results["viz"][result_key] = result
+
     def _update_cross_platform_config(
         self,
         config_path: Path,
@@ -501,6 +671,11 @@ class PipelineRunner:
             "-o",
             str(output_dir),
         ]
+
+        # Add group-by flag if specified (only for QC pipelines)
+        # Viz fan-out is triggered by detecting grouped QC outputs, not by the CLI flag
+        if self.group_by is not None and pipeline_type == "qc":
+            cmd.extend(["--group-by", self.group_by])
 
         if self.verbose:
             print(f"  Command: {' '.join(cmd)}")

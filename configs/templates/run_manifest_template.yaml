@@ -1,0 +1,34 @@
+# Golden Template: Run Manifest
+#
+# This manifest orchestrates the full analysis pipeline:
+#   1. Run QC pipelines (FIRST)
+#   2. Run Viz pipelines (AFTER) with csv_path auto-updated to QC output
+#
+# REQUIRED CUSTOMIZATIONS (replace FILL_IN_* placeholders):
+#   - run_name
+#   - description
+#   - qc_configs (list of QC config paths relative to configs/active/)
+#   - viz_configs (list of Viz config paths relative to configs/active/)
+#   - qc_mapping (maps each viz config to its corresponding QC config)
+#
+# NOTES:
+#   - If QC config uses group_by, viz automatically fans out (one run per group)
+#   - All paths are relative to configs/active/ directory
+#   - qc_mapping tells run-all which QC output to use for each viz config's csv_path
+
+run_name: "FILL_IN_RUN_NAME"  # E.g., "My Analysis Run"
+description: "FILL_IN_DESCRIPTION"  # E.g., "QC and Viz for [dataset name] ([date]). Groups: [group description if applicable]."
+
+# QC configs are run FIRST
+qc_configs:
+  - FILL_IN_QC_CONFIG_PATH  # E.g., "qc/my_qc_config.yaml"
+
+# Viz configs are run AFTER QC (csv_path auto-updated to QC output).
+# When QC uses group_by, viz fans out automatically — once per group.
+viz_configs:
+  - FILL_IN_VIZ_CONFIG_PATH  # E.g., "viz/my_viz_config.yaml"
+
+# Config-to-QC mapping for path auto-update
+# Format: {viz_config_path: qc_config_path}
+qc_mapping:
+  FILL_IN_VIZ_CONFIG_PATH: FILL_IN_QC_CONFIG_PATH  # E.g., "viz/my_viz_config.yaml": "qc/my_qc_config.yaml"

@@ -20,6 +20,30 @@ uv sync --group dev  # Includes development dependencies
 
 ## Quick Start
 
+### New Analysis? Start here.
+
+Use the interactive `/configure-run-all` slash command (in Claude Code) to create a complete,
+scientifically validated set of configs for a new analysis:
+
+```
+/configure-run-all
+```
+
+It inspects your CSV, walks you through every parameter with statistical guardrails, writes
+QC + Viz + run manifest configs, and commits them to git as a reproducibility anchor.
+
+Optionally validate a specific config before running:
+```
+/validate-config configs/active/qc/<your_analysis>.yaml
+```
+
+Then run:
+```
+/run-pipelines --manifest configs/active/run_manifest_<your_analysis>.yaml
+```
+
+See [configs/templates/README.md](configs/templates/README.md) for manual config authoring.
+
 ### Command-Line Interface
 
 The package provides a CLI for running QC and visualization pipelines:

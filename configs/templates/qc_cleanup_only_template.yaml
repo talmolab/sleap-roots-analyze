@@ -24,6 +24,9 @@ columns:
 data:
   csv_path: "path/to/your/data.csv"  # REQUIRED: Path to your trait CSV file
   image_dir: null                     # Optional: Directory containing root images
+  group_by: null                      # Optional: Column to group by for separate analyses
+                                       # Example: "plant_age_days" for per-timepoint analysis
+                                       # Each group gets independent outputs and statistics
 
 # ============================================================================
 # REQUIRED: Data Cleanup Thresholds

@@ -6,10 +6,16 @@ git information, and package versioning.
 
 from __future__ import annotations
 
+import copy
+import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def create_run_directory(
@@ -326,3 +332,349 @@ def get_environment_info() -> Dict[str, str]:
     info.update(get_package_versions(packages))
 
     return info
+
+
+def split_data_by_group(
+    df: pd.DataFrame, group_by_column: str, handle_na: str = "warn_and_drop"
+) -> Dict[Any, pd.DataFrame]:
+    """Split a DataFrame into separate DataFrames based on unique values in a column.
+
+    Args:
+        df: Input DataFrame to split.
+        group_by_column: Name of column to group by.
+        handle_na: How to handle NaN values in the group column:
+            - "warn_and_drop" (default): Log warning and exclude NaN rows from groups
+            - "treat_as_group": Include NaN as a separate group
+
+    Returns:
+        Dictionary mapping group values to DataFrames containing only rows
+        with that group value. Returns empty dict for empty input DataFrame.
+
+        When handle_na="warn_and_drop", rows with NaN in group column are excluded.
+        When handle_na="treat_as_group", NaN is included as a group key.
+
+    Raises:
+        KeyError: If group_by_column does not exist in DataFrame.
+
+    Example:
+        >>> data = {"day": [7, 7, 14, 14], "trait": [1.0, 2.0, 3.0, 4.0]}
+        >>> df = pd.DataFrame(data)
+        >>> groups = split_data_by_group(df, "day")
+        >>> len(groups)
+        2
+        >>> groups[7].shape
+        (2, 2)
+    """
+    # Validate column exists
+    if group_by_column not in df.columns:
+        raise KeyError(
+            f"Column '{group_by_column}' not found in DataFrame. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+    # Handle empty DataFrame
+    if df.empty:
+        return {}
+
+    # Check for NaN values and log warning if present
+    na_mask = df[group_by_column].isna()
+    n_na = na_mask.sum()
+
+    if n_na > 0 and handle_na == "warn_and_drop":
+        logger.warning(
+            f"Dropping {n_na}/{len(df)} samples with missing '{group_by_column}' values"
+        )
+
+    # Split by unique values in group column
+    # Use pandas groupby with dropna parameter for efficiency
+    dropna = handle_na == "warn_and_drop"
+    groups = {}
+    for group_value, group_df in df.groupby(group_by_column, dropna=dropna):
+        groups[group_value] = group_df.copy()
+
+    return groups
+
+
+def filter_valid_groups(
+    groups: Dict[Any, pd.DataFrame],
+    min_samples: int,
+    group_column_name: str,
+) -> tuple[Dict[Any, pd.DataFrame], Dict[Any, int]]:
+    """Filter groups to only keep those with sufficient samples.
+
+    Args:
+        groups: Dictionary mapping group values to DataFrames
+        min_samples: Minimum number of samples required per group
+        group_column_name: Name of the grouping column (for logging)
+
+    Returns:
+        Tuple of (valid_groups, skipped_groups) where:
+        - valid_groups: Dict of groups with >= min_samples
+        - skipped_groups: Dict mapping skipped group values to their sample counts
+    """
+    valid_groups = {}
+    skipped_groups = {}
+
+    for group_value, group_df in groups.items():
+        sample_count = len(group_df)
+
+        if sample_count >= min_samples:
+            valid_groups[group_value] = group_df
+        else:
+            skipped_groups[group_value] = sample_count
+            logger.warning(
+                f"Skipping group {group_column_name}={group_value} "
+                f"({sample_count} samples < {min_samples} minimum)"
+            )
+
+    return valid_groups, skipped_groups
+
+
+def run_grouped_pipelines(
+    config: Any,
+    output_dir: str | Path,
+    pipeline_class: type,
+    **pipeline_kwargs,
+) -> Dict[Any, Dict[str, Any]]:
+    """Run pipelines with optional grouping by a metadata column.
+
+    If config.data.group_by is set, splits the data into groups and runs
+    separate pipeline instances for each group with isolated output directories.
+    Otherwise, runs a single pipeline instance.
+
+    Args:
+        config: Pipeline configuration object (must have .data.group_by attribute)
+        output_dir: Base output directory for pipeline runs
+        pipeline_class: Pipeline class to instantiate (e.g., QCPipeline, VizPipeline)
+        **pipeline_kwargs: Additional keyword arguments to pass to pipeline constructor
+
+    Returns:
+        Dictionary mapping group values to their results:
+        - If grouped: {group_value: {"pipeline": pipeline_instance, "output_dir": path, "results": task_results}}
+        - If not grouped: {None: {"pipeline": pipeline_instance, "output_dir": path, "results": task_results}}
+
+    Example:
+        >>> config = QCPipelineConfig(...)
+        >>> config.data.group_by = "plant_age_days"
+        >>> results = run_grouped_pipelines(
+        ...     config=config,
+        ...     output_dir="./outputs",
+        ...     pipeline_class=QCPipeline
+        ... )
+        >>> # Creates: outputs/plant_age_days_7_20260213_140530/
+        >>> #          outputs/plant_age_days_14_20260213_140545/
+        >>> #          outputs/plant_age_days_21_20260213_140600/
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if grouping is requested
+    group_by_column = getattr(config.data, "group_by", None)
+
+    if group_by_column is None:
+        # No grouping - run single pipeline
+        logger.info("Running single pipeline (no grouping)")
+        pipeline = pipeline_class(
+            config=config,
+            output_dir=output_dir,
+            **pipeline_kwargs,
+        )
+        results = pipeline.run()
+        return {
+            None: {
+                "pipeline": pipeline,
+                "output_dir": str(pipeline.run_dir),
+                "results": results,
+                "dropped_samples": {
+                    "column": None,
+                    "count": 0,
+                    "total": 0,
+                    "fraction": 0.0,
+                    "csv_path": None,
+                    "metadata_path": None,
+                },
+            }
+        }
+
+    # Grouping requested - load data and split into groups
+    logger.info(f"Grouping pipelines by column: {group_by_column}")
+
+    # Load data
+    try:
+        df = pd.read_csv(config.data.csv_path)
+    except FileNotFoundError as exc:
+        msg = (
+            f"Failed to read data CSV at '{config.data.csv_path}' while preparing "
+            f"grouped pipelines (group_by='{group_by_column}')."
+        )
+        logger.error(msg)
+        raise FileNotFoundError(msg) from exc
+    except pd.errors.EmptyDataError as exc:
+        msg = (
+            f"Data CSV at '{config.data.csv_path}' is empty or invalid while preparing "
+            f"grouped pipelines (group_by='{group_by_column}')."
+        )
+        logger.error(msg)
+        raise pd.errors.EmptyDataError(msg) from exc
+    logger.info(f"Loaded {len(df)} samples from {config.data.csv_path}")
+
+    # Validate group_by column exists before attempting to split
+    if group_by_column not in df.columns:
+        raise ValueError(
+            f"group_by column '{group_by_column}' not found in data. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+    # Check for NaN values BEFORE splitting (for traceability)
+    na_mask = df[group_by_column].isna()
+    n_na = na_mask.sum()
+
+    # Track dropped samples metadata
+    dropped_samples_info = {
+        "column": group_by_column,
+        "count": int(n_na),
+        "total": len(df),
+        "fraction": float(n_na / len(df)) if len(df) > 0 else 0.0,
+        "csv_path": None,
+        "metadata_path": None,
+    }
+
+    # Save dropped samples if any NaN values exist
+    if n_na > 0:
+        dropped_df = df[na_mask].copy()
+        logger.warning(
+            f"Dropped {n_na}/{len(df)} samples with missing '{group_by_column}' values. "
+            f"Saving for traceability."
+        )
+
+        # Save dropped samples CSV
+        dropped_csv_path = (
+            output_dir / f"00_dropped_samples_missing_{group_by_column}.csv"
+        )
+        dropped_df.to_csv(dropped_csv_path, index=False)
+        logger.info(f"Dropped samples saved to: {dropped_csv_path}")
+
+        # Create metadata file
+        metadata_path = output_dir / f"00_dropped_samples_missing_{group_by_column}.txt"
+        with open(metadata_path, "w") as f:
+            f.write(f"Dropped Samples Report\n")
+            f.write(f"======================\n\n")
+            f.write(f"Summary: {n_na}/{len(df)} samples dropped\n")
+            f.write(f"Reason: Missing values in '{group_by_column}' column\n")
+            f.write(f"Fraction: {100 * n_na / len(df):.2f}%\n\n")
+            f.write(
+                f"These samples were excluded from grouped analysis because they had\n"
+            )
+            f.write(
+                f"missing/NaN values in the group-by column ('{group_by_column}').\n\n"
+            )
+
+            # List barcodes
+            barcode_cols = [
+                col for col in dropped_df.columns if "barcode" in col.lower()
+            ]
+            if barcode_cols:
+                barcode_col = barcode_cols[0]
+                f.write(f"Dropped sample barcodes:\n")
+                for barcode in dropped_df[barcode_col]:
+                    f.write(f"  {barcode}\n")
+            else:
+                f.write(f"(No barcode column found)\n")
+
+        logger.info(f"Dropped samples metadata saved to: {metadata_path}")
+
+        # Update metadata with file paths
+        dropped_samples_info["csv_path"] = str(dropped_csv_path)
+        dropped_samples_info["metadata_path"] = str(metadata_path)
+
+    # Split by group column (NaN values will be dropped by default)
+    groups = split_data_by_group(
+        df, group_by_column=group_by_column, handle_na="warn_and_drop"
+    )
+    logger.info(f"Split data into {len(groups)} groups: {list(groups.keys())}")
+
+    # Filter groups by minimum sample count
+    # Check if config has cleanup attribute (QC configs do, Viz configs don't)
+    min_samples = 3  # Default
+    if hasattr(config, "cleanup"):
+        min_samples = getattr(config.cleanup, "min_samples_per_trait", 3)
+    valid_groups, skipped_groups = filter_valid_groups(
+        groups=groups,
+        min_samples=min_samples,
+        group_column_name=group_by_column,
+    )
+    logger.info(f"Retained {len(valid_groups)} valid groups after filtering")
+    if not valid_groups:
+        logger.warning(
+            "No valid groups remain after filtering with min_samples_per_trait=%s. "
+            "This likely indicates a configuration issue or incompatible data.",
+            min_samples,
+        )
+        return {}
+    if skipped_groups:
+        logger.info(f"Skipped {len(skipped_groups)} groups: {skipped_groups}")
+
+    # Run pipeline for each valid group
+    grouped_results = {}
+    try:
+        sorted_group_values = sorted(valid_groups.keys())
+    except TypeError:
+        logger.warning(
+            "Mixed-type group values detected for '%s'; sorting by string "
+            "representation to ensure consistent processing order.",
+            group_by_column,
+        )
+        sorted_group_values = sorted(valid_groups.keys(), key=lambda v: str(v))
+
+    for group_value in sorted_group_values:
+        group_df = valid_groups[group_value]
+        logger.info(
+            f"Processing group {group_by_column}={group_value} ({len(group_df)} samples)"
+        )
+
+        # Modify pipeline name to include group information
+        # This will create directories like: plant_age_days_7_20260213_140530/
+        group_label = f"{group_by_column}_{group_value}"
+
+        # Create modified config for this group
+        group_config = copy.deepcopy(config)
+        # Remove group_by to prevent infinite recursion
+        group_config.data.group_by = None
+        group_config.pipeline_name = group_label
+
+        # Run pipeline for this group
+        try:
+            # Create pipeline instance first to get run_dir
+            pipeline = pipeline_class(
+                config=group_config,
+                output_dir=output_dir,
+                **pipeline_kwargs,
+            )
+
+            # Write group CSV to output directory (NOT temp file)
+            # This ensures saved config.yaml points to a persistent file
+            group_csv_path = pipeline.run_dir / f"00_input_data_{group_label}.csv"
+            group_df.to_csv(group_csv_path, index=False)
+            logger.info(f"Saved group data to {group_csv_path}")
+
+            # Update config to point to persistent CSV
+            group_config.data.csv_path = str(group_csv_path)
+
+            results = pipeline.run()
+            grouped_results[group_value] = {
+                "pipeline": pipeline,
+                "output_dir": str(pipeline.run_dir),
+                "results": results,
+                "dropped_samples": dropped_samples_info,
+            }
+            logger.info(f"Group {group_by_column}={group_value} completed successfully")
+        except Exception:
+            logger.exception(
+                f"Group {group_by_column}={group_value} failed during pipeline execution"
+            )
+            raise  # Re-raise to fail fast with diagnostic context
+
+    logger.info(
+        f"All grouped pipelines completed. Processed {len(grouped_results)} groups."
+    )
+    return grouped_results
