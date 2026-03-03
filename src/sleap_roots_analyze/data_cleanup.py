@@ -105,8 +105,8 @@ def get_trait_columns(
         exclude_cols.append("Plot")
 
     # Also exclude common metadata columns that might exist with different names
-    # These are case-insensitive matches
-    common_metadata = [
+    # These are case-insensitive substring matches
+    metadata_substring_patterns = [
         "date",
         "time",
         "sterilization",
@@ -115,7 +115,6 @@ def get_trait_columns(
         "operator",
         "notes",
         "comments",
-        "id",
         "index",
         "qc_",  # QC-related columns
         "outlier",  # Outlier flags
@@ -134,11 +133,18 @@ def get_trait_columns(
         "accession",  # Accession IDs
         "species_",  # Species information
         "plant_name",  # Plant naming
-        "plant_id",  # Plant IDs
+    ]
+    # Suffix patterns: matched with str.endswith() to avoid false positives.
+    # Bug #75: bare "id" substring matched "width", "widths", "solidity" etc.
+    # All real ID columns in SLEAP Roots data use the *_id suffix pattern.
+    metadata_suffix_patterns = [
+        "_id",
     ]
     for col in df.columns:
         col_lower = col.lower()
-        if any(meta in col_lower for meta in common_metadata):
+        if any(meta in col_lower for meta in metadata_substring_patterns):
+            exclude_cols.append(col)
+        elif any(col_lower.endswith(suffix) for suffix in metadata_suffix_patterns):
             exclude_cols.append(col)
 
     # Remove duplicates and filter to columns that actually exist

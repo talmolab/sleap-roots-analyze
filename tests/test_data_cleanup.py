@@ -235,6 +235,455 @@ class TestGetTraitColumns:
             len(trait_cols) == 3
         ), f"Should have 3 traits, got {len(trait_cols)}: {trait_cols}"
 
+    def test_width_columns_not_excluded_by_id_pattern(self):
+        """Test that width trait columns are NOT excluded by the 'id' pattern.
+
+        Bug #75: Substring matching on 'id' incorrectly matches 'width' (w-id-th)
+        and 'widths' (w-id-ths), causing silent loss of width trait columns.
+        """
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 2],
+                "network_width_depth_ratio_min": [0.5, 0.6],
+                "network_width_depth_ratio_max": [1.2, 1.3],
+                "chull_max_width_mean": [3.4, 4.5],
+                "root_widths_min_min": [0.1, 0.2],
+            }
+        )
+
+        trait_cols = get_trait_columns(df)
+
+        assert "network_width_depth_ratio_min" in trait_cols
+        assert "network_width_depth_ratio_max" in trait_cols
+        assert "chull_max_width_mean" in trait_cols
+        assert "root_widths_min_min" in trait_cols
+        assert (
+            len(trait_cols) == 4
+        ), f"Expected 4 width trait columns, got {len(trait_cols)}: {trait_cols}"
+
+    def test_solidity_columns_not_excluded_by_id_pattern(self):
+        """Test that solidity trait columns are NOT excluded by the 'id' pattern.
+
+        Bug #75 secondary: 'solidity' contains 'id' (sol-id-ity), causing
+        silent loss of solidity trait columns.
+        """
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 2],
+                "network_solidity_min": [0.3, 0.4],
+                "network_solidity_max": [0.8, 0.9],
+                "network_solidity_mean": [0.5, 0.6],
+            }
+        )
+
+        trait_cols = get_trait_columns(df)
+
+        assert "network_solidity_min" in trait_cols
+        assert "network_solidity_max" in trait_cols
+        assert "network_solidity_mean" in trait_cols
+        assert (
+            len(trait_cols) == 3
+        ), f"Expected 3 solidity trait columns, got {len(trait_cols)}: {trait_cols}"
+
+    def test_actual_id_columns_still_excluded(self):
+        """Test that real ID metadata columns (ending in _id) are still excluded.
+
+        The fix must not break exclusion of legitimate ID metadata columns.
+        All real ID columns in SLEAP Roots data follow the *_id suffix pattern.
+        """
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 2],
+                "scan_id": [101, 102],
+                "plant_id": [201, 202],
+                "accession_id": [301, 302],
+                "experiment_id": [401, 402],
+                "species_id": [501, 502],
+                "trait1": [1.0, 2.0],
+            }
+        )
+
+        trait_cols = get_trait_columns(df)
+
+        assert "scan_id" not in trait_cols
+        assert "plant_id" not in trait_cols
+        assert "accession_id" not in trait_cols
+        assert "experiment_id" not in trait_cols
+        assert "species_id" not in trait_cols
+        assert "trait1" in trait_cols
+        assert (
+            len(trait_cols) == 1
+        ), f"Expected only trait1, got {len(trait_cols)}: {trait_cols}"
+
+    def test_mixed_id_and_width_columns(self):
+        """Test combined scenario: real ID metadata excluded, width/solidity traits kept.
+
+        This is the most realistic unit test, combining both patterns to ensure
+        the fix correctly discriminates between ID metadata and trait columns.
+        """
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                "rep": [1, 2],
+                "scan_id": [101, 102],
+                "plant_id": [201, 202],
+                "network_width_depth_ratio_min": [0.5, 0.6],
+                "network_solidity_max": [0.8, 0.9],
+                "chull_max_width_mean": [3.4, 4.5],
+                "primary_length_max": [10.0, 12.0],
+                "trait1": [1.0, 2.0],
+            }
+        )
+
+        trait_cols = get_trait_columns(df)
+
+        # Metadata must be excluded
+        for excluded in ["Barcode", "geno", "rep", "scan_id", "plant_id"]:
+            assert excluded not in trait_cols, f"{excluded} should be excluded"
+
+        # Traits must be included
+        expected_traits = [
+            "network_width_depth_ratio_min",
+            "network_solidity_max",
+            "chull_max_width_mean",
+            "primary_length_max",
+            "trait1",
+        ]
+        for trait in expected_traits:
+            assert trait in trait_cols, f"{trait} should be included as a trait"
+
+        assert (
+            len(trait_cols) == 5
+        ), f"Expected 5 traits, got {len(trait_cols)}: {trait_cols}"
+
+
+class TestGetTraitColumnsIntegration:
+    """Integration tests for get_trait_columns using real fixture data.
+
+    These tests validate trait vs metadata classification against real experimental
+    datasets with different column naming conventions. Each fixture represents a
+    different data source format used in the SLEAP Roots analysis pipeline.
+    """
+
+    def test_pipeline_trait_classification_11dag(self, traits_11dag_df):
+        """Test trait classification on SLEAP Roots 11 DAG data (880 columns).
+
+        This dataset uses snake_case columns with _id suffix metadata and contains
+        width/solidity traits that are affected by bug #75.
+        """
+        trait_cols = get_trait_columns(
+            traits_11dag_df,
+            barcode_col="plant_qr_code",
+            genotype_col="Geno",
+            replicate_col="Rep",
+        )
+
+        # Width traits MUST be classified as traits (not metadata)
+        width_traits = [c for c in trait_cols if "width" in c.lower()]
+        assert (
+            "network_width_depth_ratio_min" in trait_cols
+        ), "network_width_depth_ratio_min incorrectly excluded"
+        assert (
+            "network_width_depth_ratio_max" in trait_cols
+        ), "network_width_depth_ratio_max incorrectly excluded"
+        assert (
+            "chull_max_width_min" in trait_cols
+        ), "chull_max_width_min incorrectly excluded"
+        assert (
+            "chull_max_width_max" in trait_cols
+        ), "chull_max_width_max incorrectly excluded"
+        assert (
+            len(width_traits) == 18
+        ), f"Expected 18 width trait columns, got {len(width_traits)}: {width_traits}"
+
+        # Solidity traits MUST be classified as traits (not metadata)
+        solidity_traits = [c for c in trait_cols if "solidity" in c.lower()]
+        assert (
+            "network_solidity_min" in trait_cols
+        ), "network_solidity_min incorrectly excluded"
+        assert (
+            "network_solidity_max" in trait_cols
+        ), "network_solidity_max incorrectly excluded"
+        assert len(solidity_traits) == 9, (
+            f"Expected 9 solidity trait columns, got {len(solidity_traits)}: "
+            f"{solidity_traits}"
+        )
+
+        # Actual ID metadata MUST be excluded
+        for id_col in [
+            "scan_id",
+            "plant_id",
+            "accession_id",
+            "experiment_id",
+            "species_id",
+            "scanner_id",
+            "phenotyper_id",
+            "wave_id",
+        ]:
+            assert id_col not in trait_cols, f"{id_col} should be excluded as metadata"
+
+        # Other metadata MUST be excluded
+        for meta_col in [
+            "plant_qr_code",
+            "Geno",
+            "Rep",
+            "Sterilization",
+            "DOT",
+            "QC_SLEAP",
+            "Date_QC",
+            "germ_day",
+            "plant_name",
+            "species_name",
+        ]:
+            if meta_col in traits_11dag_df.columns:
+                assert (
+                    meta_col not in trait_cols
+                ), f"{meta_col} should be excluded as metadata"
+
+        # Total trait count sanity check (880 cols minus ~30 metadata/non-numeric)
+        assert (
+            len(trait_cols) > 800
+        ), f"Expected >800 trait columns from 880 total, got {len(trait_cols)}"
+
+    def test_pipeline_trait_classification_traits_summary(self, traits_summary_df):
+        """Test trait classification on traits_summary data (924 columns).
+
+        Different column order from 11DAG, includes uploaded_at, wave_number,
+        wave_name metadata columns.
+        """
+        trait_cols = get_trait_columns(
+            traits_summary_df,
+            barcode_col="plant_qr_code",
+            genotype_col="Geno",
+            replicate_col="Rep",
+        )
+
+        # Width traits MUST be classified as traits
+        width_traits = [c for c in trait_cols if "width" in c.lower()]
+        assert "network_width_depth_ratio_min" in trait_cols
+        assert "chull_max_width_min" in trait_cols
+        assert (
+            len(width_traits) == 18
+        ), f"Expected 18 width trait columns, got {len(width_traits)}: {width_traits}"
+
+        # Solidity traits MUST be classified as traits
+        solidity_traits = [c for c in trait_cols if "solidity" in c.lower()]
+        assert "network_solidity_min" in trait_cols
+        assert len(solidity_traits) == 9, (
+            f"Expected 9 solidity trait columns, got {len(solidity_traits)}: "
+            f"{solidity_traits}"
+        )
+
+        # Actual ID metadata MUST be excluded
+        for id_col in ["scan_id", "plant_id", "accession_id"]:
+            assert id_col not in trait_cols, f"{id_col} should be excluded as metadata"
+
+        # Additional metadata specific to this dataset MUST be excluded
+        for meta_col in ["uploaded_at", "wave_number", "wave_name"]:
+            if meta_col in traits_summary_df.columns:
+                assert (
+                    meta_col not in trait_cols
+                ), f"{meta_col} should be excluded as metadata"
+
+    def test_pipeline_trait_classification_traits_summary_lateral(
+        self, traits_summary_lateral_df
+    ):
+        """Test trait classification on lateral root summary data (608 columns).
+
+        Uses lateral_* trait prefixes instead of crown_*. Has the same _id metadata
+        columns but no width/solidity traits — tests that _id exclusion works
+        without false positives on lateral-specific column names.
+        """
+        trait_cols = get_trait_columns(
+            traits_summary_lateral_df,
+            barcode_col="plant_qr_code",
+            genotype_col="Geno",
+            replicate_col="Rep",
+        )
+
+        # Actual ID metadata MUST be excluded
+        for id_col in [
+            "scan_id",
+            "plant_id",
+            "accession_id",
+            "experiment_id",
+            "species_id",
+            "scanner_id",
+            "phenotyper_id",
+            "wave_id",
+        ]:
+            assert id_col not in trait_cols, f"{id_col} should be excluded as metadata"
+
+        # Lateral traits MUST be included
+        lateral_traits = [c for c in trait_cols if "lateral" in c.lower()]
+        assert len(lateral_traits) > 0, "Lateral trait columns should be present"
+
+        # Every returned column must be numeric
+        for col in trait_cols:
+            assert pd.api.types.is_numeric_dtype(
+                traits_summary_lateral_df[col]
+            ), f"Trait column {col} is not numeric"
+
+    def test_pipeline_trait_classification_turface(self, turface_traits_df):
+        """Test trait classification on Turface agronomic data (41 columns).
+
+        Completely different dataset format: lowercase 'geno', 'rep', 'Barcode',
+        RhizoVision-style dotted column names, no _id columns.
+        Tests that the fix generalizes beyond snake_case SLEAP Roots data.
+        """
+        trait_cols = get_trait_columns(
+            turface_traits_df,
+            barcode_col="Barcode",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Metadata must be excluded
+        assert "Barcode" not in trait_cols
+        assert "geno" not in trait_cols
+        assert "rep" not in trait_cols
+
+        # Agronomic traits must be included
+        for trait in [
+            "Shoot_Biomass_mg",
+            "Root_Biomass_mg",
+            "Total.Root.Length.mm",
+            "Maximum.Width.mm",
+            "Solidity",
+            "Depth.mm",
+        ]:
+            assert trait in trait_cols, f"{trait} should be included as a trait"
+
+        # Width and Solidity columns must be included (RhizoVision format)
+        assert "Maximum.Width.mm" in trait_cols
+        assert "Width-to-Depth.Ratio" in trait_cols
+        assert "Solidity" in trait_cols
+
+        # Count total numeric traits: 41 columns - 3 metadata (Barcode, geno, rep)
+        # - Computation.Time.s (excluded by "time" pattern) = 37
+        expected_numeric = [
+            c
+            for c in turface_traits_df.columns
+            if c not in ["Barcode", "geno", "rep"]
+            and pd.api.types.is_numeric_dtype(turface_traits_df[c])
+        ]
+        # Computation.Time.s is excluded by the "time" metadata pattern
+        expected_count = len([c for c in expected_numeric if "time" not in c.lower()])
+        assert (
+            len(trait_cols) == expected_count
+        ), f"Expected {expected_count} traits, got {len(trait_cols)}: {trait_cols}"
+
+    def test_pipeline_trait_classification_features(self, features_df):
+        """Test trait classification on RhizoVision features output (38 columns).
+
+        Dotted PascalCase column names (Maximum.Width.mm, Width-to-Depth.Ratio,
+        Solidity). geno/rep columns don't exist in this CSV — tests graceful
+        handling of missing metadata columns.
+        """
+        trait_cols = get_trait_columns(
+            features_df,
+            barcode_col="File.Name",
+            genotype_col="geno",
+            replicate_col="rep",
+        )
+
+        # Width traits must be in result
+        assert "Maximum.Width.mm" in trait_cols
+        assert "Width-to-Depth.Ratio" in trait_cols
+
+        # Solidity trait must be in result
+        assert "Solidity" in trait_cols
+
+        # File.Name is non-numeric string so excluded anyway, but should not
+        # be in traits
+        assert "File.Name" not in trait_cols
+
+        # Computation.Time.s matches "time" metadata pattern — should be excluded
+        assert "Computation.Time.s" not in trait_cols
+
+        # All returned columns must be numeric
+        for col in trait_cols:
+            assert pd.api.types.is_numeric_dtype(
+                features_df[col]
+            ), f"Trait column {col} is not numeric"
+
+    def test_metadata_columns_are_complement_of_traits(
+        self,
+        traits_11dag_df,
+        traits_summary_df,
+        traits_summary_lateral_df,
+        turface_traits_df,
+    ):
+        """Regression guard: trait + metadata columns = all columns, no gaps.
+
+        For each fixture dataset, verifies that every column is classified as
+        either a trait or metadata — no columns silently lost or double-counted.
+        """
+        datasets = {
+            "traits_11dag": (
+                traits_11dag_df,
+                {
+                    "barcode_col": "plant_qr_code",
+                    "genotype_col": "Geno",
+                    "replicate_col": "Rep",
+                },
+            ),
+            "traits_summary": (
+                traits_summary_df,
+                {
+                    "barcode_col": "plant_qr_code",
+                    "genotype_col": "Geno",
+                    "replicate_col": "Rep",
+                },
+            ),
+            "traits_summary_lateral": (
+                traits_summary_lateral_df,
+                {
+                    "barcode_col": "plant_qr_code",
+                    "genotype_col": "Geno",
+                    "replicate_col": "Rep",
+                },
+            ),
+            "turface": (
+                turface_traits_df,
+                {
+                    "barcode_col": "Barcode",
+                    "genotype_col": "geno",
+                    "replicate_col": "rep",
+                },
+            ),
+        }
+
+        for name, (df, kwargs) in datasets.items():
+            trait_cols = get_trait_columns(df, **kwargs)
+            metadata_cols = [c for c in df.columns if c not in trait_cols]
+
+            # Union must equal full column set
+            all_cols = set(trait_cols) | set(metadata_cols)
+            assert all_cols == set(df.columns), (
+                f"{name}: trait + metadata columns don't cover all columns. "
+                f"Missing: {set(df.columns) - all_cols}"
+            )
+
+            # No overlap
+            overlap = set(trait_cols) & set(metadata_cols)
+            assert (
+                len(overlap) == 0
+            ), f"{name}: columns in both trait and metadata: {overlap}"
+
+            # Every trait column must be numeric
+            for col in trait_cols:
+                assert pd.api.types.is_numeric_dtype(
+                    df[col]
+                ), f"{name}: trait column {col} is not numeric"
+
 
 class TestLinkRhizovisionImagesToSamples:
     """Tests for link_rhizovision_images_to_samples function."""

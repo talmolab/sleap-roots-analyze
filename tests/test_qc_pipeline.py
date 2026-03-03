@@ -300,7 +300,9 @@ class TestQCPipelineIntegration:
         assert (
             len(df_loaded) == 187
         ), f"Expected 187 samples loaded, got {len(df_loaded)}"
-        assert len(load_result.metadata["trait_names"]) == 35, f"Expected 35 traits"
+        # Bug #75 fix: previously 35 traits — 3 width/solidity columns were
+        # incorrectly excluded (Maximum.Width.mm, Width-to-Depth.Ratio, Solidity).
+        assert len(load_result.metadata["trait_names"]) == 38, f"Expected 38 traits"
         print(
             f"OK Step 1: Loaded {len(df_loaded)} samples, {len(load_result.metadata['trait_names'])} traits"
         )
@@ -312,9 +314,10 @@ class TestQCPipelineIntegration:
         assert (
             len(df_cleaned) == 158
         ), f"Expected 158 samples after cleanup, got {len(df_cleaned)}"
+        # Bug #75 fix: 38 traits (was 35 before width/solidity fix)
         assert (
-            len(cleanup_result.metadata["trait_names"]) == 35
-        ), f"Expected 35 traits retained"
+            len(cleanup_result.metadata["trait_names"]) == 38
+        ), f"Expected 38 traits retained"
         print(f"OK Step 2: {len(df_cleaned)} samples after NaN removal (29 removed)")
 
         # Step 3: Validate Clean
@@ -332,10 +335,10 @@ class TestQCPipelineIntegration:
         )
 
         # Verify batched trait visualizations generated (Issue #27)
-        # Turface has 35 traits, so should generate batched plots (>16 threshold)
+        # Turface has 38 traits, so should generate batched plots (>16 threshold)
         figures_dir = pipeline.run_dir / "figures"
 
-        # Check for batched histograms (should have 3 batches: 16+16+3=35)
+        # Check for batched histograms (should have 3 batches: 16+16+6=38)
         batch_hist_1 = figures_dir / "04_trait_histograms_batch_1.png"
         batch_hist_2 = figures_dir / "04_trait_histograms_batch_2.png"
         batch_hist_3 = figures_dir / "04_trait_histograms_batch_3.png"
@@ -359,10 +362,10 @@ class TestQCPipelineIntegration:
         outlier_results = detect_result.metadata["outlier_results"]
         assert "mahalanobis" in outlier_results, "Mahalanobis results missing"
         mahal_outliers = outlier_results["mahalanobis"]["outlier_indices"]
-        # Notebook: 6 outliers detected by Mahalanobis
+        # Bug #75 fix: 7 outliers with correct 38-trait space (was 6 with buggy 35)
         assert (
-            len(mahal_outliers) == 6
-        ), f"Expected 6 Mahalanobis outliers, got {len(mahal_outliers)}"
+            len(mahal_outliers) == 7
+        ), f"Expected 7 Mahalanobis outliers, got {len(mahal_outliers)}"
         print(f"OK Step 5: Detected {len(mahal_outliers)} outliers (Mahalanobis)")
 
         # Step 6: Visualize Outliers
@@ -378,13 +381,13 @@ class TestQCPipelineIntegration:
         # Step 7: Remove Outliers
         remove_result = results["07_remove_outliers"].data
         df_outliers_removed = remove_result.data
-        # Notebook: 152 samples after removing 6 outliers
+        # Bug #75 fix: 151 samples after removing 7 outliers (was 152/6 with buggy traits)
         assert (
-            len(df_outliers_removed) == 152
-        ), f"Expected 152 samples after outlier removal, got {len(df_outliers_removed)}"
-        assert remove_result.metadata["outliers_removed"] == 6
+            len(df_outliers_removed) == 151
+        ), f"Expected 151 samples after outlier removal, got {len(df_outliers_removed)}"
+        assert remove_result.metadata["outliers_removed"] == 7
         print(
-            f"OK Step 7: {len(df_outliers_removed)} samples after outlier removal (6 removed)"
+            f"OK Step 7: {len(df_outliers_removed)} samples after outlier removal (7 removed)"
         )
 
         # Step 8: Statistical Analysis
@@ -393,7 +396,7 @@ class TestQCPipelineIntegration:
         assert "heritability_results" in stats_result.metadata
         anova_results = stats_result.metadata["anova_results"]
         h2_results = stats_result.metadata["heritability_results"]
-        # Notebook: 26/35 traits with significant genotype effects
+        # Bug #75 fix: ~29/38 traits with significant genotype effects (was ~26/35)
         n_significant = sum(
             1
             for r in anova_results.values()
@@ -401,22 +404,23 @@ class TestQCPipelineIntegration:
         )
         assert (
             n_significant >= 20
-        ), f"Expected ~26 significant traits, got {n_significant}"
+        ), f"Expected >=20 significant traits, got {n_significant}"
         print(f"OK Step 8: {n_significant} traits with significant genotype effects")
 
         # Step 9: Filter Heritability
         h2_filter_result = results["09_filter_heritability"].data
         df_h2_filtered = h2_filter_result.data
         final_traits = h2_filter_result.metadata["trait_names"]
-        # Notebook: 12 traits after H²≥0.62 filtering (23 removed)
+        # Bug #75 fix: 16 traits after H²≥0.62 filtering on correct 38-trait set
+        # (was 12 traits from buggy 35-trait set — 3 restored traits all pass H² threshold)
         assert (
-            len(final_traits) == 12
-        ), f"Expected 12 traits after H² filtering, got {len(final_traits)}"
+            len(final_traits) == 16
+        ), f"Expected 16 traits after H² filtering, got {len(final_traits)}"
         assert (
-            len(df_h2_filtered) == 152
+            len(df_h2_filtered) == 151
         ), "Sample count should not change in heritability filtering"
         print(
-            f"OK Step 9: {len(final_traits)} traits after heritability filtering (23 removed)"
+            f"OK Step 9: {len(final_traits)} traits after heritability filtering (22 removed)"
         )
 
         # Verify heritability threshold analysis plot was generated (Issue #26)
@@ -432,8 +436,9 @@ class TestQCPipelineIntegration:
         summary_result = results["10_generate_summary"].data
         assert summary_result.metadata is not None, "No metadata in summary"
         # Verify key metadata exists
-        assert summary_result.metadata.get("final_n_samples") == 152
-        assert summary_result.metadata.get("final_n_traits") == 12
+        # Bug #75 fix: 151 samples (was 152), 16 traits (was 12)
+        assert summary_result.metadata.get("final_n_samples") == 151
+        assert summary_result.metadata.get("final_n_traits") == 16
         print(f"OK Step 10: Generated summary report")
 
         # Verify run directory structure
