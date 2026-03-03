@@ -6,6 +6,11 @@ Provides configurable static and interactive visualization generation for trait 
 ### Requirement: Genotype Highlighting Configuration
 The `StaticVisualizationConfig` dataclass SHALL provide optional `genotypes_to_color` and `highlight_genotypes` parameters to enable selective genotype highlighting in PCA plots.
 
+When the `color_by` column in `create_pca_biplot` has an **integer dtype** (e.g., int64
+accession IDs like `12305183`), the values SHALL be cast to string before coloring so that
+distinct tab10 colors and a categorical legend are produced rather than a continuous colorbar.
+Float-typed columns retain their current continuous-colormap behavior.
+
 #### Scenario: Configure genotypes to color
 - **WHEN** user provides a list of genotype names in `static_viz.genotypes_to_color`
 - **THEN** only those genotypes SHALL be colored with distinct colors in PCA biplot
@@ -30,6 +35,32 @@ The `StaticVisualizationConfig` dataclass SHALL provide optional `genotypes_to_c
 - **WHEN** user provides an empty list for `genotypes_to_color`
 - **THEN** all genotypes SHALL appear in gray
 - **AND** the pipeline SHALL execute successfully
+
+#### Scenario: String genotype IDs use discrete colors
+- **GIVEN** a dataset where the Genotype column contains string IDs (e.g., `"GEN_A"`)
+- **WHEN** `create_pca_biplot` is called with `color_by="Genotype"`
+- **THEN** each unique genotype SHALL be assigned a distinct tab10 color
+- **AND** a categorical legend SHALL be shown (no colorbar)
+
+#### Scenario: Numeric genotype IDs use discrete colors
+- **GIVEN** a dataset where the Genotype column contains integer IDs (e.g., `12305183`)
+- **WHEN** `create_pca_biplot` is called with `color_by="Genotype"`
+- **THEN** each unique genotype SHALL be assigned a distinct tab10 color
+- **AND** a categorical legend SHALL be shown (no continuous colorbar)
+- **AND** the integer values SHALL be displayed as their string representation
+  (e.g., `"12305183"`) in the legend
+
+#### Scenario: Float color_by column retains continuous colormap
+- **GIVEN** a dataset where `color_by` column contains float trait values (e.g., `0.4967`)
+- **WHEN** `create_pca_biplot` is called with that column as `color_by`
+- **THEN** the continuous viridis colormap SHALL still be used
+- **AND** a colorbar SHALL be shown (not a categorical legend)
+
+#### Scenario: Continuous UMAP coloring is unaffected
+- **GIVEN** a UMAP plot colored by a continuous trait value
+- **WHEN** the plot is generated via `create_umap_colored_by_top_traits`
+- **THEN** the continuous viridis colormap SHALL still be used
+- **AND** this code path does NOT use the `color_by` parameter
 
 ### Requirement: Pipeline Step Parameter Passing
 The `GenerateStaticFiguresStep` SHALL pass genotype highlighting parameters from configuration to underlying plotting functions.
@@ -469,4 +500,38 @@ Analysis outputs (CSVs, JSONs) MUST be saved to a `data/` subdirectory, separate
 - **WHEN** analysis completes
 - **THEN** heritability_results.csv, anova_results.csv are saved to `data/`
 - **AND** trait_statistics.json is saved to `data/`
+
+### Requirement: Group-Based Visualization Execution
+
+The visualization pipeline SHALL support the same group-by functionality as the QC pipeline for consistent per-group analysis.
+
+#### Scenario: Viz pipeline groups like QC
+- **GIVEN** a QC output with groups processed by plant_age_days
+- **WHEN** viz pipeline runs with `group_by: "plant_age_days"`
+- **THEN** viz SHALL create separate visualizations for each timepoint
+- **AND** output structure SHALL mirror QC: `viz_<pipeline>_plant_age_days_<value>_<timestamp>/`
+
+#### Scenario: PCA computed per group
+- **GIVEN** a grouped viz pipeline (day_7, day_14, day_21)
+- **WHEN** PCA analysis is performed
+- **THEN** each group SHALL have independent PC loadings and variance explained
+- **AND** PC1 for day_7 MAY differ from PC1 for day_14 (developmental differences)
+
+#### Scenario: Interactive plots per group
+- **GIVEN** a viz pipeline grouped by plant_age_days
+- **WHEN** interactive PCA plots are generated
+- **THEN** each group SHALL have its own `pca_interactive.html` file
+- **AND** plot title SHALL indicate the group (e.g., "PCA: plant_age_days = 7")
+
+#### Scenario: Statistical analysis per group
+- **GIVEN** a viz pipeline grouped by experiment_id
+- **WHEN** ANOVA and heritability are calculated
+- **THEN** statistics SHALL be computed independently per group
+- **AND** `08_heritability_results.csv` SHALL contain group-specific H² estimates
+
+#### Scenario: Summary reports per group
+- **GIVEN** a grouped viz pipeline
+- **WHEN** summary markdown is generated
+- **THEN** each group SHALL have its own `summary_report.md`
+- **AND** the report SHALL document the group identifier and sample count
 
