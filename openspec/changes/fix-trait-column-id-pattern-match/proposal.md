@@ -296,6 +296,43 @@ Apply the changes described in the Implementation Strategy section above.
 | `src/sleap_roots_analyze/data_cleanup.py` | Split `common_metadata` into substring and suffix lists; update matching logic |
 | `tests/test_data_cleanup.py` | Add 10 new tests (4 unit, 6 integration) |
 
+## Post-Review Changes (Copilot Review Round 2)
+
+### Change A: Replace tautological assertions in `test_metadata_columns_are_complement_of_traits`
+
+**Problem**: The test defines `metadata_cols = [col for col in df.columns if col not in trait_cols]`,
+then asserts `set(trait_cols) | set(metadata_cols) == set(df.columns)` and checks for no overlap.
+These assertions are tautologically true by construction and cannot catch misclassification bugs.
+
+**Fix**: Replace the complement-based assertions with meaningful checks:
+1. Known metadata columns (barcode/genotype/replicate) must NOT be in `trait_cols`
+2. There must be at least one trait column (sanity check)
+3. Every trait column must be numeric (existing — keep)
+4. No trait column should end with `_id` (catches the original bug pattern)
+
+**TDD approach**: Write the new assertions first, verify they pass with the current (fixed)
+implementation. Then remove the tautological assertions.
+
+#### Updated Test 10 spec:
+```
+FOR EACH of: traits_11dag_df, traits_summary_df, traits_summary_lateral_df,
+             turface_traits_df
+  GIVEN the fixture DataFrame and its barcode_col/genotype_col/replicate_col
+  WHEN get_trait_columns() returns trait_cols
+  THEN:
+    -- Known metadata columns (barcode/genotype/replicate) NOT IN trait_cols
+    -- len(trait_cols) > 0
+    -- Every column in trait_cols is numeric
+    -- No column in trait_cols ends with "_id"
+```
+
+### Change B: Fix stale print message in `test_qc_pipeline_turface_integration`
+
+**Problem**: The print statement at line 442 of `test_qc_pipeline.py` reports hardcoded old
+values instead of using the actual metadata values from the pipeline result.
+
+**Fix**: Use f-string with actual `summary_result.metadata` values instead of hardcoded text.
+
 ## Risk Assessment
 
 - **Low risk**: Change is isolated to one function's pattern-matching logic

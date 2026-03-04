@@ -27,3 +27,9 @@
 - [x] All 5 existing `TestGetTraitColumns` tests still pass
 - [x] Full test suite passes (`uv run pytest`) — 1889 passed, 0 failed
 - [x] No other `common_metadata` patterns produce false positives on fixture data
+
+## Task 5: Address Copilot review (Round 2)
+- [x] Replace tautological assertions in `test_metadata_columns_are_complement_of_traits` with meaningful checks
+- [x] Fix stale print message in `test_qc_pipeline_turface_integration`
+- [x] Run tests, confirm all pass — 71 data_cleanup tests passed, turface pipeline test passed
+- [ ] Full test suite passes

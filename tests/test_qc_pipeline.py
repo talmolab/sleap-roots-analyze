@@ -439,7 +439,11 @@ class TestQCPipelineIntegration:
         # Bug #75 fix: 151 samples (was 152), 16 traits (was 12)
         assert summary_result.metadata.get("final_n_samples") == 151
         assert summary_result.metadata.get("final_n_traits") == 16
-        print(f"OK Step 10: Generated summary report")
+        print(
+            "OK Step 10: Generated summary report - "
+            f"Final: {summary_result.metadata.get('final_n_samples')} samples, "
+            f"{summary_result.metadata.get('final_n_traits')} traits"
+        )
 
         # Verify run directory structure
         assert pipeline.run_dir.exists()

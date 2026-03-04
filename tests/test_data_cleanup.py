@@ -663,26 +663,30 @@ class TestGetTraitColumnsIntegration:
 
         for name, (df, kwargs) in datasets.items():
             trait_cols = get_trait_columns(df, **kwargs)
-            metadata_cols = [c for c in df.columns if c not in trait_cols]
 
-            # Union must equal full column set
-            all_cols = set(trait_cols) | set(metadata_cols)
-            assert all_cols == set(df.columns), (
-                f"{name}: trait + metadata columns don't cover all columns. "
-                f"Missing: {set(df.columns) - all_cols}"
-            )
+            # Known metadata columns (barcode/genotype/replicate) must not
+            # be classified as traits
+            for key in ("barcode_col", "genotype_col", "replicate_col"):
+                col_name = kwargs.get(key)
+                if col_name is not None and col_name in df.columns:
+                    assert (
+                        col_name not in trait_cols
+                    ), f"{name}: {key} '{col_name}' incorrectly classified as trait"
 
-            # No overlap
-            overlap = set(trait_cols) & set(metadata_cols)
-            assert (
-                len(overlap) == 0
-            ), f"{name}: columns in both trait and metadata: {overlap}"
+            # Sanity check: there should be at least one trait column
+            assert len(trait_cols) > 0, f"{name}: no trait columns detected"
 
             # Every trait column must be numeric
             for col in trait_cols:
                 assert pd.api.types.is_numeric_dtype(
                     df[col]
                 ), f"{name}: trait column {col} is not numeric"
+
+            # No trait column should end with "_id" (bug #75 regression guard)
+            id_in_traits = [c for c in trait_cols if c.lower().endswith("_id")]
+            assert (
+                len(id_in_traits) == 0
+            ), f"{name}: _id columns misclassified as traits: {id_in_traits}"
 
 
 class TestLinkRhizovisionImagesToSamples:
