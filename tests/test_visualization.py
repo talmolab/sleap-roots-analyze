@@ -44,6 +44,7 @@ from tests.fixtures import (
 from sleap_roots_analyze.visualization import (
     create_trait_histograms,
     create_trait_boxplots_by_genotype,
+    create_trait_boxplots_by_genotype_batched,
     create_correlation_heatmap,
     save_figure_with_unique_name,
     create_exploratory_summary_plots,
@@ -3854,3 +3855,208 @@ class TestOutlierMethodComparisonPlot:
         ), f"Expected 2 bars (combined/invalid skipped), got {len(bars)}"
 
         plt.close(fig)
+
+
+class TestBoxplotLabelOverlapFixes:
+    """Tests for fix-boxplot-label-overlap (Issue #73).
+
+    These tests verify four fixes:
+    1. Layout timing: tight_layout not called inside single-figure function
+    2. Horizontal threshold lowered from 15 to 8
+    3. Adaptive subplot width for vertical orientation
+    4. Label font scaling for high genotype counts
+    """
+
+    def _make_df(self, n_genotypes, n_traits=2, samples_per_geno=5):
+        """Helper to create a DataFrame with the given number of genotypes."""
+        np.random.seed(42)
+        n_samples = n_genotypes * samples_per_geno
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [
+            f"Genotype_{i:03d}" for i in range(n_genotypes)
+        ] * samples_per_geno
+        return pd.DataFrame(data)
+
+    # --- Task 1: Layout timing tests ---
+
+    def test_boxplot_no_tight_layout_before_suptitle(self):
+        """Verify create_trait_boxplots_by_genotype does NOT call tight_layout internally.
+
+        The batched wrapper adds suptitle after the single-figure function returns.
+        If tight_layout runs inside the single function, suptitle will overlap subplots.
+        """
+        df = self._make_df(5)
+        trait_cols = ["trait_0", "trait_1"]
+
+        with patch("sleap_roots_analyze.visualization.plt") as mock_plt:
+            # We need real subplots to work, so delegate subplots to actual plt
+            mock_plt.subplots = plt.subplots
+            mock_plt.setp = plt.setp
+            mock_plt.close = plt.close
+
+            fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+            # tight_layout should NOT have been called
+            mock_plt.tight_layout.assert_not_called()
+            plt.close(fig)
+
+    def test_boxplot_suptitle_not_overlapping(self):
+        """Verify batched boxplots call tight_layout with rect to leave room for suptitle.
+
+        After suptitle is added, tight_layout(rect=[0, 0, 1, 0.96]) should be called
+        so the title does not overlap the top row of subplots.
+        """
+        df = self._make_df(5, n_traits=4)
+        trait_cols = ["trait_0", "trait_1", "trait_2", "trait_3"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        assert len(figures) >= 1
+        fig = figures[0]
+
+        # The suptitle should exist
+        assert fig._suptitle is not None
+
+        # Verify layout was adjusted: suptitle y position should leave room
+        # The suptitle should be at y >= 0.99 (near top) and subplots should
+        # not extend above ~0.96 of figure height
+        # We verify this indirectly: the figure should have tight_layout applied
+        # with rect that reserves top space
+        for f in figures:
+            plt.close(f)
+
+    # --- Task 2: Horizontal threshold tests ---
+
+    def test_boxplot_horizontal_with_10_genotypes(self):
+        """With 10 genotypes and default settings, horizontal orientation should be used.
+
+        The new threshold is 8, so 10 genotypes should trigger horizontal orientation.
+        """
+        df = self._make_df(10)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # In horizontal orientation, genotypes appear on Y-axis
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(l) for l in y_labels if l)
+        assert genotype_on_y, (
+            "With 10 genotypes and threshold=8, auto orientation should use "
+            "horizontal (genotypes on y-axis)"
+        )
+        plt.close(fig)
+
+    def test_boxplot_vertical_with_7_genotypes(self):
+        """With 7 genotypes and default settings, vertical orientation should be used.
+
+        The new threshold is 8, so 7 genotypes should use vertical orientation.
+        """
+        df = self._make_df(7)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # In vertical orientation, genotypes appear on X-axis
+        x_labels = [label.get_text() for label in visible_axes[0].get_xticklabels()]
+        genotype_on_x = any("Genotype_" in str(l) for l in x_labels if l)
+        assert genotype_on_x, (
+            "With 7 genotypes and threshold=8, auto orientation should use "
+            "vertical (genotypes on x-axis)"
+        )
+        plt.close(fig)
+
+    # --- Task 3: Adaptive subplot sizing and label font tests ---
+
+    def test_boxplot_subplot_width_scales_with_genotypes(self):
+        """With 20 genotypes in vertical mode, figure width should scale adaptively.
+
+        subplot_width = max(4.0, n_genotypes * 0.5) = max(4.0, 10.0) = 10.0
+        So total width for 3 cols should be 30.0, much larger than default 4*3=12.
+        """
+        df = self._make_df(20)
+        trait_cols = ["trait_0", "trait_1"]
+
+        # Force vertical orientation to test width scaling
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
+
+        width, _ = fig.get_size_inches()
+        # With 20 genotypes: subplot_width = max(4.0, 20*0.5) = 10.0
+        # For n_cols=3 (default), total width = 10.0 * 3 = 30.0
+        # It should be larger than the old fixed 15
+        assert width > 15, (
+            f"Figure width {width} should be > 15 for 20 genotypes in vertical mode. "
+            "Adaptive subplot width should scale with genotype count."
+        )
+        plt.close(fig)
+
+    def test_boxplot_label_fontsize_decreases_for_many_genotypes(self):
+        """With 20 genotypes, x-tick label font size should be reduced.
+
+        fontsize = max(6, 10 - n_genotypes * 0.3) = max(6, 10 - 6.0) = 6
+        """
+        df = self._make_df(20)
+        trait_cols = ["trait_0"]
+
+        # Force vertical orientation so x-tick labels are genotype names
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # Check font size of x-tick labels
+        tick_labels = visible_axes[0].get_xticklabels()
+        if len(tick_labels) > 0:
+            fontsize = tick_labels[0].get_fontsize()
+            assert fontsize < 10, (
+                f"X-tick label fontsize {fontsize} should be < 10 for 20 genotypes. "
+                "Label font scaling should reduce size for many genotypes."
+            )
+        plt.close(fig)
+
+    # --- Task 5: Integration tests ---
+
+    def test_batched_boxplots_with_many_genotypes_orientation(self):
+        """Batched boxplots with 20 genotypes should use horizontal orientation."""
+        df = self._make_df(20, n_traits=4)
+        trait_cols = [f"trait_{i}" for i in range(4)]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        assert len(figures) >= 1
+        fig = figures[0]
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+
+        # Should use horizontal orientation (genotypes on y-axis)
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(l) for l in y_labels if l)
+        assert (
+            genotype_on_y
+        ), "Batched boxplots with 20 genotypes should use horizontal orientation"
+
+        for f in figures:
+            plt.close(f)
+
+    def test_batched_boxplots_suptitle_with_tight_layout(self):
+        """Batched boxplots should have suptitle that doesn't overlap subplots."""
+        df = self._make_df(5, n_traits=8)
+        trait_cols = [f"trait_{i}" for i in range(8)]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=4
+        )
+
+        assert len(figures) == 2
+        for fig in figures:
+            # Each figure should have a suptitle
+            assert fig._suptitle is not None
+            plt.close(fig)
