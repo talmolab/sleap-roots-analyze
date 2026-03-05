@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Optional
 
@@ -84,16 +85,36 @@ class PCAAnalysisStep(BaseStep):
             f"PCA complete: {n_components} components explain {explained_var:.1%} variance"
         )
 
-        # Select top features
+        # Use the post-filtering feature names from PCA (zero-variance traits removed)
+        feature_names = pca_results["feature_names"]
+        excluded_traits = sorted(set(trait_cols) - set(feature_names))
+
+        if excluded_traits:
+            logger.info(
+                f"Excluded {len(excluded_traits)} zero-variance traits: "
+                f"{excluded_traits}"
+            )
+            if len(excluded_traits) / len(trait_cols) > 0.5:
+                warnings.warn(
+                    f"{len(excluded_traits)} of {len(trait_cols)} traits "
+                    f"({len(excluded_traits) / len(trait_cols):.0%}) have zero variance "
+                    f"and were excluded from PCA. This may indicate data quality issues.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        logger.info(f"PCA used {len(feature_names)} of {len(trait_cols)} traits")
+
+        # Select top features using filtered feature names
         top_feature_indices = select_top_features_from_pca(
             loadings=pca_results["loadings"],
             eigenvalues=pca_results["eigenvalues"],
-            n_features_total=len(trait_cols),
+            n_features_total=len(feature_names),
             n_features_to_select=config.pca.n_top_features,
             method=config.pca.feature_selection_strategy,
         )
 
-        top_features = [trait_cols[i] for i in top_feature_indices]
+        top_features = [feature_names[i] for i in top_feature_indices]
 
         logger.info(
             f"Selected {len(top_features)} top features using {config.pca.feature_selection_strategy} method"
@@ -111,10 +132,10 @@ class PCAAnalysisStep(BaseStep):
         )
         pc_scores_df.to_csv(pca_dir / "pc_scores.csv")
 
-        # Save loadings
+        # Save loadings (use filtered feature names, not original trait_cols)
         loadings_df = pd.DataFrame(
             pca_results["loadings"],
-            index=trait_cols,
+            index=feature_names,
             columns=[f"PC{i + 1}" for i in range(n_components)],
         )
         loadings_df.to_csv(pca_dir / "loadings.csv")
@@ -148,6 +169,8 @@ class PCAAnalysisStep(BaseStep):
             "top_features": top_features,
             "n_pca_components": n_components,
             "pca_explained_variance": explained_var,
+            "excluded_zero_variance_traits": excluded_traits,
+            "n_traits_after_filtering": len(feature_names),
         }
 
         return StepResult(

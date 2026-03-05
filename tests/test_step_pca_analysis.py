@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -398,3 +399,329 @@ class TestPCADataOrganization:
 
         top_features = pd.read_csv(data_pca_dir / "top_features.csv")
         assert len(top_features) == 5
+
+
+class TestPCAZeroVarianceHandling:
+    """Test PCA step handling of zero-variance (constant) traits.
+
+    Addresses GitHub Issue #74: PCA pipeline crashes with shape mismatch
+    when trait columns contain constant values.
+    """
+
+    @pytest.fixture
+    def config_zv(self):
+        """Config for zero-variance tests (request fewer top features)."""
+        return QCPipelineConfig(
+            pipeline_name="test_pca_zv",
+            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            data=DataConfig(csv_path="test.csv"),
+            pca=PCAConfig(
+                n_components=2,
+                standardize=True,
+                n_top_features=3,
+                feature_selection_strategy="top_absolute",
+            ),
+        )
+
+    @pytest.fixture
+    def data_with_some_zero_variance(self):
+        """Dataset where 4 of 8 traits are constant (zero variance).
+
+        Mimics the Alfalfa GWAS scenario from Issue #74: lateral root count
+        at Day 0 yields identical values across all seedlings.
+        """
+        np.random.seed(42)
+        n_samples = 50
+        return pd.DataFrame(
+            {
+                "Barcode": [f"sample_{i}" for i in range(n_samples)],
+                "geno": [f"geno_{i % 5}" for i in range(n_samples)],
+                "rep": [i % 3 + 1 for i in range(n_samples)],
+                # 4 variable traits
+                "primary_root_length": np.random.normal(15.0, 3.0, n_samples),
+                "lateral_root_density": np.random.normal(2.5, 0.8, n_samples),
+                "network_area": np.random.normal(120.0, 25.0, n_samples),
+                "root_depth": np.random.normal(8.0, 1.5, n_samples),
+                # 4 constant traits (zero variance)
+                "lateral_count_day0": np.full(n_samples, 1.0),
+                "lateral_length_day0": np.full(n_samples, 0.0),
+                "secondary_count_day0": np.full(n_samples, 0.0),
+                "tip_angle_day0": np.full(n_samples, 45.0),
+            }
+        )
+
+    @pytest.fixture
+    def prev_result_zv(self, data_with_some_zero_variance):
+        """Previous step result with mixed variable/constant traits."""
+        trait_cols = [
+            "primary_root_length",
+            "lateral_root_density",
+            "network_area",
+            "root_depth",
+            "lateral_count_day0",
+            "lateral_length_day0",
+            "secondary_count_day0",
+            "tip_angle_day0",
+        ]
+        return StepResult(
+            data=data_with_some_zero_variance,
+            metadata={
+                "trait_cols": trait_cols,
+                "metadata_cols": ["Barcode", "geno", "rep"],
+            },
+        )
+
+    @pytest.fixture
+    def data_all_zero_variance(self):
+        """Dataset where ALL traits are constant."""
+        n_samples = 30
+        return pd.DataFrame(
+            {
+                "Barcode": [f"sample_{i}" for i in range(n_samples)],
+                "geno": [f"geno_{i % 3}" for i in range(n_samples)],
+                "rep": [i % 3 + 1 for i in range(n_samples)],
+                "trait_a": np.full(n_samples, 5.0),
+                "trait_b": np.full(n_samples, 10.0),
+                "trait_c": np.full(n_samples, 0.0),
+            }
+        )
+
+    @pytest.fixture
+    def prev_result_all_zv(self, data_all_zero_variance):
+        """Previous step result where all traits are constant."""
+        return StepResult(
+            data=data_all_zero_variance,
+            metadata={
+                "trait_cols": ["trait_a", "trait_b", "trait_c"],
+                "metadata_cols": ["Barcode", "geno", "rep"],
+            },
+        )
+
+    @pytest.fixture
+    def data_majority_zero_variance(self):
+        """Dataset where >50% of traits are constant (triggers warning)."""
+        np.random.seed(42)
+        n_samples = 50
+        return pd.DataFrame(
+            {
+                "Barcode": [f"sample_{i}" for i in range(n_samples)],
+                "geno": [f"geno_{i % 5}" for i in range(n_samples)],
+                "rep": [i % 3 + 1 for i in range(n_samples)],
+                # 2 variable traits (< 50%)
+                "variable_trait1": np.random.normal(10.0, 2.0, n_samples),
+                "variable_trait2": np.random.normal(5.0, 1.0, n_samples),
+                # 5 constant traits (> 50%)
+                "const_a": np.full(n_samples, 1.0),
+                "const_b": np.full(n_samples, 2.0),
+                "const_c": np.full(n_samples, 3.0),
+                "const_d": np.full(n_samples, 4.0),
+                "const_e": np.full(n_samples, 5.0),
+            }
+        )
+
+    @pytest.fixture
+    def prev_result_majority_zv(self, data_majority_zero_variance):
+        """Previous step result where >50% traits are constant."""
+        return StepResult(
+            data=data_majority_zero_variance,
+            metadata={
+                "trait_cols": [
+                    "variable_trait1",
+                    "variable_trait2",
+                    "const_a",
+                    "const_b",
+                    "const_c",
+                    "const_d",
+                    "const_e",
+                ],
+                "metadata_cols": ["Barcode", "geno", "rep"],
+            },
+        )
+
+    # --- Task 1: Shape mismatch crash tests ---
+
+    def test_pca_with_zero_variance_traits(
+        self, config_zv, data_with_some_zero_variance, prev_result_zv, tmp_path
+    ):
+        """PCA step completes when some traits have zero variance.
+
+        Regression test for Issue #74: shape mismatch between loadings
+        matrix and trait_cols when zero-variance traits are filtered.
+        """
+        step = PCAAnalysisStep()
+
+        # Should NOT raise ValueError about shape mismatch
+        result = step.execute(
+            data=data_with_some_zero_variance,
+            config=config_zv,
+            run_dir=tmp_path,
+            prev_result=prev_result_zv,
+        )
+
+        assert isinstance(result, StepResult)
+        assert "pca_results" in result.metadata
+
+        # Loadings should have rows matching the 4 variable traits, not 8 total
+        pca_dir = tmp_path / "data" / "pca"
+        loadings = pd.read_csv(pca_dir / "loadings.csv", index_col=0)
+        assert (
+            loadings.shape[0] == 4
+        ), f"Expected 4 rows (variable traits only), got {loadings.shape[0]}"
+
+    def test_pca_with_all_zero_variance_traits(
+        self, config_zv, data_all_zero_variance, prev_result_all_zv, tmp_path
+    ):
+        """PCA step raises ValueError when ALL traits are constant."""
+        step = PCAAnalysisStep()
+
+        with pytest.raises(ValueError, match="zero variance"):
+            step.execute(
+                data=data_all_zero_variance,
+                config=config_zv,
+                run_dir=tmp_path,
+                prev_result=prev_result_all_zv,
+            )
+
+    # --- Task 2: Metadata and logging tests ---
+
+    def test_pca_zero_variance_metadata_tracking(
+        self, config_zv, data_with_some_zero_variance, prev_result_zv, tmp_path
+    ):
+        """Metadata tracks which traits were excluded due to zero variance."""
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=data_with_some_zero_variance,
+            config=config_zv,
+            run_dir=tmp_path,
+            prev_result=prev_result_zv,
+        )
+
+        # New metadata keys must be present
+        assert "excluded_zero_variance_traits" in result.metadata
+        assert "n_traits_after_filtering" in result.metadata
+
+        excluded = result.metadata["excluded_zero_variance_traits"]
+        n_after = result.metadata["n_traits_after_filtering"]
+
+        # Exactly 4 constant traits should be excluded
+        assert len(excluded) == 4
+        assert set(excluded) == {
+            "lateral_count_day0",
+            "lateral_length_day0",
+            "secondary_count_day0",
+            "tip_angle_day0",
+        }
+        # 4 variable traits should remain
+        assert n_after == 4
+
+    def test_pca_zero_variance_warning_threshold(
+        self, config_zv, data_majority_zero_variance, prev_result_majority_zv, tmp_path
+    ):
+        """UserWarning emitted when >50% of traits are zero-variance."""
+        step = PCAAnalysisStep()
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            step.execute(
+                data=data_majority_zero_variance,
+                config=config_zv,
+                run_dir=tmp_path,
+                prev_result=prev_result_majority_zv,
+            )
+
+        user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
+        assert len(user_warnings) >= 1, "Expected UserWarning for >50% zero-variance"
+        assert "zero variance" in str(user_warnings[0].message).lower()
+
+    def test_pca_no_warning_below_threshold(
+        self, config_zv, data_with_some_zero_variance, prev_result_zv, tmp_path
+    ):
+        """No UserWarning when <=50% of traits are zero-variance."""
+        step = PCAAnalysisStep()
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            step.execute(
+                data=data_with_some_zero_variance,
+                config=config_zv,
+                run_dir=tmp_path,
+                prev_result=prev_result_zv,
+            )
+
+        # 4 of 8 traits = 50%, which is NOT >50%, so no warning
+        user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
+        zero_var_warnings = [
+            x for x in user_warnings if "zero variance" in str(x.message).lower()
+        ]
+        assert (
+            len(zero_var_warnings) == 0
+        ), "Should not warn when <=50% traits are zero-variance"
+
+    # --- Task 3: Feature selection correctness tests ---
+
+    def test_pca_top_features_use_filtered_names(
+        self, config_zv, data_with_some_zero_variance, prev_result_zv, tmp_path
+    ):
+        """Top features should be actual feature names used in PCA, not original indices."""
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=data_with_some_zero_variance,
+            config=config_zv,
+            run_dir=tmp_path,
+            prev_result=prev_result_zv,
+        )
+
+        top_features = result.metadata["top_features"]
+        variable_traits = {
+            "primary_root_length",
+            "lateral_root_density",
+            "network_area",
+            "root_depth",
+        }
+        constant_traits = {
+            "lateral_count_day0",
+            "lateral_length_day0",
+            "secondary_count_day0",
+            "tip_angle_day0",
+        }
+
+        # All top features must be from variable traits (actually used in PCA)
+        for feat in top_features:
+            assert feat in variable_traits, (
+                f"Top feature '{feat}' is not a variable trait — "
+                f"may be indexing into original trait_cols instead of filtered names"
+            )
+        # No constant trait should appear in top features
+        for feat in top_features:
+            assert feat not in constant_traits
+
+    def test_pca_loadings_csv_index_matches_features(
+        self, config_zv, data_with_some_zero_variance, prev_result_zv, tmp_path
+    ):
+        """Saved loadings.csv index must match the features actually used in PCA."""
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=data_with_some_zero_variance,
+            config=config_zv,
+            run_dir=tmp_path,
+            prev_result=prev_result_zv,
+        )
+
+        pca_dir = tmp_path / "data" / "pca"
+        loadings = pd.read_csv(pca_dir / "loadings.csv", index_col=0)
+
+        variable_traits = {
+            "primary_root_length",
+            "lateral_root_density",
+            "network_area",
+            "root_depth",
+        }
+
+        # Index should be exactly the 4 variable trait names
+        assert set(loadings.index) == variable_traits, (
+            f"Loadings index {set(loadings.index)} does not match "
+            f"expected variable traits {variable_traits}"
+        )
