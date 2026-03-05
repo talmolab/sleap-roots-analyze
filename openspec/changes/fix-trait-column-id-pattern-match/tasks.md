@@ -32,4 +32,4 @@
 - [x] Replace tautological assertions in `test_metadata_columns_are_complement_of_traits` with meaningful checks
 - [x] Fix stale print message in `test_qc_pipeline_turface_integration`
 - [x] Run tests, confirm all pass — 71 data_cleanup tests passed, turface pipeline test passed
-- [ ] Full test suite passes
+- [x] Full test suite passes — 1889 passed, 0 failed
