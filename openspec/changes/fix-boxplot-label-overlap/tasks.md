@@ -27,8 +27,22 @@
 - [ ] 5.1 Add `test_eda_step_boxplots_readable_with_many_genotypes` -- run ExploratoryAnalysisStep with 20 genotypes; verify figure files exist and dimensions are reasonable
 - [ ] 5.2 Add `test_static_figures_boxplots_no_overlap` -- run GenerateStaticFiguresStep with 15 genotypes; verify all figure files generated without error
 
-## Task 6: Verify no regressions
-- [ ] 6.1 All existing `TestCreateTraitBoxplots` tests pass unchanged
-- [ ] 6.2 All existing `TestCreateTraitBoxplotsBatched` tests pass unchanged
-- [ ] 6.3 Full test suite passes (`uv run pytest`)
-- [ ] 6.4 Linting and formatting pass (`uv run ruff check`, `uv run black --check`)
+## Task 6: Visual QA -- generate and inspect figures
+- [ ] 6.1 Write a throwaway script that generates boxplot figures for 3 scenarios: (a) 5 genotypes with short IDs, (b) 12 genotypes with medium-length IDs, (c) 25 genotypes with long IDs (e.g., "GENOTYPE_ACCESSION_12345678"). Save each as PNG.
+- [ ] 6.2 Open each PNG with the Read tool and visually confirm:
+  - No excessive whitespace around or between subplots
+  - All axes (x and y) are fully visible and not clipped
+  - All genotype labels are readable and not overlapping
+  - Boxplots are not vertically or horizontally stretched/squashed
+  - Suptitle (batch title) does not overlap the top row of subplots
+  - Font sizes are appropriate (not too small to read, not too large)
+- [ ] 6.3 For scenario (b) and (c), confirm horizontal orientation is used (genotypes on y-axis)
+- [ ] 6.4 For scenario (a), confirm vertical orientation is used (genotypes on x-axis, labels rotated 90 degrees)
+- [ ] 6.5 If any visual issue is found, fix the implementation and re-generate until all scenarios pass visual inspection
+- [ ] 6.6 Delete the throwaway script after visual QA passes
+
+## Task 7: Verify no regressions
+- [ ] 7.1 All existing `TestCreateTraitBoxplots` tests pass unchanged
+- [ ] 7.2 All existing `TestCreateTraitBoxplotsBatched` tests pass unchanged
+- [ ] 7.3 Full test suite passes (`uv run pytest`)
+- [ ] 7.4 Linting and formatting pass (`uv run ruff check`, `uv run black --check`)
