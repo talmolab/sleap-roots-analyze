@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -11,6 +13,8 @@ from sleap_roots_analyze.pipeline import (
     DataConfig,
     QCPipelineConfig,
 )
+from sleap_roots_analyze.pipeline.config.components import StatisticsConfig
+from sleap_roots_analyze.pipeline.config.viz_config import VizPipelineConfig
 from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.steps import StatisticalAnalysisStep
 
@@ -286,3 +290,227 @@ class TestStatisticalAnalysisDataOrganization:
                 f"File {file_path.name} should be in data/ directory, "
                 f"but is in {file_path.parent}"
             )
+
+
+# --- Task 1: Tests for heritability flag respected ---
+
+
+@pytest.fixture
+def viz_config_heritability_disabled():
+    """Create VizPipelineConfig with heritability calculation disabled."""
+    return VizPipelineConfig(
+        pipeline_name="test_viz",
+        columns=ColumnConfig(
+            barcode="Barcode", genotype="Genotype", replicate="Replicate"
+        ),
+        data=DataConfig(csv_path="dummy.csv"),
+        statistics=StatisticsConfig(calculate_heritability=False),
+    )
+
+
+@pytest.fixture
+def viz_config_heritability_enabled():
+    """Create VizPipelineConfig with heritability calculation enabled (default)."""
+    return VizPipelineConfig(
+        pipeline_name="test_viz",
+        columns=ColumnConfig(
+            barcode="Barcode", genotype="Genotype", replicate="Replicate"
+        ),
+        data=DataConfig(csv_path="dummy.csv"),
+        statistics=StatisticsConfig(calculate_heritability=True),
+    )
+
+
+class TestHeritabilityFlagRespected:
+    """Test that the calculate_heritability config flag is respected."""
+
+    def test_heritability_skipped_when_disabled(
+        self, sample_data, viz_config_heritability_disabled, prev_result, tmp_path
+    ):
+        """Test heritability_estimates NOT called when flag is False.
+
+        Verifies that config.statistics.calculate_heritability is False
+        causes the step to skip heritability and return empty dict.
+        """
+        # GIVEN a config with calculate_heritability=False
+        step = StatisticalAnalysisStep()
+
+        # WHEN we execute the step
+        with patch(
+            "sleap_roots_analyze.pipeline.steps.statistical_analysis"
+            ".calculate_heritability_estimates"
+        ) as mock_h2:
+            result = step.execute(
+                sample_data,
+                viz_config_heritability_disabled,
+                tmp_path,
+                prev_result,
+            )
+
+        # THEN calculate_heritability_estimates should NOT be called
+        mock_h2.assert_not_called()
+
+        # AND heritability_results should be an empty dict
+        assert result.metadata["heritability_results"] == {}
+
+    def test_heritability_calculated_when_enabled(
+        self, sample_data, viz_config_heritability_enabled, prev_result, tmp_path
+    ):
+        """Test heritability_estimates IS called when flag is True.
+
+        Verifies that config.statistics.calculate_heritability is True
+        causes the step to calculate heritability and populate results.
+        """
+        # GIVEN a config with calculate_heritability=True
+        step = StatisticalAnalysisStep()
+
+        # WHEN we execute the step
+        with patch(
+            "sleap_roots_analyze.pipeline.steps.statistical_analysis"
+            ".calculate_heritability_estimates"
+        ) as mock_h2:
+            mock_h2.return_value = {
+                "trait1": {"heritability": 0.5},
+                "trait2": {"heritability": 0.6},
+                "trait3": {"heritability": 0.7},
+            }
+            result = step.execute(
+                sample_data,
+                viz_config_heritability_enabled,
+                tmp_path,
+                prev_result,
+            )
+
+        # THEN calculate_heritability_estimates should be called
+        mock_h2.assert_called_once()
+
+        # AND heritability_results should be populated
+        assert result.metadata["heritability_results"] != {}
+        assert "trait1" in result.metadata["heritability_results"]
+
+    def test_heritability_csv_not_generated_when_disabled(
+        self, sample_data, viz_config_heritability_disabled, prev_result, tmp_path
+    ):
+        """Test heritability CSV is NOT created when disabled."""
+        # GIVEN a config with calculate_heritability=False
+        step = StatisticalAnalysisStep()
+
+        # WHEN we execute the step
+        result = step.execute(
+            sample_data,
+            viz_config_heritability_disabled,
+            tmp_path,
+            prev_result,
+        )
+
+        # THEN the heritability CSV should NOT exist
+        assert not (tmp_path / "data" / "08_heritability_results.csv").exists()
+
+    def test_heritability_works_with_qc_config_no_statistics(
+        self, sample_data, config, prev_result, tmp_path
+    ):
+        """Test heritability works with QCPipelineConfig (no statistics attr).
+
+        When config lacks a statistics attribute, heritability should
+        default to True (backward compatible).
+        """
+        # GIVEN a QCPipelineConfig (no statistics attribute)
+        step = StatisticalAnalysisStep()
+
+        # WHEN we execute the step
+        result = step.execute(sample_data, config, tmp_path, prev_result)
+
+        # THEN heritability should be calculated (default True)
+        assert result.metadata["heritability_results"] != {}
+
+
+# --- Task 2: Tests for metadata and summary ---
+
+
+class TestHeritabilityMetadataAndSummary:
+    """Test metadata and summary JSON when heritability is disabled."""
+
+    def test_summary_reflects_skipped_heritability(
+        self, sample_data, viz_config_heritability_disabled, prev_result, tmp_path
+    ):
+        """Test summary shows skipped heritability when disabled."""
+        # GIVEN a config with calculate_heritability=False
+        step = StatisticalAnalysisStep()
+
+        # WHEN we execute the step
+        result = step.execute(
+            sample_data,
+            viz_config_heritability_disabled,
+            tmp_path,
+            prev_result,
+        )
+
+        # THEN the summary should indicate heritability was skipped
+        summary = result.metadata["summary"]
+        assert summary["heritability_summary"] == {"skipped": True}
+
+    def test_metadata_heritability_results_empty_when_disabled(
+        self, sample_data, viz_config_heritability_disabled, prev_result, tmp_path
+    ):
+        """Test that metadata['heritability_results'] is {} when disabled."""
+        # GIVEN a config with calculate_heritability=False
+        step = StatisticalAnalysisStep()
+
+        # WHEN we execute the step
+        result = step.execute(
+            sample_data,
+            viz_config_heritability_disabled,
+            tmp_path,
+            prev_result,
+        )
+
+        # THEN heritability_results should be empty dict
+        assert result.metadata["heritability_results"] == {}
+
+
+# --- Task 3: Tests for downstream compatibility ---
+
+
+class TestHeritabilityDownstreamCompatibility:
+    """Test downstream compatibility when heritability is disabled."""
+
+    def test_filter_heritability_handles_empty_results(self, sample_data, tmp_path):
+        """Test FilterHeritabilityStep handles empty heritability_results."""
+        from sleap_roots_analyze.pipeline import HeritabilityConfig
+        from sleap_roots_analyze.pipeline.steps import FilterHeritabilityStep
+
+        # GIVEN a config with heritability filtering disabled
+        filter_config = QCPipelineConfig(
+            pipeline_name="test_qc",
+            columns=ColumnConfig(
+                barcode="Barcode",
+                genotype="Genotype",
+                replicate="Replicate",
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            heritability=HeritabilityConfig(enabled=False, threshold=0.3),
+        )
+
+        # AND a previous result with empty heritability_results
+        prev = StepResult(
+            data=sample_data,
+            metadata={
+                "trait_names": ["trait1", "trait2", "trait3"],
+                "valid_trait_names": ["trait1", "trait2", "trait3"],
+                "heritability_results": {},
+            },
+            files_generated=[],
+        )
+
+        # WHEN we execute FilterHeritabilityStep
+        step = FilterHeritabilityStep()
+        result = step.execute(sample_data, filter_config, tmp_path, prev)
+
+        # THEN it should complete without error
+        assert isinstance(result, StepResult)
+        # AND all traits should be retained (filtering disabled)
+        assert result.metadata["valid_trait_names"] == [
+            "trait1",
+            "trait2",
+            "trait3",
+        ]
