@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+
+logger = logging.getLogger(__name__)
 
 from sleap_roots_analyze.cross_experiment_analysis import (
     create_correlation_summary_plot,
@@ -82,6 +85,22 @@ class VisualizeCrossPlatformStep(BaseStep):
 
         # Get data from previous step
         correlation_df = data["correlation_df"]
+
+        if correlation_df.empty:
+            logger.warning("No correlations to visualize - correlation_df is empty")
+            return StepResult(
+                data=data,
+                metadata={
+                    "plots_generated": 0,
+                    "empty_correlations": True,
+                    "summary_plots": 0,
+                    "joint_plots": 0,
+                    "boxplots": 0,
+                    "representative_heatmap": False,
+                },
+                files_generated=[],
+            )
+
         exp1_df = data["exp1_df"]
         exp2_df = data["exp2_df"]
 
