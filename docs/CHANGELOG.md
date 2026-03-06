@@ -49,6 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Graceful handling with pipeline continuing successfully
 
 ### Changed
+- **Adaptive boxplot layout** for trait visualizations (Issue #73):
+  - Auto-switch from vertical to horizontal orientation when genotype count exceeds threshold (default: 8)
+  - Configurable via `orientation` ("vertical", "horizontal", "auto") and `horizontal_threshold` parameters
+  - Consistent unfilled boxplot styling across both orientations: blue (`#1f77b4`) outlines, green (`#2ca02c`) medians, gridlines
+  - Adaptive figure sizing: subplot width scales with genotype count (0.5 in/genotype, min 4.0, max 20.0 inches)
+  - Font scaling for x-axis labels when genotype count is high (min 6pt)
+  - `tight_layout()` called by batched wrapper after suptitle (not in base function) to prevent overlap
+  - Replaced seaborn horizontal boxplot with matplotlib for consistent styling
 - **PC boxplot layout** now stacks vertically (1 column) instead of grid layout for better display with many genotypes
   - Default figsize updated from (16, 10) to (20, 6) for wider genotype labels
 - **Goodness-of-fit display** removed from outlier detection plots (too crowded)
