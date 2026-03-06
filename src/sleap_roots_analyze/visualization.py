@@ -573,6 +573,7 @@ def create_exploratory_summary_plots(
         fig = create_trait_boxplots_by_genotype(
             df, trait_cols[:n_traits_box], genotype_col, adaptive_config=adaptive_config
         )
+        fig.tight_layout()
         figures["trait_ranges_by_genotype"] = fig
 
     # 4. Sample size per genotype
