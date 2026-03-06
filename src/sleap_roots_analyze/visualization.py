@@ -132,8 +132,6 @@ def create_trait_boxplots_by_genotype(
     Returns:
         Matplotlib figure object
     """
-    import seaborn as sns
-
     n_traits = len(trait_cols)
     if n_traits == 0:
         # Handle empty case
@@ -195,6 +193,7 @@ def create_trait_boxplots_by_genotype(
     elif actual_orientation == "vertical" and n_genotypes > 0:
         # For vertical orientation, scale subplot width with genotype count
         # Only override figsize when adaptive width exceeds current per-subplot width
+        # Use n_cols (not min(n_cols, n_traits)) since plt.subplots creates n_cols columns
         adaptive_subplot_width = max(4.0, n_genotypes * 0.5)
         current_subplot_width = figsize[0] / n_cols
         if adaptive_subplot_width > current_subplot_width:
@@ -216,15 +215,28 @@ def create_trait_boxplots_by_genotype(
 
             if len(df_plot) > 0:
                 if actual_orientation == "horizontal":
-                    # Use seaborn for horizontal boxplots
-                    # Let seaborn determine order from data (avoids position mismatch errors)
-                    sns.boxplot(
-                        data=df_plot,
-                        x=trait,
-                        y=genotype_col,
-                        ax=axes[i],
+                    # Use matplotlib boxplot for horizontal orientation
+                    # Style matches df.boxplot() vertical: blue boxes, green
+                    # medians, gridlines, unfilled outline
+                    genotype_order = sorted(df_plot[genotype_col].unique())
+                    grouped_data = [
+                        df_plot.loc[df_plot[genotype_col] == g, trait].values
+                        for g in genotype_order
+                    ]
+                    boxprops = dict(color="#1f77b4")
+                    whiskerprops = dict(color="#1f77b4")
+                    capprops = dict(color="k")
+                    medianprops = dict(color="#2ca02c")
+                    axes[i].boxplot(
+                        grouped_data,
                         orientation="horizontal",
+                        tick_labels=genotype_order,
+                        boxprops=boxprops,
+                        whiskerprops=whiskerprops,
+                        capprops=capprops,
+                        medianprops=medianprops,
                     )
+                    axes[i].grid(True)
                     axes[i].set_title(f"{trait}")
                     axes[i].set_xlabel(trait)
                     axes[i].set_ylabel("Genotype")
@@ -393,6 +405,7 @@ def create_trait_boxplots_by_genotype_batched(
                 )
 
         # Create figure for this batch
+        # Use actual_cols so the subplot grid matches the computed figsize
         fig = create_trait_boxplots_by_genotype(
             df,
             batch_traits,

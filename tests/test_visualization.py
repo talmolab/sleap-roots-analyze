@@ -348,7 +348,7 @@ class TestCreateTraitBoxplotsByGenotype:
 
         assert genotype_on_y, (
             "With 20 genotypes and orientation='auto', should auto-switch to horizontal. "
-            "Threshold for switching should be ~15 genotypes."
+            "Threshold for switching should be ~8 genotypes."
         )
 
         plt.close(fig)
@@ -3949,6 +3949,29 @@ class TestBoxplotLabelOverlapFixes:
 
     # --- Task 2: Horizontal threshold tests ---
 
+    def test_boxplot_vertical_with_exactly_8_genotypes(self):
+        """With exactly 8 genotypes and default settings, vertical orientation should be used.
+
+        The threshold uses strict > comparison, so exactly 8 stays vertical.
+        """
+        df = self._make_df(8)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # In vertical orientation, genotypes appear on X-axis
+        x_labels = [label.get_text() for label in visible_axes[0].get_xticklabels()]
+        genotype_on_x = any("Genotype_" in str(l) for l in x_labels if l)
+        assert genotype_on_x, (
+            "With exactly 8 genotypes and threshold=8 (strict >), auto orientation "
+            "should use vertical (genotypes on x-axis)"
+        )
+        plt.close(fig)
+
     def test_boxplot_horizontal_with_10_genotypes(self):
         """With 10 genotypes and default settings, horizontal orientation should be used.
 
@@ -4012,7 +4035,7 @@ class TestBoxplotLabelOverlapFixes:
 
         width, _ = fig.get_size_inches()
         # With 20 genotypes: subplot_width = max(4.0, 20*0.5) = 10.0
-        # For n_cols=3 (default), total width = 10.0 * 3 = 30.0
+        # Grid uses n_cols=3, so total width = 10.0 * 3 = 30.0
         # It should be larger than the old fixed 15
         assert width > 15, (
             f"Figure width {width} should be > 15 for 20 genotypes in vertical mode. "
@@ -4111,3 +4134,87 @@ class TestBoxplotLabelOverlapFixes:
 
         for fig in figures:
             plt.close(fig)
+
+    # --- Unified boxplot style tests ---
+
+    def test_boxplot_horizontal_uses_unfilled_style(self):
+        """Horizontal boxplots should use unfilled outline style (not seaborn filled).
+
+        With 12 genotypes, auto orientation switches to horizontal.
+        Matplotlib's default boxplot uses Line2D for boxes (no filled patches).
+        Seaborn adds PathPatch objects with filled color. We verify no filled
+        patches exist, confirming the unfilled outline style.
+        """
+        df = self._make_df(12)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+        fig.canvas.draw()
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        ax = visible_axes[0]
+        # Seaborn boxplot adds PathPatch objects with filled color to ax.patches.
+        # Matplotlib's default boxplot (without patch_artist) uses Line2D for boxes
+        # and adds NO patches. Check that no filled patches exist.
+        filled_patches = [
+            p
+            for p in ax.patches
+            if hasattr(p, "get_facecolor")
+            and p.get_facecolor()[3] > 0.1  # non-transparent
+            and not (
+                p.get_facecolor()[0] >= 0.99
+                and p.get_facecolor()[1] >= 0.99
+                and p.get_facecolor()[2] >= 0.99
+            )  # not white
+        ]
+        assert len(filled_patches) == 0, (
+            f"Found {len(filled_patches)} filled patches — horizontal boxplot should "
+            "use unfilled outline style (matplotlib default), not seaborn filled style."
+        )
+        plt.close(fig)
+
+    def test_boxplot_vertical_and_horizontal_same_style(self):
+        """Both orientations should produce consistent unfilled outline boxes.
+
+        Both should use matplotlib's default boxplot (Line2D boxes, no filled patches).
+        """
+        df_vert = self._make_df(5)
+        df_horiz = self._make_df(12)
+        trait_cols = ["trait_0"]
+
+        fig_vert = create_trait_boxplots_by_genotype(
+            df_vert, trait_cols, orientation="vertical"
+        )
+        fig_horiz = create_trait_boxplots_by_genotype(
+            df_horiz, trait_cols, orientation="horizontal"
+        )
+        fig_vert.canvas.draw()
+        fig_horiz.canvas.draw()
+
+        def count_filled_patches(fig):
+            ax = [a for a in fig.get_axes() if a.get_visible()][0]
+            return len(
+                [
+                    p
+                    for p in ax.patches
+                    if hasattr(p, "get_facecolor")
+                    and p.get_facecolor()[3] > 0.1
+                    and not (
+                        p.get_facecolor()[0] >= 0.99
+                        and p.get_facecolor()[1] >= 0.99
+                        and p.get_facecolor()[2] >= 0.99
+                    )
+                ]
+            )
+
+        vert_filled = count_filled_patches(fig_vert)
+        horiz_filled = count_filled_patches(fig_horiz)
+
+        assert vert_filled == 0, "Vertical boxplot should have no filled patches"
+        assert horiz_filled == 0, "Horizontal boxplot should have no filled patches"
+
+        plt.close(fig_vert)
+        plt.close(fig_horiz)
