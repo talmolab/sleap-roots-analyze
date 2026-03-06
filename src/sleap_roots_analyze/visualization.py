@@ -250,13 +250,14 @@ def create_trait_boxplots_by_genotype(
                     axes[i].set_xlabel("Genotype")
                     axes[i].set_ylabel(trait)
                     plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=90)
-                    # Scale label font size based on plotted genotype count
+                    # Scale label font size for many genotypes (>10)
                     plotted_genotypes = df_plot[genotype_col].nunique()
-                    label_fontsize = max(6, 10 - plotted_genotypes * 0.3)
-                    plt.setp(
-                        axes[i].xaxis.get_majorticklabels(),
-                        fontsize=label_fontsize,
-                    )
+                    if plotted_genotypes > 10:
+                        label_fontsize = max(6, 10 - (plotted_genotypes - 10) * 0.3)
+                        plt.setp(
+                            axes[i].xaxis.get_majorticklabels(),
+                            fontsize=label_fontsize,
+                        )
             else:
                 axes[i].text(
                     0.5,

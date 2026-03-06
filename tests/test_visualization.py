@@ -314,7 +314,7 @@ class TestCreateTraitBoxplotsByGenotype:
         """TDD Test: Auto orientation switches to horizontal when genotypes > threshold.
 
         When orientation='auto' (default), the function should automatically
-        switch to horizontal when n_genotypes exceeds the threshold (e.g., 15).
+        switch to horizontal when n_genotypes exceeds the threshold (default: 8).
         """
         import numpy as np
 
@@ -3933,7 +3933,7 @@ class TestBoxplotLabelOverlapFixes:
             fig = figures[0]
 
             # The suptitle should exist
-            assert fig._suptitle is not None
+            assert fig.get_suptitle() != ""
 
             # tight_layout should have been called with rect that reserves top
             found_rect_call = any(
@@ -4046,7 +4046,8 @@ class TestBoxplotLabelOverlapFixes:
     def test_boxplot_label_fontsize_decreases_for_many_genotypes(self):
         """With 20 genotypes, x-tick label font size should be reduced.
 
-        fontsize = max(6, 10 - n_genotypes * 0.3) = max(6, 10 - 6.0) = 6
+        Font scaling only applies when genotypes > 10.
+        fontsize = max(6, 10 - (20-10) * 0.3) = max(6, 7.0) = 7.0
         """
         df = self._make_df(20)
         trait_cols = ["trait_0"]
@@ -4070,6 +4071,31 @@ class TestBoxplotLabelOverlapFixes:
         assert fontsize < 10, (
             f"X-tick label fontsize {fontsize} should be < 10 for 20 genotypes. "
             "Label font scaling should reduce size for many genotypes."
+        )
+        plt.close(fig)
+
+    def test_boxplot_label_fontsize_unchanged_for_few_genotypes(self):
+        """With 5 genotypes, x-tick label font size should remain at default (10pt).
+
+        Font scaling only applies when genotypes > 10, so small counts
+        should keep the default matplotlib tick label size for backward compat.
+        """
+        df = self._make_df(5)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
+        fig.canvas.draw()
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        tick_labels = visible_axes[0].get_xticklabels()
+        assert len(tick_labels) > 0, "Expected x-tick labels after canvas.draw()"
+        fontsize = tick_labels[0].get_fontsize()
+        assert fontsize >= 10, (
+            f"X-tick label fontsize {fontsize} should be >= 10 for 5 genotypes. "
+            "Font scaling should not reduce size for small genotype counts."
         )
         plt.close(fig)
 
@@ -4121,7 +4147,7 @@ class TestBoxplotLabelOverlapFixes:
             assert len(figures) == 2
             for fig in figures:
                 # Each figure should have a suptitle
-                assert fig._suptitle is not None
+                assert fig.get_suptitle() != ""
 
             # tight_layout should have been called with rect for each figure
             rect_calls = [
