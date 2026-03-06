@@ -122,7 +122,8 @@ def create_trait_boxplots_by_genotype(
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
         n_cols: Number of columns in subplot grid
-        figsize: Figure size (only used if adaptive_config is None)
+        figsize: Base figure size. May be overridden by adaptive_config or
+            adjusted for genotype count/orientation.
         adaptive_config: Optional adaptive sizing configuration
         orientation: Boxplot orientation - "vertical", "horizontal", or "auto".
             "auto" switches to horizontal when n_genotypes > horizontal_threshold.
@@ -130,7 +131,8 @@ def create_trait_boxplots_by_genotype(
             switches to horizontal (default: 8).
 
     Returns:
-        Matplotlib figure object
+        Matplotlib figure object. Callers are responsible for calling
+        tight_layout() if needed (e.g., after adding suptitle).
     """
     n_traits = len(trait_cols)
     if n_traits == 0:
@@ -194,7 +196,8 @@ def create_trait_boxplots_by_genotype(
         # For vertical orientation, scale subplot width with genotype count
         # Only override figsize when adaptive width exceeds current per-subplot width
         # Use n_cols (not min(n_cols, n_traits)) since plt.subplots creates n_cols columns
-        adaptive_subplot_width = max(4.0, n_genotypes * 0.5)
+        # Cap at 20 inches per subplot to prevent extremely large figures
+        adaptive_subplot_width = min(20.0, max(4.0, n_genotypes * 0.5))
         current_subplot_width = figsize[0] / n_cols
         if adaptive_subplot_width > current_subplot_width:
             figsize = (adaptive_subplot_width * n_cols, figsize[1])
@@ -398,7 +401,10 @@ def create_trait_boxplots_by_genotype_batched(
                 batch_figsize = (actual_cols * subplot_size[0], n_rows * subplot_height)
             else:
                 # For vertical, scale subplot width with genotype count
-                adaptive_subplot_width = max(subplot_size[0], n_genotypes * 0.5)
+                # Cap at 20 inches per subplot to prevent extremely large figures
+                adaptive_subplot_width = min(
+                    20.0, max(subplot_size[0], n_genotypes * 0.5)
+                )
                 batch_figsize = (
                     actual_cols * adaptive_subplot_width,
                     n_rows * subplot_size[1],
