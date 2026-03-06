@@ -196,10 +196,9 @@ def create_trait_boxplots_by_genotype(
         # For vertical orientation, scale subplot width with genotype count
         # Only override figsize when adaptive width exceeds current per-subplot width
         adaptive_subplot_width = max(4.0, n_genotypes * 0.5)
-        actual_cols_used = min(n_cols, n_traits)
-        current_subplot_width = figsize[0] / actual_cols_used
+        current_subplot_width = figsize[0] / n_cols
         if adaptive_subplot_width > current_subplot_width:
-            figsize = (adaptive_subplot_width * actual_cols_used, figsize[1])
+            figsize = (adaptive_subplot_width * n_cols, figsize[1])
 
     n_rows = (n_traits + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
@@ -236,8 +235,9 @@ def create_trait_boxplots_by_genotype(
                     axes[i].set_xlabel("Genotype")
                     axes[i].set_ylabel(trait)
                     plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=90)
-                    # Scale label font size for high genotype counts
-                    label_fontsize = max(6, 10 - n_genotypes * 0.3)
+                    # Scale label font size based on plotted genotype count
+                    plotted_genotypes = df_plot[genotype_col].nunique()
+                    label_fontsize = max(6, 10 - plotted_genotypes * 0.3)
                     plt.setp(
                         axes[i].xaxis.get_majorticklabels(),
                         fontsize=label_fontsize,
@@ -397,7 +397,7 @@ def create_trait_boxplots_by_genotype_batched(
             df,
             batch_traits,
             genotype_col=genotype_col,
-            n_cols=n_cols,
+            n_cols=actual_cols,
             figsize=batch_figsize,
             orientation=orientation,
             horizontal_threshold=horizontal_threshold,

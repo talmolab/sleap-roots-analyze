@@ -6,6 +6,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import matplotlib
+import matplotlib.figure
 
 # Use non-interactive backend for tests to avoid Tk issues
 matplotlib.use("Agg")
@@ -3884,11 +3885,15 @@ class TestBoxplotLabelOverlapFixes:
 
         The batched wrapper adds suptitle after the single-figure function returns.
         If tight_layout runs inside the single function, suptitle will overlap subplots.
+        Patches both plt.tight_layout and Figure.tight_layout to catch either path.
         """
         df = self._make_df(5)
         trait_cols = ["trait_0", "trait_1"]
 
-        with patch("sleap_roots_analyze.visualization.plt") as mock_plt:
+        with (
+            patch("sleap_roots_analyze.visualization.plt") as mock_plt,
+            patch.object(matplotlib.figure.Figure, "tight_layout") as mock_fig_tl,
+        ):
             # We need real subplots to work, so delegate subplots to actual plt
             mock_plt.subplots = plt.subplots
             mock_plt.setp = plt.setp
@@ -3896,8 +3901,9 @@ class TestBoxplotLabelOverlapFixes:
 
             fig = create_trait_boxplots_by_genotype(df, trait_cols)
 
-            # tight_layout should NOT have been called
+            # tight_layout should NOT have been called via either path
             mock_plt.tight_layout.assert_not_called()
+            mock_fig_tl.assert_not_called()
             plt.close(fig)
 
     def test_boxplot_suptitle_not_overlapping(self):
@@ -3909,19 +3915,35 @@ class TestBoxplotLabelOverlapFixes:
         df = self._make_df(5, n_traits=4)
         trait_cols = ["trait_0", "trait_1", "trait_2", "trait_3"]
 
-        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+        original_tight_layout = matplotlib.figure.Figure.tight_layout
+        call_log = []
 
-        assert len(figures) >= 1
-        fig = figures[0]
+        def spy_tight_layout(self_fig, *args, **kwargs):
+            call_log.append((args, kwargs))
+            return original_tight_layout(self_fig, *args, **kwargs)
 
-        # The suptitle should exist
-        assert fig._suptitle is not None
+        with patch.object(
+            matplotlib.figure.Figure,
+            "tight_layout",
+            spy_tight_layout,
+        ):
+            figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
 
-        # Verify layout was adjusted: suptitle y position should leave room
-        # The suptitle should be at y >= 0.99 (near top) and subplots should
-        # not extend above ~0.96 of figure height
-        # We verify this indirectly: the figure should have tight_layout applied
-        # with rect that reserves top space
+            assert len(figures) >= 1
+            fig = figures[0]
+
+            # The suptitle should exist
+            assert fig._suptitle is not None
+
+            # tight_layout should have been called with rect that reserves top
+            found_rect_call = any(
+                kw.get("rect") == [0, 0, 1, 0.96] for _, kw in call_log
+            )
+            assert found_rect_call, (
+                "tight_layout should be called with rect=[0, 0, 1, 0.96] "
+                f"to leave room for suptitle. Calls: {call_log}"
+            )
+
         for f in figures:
             plt.close(f)
 
@@ -3979,10 +4001,11 @@ class TestBoxplotLabelOverlapFixes:
         """With 20 genotypes in vertical mode, figure width should scale adaptively.
 
         subplot_width = max(4.0, n_genotypes * 0.5) = max(4.0, 10.0) = 10.0
-        So total width for 3 cols should be 30.0, much larger than default 4*3=12.
+        With 3 traits and n_cols=3, total width = 10.0 * 3 = 30.0,
+        much larger than default 15.
         """
-        df = self._make_df(20)
-        trait_cols = ["trait_0", "trait_1"]
+        df = self._make_df(20, n_traits=3)
+        trait_cols = ["trait_0", "trait_1", "trait_2"]
 
         # Force vertical orientation to test width scaling
         fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
@@ -4008,18 +4031,23 @@ class TestBoxplotLabelOverlapFixes:
         # Force vertical orientation so x-tick labels are genotype names
         fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
 
+        # Force rendering so tick labels are populated
+        fig.canvas.draw()
+
         axes = fig.get_axes()
         visible_axes = [ax for ax in axes if ax.get_visible()]
         assert len(visible_axes) >= 1
 
         # Check font size of x-tick labels
         tick_labels = visible_axes[0].get_xticklabels()
-        if len(tick_labels) > 0:
-            fontsize = tick_labels[0].get_fontsize()
-            assert fontsize < 10, (
-                f"X-tick label fontsize {fontsize} should be < 10 for 20 genotypes. "
-                "Label font scaling should reduce size for many genotypes."
-            )
+        assert (
+            len(tick_labels) > 0
+        ), "Expected x-tick labels to be rendered after canvas.draw()"
+        fontsize = tick_labels[0].get_fontsize()
+        assert fontsize < 10, (
+            f"X-tick label fontsize {fontsize} should be < 10 for 20 genotypes. "
+            "Label font scaling should reduce size for many genotypes."
+        )
         plt.close(fig)
 
     # --- Task 5: Integration tests ---
@@ -4047,16 +4075,39 @@ class TestBoxplotLabelOverlapFixes:
             plt.close(f)
 
     def test_batched_boxplots_suptitle_with_tight_layout(self):
-        """Batched boxplots should have suptitle that doesn't overlap subplots."""
+        """Batched boxplots should have suptitle and tight_layout with rect."""
         df = self._make_df(5, n_traits=8)
         trait_cols = [f"trait_{i}" for i in range(8)]
 
-        figures = create_trait_boxplots_by_genotype_batched(
-            df, trait_cols, batch_size=4
-        )
+        original_tight_layout = matplotlib.figure.Figure.tight_layout
+        call_log = []
 
-        assert len(figures) == 2
+        def spy_tight_layout(self_fig, *args, **kwargs):
+            call_log.append((args, kwargs))
+            return original_tight_layout(self_fig, *args, **kwargs)
+
+        with patch.object(
+            matplotlib.figure.Figure,
+            "tight_layout",
+            spy_tight_layout,
+        ):
+            figures = create_trait_boxplots_by_genotype_batched(
+                df, trait_cols, batch_size=4
+            )
+
+            assert len(figures) == 2
+            for fig in figures:
+                # Each figure should have a suptitle
+                assert fig._suptitle is not None
+
+            # tight_layout should have been called with rect for each figure
+            rect_calls = [
+                (args, kw) for args, kw in call_log if kw.get("rect") == [0, 0, 1, 0.96]
+            ]
+            assert len(rect_calls) >= len(figures), (
+                f"Expected tight_layout(rect=[0, 0, 1, 0.96]) to be called "
+                f"at least {len(figures)} times, got {len(rect_calls)}"
+            )
+
         for fig in figures:
-            # Each figure should have a suptitle
-            assert fig._suptitle is not None
             plt.close(fig)
