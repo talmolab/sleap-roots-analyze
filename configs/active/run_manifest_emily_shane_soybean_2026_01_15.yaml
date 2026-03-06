@@ -1,0 +1,22 @@
+# Run Manifest: emily_shane_soybean_2026_01_15
+#
+# Dataset: Z:/users/eberrigan/20260306_Emily_Shane_CQuesta_Soybean_Cylinders_2026-01-15/sleap_roots_traits_output/traits_summary.csv
+# Analysis date: 2026-03-06
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_emily_shane_soybean_2026_01_15.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "emily_shane_soybean_2026_01_15"
+description: "QC and Viz for Emily Shane CQuesta soybean cylinders (2026-01-15). Ungrouped analysis, 121 scans, ages 7-29 DAG."
+
+qc_configs:
+  - qc/emily_shane_soybean_2026_01_15.yaml
+
+viz_configs:
+  - viz/emily_shane_soybean_2026_01_15.yaml
+
+qc_mapping:
+  viz/emily_shane_soybean_2026_01_15.yaml: qc/emily_shane_soybean_2026_01_15.yaml
