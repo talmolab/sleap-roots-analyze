@@ -474,6 +474,42 @@ class TestHeritabilityMetadataAndSummary:
 class TestHeritabilityDownstreamCompatibility:
     """Test downstream compatibility when heritability is disabled."""
 
+    def test_pipeline_completes_with_heritability_disabled(
+        self, sample_data, viz_config_heritability_disabled, prev_result, tmp_path
+    ):
+        """Integration test: step completes with heritability disabled.
+
+        Verifies that StatisticalAnalysisStep completes successfully when
+        calculate_heritability=False, no heritability CSV is generated, and
+        heritability_results is {}.
+        """
+        # GIVEN a config with calculate_heritability=False
+        step = StatisticalAnalysisStep()
+
+        # WHEN we execute the step
+        result = step.execute(
+            sample_data,
+            viz_config_heritability_disabled,
+            tmp_path,
+            prev_result,
+        )
+
+        # THEN the step should complete successfully
+        assert isinstance(result, StepResult)
+        assert result.data is not None
+        assert len(result.data) == len(sample_data)
+
+        # AND no heritability CSV should be generated
+        assert not (tmp_path / "data" / "08_heritability_results.csv").exists()
+
+        # AND heritability_results should be empty dict
+        assert result.metadata["heritability_results"] == {}
+
+        # AND other outputs should still be generated
+        assert (tmp_path / "data" / "08_trait_statistics.json").exists()
+        assert (tmp_path / "data" / "08_anova_results.csv").exists()
+        assert (tmp_path / "data" / "08_statistical_analysis_summary.json").exists()
+
     def test_filter_heritability_handles_empty_results(self, sample_data, tmp_path):
         """Test FilterHeritabilityStep handles empty heritability_results."""
         from sleap_roots_analyze.pipeline import HeritabilityConfig

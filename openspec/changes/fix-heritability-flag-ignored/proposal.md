@@ -13,8 +13,8 @@ GitHub Issue: #70
 
 - **Respect config flag**: Check `config.statistics.calculate_heritability` before
   calling `calculate_heritability_estimates()` in `StatisticalAnalysisStep.execute()`
-- **Conditional metadata**: Only include `heritability_results` in output metadata
-  when heritability was actually calculated
+- **Metadata key always present**: Always include `heritability_results` key in
+  output metadata; set to `{}` when disabled, populated with results when enabled
 - **Empty heritability path**: When heritability is disabled, set
   `heritability_results` to an empty dict `{}` and skip CSV generation for
   `08_heritability_results.csv`

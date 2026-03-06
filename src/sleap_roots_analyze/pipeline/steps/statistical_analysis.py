@@ -25,12 +25,18 @@ class StatisticalAnalysisStep(BaseStep):
     This step calculates:
     - Basic trait statistics (mean, std, min, max, etc.)
     - ANOVA results for each trait
-    - Broad-sense heritability (H²) for each trait
+    - Broad-sense heritability (H²) for each trait (when enabled)
+
+    Heritability calculation is controlled by
+    ``config.statistics.calculate_heritability``. When the flag is ``False``,
+    heritability is skipped entirely and no heritability CSV is produced.
 
     Outputs:
         - 08_trait_statistics.json: Basic statistics for each trait
         - 08_anova_results.csv: ANOVA F-statistics and p-values
         - 08_heritability_results.csv: Heritability estimates and significance
+          (only generated when ``config.statistics.calculate_heritability``
+          is enabled)
         - 08_statistical_analysis_summary.json: Combined summary
     """
 
