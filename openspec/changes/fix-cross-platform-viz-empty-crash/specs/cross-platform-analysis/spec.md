@@ -16,8 +16,9 @@ The `VisualizeCrossPlatformStep` SHALL handle empty correlation DataFrames grace
 - **AND** output metadata SHALL NOT include `"empty_correlations"` key
 - **AND** behavior SHALL be identical to current implementation
 
-#### Scenario: Pipeline completes when no shared genotypes
-- **WHEN** two experiments have zero shared genotypes
-- **AND** `CalculateCrossPlatformCorrelationsStep` produces an empty correlation DataFrame
+#### Scenario: Pipeline completes when all correlations are filtered out
+- **GIVEN** two experiments share common genotypes
+- **WHEN** `CalculateCrossPlatformCorrelationsStep` filters out all trait-pair correlations (e.g., due to strict p-value threshold or insufficient replicates)
+- **AND** the resulting `correlation_df` is empty
 - **THEN** `VisualizeCrossPlatformStep` SHALL complete without error
 - **AND** the pipeline summary SHALL report status "success"

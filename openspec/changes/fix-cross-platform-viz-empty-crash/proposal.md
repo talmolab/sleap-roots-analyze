@@ -1,8 +1,6 @@
 ## Why
 
-The `VisualizeCrossPlatformStep` crashes with `ValueError("correlation_df cannot be
-empty")` when all cross-platform trait correlations are filtered out (e.g., insufficient
-shared genotypes). The upstream `CalculateCrossPlatformCorrelationsStep` correctly creates
+The `VisualizeCrossPlatformStep` crashes with `ValueError("correlation_df cannot be empty")` when all cross-platform trait correlations are filtered out (e.g., insufficient shared genotypes). The upstream `CalculateCrossPlatformCorrelationsStep` correctly creates
 an empty DataFrame with proper schema, but the visualization step passes it directly to
 `create_correlation_summary_plot()` without checking for emptiness first.
 

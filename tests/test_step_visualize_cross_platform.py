@@ -999,13 +999,14 @@ def test_visualize_nonempty_metadata_no_empty_flag(tmp_path):
 # -- Task 3 integration test ------------------------------------------------
 
 
-def test_cross_platform_pipeline_completes_with_no_shared_genotypes(
+def test_cross_platform_pipeline_completes_with_empty_correlations(
     tmp_path,
 ):
-    """Pipeline completes when experiments share zero genotypes.
+    """Pipeline completes when all correlations are filtered out.
 
-    GIVEN two experiments with completely disjoint genotype sets
-    WHEN the cross-platform correlation + visualization steps run
+    GIVEN two experiments that share common genotypes
+    WHEN CalculateCrossPlatformCorrelationsStep filters out all trait-pair
+         correlations (e.g., due to insufficient replicates for correlation)
     THEN the visualization step completes without error
     AND plots_generated is 0
     """
@@ -1016,27 +1017,29 @@ def test_cross_platform_pipeline_completes_with_no_shared_genotypes(
         CalculateCrossPlatformCorrelationsStep,
     )
 
-    # Exp1 has genotypes X, Y; Exp2 has genotypes M, N -- no overlap
+    # Both experiments share genotypes A and B, but each genotype has only
+    # one sample per experiment.  With min_genotypes_for_correlation=3
+    # (the default), only 2 shared genotypes are available, so every
+    # trait pair is filtered out and correlation_df ends up empty.
     exp1_df = pd.DataFrame(
         {
-            "genotype": ["X", "X", "Y", "Y"],
-            "replicate": [1, 2, 1, 2],
-            "trait1": [1.0, 1.1, 2.0, 2.1],
+            "genotype": ["A", "B"],
+            "replicate": [1, 1],
+            "trait1": [1.0, 2.0],
         }
     )
     exp2_df = pd.DataFrame(
         {
-            "genotype": ["M", "M", "N", "N"],
-            "replicate": [1, 2, 1, 2],
-            "trait_a": [10.0, 10.5, 20.0, 20.5],
+            "genotype": ["A", "B"],
+            "replicate": [1, 1],
+            "trait_a": [10.0, 20.0],
         }
     )
 
-    # Simulate load step output: no shared genotypes
     load_data = {
         "exp1_df": exp1_df,
         "exp2_df": exp2_df,
-        "common_genotypes": [],  # No overlap
+        "common_genotypes": ["A", "B"],
     }
     load_result = StepResult(
         data=load_data,
@@ -1061,6 +1064,7 @@ def test_cross_platform_pipeline_completes_with_no_shared_genotypes(
     )
 
     # Run correlation step -- should produce empty correlation_df
+    # because only 2 genotypes exist (below min_genotypes_for_correlation)
     corr_step = CalculateCrossPlatformCorrelationsStep()
     corr_result = corr_step.execute(
         data=load_data,
