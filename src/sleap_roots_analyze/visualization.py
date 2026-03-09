@@ -113,7 +113,7 @@ def create_trait_boxplots_by_genotype(
     figsize: Tuple[int, int] = (15, 10),
     adaptive_config: Optional[Any] = None,
     orientation: str = "auto",
-    horizontal_threshold: int = 15,
+    horizontal_threshold: int = 8,
 ) -> plt.Figure:
     """Create boxplots for traits grouped by genotype.
 
@@ -122,18 +122,18 @@ def create_trait_boxplots_by_genotype(
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
         n_cols: Number of columns in subplot grid
-        figsize: Figure size (only used if adaptive_config is None)
+        figsize: Base figure size. May be overridden by adaptive_config or
+            adjusted for genotype count/orientation.
         adaptive_config: Optional adaptive sizing configuration
         orientation: Boxplot orientation - "vertical", "horizontal", or "auto".
             "auto" switches to horizontal when n_genotypes > horizontal_threshold.
         horizontal_threshold: Number of genotypes above which auto orientation
-            switches to horizontal (default: 15).
+            switches to horizontal (default: 8).
 
     Returns:
-        Matplotlib figure object
+        Matplotlib figure object. Callers are responsible for calling
+        tight_layout() if needed (e.g., after adding suptitle).
     """
-    import seaborn as sns
-
     n_traits = len(trait_cols)
     if n_traits == 0:
         # Handle empty case
@@ -192,6 +192,15 @@ def create_trait_boxplots_by_genotype(
         height_per_genotype = 0.3  # inches per genotype
         min_subplot_height = max(4, n_genotypes * height_per_genotype)
         figsize = (figsize[0], min_subplot_height * n_rows)
+    elif actual_orientation == "vertical" and n_genotypes > 0:
+        # For vertical orientation, scale subplot width with genotype count
+        # Only override figsize when adaptive width exceeds current per-subplot width
+        # Use n_cols (not min(n_cols, n_traits)) since plt.subplots creates n_cols columns
+        # Cap at 20 inches per subplot to prevent extremely large figures
+        adaptive_subplot_width = min(20.0, max(4.0, n_genotypes * 0.5))
+        current_subplot_width = figsize[0] / n_cols
+        if adaptive_subplot_width > current_subplot_width:
+            figsize = (adaptive_subplot_width * n_cols, figsize[1])
 
     n_rows = (n_traits + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
@@ -209,15 +218,28 @@ def create_trait_boxplots_by_genotype(
 
             if len(df_plot) > 0:
                 if actual_orientation == "horizontal":
-                    # Use seaborn for horizontal boxplots
-                    # Let seaborn determine order from data (avoids position mismatch errors)
-                    sns.boxplot(
-                        data=df_plot,
-                        x=trait,
-                        y=genotype_col,
-                        ax=axes[i],
+                    # Use matplotlib boxplot for horizontal orientation
+                    # Style matches df.boxplot() vertical: blue boxes, green
+                    # medians, gridlines, unfilled outline
+                    genotype_order = sorted(df_plot[genotype_col].unique())
+                    grouped_data = [
+                        df_plot.loc[df_plot[genotype_col] == g, trait].values
+                        for g in genotype_order
+                    ]
+                    boxprops = dict(color="#1f77b4")
+                    whiskerprops = dict(color="#1f77b4")
+                    capprops = dict(color="k")
+                    medianprops = dict(color="#2ca02c")
+                    axes[i].boxplot(
+                        grouped_data,
                         orientation="horizontal",
+                        tick_labels=genotype_order,
+                        boxprops=boxprops,
+                        whiskerprops=whiskerprops,
+                        capprops=capprops,
+                        medianprops=medianprops,
                     )
+                    axes[i].grid(True)
                     axes[i].set_title(f"{trait}")
                     axes[i].set_xlabel(trait)
                     axes[i].set_ylabel("Genotype")
@@ -228,6 +250,14 @@ def create_trait_boxplots_by_genotype(
                     axes[i].set_xlabel("Genotype")
                     axes[i].set_ylabel(trait)
                     plt.setp(axes[i].xaxis.get_majorticklabels(), rotation=90)
+                    # Scale label font size for many genotypes (>10)
+                    plotted_genotypes = df_plot[genotype_col].nunique()
+                    if plotted_genotypes > 10:
+                        label_fontsize = max(6, 10 - (plotted_genotypes - 10) * 0.3)
+                        plt.setp(
+                            axes[i].xaxis.get_majorticklabels(),
+                            fontsize=label_fontsize,
+                        )
             else:
                 axes[i].text(
                     0.5,
@@ -243,7 +273,6 @@ def create_trait_boxplots_by_genotype(
     for i in range(n_traits, len(axes)):
         axes[i].set_visible(False)
 
-    plt.tight_layout()
     return fig
 
 
@@ -311,7 +340,7 @@ def create_trait_boxplots_by_genotype_batched(
     figsize: Optional[Tuple[int, int]] = None,
     subplot_size: Tuple[float, float] = (4.0, 4.0),
     orientation: str = "auto",
-    horizontal_threshold: int = 15,
+    horizontal_threshold: int = 8,
 ) -> List[plt.Figure]:
     """Create batched boxplot plots by genotype (multiple figures for many traits).
 
@@ -328,7 +357,7 @@ def create_trait_boxplots_by_genotype_batched(
         orientation: Boxplot orientation - "vertical", "horizontal", or "auto".
             "auto" switches to horizontal when n_genotypes > horizontal_threshold.
         horizontal_threshold: Number of genotypes above which auto orientation
-            switches to horizontal (default: 15).
+            switches to horizontal (default: 8).
 
     Returns:
         List of matplotlib figure objects (one per batch)
@@ -372,17 +401,23 @@ def create_trait_boxplots_by_genotype_batched(
                 subplot_height = max(subplot_size[1], n_genotypes * height_per_genotype)
                 batch_figsize = (actual_cols * subplot_size[0], n_rows * subplot_height)
             else:
+                # For vertical, scale subplot width with genotype count
+                # Cap at 20 inches per subplot to prevent extremely large figures
+                adaptive_subplot_width = min(
+                    20.0, max(subplot_size[0], n_genotypes * 0.5)
+                )
                 batch_figsize = (
-                    actual_cols * subplot_size[0],
+                    actual_cols * adaptive_subplot_width,
                     n_rows * subplot_size[1],
                 )
 
         # Create figure for this batch
+        # Use actual_cols so the subplot grid matches the computed figsize
         fig = create_trait_boxplots_by_genotype(
             df,
             batch_traits,
             genotype_col=genotype_col,
-            n_cols=n_cols,
+            n_cols=actual_cols,
             figsize=batch_figsize,
             orientation=orientation,
             horizontal_threshold=horizontal_threshold,
@@ -392,6 +427,7 @@ def create_trait_boxplots_by_genotype_batched(
             fontsize=14,
             y=0.995,
         )
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
         figures.append(fig)
 
     return figures
@@ -557,6 +593,7 @@ def create_exploratory_summary_plots(
         fig = create_trait_boxplots_by_genotype(
             df, trait_cols[:n_traits_box], genotype_col, adaptive_config=adaptive_config
         )
+        fig.tight_layout()
         figures["trait_ranges_by_genotype"] = fig
 
     # 4. Sample size per genotype

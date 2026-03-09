@@ -9,6 +9,7 @@ Complete API documentation for `sleap-roots-analyze`.
 - [data_utils](#data_utils-module)
 - [pca](#pca-module)
 - [outlier_detection](#outlier_detection-module)
+- [visualization](#visualization-module)
 
 ---
 
@@ -589,6 +590,104 @@ Convert numpy types to JSON-serializable Python types.
 - `np.bool_` → `bool`
 - `np.ndarray` → `list`
 - Nested `dict`, `list`, `tuple` are processed recursively
+
+---
+
+## `visualization` Module
+
+Visualization functions for trait data exploration and publication-ready figures.
+
+### Boxplot Functions
+
+#### `create_trait_boxplots_by_genotype`
+
+```python
+create_trait_boxplots_by_genotype(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    genotype_col: str = "geno",
+    n_cols: int = 3,
+    figsize: Tuple[int, int] = (15, 10),
+    adaptive_config: Optional[Any] = None,
+    orientation: str = "auto",
+    horizontal_threshold: int = 8,
+) -> plt.Figure
+```
+
+Create boxplots for traits grouped by genotype with adaptive layout.
+
+**Parameters:**
+- `df`: DataFrame with trait and genotype data
+- `trait_cols`: List of trait column names to plot
+- `genotype_col`: Name of genotype column (default: "geno")
+- `n_cols`: Number of columns in subplot grid
+- `figsize`: Base figure size. May be overridden by adaptive_config or adjusted for genotype count/orientation
+- `adaptive_config`: Optional adaptive sizing configuration
+- `orientation`: Boxplot orientation — "vertical", "horizontal", or "auto". "auto" switches to horizontal when genotype count exceeds `horizontal_threshold`
+- `horizontal_threshold`: Threshold for auto orientation switch (default: 8)
+
+**Returns:**
+- `plt.Figure`: Matplotlib figure. Callers are responsible for calling `tight_layout()` if needed (e.g., after adding suptitle).
+
+**Layout behavior:**
+- **Vertical** (≤ threshold genotypes): Uses `df.boxplot()` with rotated x-axis labels. Subplot width scales adaptively (0.5 in/genotype, min 4.0, max 20.0 inches).
+- **Horizontal** (> threshold genotypes): Uses `ax.boxplot(orientation="horizontal")` with genotype names as y-axis labels.
+- Both orientations use consistent styling: unfilled outline boxes, blue (`#1f77b4`) outlines, green (`#2ca02c`) medians, and gridlines.
+
+**Example:**
+```python
+from sleap_roots_analyze.visualization import create_trait_boxplots_by_genotype
+
+fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="auto")
+fig.suptitle("Trait Distributions by Genotype")
+fig.tight_layout(rect=[0, 0, 1, 0.96])
+fig.savefig("boxplots.png")
+```
+
+---
+
+#### `create_trait_boxplots_by_genotype_batched`
+
+```python
+create_trait_boxplots_by_genotype_batched(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    genotype_col: str = "geno",
+    batch_size: int = 16,
+    n_cols: int = 4,
+    figsize: Optional[Tuple[int, int]] = None,
+    subplot_size: Tuple[float, float] = (4.0, 4.0),
+    orientation: str = "auto",
+    horizontal_threshold: int = 8,
+) -> List[plt.Figure]
+```
+
+Create batched boxplots for many traits across multiple figures.
+
+**Parameters:**
+- `df`: DataFrame with trait data
+- `trait_cols`: List of trait column names
+- `genotype_col`: Column name for genotype grouping (default: "geno")
+- `batch_size`: Number of traits per figure (default: 16)
+- `n_cols`: Number of columns in subplot grid
+- `figsize`: Optional explicit figure size. If None, calculated adaptively from `subplot_size`
+- `subplot_size`: Size of each subplot in inches when figsize is None (default: (4.0, 4.0))
+- `orientation`: Boxplot orientation — "vertical", "horizontal", or "auto"
+- `horizontal_threshold`: Threshold for auto orientation switch (default: 8)
+
+**Returns:**
+- `List[plt.Figure]`: List of figures, one per batch. Each includes suptitle and `tight_layout(rect=[0, 0, 1, 0.96])`.
+
+**Example:**
+```python
+from sleap_roots_analyze.visualization import create_trait_boxplots_by_genotype_batched
+
+figures = create_trait_boxplots_by_genotype_batched(
+    df, trait_cols, batch_size=12, orientation="auto"
+)
+for i, fig in enumerate(figures):
+    fig.savefig(f"boxplots_batch_{i}.png")
+```
 
 ---
 

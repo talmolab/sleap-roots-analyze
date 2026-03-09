@@ -6,6 +6,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import matplotlib
+import matplotlib.figure
 
 # Use non-interactive backend for tests to avoid Tk issues
 matplotlib.use("Agg")
@@ -44,6 +45,7 @@ from tests.fixtures import (
 from sleap_roots_analyze.visualization import (
     create_trait_histograms,
     create_trait_boxplots_by_genotype,
+    create_trait_boxplots_by_genotype_batched,
     create_correlation_heatmap,
     save_figure_with_unique_name,
     create_exploratory_summary_plots,
@@ -312,7 +314,7 @@ class TestCreateTraitBoxplotsByGenotype:
         """TDD Test: Auto orientation switches to horizontal when genotypes > threshold.
 
         When orientation='auto' (default), the function should automatically
-        switch to horizontal when n_genotypes exceeds the threshold (e.g., 15).
+        switch to horizontal when n_genotypes exceeds the threshold (default: 8).
         """
         import numpy as np
 
@@ -346,7 +348,7 @@ class TestCreateTraitBoxplotsByGenotype:
 
         assert genotype_on_y, (
             "With 20 genotypes and orientation='auto', should auto-switch to horizontal. "
-            "Threshold for switching should be ~15 genotypes."
+            "Threshold for switching should be ~8 genotypes."
         )
 
         plt.close(fig)
@@ -3854,3 +3856,391 @@ class TestOutlierMethodComparisonPlot:
         ), f"Expected 2 bars (combined/invalid skipped), got {len(bars)}"
 
         plt.close(fig)
+
+
+class TestBoxplotLabelOverlapFixes:
+    """Tests for fix-boxplot-label-overlap (Issue #73).
+
+    These tests verify four fixes:
+    1. Layout timing: tight_layout not called inside single-figure function
+    2. Horizontal threshold lowered from 15 to 8
+    3. Adaptive subplot width for vertical orientation
+    4. Label font scaling for high genotype counts
+    """
+
+    def _make_df(self, n_genotypes, n_traits=2, samples_per_geno=5):
+        """Helper to create a DataFrame with the given number of genotypes."""
+        np.random.seed(42)
+        n_samples = n_genotypes * samples_per_geno
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [
+            f"Genotype_{i:03d}" for i in range(n_genotypes)
+        ] * samples_per_geno
+        return pd.DataFrame(data)
+
+    # --- Task 1: Layout timing tests ---
+
+    def test_boxplot_no_tight_layout_before_suptitle(self):
+        """Verify create_trait_boxplots_by_genotype does NOT call tight_layout internally.
+
+        The batched wrapper adds suptitle after the single-figure function returns.
+        If tight_layout runs inside the single function, suptitle will overlap subplots.
+        Patches both plt.tight_layout and Figure.tight_layout to catch either path.
+        """
+        df = self._make_df(5)
+        trait_cols = ["trait_0", "trait_1"]
+
+        with (
+            patch("sleap_roots_analyze.visualization.plt") as mock_plt,
+            patch.object(matplotlib.figure.Figure, "tight_layout") as mock_fig_tl,
+        ):
+            # We need real subplots to work, so delegate subplots to actual plt
+            mock_plt.subplots = plt.subplots
+            mock_plt.setp = plt.setp
+            mock_plt.close = plt.close
+
+            fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+            # tight_layout should NOT have been called via either path
+            mock_plt.tight_layout.assert_not_called()
+            mock_fig_tl.assert_not_called()
+            plt.close(fig)
+
+    def test_boxplot_suptitle_not_overlapping(self):
+        """Verify batched boxplots call tight_layout with rect to leave room for suptitle.
+
+        After suptitle is added, tight_layout(rect=[0, 0, 1, 0.96]) should be called
+        so the title does not overlap the top row of subplots.
+        """
+        df = self._make_df(5, n_traits=4)
+        trait_cols = ["trait_0", "trait_1", "trait_2", "trait_3"]
+
+        original_tight_layout = matplotlib.figure.Figure.tight_layout
+        call_log = []
+
+        def spy_tight_layout(self_fig, *args, **kwargs):
+            call_log.append((args, kwargs))
+            return original_tight_layout(self_fig, *args, **kwargs)
+
+        with patch.object(
+            matplotlib.figure.Figure,
+            "tight_layout",
+            spy_tight_layout,
+        ):
+            figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+            assert len(figures) >= 1
+            fig = figures[0]
+
+            # The suptitle should exist
+            assert fig.get_suptitle() != ""
+
+            # tight_layout should have been called with rect that reserves top
+            found_rect_call = any(
+                kw.get("rect") == [0, 0, 1, 0.96] for _, kw in call_log
+            )
+            assert found_rect_call, (
+                "tight_layout should be called with rect=[0, 0, 1, 0.96] "
+                f"to leave room for suptitle. Calls: {call_log}"
+            )
+
+        for f in figures:
+            plt.close(f)
+
+    # --- Task 2: Horizontal threshold tests ---
+
+    def test_boxplot_vertical_with_exactly_8_genotypes(self):
+        """With exactly 8 genotypes and default settings, vertical orientation should be used.
+
+        The threshold uses strict > comparison, so exactly 8 stays vertical.
+        """
+        df = self._make_df(8)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # In vertical orientation, genotypes appear on X-axis
+        x_labels = [label.get_text() for label in visible_axes[0].get_xticklabels()]
+        genotype_on_x = any("Genotype_" in str(l) for l in x_labels if l)
+        assert genotype_on_x, (
+            "With exactly 8 genotypes and threshold=8 (strict >), auto orientation "
+            "should use vertical (genotypes on x-axis)"
+        )
+        plt.close(fig)
+
+    def test_boxplot_horizontal_with_10_genotypes(self):
+        """With 10 genotypes and default settings, horizontal orientation should be used.
+
+        The new threshold is 8, so 10 genotypes should trigger horizontal orientation.
+        """
+        df = self._make_df(10)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # In horizontal orientation, genotypes appear on Y-axis
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(l) for l in y_labels if l)
+        assert genotype_on_y, (
+            "With 10 genotypes and threshold=8, auto orientation should use "
+            "horizontal (genotypes on y-axis)"
+        )
+        plt.close(fig)
+
+    def test_boxplot_vertical_with_7_genotypes(self):
+        """With 7 genotypes and default settings, vertical orientation should be used.
+
+        The new threshold is 8, so 7 genotypes should use vertical orientation.
+        """
+        df = self._make_df(7)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # In vertical orientation, genotypes appear on X-axis
+        x_labels = [label.get_text() for label in visible_axes[0].get_xticklabels()]
+        genotype_on_x = any("Genotype_" in str(l) for l in x_labels if l)
+        assert genotype_on_x, (
+            "With 7 genotypes and threshold=8, auto orientation should use "
+            "vertical (genotypes on x-axis)"
+        )
+        plt.close(fig)
+
+    # --- Task 3: Adaptive subplot sizing and label font tests ---
+
+    def test_boxplot_subplot_width_scales_with_genotypes(self):
+        """With 20 genotypes in vertical mode, figure width should scale adaptively.
+
+        subplot_width = max(4.0, n_genotypes * 0.5) = max(4.0, 10.0) = 10.0
+        With 3 traits and n_cols=3, total width = 10.0 * 3 = 30.0,
+        much larger than default 15.
+        """
+        df = self._make_df(20, n_traits=3)
+        trait_cols = ["trait_0", "trait_1", "trait_2"]
+
+        # Force vertical orientation to test width scaling
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
+
+        width, _ = fig.get_size_inches()
+        # With 20 genotypes: subplot_width = max(4.0, 20*0.5) = 10.0
+        # Grid uses n_cols=3, so total width = 10.0 * 3 = 30.0
+        # It should be larger than the old fixed 15
+        assert width > 15, (
+            f"Figure width {width} should be > 15 for 20 genotypes in vertical mode. "
+            "Adaptive subplot width should scale with genotype count."
+        )
+        plt.close(fig)
+
+    def test_boxplot_label_fontsize_decreases_for_many_genotypes(self):
+        """With 20 genotypes, x-tick label font size should be reduced.
+
+        Font scaling only applies when genotypes > 10.
+        fontsize = max(6, 10 - (20-10) * 0.3) = max(6, 7.0) = 7.0
+        """
+        df = self._make_df(20)
+        trait_cols = ["trait_0"]
+
+        # Force vertical orientation so x-tick labels are genotype names
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
+
+        # Force rendering so tick labels are populated
+        fig.canvas.draw()
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        # Check font size of x-tick labels
+        tick_labels = visible_axes[0].get_xticklabels()
+        assert (
+            len(tick_labels) > 0
+        ), "Expected x-tick labels to be rendered after canvas.draw()"
+        fontsize = tick_labels[0].get_fontsize()
+        assert fontsize < 10, (
+            f"X-tick label fontsize {fontsize} should be < 10 for 20 genotypes. "
+            "Label font scaling should reduce size for many genotypes."
+        )
+        plt.close(fig)
+
+    def test_boxplot_label_fontsize_unchanged_for_few_genotypes(self):
+        """With 5 genotypes, x-tick label font size should remain at default (10pt).
+
+        Font scaling only applies when genotypes > 10, so small counts
+        should keep the default matplotlib tick label size for backward compat.
+        """
+        df = self._make_df(5)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="vertical")
+        fig.canvas.draw()
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        tick_labels = visible_axes[0].get_xticklabels()
+        assert len(tick_labels) > 0, "Expected x-tick labels after canvas.draw()"
+        fontsize = tick_labels[0].get_fontsize()
+        assert fontsize >= 10, (
+            f"X-tick label fontsize {fontsize} should be >= 10 for 5 genotypes. "
+            "Font scaling should not reduce size for small genotype counts."
+        )
+        plt.close(fig)
+
+    # --- Task 5: Integration tests ---
+
+    def test_batched_boxplots_with_many_genotypes_orientation(self):
+        """Batched boxplots with 20 genotypes should use horizontal orientation."""
+        df = self._make_df(20, n_traits=4)
+        trait_cols = [f"trait_{i}" for i in range(4)]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        assert len(figures) >= 1
+        fig = figures[0]
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+
+        # Should use horizontal orientation (genotypes on y-axis)
+        y_labels = [label.get_text() for label in visible_axes[0].get_yticklabels()]
+        genotype_on_y = any("Genotype_" in str(l) for l in y_labels if l)
+        assert (
+            genotype_on_y
+        ), "Batched boxplots with 20 genotypes should use horizontal orientation"
+
+        for f in figures:
+            plt.close(f)
+
+    def test_batched_boxplots_suptitle_with_tight_layout(self):
+        """Batched boxplots should have suptitle and tight_layout with rect."""
+        df = self._make_df(5, n_traits=8)
+        trait_cols = [f"trait_{i}" for i in range(8)]
+
+        original_tight_layout = matplotlib.figure.Figure.tight_layout
+        call_log = []
+
+        def spy_tight_layout(self_fig, *args, **kwargs):
+            call_log.append((args, kwargs))
+            return original_tight_layout(self_fig, *args, **kwargs)
+
+        with patch.object(
+            matplotlib.figure.Figure,
+            "tight_layout",
+            spy_tight_layout,
+        ):
+            figures = create_trait_boxplots_by_genotype_batched(
+                df, trait_cols, batch_size=4
+            )
+
+            assert len(figures) == 2
+            for fig in figures:
+                # Each figure should have a suptitle
+                assert fig.get_suptitle() != ""
+
+            # tight_layout should have been called with rect for each figure
+            rect_calls = [
+                (args, kw) for args, kw in call_log if kw.get("rect") == [0, 0, 1, 0.96]
+            ]
+            assert len(rect_calls) >= len(figures), (
+                f"Expected tight_layout(rect=[0, 0, 1, 0.96]) to be called "
+                f"at least {len(figures)} times, got {len(rect_calls)}"
+            )
+
+        for fig in figures:
+            plt.close(fig)
+
+    # --- Unified boxplot style tests ---
+
+    def test_boxplot_horizontal_uses_unfilled_style(self):
+        """Horizontal boxplots should use unfilled outline style (not seaborn filled).
+
+        With 12 genotypes, auto orientation switches to horizontal.
+        Matplotlib's default boxplot uses Line2D for boxes (no filled patches).
+        Seaborn adds PathPatch objects with filled color. We verify no filled
+        patches exist, confirming the unfilled outline style.
+        """
+        df = self._make_df(12)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols)
+        fig.canvas.draw()
+
+        axes = fig.get_axes()
+        visible_axes = [ax for ax in axes if ax.get_visible()]
+        assert len(visible_axes) >= 1
+
+        ax = visible_axes[0]
+        # Seaborn boxplot adds PathPatch objects with filled color to ax.patches.
+        # Matplotlib's default boxplot (without patch_artist) uses Line2D for boxes
+        # and adds NO patches. Check that no filled patches exist.
+        filled_patches = [
+            p
+            for p in ax.patches
+            if hasattr(p, "get_facecolor")
+            and p.get_facecolor()[3] > 0.1  # non-transparent
+            and not (
+                p.get_facecolor()[0] >= 0.99
+                and p.get_facecolor()[1] >= 0.99
+                and p.get_facecolor()[2] >= 0.99
+            )  # not white
+        ]
+        assert len(filled_patches) == 0, (
+            f"Found {len(filled_patches)} filled patches — horizontal boxplot should "
+            "use unfilled outline style (matplotlib default), not seaborn filled style."
+        )
+        plt.close(fig)
+
+    def test_boxplot_vertical_and_horizontal_same_style(self):
+        """Both orientations should produce consistent unfilled outline boxes.
+
+        Both should use matplotlib's default boxplot (Line2D boxes, no filled patches).
+        """
+        df_vert = self._make_df(5)
+        df_horiz = self._make_df(12)
+        trait_cols = ["trait_0"]
+
+        fig_vert = create_trait_boxplots_by_genotype(
+            df_vert, trait_cols, orientation="vertical"
+        )
+        fig_horiz = create_trait_boxplots_by_genotype(
+            df_horiz, trait_cols, orientation="horizontal"
+        )
+        fig_vert.canvas.draw()
+        fig_horiz.canvas.draw()
+
+        def count_filled_patches(fig):
+            ax = [a for a in fig.get_axes() if a.get_visible()][0]
+            return len(
+                [
+                    p
+                    for p in ax.patches
+                    if hasattr(p, "get_facecolor")
+                    and p.get_facecolor()[3] > 0.1
+                    and not (
+                        p.get_facecolor()[0] >= 0.99
+                        and p.get_facecolor()[1] >= 0.99
+                        and p.get_facecolor()[2] >= 0.99
+                    )
+                ]
+            )
+
+        vert_filled = count_filled_patches(fig_vert)
+        horiz_filled = count_filled_patches(fig_horiz)
+
+        assert vert_filled == 0, "Vertical boxplot should have no filled patches"
+        assert horiz_filled == 0, "Horizontal boxplot should have no filled patches"
+
+        plt.close(fig_vert)
+        plt.close(fig_horiz)
