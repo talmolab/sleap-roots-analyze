@@ -1,0 +1,77 @@
+# QC Pipeline Configuration: amaranth_tis108_exp1
+#
+# Dataset: Amaranth TIS108 Test Exp1 (Suyash Patil / Sanghwa's Strigolactones Project)
+# Analysis date: 2026-03-06
+# Generated from: alfalfa_gwas_w1w2_combined.yaml (adapted for amaranth, ungrouped)
+#
+# Key choices:
+#   group_by: null — single age (16 DAP), ungrouped analysis
+#   columns.genotype: treatment — grouping by TIS108 treatment (MOCK, 1uM, 3uM)
+#   heritability.enabled: false — calculate H2 (Step 8) but skip filtering (Step 9)
+
+pipeline_name: "amaranth_tis108_exp1_qc"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260130_Suyash_Patil_Amaranth_NON-AMF_Species_TIS108_Test_Exp1/sleap_roots_traits_output/traits_summary_with_metadata.csv"
+  image_dir: null
+  additional_exclude_cols: []
+  group_by: null
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "treatment"
+  replicate: "plant_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 10
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.75
+  feature_selection_strategy: "extreme"
+
+heritability:
+  enabled: false
+  threshold: 0.60
+  generate_diagnostics: true
+
+visualization:
+  dpi: 300
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

@@ -1,0 +1,11 @@
+run_name: "Turface Alfalfa GWAS Standalone Analysis"
+description: "QC and Viz for Mauricio Chiurazzi turface alfalfa data (RhizoVision Explorer). 1662 samples, 418 genotypes, 58 traits. Ungrouped. PCA 0.75, extreme feature selection, UMAP enabled, no heritability filtering."
+
+qc_configs:
+  - qc/turface_alfalfa_gwas.yaml
+
+viz_configs:
+  - viz/turface_alfalfa_gwas.yaml
+
+qc_mapping:
+  viz/turface_alfalfa_gwas.yaml: qc/turface_alfalfa_gwas.yaml

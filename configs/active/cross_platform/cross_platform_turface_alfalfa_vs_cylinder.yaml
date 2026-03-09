@@ -1,0 +1,80 @@
+# Cross-Platform Analysis Configuration
+# Comparing Turface Alfalfa GWAS (RhizoVision) vs Cylinder Day 9 (SLEAP Roots)
+# Created: 2026-03-06
+# Purpose: Compare root trait variation patterns across imaging platforms
+#          for the 3 shared genotypes (222198, 230783, 190259)
+
+# Experiment 1: Turface Alfalfa GWAS (RhizoVision imaging) - QC'd, outliers removed
+exp1_data_path: "Z:/users/eberrigan/20260306_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_and_2_canola_models/sleap-roots-analyze-output-turface/2026-03-06_155407/qc/turface_alfalfa_gwas_qc_20260306_155413/07_data_outliers_removed.csv"
+exp1_name: "Turface Alfalfa GWAS (RhizoVision)"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Cylinder Day 9 (SLEAP Roots imaging) - QC'd, outliers removed
+exp2_data_path: "Z:/users/eberrigan/20260306_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_and_2_canola_models/sleap-roots-analyze-output/2026-03-06_132738/qc/plant_age_days_9_20260306_134502/07_data_outliers_removed.csv"
+exp2_name: "Cylinder Day 9 (SLEAP Roots)"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman recommended for cross-platform robustness
+min_samples_per_genotype: 2     # Set to 2 to include genotype 190259 (2 turface replicates)
+significance_level: 0.05        # Standard p-value threshold
+
+# Multiple Testing Correction
+# Using Benjamini-Yekutieli (fdr_by) — conservative, valid for correlated traits
+fdr_correction_method: "fdr_by"
+
+# Trait Redundancy Reduction
+# Cluster highly correlated traits to reduce multiple testing burden
+trait_reduction_method: "clustering"
+trait_reduction_target: "both"
+trait_clustering_threshold: 0.8
+trait_clustering_linkage: "complete"
+
+# Visualization Parameters
+top_n_correlations: 30
+top_n_joint_plots: 10
+top_n_boxplots: 10
+figsize_summary: [16, 14]
+figsize_joint: [10, 10]
+figsize_boxplot: [16, 6]
+
+# Column Exclusions - metadata columns to exclude from trait analysis
+# Turface: Computation.Time.s is the only non-trait metadata (Barcode/Genotype/Replicate are standard)
+exp1_exclude_cols:
+  - "Computation.Time.s"
+
+# Cylinder data has SLEAP Roots pipeline metadata columns
+exp2_exclude_cols:
+  - "plant_qr_code"
+  - "scan_path"
+  - "scanner_id"
+  - "species_id"
+  - "species_name"
+  - "species_genus"
+  - "species_species"
+  - "uploaded_at"
+  - "wave_id"
+  - "wave_number"
+  - "wave_name"
+  - "accession_id"
+  - "date_scanned"
+  - "experiment_id"
+  - "experiment_name"
+  - "germ_day"
+  - "germ_day_color"
+  - "phenotyper_id"
+  - "plant_age_days"
+  - "plant_name"
+  - "primary"
+  - "lateral"
+
+# Analysis Notes:
+# - STATISTICAL LIMITATION: Only 3 shared genotypes (222198, 230783, 190259)
+#   With n=3, Spearman correlation has only 1 degree of freedom.
+#   Results should be interpreted as descriptive, not statistically significant.
+# - Turface: 1605 total samples, 413 genotypes, ~49 traits (RhizoVision morphology)
+#   * Shared genotypes: 190259 (2), 222198 (3), 230783 (5) = 10 samples
+# - Cylinder Day 9: 84 total samples, 6 genotypes, ~1007 traits (SLEAP Roots spatial)
+#   * Shared genotypes: 190259 (16), 222198 (4), 230783 (20) = 40 samples
+# - Expected trait pairs: ~49 × ~1007 = ~49,343 total correlations
+# - Goal: Descriptive comparison of trait patterns across platforms

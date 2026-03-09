@@ -1,0 +1,22 @@
+# Run Manifest: Alfalfa GWAS Wave 1
+#
+# Dataset: Z:/users/eberrigan/20260218_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_canola_models/sleap_roots_traits_output/traits_summary.csv
+# Analysis date: 2026-03-06
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_alfalfa_gwas_wave1.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "Alfalfa GWAS Wave 1"
+description: "QC and Viz for Mauricio Chiurazzi Alfalfa GWAS Wave 1 (2026-03-06). Groups: plant_age_days (days 0, 3, 5, 7, 9, 12). 292 samples, 6 accessions, canola/dicot models."
+
+qc_configs:
+  - qc/alfalfa_gwas_wave1.yaml
+
+viz_configs:
+  - viz/alfalfa_gwas_wave1.yaml
+
+qc_mapping:
+  viz/alfalfa_gwas_wave1.yaml: qc/alfalfa_gwas_wave1.yaml

@@ -1,0 +1,22 @@
+# Run Manifest: amaranth_tis108_exp1
+#
+# Dataset: Amaranth TIS108 Test Exp1 (Suyash Patil / Sanghwa's Strigolactones Project)
+# Analysis date: 2026-03-06
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all --manifest configs/active/run_manifest_amaranth_tis108_exp1.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "amaranth_tis108_exp1"
+description: "QC and Viz for Amaranth TIS108 Test Exp1 (Suyash Patil, Sanghwa's Strigolactones Project). Ungrouped analysis, 36 scans, 3 treatments x 12 reps."
+
+qc_configs:
+  - qc/amaranth_tis108_exp1.yaml
+
+viz_configs:
+  - viz/amaranth_tis108_exp1.yaml
+
+qc_mapping:
+  viz/amaranth_tis108_exp1.yaml: qc/amaranth_tis108_exp1.yaml
