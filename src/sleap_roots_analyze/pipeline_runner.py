@@ -1314,7 +1314,7 @@ class PipelineRunner:
         )
         h2_threshold = self._format_config_value(config_values.get("h2_threshold", []))
         chi2_percentile = self._format_config_value(
-            config_values.get("chi2_percentile", []), default="97.5"
+            config_values.get("chi2_percentile", []), default="99.0"
         )
 
         lines = [
@@ -1343,15 +1343,20 @@ class PipelineRunner:
             "correlation heatmaps, PCA biplots, and genotype comparison plots. Interactive "
             "HTML visualizations were created for exploratory analysis.",
             "",
-            "### Cross-Platform Analysis",
-            "",
-            "Cross-platform trait correlations were calculated using both Spearman and Pearson "
-            "correlation on genotype means. Multiple testing was controlled using False Discovery "
-            f"Rate (FDR) correction with the {self._get_cross_platform_fdr_method()} procedure.",
-            "",
-            "---",
-            "",
         ]
+
+        # Only include cross-platform section if cross-platform analysis was run
+        if self.run_results.get("cross_platform"):
+            lines.extend([
+                "### Cross-Platform Analysis",
+                "",
+                "Cross-platform trait correlations were calculated using both Spearman and Pearson "
+                "correlation on genotype means. Multiple testing was controlled using False Discovery "
+                f"Rate (FDR) correction with the {self._get_cross_platform_fdr_method()} procedure.",
+                "",
+            ])
+
+        lines.extend(["---", ""])
         return lines
 
     def _collect_qc_config_values(self) -> dict[str, list[Any]]:

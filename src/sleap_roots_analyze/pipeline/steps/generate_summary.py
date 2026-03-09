@@ -99,6 +99,9 @@ class GenerateSummaryStep(BaseStep):
                 "outlier_detection": {
                     "traditional_methods": config.outlier_detection.traditional_methods,
                     "clustering_methods": config.outlier_detection.clustering_methods,
+                    "mahalanobis": {
+                        "chi2_percentile": config.outlier_detection.mahalanobis.chi2_percentile,
+                    },
                 },
                 "outlier_removal": {
                     "strategy": config.outlier_removal.strategy,
