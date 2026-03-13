@@ -1,26 +1,26 @@
-# QC Pipeline Configuration: emily_shane_soybean_2026_01_15
+# QC Pipeline Configuration: emily_shane_pennycress_2026_02_09
 #
-# Dataset: Z:/users/eberrigan/20260306_Emily_Shane_CQuesta_Soybean_Cylinders_2026-01-15/traits_summary_with_genotype.csv
-# Analysis date: 2026-03-10 (re-run with scan_id as replicate to fix column conflict)
-# Generated from: qc_template_ungrouped.yaml
+# Dataset: Z:/users/eberrigan/20260306_Emily_Shane_Pennycress_S32_GCQ_Exo_2026-02-09/traits_summary_with_genotype.csv
+# Analysis date: 2026-03-10
+# Generated from: qc_template_ungrouped.yaml (adapted)
 #
 # Key choices:
 #   csv_path: preprocessed CSV with derived genotype column (see preprocess_traits.py)
-#   heritability.threshold: 0.0 — Calculate and visualize H² but don't filter (threshold=0.0 workaround)
-#   group_by: null — Ungrouped analysis (all 121 samples together)
-#   genotype: derived "genotype" column (A3244D, A3244L, ECQM2, ECQM27, WT-SEM28, ECQM2-EXTRA)
+#   heritability.threshold: 0.0 — Calculate and visualize H² but don't filter
+#   group_by: plant_age_days — Separate analysis per timepoint (6 and 15 DAG)
+#   genotype: derived "genotype" column (15 genotypes including WT1-3, pCQS lines)
 #   replicate: scan_id (unique per scan; different from barcode to avoid column rename conflict)
 #   pca: extreme feature selection, 75% variance
 
-pipeline_name: "emily_shane_soybean_2026_01_15"
+pipeline_name: "emily_shane_pennycress_2026_02_09"
 version: "1.0"
 enable_parallel: false
 
 data:
-  csv_path: "Z:/users/eberrigan/20260306_Emily_Shane_CQuesta_Soybean_Cylinders_2026-01-15/traits_summary_with_genotype.csv"
+  csv_path: "Z:/users/eberrigan/20260306_Emily_Shane_Pennycress_S32_GCQ_Exo_2026-02-09/traits_summary_with_genotype.csv"
   image_dir: null
   additional_exclude_cols: []
-  group_by: null
+  group_by: "plant_age_days"
 
 columns:
   barcode: "plant_qr_code"

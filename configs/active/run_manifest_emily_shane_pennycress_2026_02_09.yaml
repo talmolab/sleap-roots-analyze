@@ -1,0 +1,21 @@
+# Run Manifest: emily_shane_pennycress_2026_02_09
+#
+# Dataset: Z:/users/eberrigan/20260306_Emily_Shane_Pennycress_S32_GCQ_Exo_2026-02-09/traits_summary_with_genotype.csv
+# Analysis date: 2026-03-10
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all --manifest configs/active/run_manifest_emily_shane_pennycress_2026_02_09.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "emily_shane_pennycress_2026_02_09"
+description: "QC and Viz for Emily Shane Pennycress S32 GCQ Exo cylinders (2026-02-09). Grouped by plant_age_days (6 and 15 DAG), 335 scans, 15 genotypes."
+
+qc_configs:
+  - qc/emily_shane_pennycress_2026_02_09.yaml
+
+viz_configs:
+  - viz/emily_shane_pennycress_2026_02_09.yaml
+
+qc_mapping:
+  viz/emily_shane_pennycress_2026_02_09.yaml: qc/emily_shane_pennycress_2026_02_09.yaml

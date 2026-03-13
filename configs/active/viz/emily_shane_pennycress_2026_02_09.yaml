@@ -1,17 +1,17 @@
-# Visualization Pipeline Configuration: emily_shane_soybean_2026_01_15
+# Visualization Pipeline Configuration: emily_shane_pennycress_2026_02_09
 #
-# Dataset: QC output from qc/emily_shane_soybean_2026_01_15.yaml
-# Analysis date: 2026-03-09 (re-run with corrected genotype column)
-# Generated from: viz_template_with_images.yaml
+# Dataset: QC output from qc/emily_shane_pennycress_2026_02_09.yaml
+# Analysis date: 2026-03-10
+# Generated from: viz_template_with_images.yaml (adapted)
 #
 # Note: csv_path will be auto-updated to QC output when run via run-all.
 
-pipeline_name: "emily_shane_soybean_2026_01_15"
+pipeline_name: "emily_shane_pennycress_2026_02_09"
 version: "1.0"
 
 data:
   csv_path: "PLACEHOLDER_AUTO_UPDATED_BY_RUN_ALL"
-  image_dir: "Z:/users/eberrigan/20260306_Emily_Shane_CQuesta_Soybean_Cylinders_2026-01-15/images_downloader_output"
+  image_dir: "Z:/users/eberrigan/20260306_Emily_Shane_Pennycress_S32_GCQ_Exo_2026-02-09/images_downloader_output"
 
 columns:
   barcode: "Barcode"
@@ -53,7 +53,7 @@ interesting_genotypes:
   pc_threshold: 2.0
   trait_percentile: 95.0
   min_heritability: 0.30
-  max_genotypes: 6
+  max_genotypes: 10
   generate_image_grids: true
   images_per_genotype: 9
 

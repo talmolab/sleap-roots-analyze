@@ -5,12 +5,12 @@
 #          for the 3 shared genotypes (222198, 230783, 190259)
 
 # Experiment 1: Turface Alfalfa GWAS (RhizoVision imaging) - QC'd, outliers removed
-exp1_data_path: "Z:/users/eberrigan/20260306_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_and_2_canola_models/sleap-roots-analyze-output-turface/2026-03-06_155407/qc/turface_alfalfa_gwas_qc_20260306_155413/07_data_outliers_removed.csv"
+exp1_data_path: "Z:/users/eberrigan/20260306_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_and_2_canola_models/sleap-roots-analyze-output-turface/2026-03-06_155407/qc/turface_alfalfa_gwas_qc_20260306_155413/07_data_outliers_removed_crossplatform.csv"
 exp1_name: "Turface Alfalfa GWAS (RhizoVision)"
 exp1_genotype_col: "Genotype"
 
 # Experiment 2: Cylinder Day 9 (SLEAP Roots imaging) - QC'd, outliers removed
-exp2_data_path: "Z:/users/eberrigan/20260306_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_and_2_canola_models/sleap-roots-analyze-output/2026-03-06_132738/qc/plant_age_days_9_20260306_134502/07_data_outliers_removed.csv"
+exp2_data_path: "Z:/users/eberrigan/20260306_Mauricio_Chiurazzi_Alfalfa_GWAS_wave_1_and_2_canola_models/sleap-roots-analyze-output/2026-03-06_132738/qc/plant_age_days_9_20260306_134502/07_data_outliers_removed_crossplatform.csv"
 exp2_name: "Cylinder Day 9 (SLEAP Roots)"
 exp2_genotype_col: "Genotype"
 
@@ -24,11 +24,11 @@ significance_level: 0.05        # Standard p-value threshold
 fdr_correction_method: "fdr_by"
 
 # Trait Redundancy Reduction
-# Cluster highly correlated traits to reduce multiple testing burden
-trait_reduction_method: "clustering"
-trait_reduction_target: "both"
-trait_clustering_threshold: 0.8
-trait_clustering_linkage: "complete"
+# Disabled: with only 3 genotypes, clustering collapses nearly all traits into few clusters
+trait_reduction_method: "none"
+
+# Minimum genotypes for correlation (3 = minimum allowed, matches our shared genotype count)
+min_genotypes_for_correlation: 3
 
 # Visualization Parameters
 top_n_correlations: 30
