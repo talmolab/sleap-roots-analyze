@@ -25,12 +25,18 @@ class StatisticalAnalysisStep(BaseStep):
     This step calculates:
     - Basic trait statistics (mean, std, min, max, etc.)
     - ANOVA results for each trait
-    - Broad-sense heritability (H²) for each trait
+    - Broad-sense heritability (H²) for each trait (when enabled)
+
+    Heritability calculation is controlled by
+    ``config.statistics.calculate_heritability``. When the flag is ``False``,
+    heritability is skipped entirely and no heritability CSV is produced.
 
     Outputs:
         - 08_trait_statistics.json: Basic statistics for each trait
         - 08_anova_results.csv: ANOVA F-statistics and p-values
         - 08_heritability_results.csv: Heritability estimates and significance
+          (only generated when ``config.statistics.calculate_heritability``
+          is enabled)
         - 08_statistical_analysis_summary.json: Combined summary
     """
 
@@ -141,51 +147,63 @@ class StatisticalAnalysisStep(BaseStep):
 
         anova_df = pd.DataFrame(anova_records)
 
-        # 3. Calculate heritability for each trait
-        heritability_results = calculate_heritability_estimates(
-            df=df,
-            trait_cols=trait_cols,
-            genotype_col=genotype_col,
-            replicate_col=replicate_col,
-            force_method=None,  # Use default mixed model approach
-            remove_low_h2=False,  # Don't remove yet, that's Step 9
+        # 3. Calculate heritability for each trait (if enabled)
+        statistics_config = getattr(config, "statistics", None)
+        calculate_heritability = (
+            statistics_config.calculate_heritability
+            if statistics_config is not None
+            else True
         )
 
-        # Convert heritability results to DataFrame for saving
-        heritability_records = []
-        for trait, result in heritability_results.items():
-            if trait == "__calculation_metadata__":
-                continue
-            if "error" in result:
-                heritability_records.append(
-                    {
-                        "trait": trait,
-                        "heritability": None,
-                        "var_genetic": None,
-                        "var_residual": None,
-                        "mean_n_reps": None,
-                        "n_genotypes": None,
-                        "n_observations": None,
-                        "model_type": None,
-                        "error": result["error"],
-                    }
-                )
-            else:
-                heritability_records.append(
-                    {
-                        "trait": trait,
-                        "heritability": result.get("heritability"),
-                        "var_genetic": result.get("var_genetic"),
-                        "var_residual": result.get("var_residual"),
-                        "mean_n_reps": result.get("mean_n_reps"),
-                        "n_genotypes": result.get("n_genotypes"),
-                        "n_observations": result.get("n_observations"),
-                        "model_type": result.get("model_type"),
-                        "error": None,
-                    }
-                )
+        if calculate_heritability:
+            heritability_results = calculate_heritability_estimates(
+                df=df,
+                trait_cols=trait_cols,
+                genotype_col=genotype_col,
+                replicate_col=replicate_col,
+                force_method=None,  # Use default mixed model approach
+                remove_low_h2=False,  # Don't remove yet, that's Step 9
+            )
 
-        heritability_df = pd.DataFrame(heritability_records)
+            # Convert heritability results to DataFrame for saving
+            heritability_records = []
+            for trait, result in heritability_results.items():
+                if trait == "__calculation_metadata__":
+                    continue
+                if "error" in result:
+                    heritability_records.append(
+                        {
+                            "trait": trait,
+                            "heritability": None,
+                            "var_genetic": None,
+                            "var_residual": None,
+                            "mean_n_reps": None,
+                            "n_genotypes": None,
+                            "n_observations": None,
+                            "model_type": None,
+                            "error": result["error"],
+                        }
+                    )
+                else:
+                    heritability_records.append(
+                        {
+                            "trait": trait,
+                            "heritability": result.get("heritability"),
+                            "var_genetic": result.get("var_genetic"),
+                            "var_residual": result.get("var_residual"),
+                            "mean_n_reps": result.get("mean_n_reps"),
+                            "n_genotypes": result.get("n_genotypes"),
+                            "n_observations": result.get("n_observations"),
+                            "model_type": result.get("model_type"),
+                            "error": None,
+                        }
+                    )
+
+            heritability_df = pd.DataFrame(heritability_records)
+        else:
+            # Heritability disabled: empty results, no CSV
+            heritability_results = {}
+            heritability_df = pd.DataFrame()
 
         # 4. Create combined summary
         # Count valid ANOVA results (filter out strings and error dicts)
@@ -207,27 +225,37 @@ class StatisticalAnalysisStep(BaseStep):
             if r.get("p_value") is not None and r["p_value"] < 0.01
         )
 
-        # Count valid heritability results (filter out strings and error dicts)
-        valid_h2 = [
-            r
-            for t, r in heritability_results.items()
-            if t != "__calculation_metadata__"
-            and not isinstance(r, str)
-            and "error" not in r
-        ]
-        high_h2_60 = sum(
-            1
-            for r in valid_h2
-            if r.get("heritability") is not None and r["heritability"] >= 0.60
-        )
-        mean_h2 = (
-            sum(
-                r["heritability"] for r in valid_h2 if r.get("heritability") is not None
+        if calculate_heritability:
+            # Count valid heritability results
+            valid_h2 = [
+                r
+                for t, r in heritability_results.items()
+                if t != "__calculation_metadata__"
+                and not isinstance(r, str)
+                and "error" not in r
+            ]
+            high_h2_60 = sum(
+                1
+                for r in valid_h2
+                if r.get("heritability") is not None and r["heritability"] >= 0.60
             )
-            / len(valid_h2)
-            if valid_h2
-            else None
-        )
+            mean_h2 = (
+                sum(
+                    r["heritability"]
+                    for r in valid_h2
+                    if r.get("heritability") is not None
+                )
+                / len(valid_h2)
+                if valid_h2
+                else None
+            )
+            heritability_summary = {
+                "traits_with_results": len(valid_h2),
+                "high_heritability_traits_h60": high_h2_60,
+                "mean_heritability": mean_h2,
+            }
+        else:
+            heritability_summary = {"skipped": True}
 
         summary = {
             "n_traits_analyzed": len(trait_cols),
@@ -239,11 +267,7 @@ class StatisticalAnalysisStep(BaseStep):
                 "significant_traits_p005": significant_p005,
                 "significant_traits_p001": significant_p001,
             },
-            "heritability_summary": {
-                "traits_with_results": len(valid_h2),
-                "high_heritability_traits_h60": high_h2_60,
-                "mean_heritability": mean_h2,
-            },
+            "heritability_summary": heritability_summary,
         }
 
         # Save outputs (to data/ directory per VIZ-OUTPUT-001)
@@ -253,11 +277,14 @@ class StatisticalAnalysisStep(BaseStep):
         files = []
         files.append(self.save_json(trait_stats, "08_trait_statistics.json", data_dir))
         files.append(self.save_dataframe(anova_df, "08_anova_results.csv", data_dir))
-        files.append(
-            self.save_dataframe(
-                heritability_df, "08_heritability_results.csv", data_dir
+
+        if calculate_heritability:
+            files.append(
+                self.save_dataframe(
+                    heritability_df, "08_heritability_results.csv", data_dir
+                )
             )
-        )
+
         files.append(
             self.save_json(summary, "08_statistical_analysis_summary.json", data_dir)
         )

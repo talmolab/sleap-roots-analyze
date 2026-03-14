@@ -86,6 +86,65 @@ class FilterHeritabilityStep(BaseStep):
         heritability_results = prev_result.metadata["heritability_results"]
         trait_cols = prev_result.metadata["trait_names"]
 
+        # Defense-in-depth: prevent silent trait removal when heritability_results
+        # is empty but filtering is enabled (e.g., config mismatch where
+        # statistics.calculate_heritability=False but heritability.enabled=True)
+        if config.heritability.enabled and not heritability_results:
+            heritability_summary = prev_result.metadata.get("summary", {}).get(
+                "heritability_summary", {}
+            )
+            was_skipped = heritability_summary.get("skipped", False)
+
+            if was_skipped:
+                guard_reason = "heritability_calculation_disabled"
+                logger.warning(
+                    "Heritability filtering is enabled but heritability calculation "
+                    "was disabled (statistics.calculate_heritability=False). "
+                    "Skipping filtering to prevent silent data loss. "
+                    "Set heritability.enabled=False or enable heritability calculation."
+                )
+            else:
+                guard_reason = "unexpected_empty_results"
+                logger.warning(
+                    "Heritability filtering is enabled but heritability_results is "
+                    "empty. Skipping filtering to prevent silent data loss."
+                )
+
+            summary = {
+                "filtering_enabled": True,
+                "threshold": config.heritability.threshold,
+                "traits_original": len(trait_cols),
+                "traits_retained": len(trait_cols),
+                "traits_removed": 0,
+                "removed_trait_names": [],
+                "guard_activated": True,
+                "guard_reason": guard_reason,
+            }
+
+            files = []
+            files.append(
+                self.save_dataframe(df, "09_data_high_heritability.csv", run_dir)
+            )
+            files.append(self.save_json([], "09_removed_traits.json", run_dir))
+            files.append(
+                self.save_json(summary, "09_heritability_filter_summary.json", run_dir)
+            )
+
+            metadata = {
+                **prev_result.metadata,
+                "filtering_enabled": True,
+                "threshold": config.heritability.threshold,
+                "traits_retained": trait_cols,
+                "traits_removed": [],
+                "summary": summary,
+                "trait_names": trait_cols,
+                "valid_trait_names": trait_cols,
+                "guard_activated": True,
+                "guard_reason": guard_reason,
+            }
+
+            return StepResult(data=df, metadata=metadata, files_generated=files)
+
         # Check if heritability filtering is enabled
         if not config.heritability.enabled:
             # Skip filtering, return all traits

@@ -3582,7 +3582,7 @@ def viz_config_minimal():
     config.statistics.calculate_heritability = False
     config.umap.enabled = False
     config.clustering.enabled = False
-    config.heritability.filter_enabled = False
+    config.heritability.enabled = False
     config.interesting_genotypes.enabled = False
     config.static_viz.enabled = False
     config.interactive_viz.enabled = False
@@ -3602,7 +3602,7 @@ def viz_config_with_stats():
     # Disable optional features
     config.umap.enabled = False
     config.clustering.enabled = False
-    config.heritability.filter_enabled = False
+    config.heritability.enabled = False
     config.interesting_genotypes.enabled = False
     config.static_viz.enabled = False
     config.interactive_viz.enabled = False
