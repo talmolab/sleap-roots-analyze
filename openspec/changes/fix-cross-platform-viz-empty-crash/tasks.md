@@ -12,7 +12,7 @@
 - [x] 2.3 Run tests, confirm FAIL on current code
 
 ## Task 3: Write failing integration test -- pipeline with empty correlations (TDD Red Phase)
-- [x] 3.1 Add `test_cross_platform_pipeline_completes_with_no_shared_genotypes` -- integration test: two experiments with zero shared genotypes; verify full pipeline returns status "success"
+- [x] 3.1 Add `test_cross_platform_pipeline_completes_with_empty_correlations` -- integration test: two experiments with shared genotypes but insufficient replicates causing all correlations to be filtered out; verify visualization step returns without error
 - [x] 3.2 Run test, confirm FAIL (crash in visualization step)
 
 ## Task 4: Implement the fix (TDD Green Phase)

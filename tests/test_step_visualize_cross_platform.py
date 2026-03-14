@@ -772,6 +772,10 @@ def test_representative_heatmap_shows_significance_annotations(tmp_path):
 # Empty correlation DataFrame tests (Issue #86)
 # ---------------------------------------------------------------------------
 
+# Schema columns produced by CalculateCrossPlatformCorrelationsStep.
+# Duplicated here because the step builds these dynamically (no shared constant).
+# The empty-path guard only checks correlation_df.empty, so the exact columns
+# don't affect correctness, but they make the test fixture realistic.
 EMPTY_CORRELATION_COLUMNS = [
     "exp1_trait",
     "exp2_trait",
@@ -920,6 +924,28 @@ def test_visualize_empty_metadata_includes_flag(tmp_path):
     assert result.metadata["empty_correlations"] is True
 
 
+def test_visualize_empty_metadata_preserves_prev_result(tmp_path):
+    """Empty correlation path should preserve upstream metadata.
+
+    GIVEN an empty correlation_df
+    WHEN VisualizeCrossPlatformStep.execute() is called
+    THEN metadata from prev_result is preserved (exp names, trait lists, etc.)
+    """
+    step, data, config, prev_result, run_dir = _empty_correlation_fixtures(tmp_path)
+    result = step.execute(
+        data=data, config=config, run_dir=run_dir, prev_result=prev_result
+    )
+    # Upstream metadata should be preserved
+    assert result.metadata["exp1_name"] == "Exp1"
+    assert result.metadata["exp2_name"] == "Exp2"
+    assert result.metadata["exp1_trait_names"] == ["trait1"]
+    assert result.metadata["exp2_trait_names"] == ["trait_a"]
+    assert result.metadata["total_correlations"] == 0
+    # Empty-path specific metadata also present
+    assert result.metadata["empty_correlations"] is True
+    assert result.metadata["plots_generated"] == 0
+
+
 def test_visualize_nonempty_metadata_no_empty_flag(tmp_path):
     """Non-empty correlation_df should NOT have empty_correlations key.
 
@@ -1018,7 +1044,7 @@ def test_cross_platform_pipeline_completes_with_empty_correlations(
     )
 
     # Both experiments share genotypes A and B, but each genotype has only
-    # one sample per experiment.  With min_genotypes_for_correlation=3
+    # one sample per experiment.  With min_genotypes_for_correlation=10
     # (the default), only 2 shared genotypes are available, so every
     # trait pair is filtered out and correlation_df ends up empty.
     exp1_df = pd.DataFrame(

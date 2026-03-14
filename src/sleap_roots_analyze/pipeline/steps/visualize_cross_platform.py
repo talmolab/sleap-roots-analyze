@@ -10,8 +10,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-logger = logging.getLogger(__name__)
-
 from sleap_roots_analyze.cross_experiment_analysis import (
     create_correlation_summary_plot,
     create_joint_plot,
@@ -19,6 +17,8 @@ from sleap_roots_analyze.cross_experiment_analysis import (
     calculate_genotype_means,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_trait_for_filename(trait: str) -> str:
@@ -91,6 +91,7 @@ class VisualizeCrossPlatformStep(BaseStep):
             return StepResult(
                 data=data,
                 metadata={
+                    **prev_result.metadata,
                     "plots_generated": 0,
                     "empty_correlations": True,
                     "summary_plots": 0,
