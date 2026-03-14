@@ -1347,14 +1347,16 @@ class PipelineRunner:
 
         # Only include cross-platform section if cross-platform analysis was run
         if self.run_results.get("cross_platform"):
-            lines.extend([
-                "### Cross-Platform Analysis",
-                "",
-                "Cross-platform trait correlations were calculated using both Spearman and Pearson "
-                "correlation on genotype means. Multiple testing was controlled using False Discovery "
-                f"Rate (FDR) correction with the {self._get_cross_platform_fdr_method()} procedure.",
-                "",
-            ])
+            lines.extend(
+                [
+                    "### Cross-Platform Analysis",
+                    "",
+                    "Cross-platform trait correlations were calculated using both Spearman and Pearson "
+                    "correlation on genotype means. Multiple testing was controlled using False Discovery "
+                    f"Rate (FDR) correction with the {self._get_cross_platform_fdr_method()} procedure.",
+                    "",
+                ]
+            )
 
         lines.extend(["---", ""])
         return lines
