@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Statistical Analysis Heritability Flag
 The `StatisticalAnalysisStep` SHALL check `config.statistics.calculate_heritability`
