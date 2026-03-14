@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from sleap_roots_analyze.pipeline import (
+    HeritabilityConfig,
     ColumnConfig,
     DataConfig,
     QCPipelineConfig,
@@ -305,6 +306,7 @@ def viz_config_heritability_disabled():
         ),
         data=DataConfig(csv_path="dummy.csv"),
         statistics=StatisticsConfig(calculate_heritability=False),
+        heritability=HeritabilityConfig(enabled=False),
     )
 
 
