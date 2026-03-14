@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -333,3 +335,207 @@ class TestFilterHeritabilityStepDiagnostics:
 
         # Check that only 10 traits were plotted
         assert result.metadata["diagnostic_results"]["traits_removed_plotted"] == 10
+
+
+class TestFilterHeritabilityStepDefensiveGuard:
+    """Tests for defense-in-depth guard against empty heritability_results.
+
+    When heritability filtering is enabled but heritability_results is empty
+    (e.g., because statistics.calculate_heritability=False), the guard should
+    prevent silent removal of all traits.
+    """
+
+    @pytest.fixture
+    def guard_sample_data(self):
+        """Sample data for guard tests."""
+        np.random.seed(42)
+        return pd.DataFrame(
+            {
+                "Barcode": [f"plant{i}" for i in range(20)],
+                "Genotype": ["A"] * 10 + ["B"] * 10,
+                "Replicate": [1, 2] * 10,
+                "trait_1": np.random.randn(20) * 10 + 50,
+                "trait_2": np.random.randn(20) * 5 + 25,
+                "trait_3": np.random.randn(20) * 3 + 15,
+            }
+        )
+
+    @pytest.fixture
+    def guard_config_enabled(self):
+        """Config with heritability filtering enabled."""
+        return QCPipelineConfig(
+            pipeline_name="test_guard",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            heritability=HeritabilityConfig(enabled=True, threshold=0.3),
+        )
+
+    @pytest.fixture
+    def guard_config_disabled(self):
+        """Config with heritability filtering disabled."""
+        return QCPipelineConfig(
+            pipeline_name="test_guard",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            heritability=HeritabilityConfig(enabled=False, threshold=0.3),
+        )
+
+    @pytest.fixture
+    def prev_result_empty_h2(self, guard_sample_data):
+        """Previous result with empty heritability_results."""
+        return StepResult(
+            data=guard_sample_data,
+            metadata={
+                "trait_names": ["trait_1", "trait_2", "trait_3"],
+                "valid_trait_names": ["trait_1", "trait_2", "trait_3"],
+                "heritability_results": {},
+                "summary": {"heritability_summary": {"skipped": True}},
+                "samples": 20,
+            },
+            files_generated=[],
+        )
+
+    @pytest.fixture
+    def prev_result_populated_h2(self, guard_sample_data):
+        """Previous result with populated heritability_results."""
+        return StepResult(
+            data=guard_sample_data,
+            metadata={
+                "trait_names": ["trait_1", "trait_2", "trait_3"],
+                "valid_trait_names": ["trait_1", "trait_2", "trait_3"],
+                "heritability_results": {
+                    "trait_1": {"heritability": 0.8},
+                    "trait_2": {"heritability": 0.4},
+                    "trait_3": {"heritability": 0.1},
+                },
+                "samples": 20,
+            },
+            files_generated=[],
+        )
+
+    def test_guard_prevents_silent_trait_removal(
+        self, guard_sample_data, guard_config_enabled, prev_result_empty_h2, tmp_path
+    ):
+        """Guard should retain all traits when heritability_results is empty."""
+        step = FilterHeritabilityStep()
+        result = step.execute(
+            guard_sample_data, guard_config_enabled, tmp_path, prev_result_empty_h2
+        )
+
+        # All 3 trait columns must still be present
+        trait_cols = [
+            c
+            for c in result.data.columns
+            if c not in ("Barcode", "Genotype", "Replicate")
+        ]
+        assert len(trait_cols) == 3
+        assert set(trait_cols) == {"trait_1", "trait_2", "trait_3"}
+
+    def test_guard_logs_warning(
+        self,
+        guard_sample_data,
+        guard_config_enabled,
+        prev_result_empty_h2,
+        tmp_path,
+        caplog,
+    ):
+        """Guard should log a warning when it activates."""
+        step = FilterHeritabilityStep()
+        with caplog.at_level(logging.WARNING):
+            step.execute(
+                guard_sample_data, guard_config_enabled, tmp_path, prev_result_empty_h2
+            )
+
+        warning_messages = [
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        ]
+        assert any(
+            "heritability" in msg.lower() for msg in warning_messages
+        ), f"Expected warning about heritability, got: {warning_messages}"
+
+    def test_guard_metadata_includes_flag(
+        self, guard_sample_data, guard_config_enabled, prev_result_empty_h2, tmp_path
+    ):
+        """Guard should set guard_activated and guard_reason in metadata."""
+        step = FilterHeritabilityStep()
+        result = step.execute(
+            guard_sample_data, guard_config_enabled, tmp_path, prev_result_empty_h2
+        )
+
+        assert result.metadata.get("guard_activated") is True
+        assert isinstance(result.metadata.get("guard_reason"), str)
+        assert len(result.metadata["guard_reason"]) > 0
+
+    def test_guard_preserves_metadata(
+        self, guard_sample_data, guard_config_enabled, prev_result_empty_h2, tmp_path
+    ):
+        """Guard should preserve all previous step metadata."""
+        step = FilterHeritabilityStep()
+        result = step.execute(
+            guard_sample_data, guard_config_enabled, tmp_path, prev_result_empty_h2
+        )
+
+        assert result.metadata["trait_names"] == ["trait_1", "trait_2", "trait_3"]
+        assert result.metadata["valid_trait_names"] == ["trait_1", "trait_2", "trait_3"]
+        assert result.metadata["heritability_results"] == {}
+        assert result.metadata["samples"] == 20
+
+    def test_guard_generates_correct_files(
+        self, guard_sample_data, guard_config_enabled, prev_result_empty_h2, tmp_path
+    ):
+        """Guard should generate consistent output files."""
+        step = FilterHeritabilityStep()
+        result = step.execute(
+            guard_sample_data, guard_config_enabled, tmp_path, prev_result_empty_h2
+        )
+
+        # Summary JSON should show no traits removed and guard activated
+        summary = result.metadata["summary"]
+        assert summary["traits_removed"] == 0
+        assert summary["traits_retained"] == 3
+        assert summary["guard_activated"] is True
+
+        # Removed traits JSON should be empty list
+        removed_json_path = tmp_path / "09_removed_traits.json"
+        assert removed_json_path.exists()
+        with open(removed_json_path) as f:
+            removed = json.load(f)
+        assert removed == []
+
+    def test_guard_does_not_activate_with_populated_results(
+        self,
+        guard_sample_data,
+        guard_config_enabled,
+        prev_result_populated_h2,
+        tmp_path,
+    ):
+        """Normal filtering should occur when heritability_results is populated."""
+        step = FilterHeritabilityStep()
+        result = step.execute(
+            guard_sample_data, guard_config_enabled, tmp_path, prev_result_populated_h2
+        )
+
+        # Normal filtering: guard should NOT activate
+        assert "guard_activated" not in result.metadata
+        # With threshold 0.3, trait_3 (h2=0.1) should be removed
+        assert "trait_3" not in result.data.columns
+
+    def test_guard_does_not_activate_when_filtering_disabled(
+        self, guard_sample_data, guard_config_disabled, prev_result_empty_h2, tmp_path
+    ):
+        """Disabled path should work normally without guard activation."""
+        step = FilterHeritabilityStep()
+        result = step.execute(
+            guard_sample_data, guard_config_disabled, tmp_path, prev_result_empty_h2
+        )
+
+        # Existing disabled path — no guard
+        assert "guard_activated" not in result.metadata
+        # All traits retained
+        assert "trait_1" in result.data.columns
+        assert "trait_2" in result.data.columns
+        assert "trait_3" in result.data.columns

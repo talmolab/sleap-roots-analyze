@@ -514,6 +514,18 @@ def validate_viz_config(config: VizPipelineConfig) -> None:
     if config.logging.level not in valid_log_levels:
         raise ValueError(f"logging.level must be one of {valid_log_levels}")
 
+    # Validate heritability configuration consistency
+    if config.heritability.enabled and not config.statistics.calculate_heritability:
+        raise ValueError(
+            "Invalid configuration: heritability.enabled=True but "
+            "statistics.calculate_heritability=False.\n"
+            "Cannot filter traits by heritability without calculating heritability "
+            "first.\n"
+            "Either:\n"
+            "  - Set statistics.calculate_heritability=True, OR\n"
+            "  - Set heritability.enabled=False"
+        )
+
     # Warn if UMAP is enabled but not yet implemented (Phase 2C stub)
     if config.umap.enabled:
         import warnings

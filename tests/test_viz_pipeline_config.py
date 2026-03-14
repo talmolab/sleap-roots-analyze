@@ -528,6 +528,74 @@ static_viz:
         assert omega_conf.static_viz.feature_contribution_top_n == 25
 
 
+class TestValidateVizConfigHeritabilityCrossField:
+    """Tests for cross-field validation of heritability config.
+
+    Validates that contradictory settings (heritability filtering enabled but
+    heritability calculation disabled) are rejected at config validation time.
+    """
+
+    def test_validate_viz_config_rejects_heritability_without_calculation(self):
+        """Reject config where filtering is enabled but calculation is disabled."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.statistics.calculate_heritability = False
+        config.heritability.enabled = True
+
+        with pytest.raises(ValueError, match="heritability"):
+            validate_viz_config(config)
+
+    def test_validate_viz_config_accepts_both_enabled(self):
+        """Accept config where both calculation and filtering are enabled."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.statistics.calculate_heritability = True
+        config.heritability.enabled = True
+
+        validate_viz_config(config)
+
+    def test_validate_viz_config_accepts_calculate_without_filter(self):
+        """Accept config where calculation is enabled but filtering is disabled."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.statistics.calculate_heritability = True
+        config.heritability.enabled = False
+
+        validate_viz_config(config)
+
+    def test_validate_viz_config_accepts_both_disabled(self):
+        """Accept config where both calculation and filtering are disabled."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.statistics.calculate_heritability = False
+        config.heritability.enabled = False
+
+        validate_viz_config(config)
+
+    def test_validate_viz_config_error_message_suggests_fix(self):
+        """Error message should mention both config fields and suggest fixes."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.statistics.calculate_heritability = False
+        config.heritability.enabled = True
+
+        with pytest.raises(ValueError, match="calculate_heritability") as exc_info:
+            validate_viz_config(config)
+
+        error_msg = str(exc_info.value)
+        assert (
+            "heritability.enabled" in error_msg or "heritability" in error_msg.lower()
+        )
+        assert "calculate_heritability" in error_msg
+
+    def test_validate_viz_config_default_values_pass(self):
+        """Default VizPipelineConfig values should pass validation."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        # Defaults: calculate_heritability=True, heritability.enabled=True
+        validate_viz_config(config)
+
+
 class TestConfigIntegration:
     """Integration tests for config system."""
 
