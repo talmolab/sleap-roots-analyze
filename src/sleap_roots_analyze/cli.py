@@ -56,7 +56,9 @@ def setup_logging(
 
 
 @click.group()
-@click.version_option(package_name="sleap-roots-analyze", prog_name="sleap-roots-analyze")
+@click.version_option(
+    package_name="sleap-roots-analyze", prog_name="sleap-roots-analyze"
+)
 def cli():
     """Statistical analysis tools for root trait data from SLEAP Roots.
 
