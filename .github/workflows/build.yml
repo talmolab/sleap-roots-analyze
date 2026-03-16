@@ -1,4 +1,4 @@
-# Package builds
+# Package build and publish workflow
 name: Build
 
 on:
@@ -6,40 +6,91 @@ on:
     types:
       - published
   workflow_dispatch:
-    inputs:
-      testpypi:
-        description: 'Publish to TestPyPI'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
-  pypi:
-    name: PyPI Wheel
+  validate-release:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Get version from pyproject.toml
+        id: version
+        run: |
+          VERSION=$(uv version)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
+
+      - name: Validate tag matches version
+        if: github.event_name == 'release'
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          # Strip leading 'v' from tag
+          TAG_VERSION="${TAG#v}"
+          if [[ "$TAG_VERSION" != "$VERSION" ]]; then
+            echo "ERROR: Tag version ($TAG_VERSION) does not match pyproject.toml version ($VERSION)"
+            exit 1
+          fi
+          echo "Tag $TAG matches pyproject.toml version $VERSION"
+
+      - name: Validate changelog entry exists
+        if: github.event_name == 'release'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! grep -q "\[$VERSION\]" docs/CHANGELOG.md; then
+            echo "ERROR: No changelog entry found for version $VERSION in docs/CHANGELOG.md"
+            exit 1
+          fi
+          echo "Changelog entry found for version $VERSION"
+
+      - name: Run linting
+        run: |
+          uv run black --check src/sleap_roots_analyze tests
+          uv run ruff check src/sleap_roots_analyze
+
+      - name: Run tests
+        run: |
+          uv run pytest -m "not integration" tests/ -x -q
+
+  build-and-publish:
+    name: Build and Publish
+    needs: validate-release
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # Required for PyPI trusted publishing
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
 
-    - name: Setup UV
-      uses: astral-sh/setup-uv@v6
-      with:
-        python-version: "3.12"
+      - name: Build distributions
+        run: uv build
 
-    - name: Build distributions
-      run: |
-        uv build
+      - name: Verify wheel installs correctly
+        run: |
+          uv run --isolated --with dist/*.whl python -c "
+          import sleap_roots_analyze
+          print(f'Version: {sleap_roots_analyze.__version__}')
+          "
 
-    - name: Determine index and publish
-      run: |
-        # Manual override for TestPyPI
-        if [[ "${{ github.event.inputs.testpypi }}" == "true" ]]; then
-          echo "Manual TestPyPI publishing..."
-          uv publish --index testpypi --trusted-publishing always
-        else
-          echo "Publishing to PyPI..."
-          uv publish
-        fi
+      - name: Verify CLI entry point
+        run: |
+          uv run --isolated --with dist/*.whl sleap-roots-analyze --version
+
+      - name: Publish to PyPI
+        if: github.event_name == 'release'
+        run: uv publish
