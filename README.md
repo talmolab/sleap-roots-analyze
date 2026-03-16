@@ -3,7 +3,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 ![Coverage: 88%](https://img.shields.io/badge/Coverage-88%25-brightgreen)
 ![Tests: 1300+](https://img.shields.io/badge/Tests-1300%2B-brightgreen)
-![Python: 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
 
 Statistical analysis tools for root trait data from [SLEAP Roots](https://github.com/talmolab/sleap-roots).
 

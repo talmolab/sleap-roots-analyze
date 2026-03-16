@@ -256,22 +256,13 @@ from sleap_roots_analyze.pca import (
 
 ## Current Test Coverage
 
-### Module Coverage
-
-| Module | Coverage | Tests | Notes |
-|--------|----------|-------|-------|
-| `data_cleanup.py` | 99% | 15 | Missing edge case for Excel loading |
-| `statistics.py` | 95%+ | 45 | Full coverage with numerical tests |
-| `pca.py` | 97%+ | 88 | All tests passing, includes mathematical validation |
-| `data_utils.py` | 100% | 5 | Complete coverage |
-| `outlier_detection.py` | N/A | 0 | Module in development |
+Run `uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing -m "not integration" tests/` for up-to-date coverage.
 
 ### Test Statistics
 
-- **Total Tests**: 153+ tests
-- **Pass Rate**: 100% (all tests passing, no skips)
-- **Execution Time**: ~2-3 seconds
-- **Fixtures**: 45+ reusable fixtures including PCA edge cases and mathematical validation data
+- **Total Tests**: ~1939 tests across 77 test files
+- **Pass Rate**: 100% (all tests passing)
+- **Fixtures**: 149+ reusable fixtures in `tests/fixtures.py` (session-scoped), 17 viz fixtures in `tests/fixtures_visualization.py`
 
 ## Troubleshooting
 

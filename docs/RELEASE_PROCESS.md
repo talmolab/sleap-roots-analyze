@@ -1,229 +1,108 @@
 # Release Process
 
-This document describes the release process for `sleap-roots-analyze` using UV and GitHub Actions.
+This document describes the release process for `sleap-roots-analyze` using uv and GitHub Actions.
+
+## Overview
+
+This project uses:
+- **`uv build`** with the `uv_build` backend to create wheel and sdist
+- **`uv publish`** with [PyPI trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) — no tokens needed in CI
+- **`uv version`** for semantic version management
+- **Dynamic versioning** via `importlib.metadata` — version is defined only in `pyproject.toml`
 
 ## Version Management
 
-We use [UV's version management](https://docs.astral.sh/uv/guides/package/#building-your-package) for semantic versioning.
+### Version Bump Workflow (GitHub Actions)
 
-### Quick Version Bumps
-
-Use the **Version Bump** workflow for simple version changes that create a PR:
+Use the **Version Bump** workflow for version changes that create a PR:
 
 1. Go to Actions → Version Bump → Run workflow
-2. Select bump type:
-   - `patch`: Bug fixes (0.0.1 → 0.0.2)
-   - `minor`: New features (0.0.1 → 0.1.0)
-   - `major`: Breaking changes (0.0.1 → 1.0.0)
-   - `alpha`, `beta`, `rc`: Pre-release versions
-   - `stable`: Convert pre-release to stable
-3. Or enter a custom version
+2. Select bump type: `patch`, `minor`, `major`, `alpha`, `beta`, `rc`, or `stable`
+3. Or enter a custom version string
 4. Review and merge the created PR
 
-### Build and Release Workflow
+The workflow only updates `pyproject.toml` — `__init__.py` uses dynamic versioning and does not need updating.
 
-The **Build and Release** workflow handles version bumping, building, and publishing in one go:
-
-#### Manual Release (Recommended)
-
-1. Go to Actions → Build and Release → Run workflow
-2. Configure options:
-   - **Version bump**: Select the bump type
-   - **Pre-release type**: For pre-releases (alpha, beta, rc)
-   - **Publish target**: Where to publish (none, testpypi, pypi)
-
-#### Examples:
-
-**Patch release to PyPI:**
-- Version bump: `patch`
-- Pre-release type: `none`
-- Publish target: `pypi`
-
-**Beta pre-release to TestPyPI:**
-- Version bump: `minor`
-- Pre-release type: `beta`
-- Publish target: `testpypi`
-
-**Convert pre-release to stable:**
-- Version bump: `none`
-- Pre-release type: `none`
-- Publish target: `pypi`
-- (Manually set version with `uv version --bump stable` first)
-
-#### GitHub Release Events
-
-Creating a GitHub release will automatically:
-- **Pre-release**: Publishes to TestPyPI
-- **Full release**: Publishes to PyPI
-
-## Pre-release Strategy
-
-### Version Progression Example
+### Local Version Commands
 
 ```bash
+uv version                    # Check current version
+uv version --bump patch       # 0.1.0 → 0.1.1
+uv version --bump minor       # 0.1.0 → 0.2.0
+uv version --bump alpha       # 0.1.0 → 0.2.0a1
+uv version --bump stable      # 0.2.0a1 → 0.2.0
+uv version 1.0.0              # Set specific version
+```
+
+## Release Workflow
+
+### Pre-release Checklist
+
+Before creating a release:
+
+```bash
+uv run black --check src/sleap_roots_analyze tests  # Formatting
+uv run ruff check src/sleap_roots_analyze            # Linting
+uv run pytest -m "not integration" tests/ -x -q      # Tests
+uv build                                              # Build
+```
+
+Or use the Claude Code command: `/prepare-release`
+
+### Creating a Release
+
+1. Ensure version in `pyproject.toml` is correct
+2. Ensure `docs/CHANGELOG.md` has an entry for this version
+3. Create a GitHub Release with tag `vX.Y.Z` (e.g., `v0.1.0a1`)
+4. For pre-releases, check "Set as a pre-release" on GitHub
+
+The **Build** workflow automatically:
+1. Validates tag matches `pyproject.toml` version
+2. Validates changelog entry exists
+3. Runs linting and tests
+4. Builds wheel and sdist
+5. Verifies wheel installs correctly and CLI entry point works
+6. Publishes to PyPI via trusted publishing
+
+### Pre-release Version Progression
+
+```
 0.1.0 → 0.2.0a1 → 0.2.0a2 → 0.2.0b1 → 0.2.0rc1 → 0.2.0
 ```
 
-### Pre-release Types
-
-- **Alpha** (`a` or `alpha`): Early testing, API may change
-- **Beta** (`b` or `beta`): Feature complete, fixing bugs
-- **Release Candidate** (`rc`): Final testing before release
-
-### Testing on TestPyPI
-
-All pre-releases are automatically published to TestPyPI. Install with:
-
-```bash
-uv pip install \
-  --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ \
-  sleap-roots-analyze==0.2.0b1
-```
-
-## Pre-Release Checklist
-
-Before creating a release, ensure:
-
-1. **Tests Pass**: Run the test suite
-   ```bash
-   uv run pytest
-   ```
-
-2. **Coverage Check**: Verify code coverage
-   ```bash
-   uv run pytest --cov --cov-branch
-   ```
-
-3. **Code Formatting**: Format code with black
-   ```bash
-   uv run black --check src/sleap_roots_analyze tests
-   ```
-
-4. **Linting**: Check code quality
-   ```bash
-   uv run ruff check src/sleap_roots_analyze tests
-   ```
-
-5. **Documentation**: Update relevant docs
-   - README.md
-   - CHANGELOG.md
-   - API documentation
-
-## Local Development
-
-### Version Commands
-
-```bash
-# Check current version
-uv version
-
-# Bump patch version (0.0.1 → 0.0.2)
-uv version --bump patch
-
-# Bump to beta (0.0.2 → 0.0.3b1)
-uv version --bump patch --bump beta
-
-# Increment beta (0.0.3b1 → 0.0.3b2)
-uv version --bump beta
-
-# Convert to stable (0.0.3b2 → 0.0.3)
-uv version --bump stable
-
-# Set specific version
-uv version 1.0.0
-```
-
-### Building Locally
-
-```bash
-# Build package
-uv build
-
-# Check package contents
-ls -la dist/
-
-# Test installation
-uv pip install dist/*.whl
-```
-
-### Publishing Manually
-
-```bash
-# Publish to TestPyPI
-export UV_PUBLISH_URL=https://test.pypi.org/legacy/
-export UV_PUBLISH_TOKEN=your-test-token
-uv publish
-
-# Publish to PyPI
-export UV_PUBLISH_TOKEN=your-pypi-token
-uv publish
-```
+Pre-releases publish to **regular PyPI** (not TestPyPI) and are marked as pre-release on GitHub.
 
 ## Setup Requirements
 
-### Repository Secrets
+### PyPI Trusted Publishing
 
-Configure these in Settings → Secrets:
+Configure trusted publishing on PyPI (no tokens needed):
 
-- `PYPI_TOKEN`: PyPI API token (for production releases)
-- `TEST_PYPI_TOKEN`: TestPyPI API token (for test releases)
+1. Go to [PyPI](https://pypi.org) → Your Project → Settings → Publishing
+2. Add a "pending trusted publisher" with:
+   - Repository: `talmolab/sleap-roots-analyze`
+   - Workflow: `build.yml`
+   - Environment: (leave blank)
 
-### Trusted Publishing (Recommended)
-
-Instead of tokens, configure [trusted publishing](https://docs.pypi.org/trusted-publishers/):
-
-1. Go to PyPI → Your Project → Settings → Publishing
-2. Add GitHub repository as trusted publisher
-3. No tokens needed!
-
-## Workflow Features
-
-### Build and Release Workflow
-
-- **Version bumping**: Integrated UV version management
-- **Pre-release support**: Alpha, beta, RC versions
-- **TestPyPI**: Automatic for pre-releases
-- **Package verification**: Tests installation before publishing
-- **GitHub releases**: Automatic creation with correct tags
-- **Artifacts**: Uploads built wheels and source distributions
-
-### Version Workflow
-
-- **Simple PR-based**: Creates PR for version changes
-- **No direct commits**: All changes go through PR review
-- **Custom versions**: Support for arbitrary version strings
-
-## Best Practices
-
-1. **Use pre-releases** for testing major changes
-2. **Test on TestPyPI** before production releases
-3. **Tag releases** for reproducibility
-4. **Update CHANGELOG.md** with each release
-5. **Use semantic versioning** consistently
+For the first release, create a "pending trusted publisher" before the package exists on PyPI.
 
 ## Troubleshooting
 
-### Package not appearing on PyPI/TestPyPI
-
+### Package not appearing on PyPI
 - Wait 1-2 minutes for indexing
-- Check workflow logs for errors
-- Verify tokens/trusted publishing is configured
+- Check workflow logs in GitHub Actions
 
 ### Version conflicts
+- PyPI does not allow re-uploading the same version
+- Bump to a new version and re-release
 
-- Ensure version is bumped before publishing
-- PyPI doesn't allow re-uploading same version
-- Use post-releases (0.1.0.post1) if needed
-
-### Installation issues from TestPyPI
-
-- Some dependencies may not be on TestPyPI
-- Use `--extra-index-url https://pypi.org/simple/` to fetch from PyPI too
+### Build validation fails
+- Tag version must match `pyproject.toml` version exactly
+- Changelog must contain `[X.Y.Z]` entry for the release version
 
 ## References
 
 - [UV Documentation](https://docs.astral.sh/uv/)
-- [Python Packaging Guide](https://packaging.python.org/)
-- [Semantic Versioning](https://semver.org/)
+- [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
 - [PEP 440 - Version Identification](https://peps.python.org/pep-0440/)
+- [Semantic Versioning](https://semver.org/)

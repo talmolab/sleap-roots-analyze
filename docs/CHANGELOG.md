@@ -47,34 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Early detection when no outlier detection methods are configured
   - Clear, actionable warning messages in pipeline output
   - Graceful handling with pipeline continuing successfully
-
-### Changed
-- **Adaptive boxplot layout** for trait visualizations (Issue #73):
-  - Auto-switch from vertical to horizontal orientation when genotype count exceeds threshold (default: 8)
-  - Configurable via `orientation` ("vertical", "horizontal", "auto") and `horizontal_threshold` parameters
-  - Consistent unfilled boxplot styling across both orientations: blue (`#1f77b4`) outlines, green (`#2ca02c`) medians, gridlines
-  - Adaptive figure sizing: subplot width scales with genotype count (0.5 in/genotype, min 4.0, max 20.0 inches)
-  - Font scaling for x-axis labels when genotype count exceeds 10 (min 6pt)
-  - `tight_layout()` called by batched wrapper after suptitle (not in base function) to prevent overlap
-  - Replaced seaborn horizontal boxplot with matplotlib for consistent styling
-- **PC boxplot layout** now stacks vertically (1 column) instead of grid layout for better display with many genotypes
-  - Default figsize updated from (16, 10) to (20, 6) for wider genotype labels
-- **Goodness-of-fit display** removed from outlier detection plots (too crowded)
-  - Results still available in JSON output and via `print_goodness_of_fit_summary()`
-  - Cleaner, more focused visualization
-
-### Fixed
-- **JSON serialization in pipeline summaries** (PR #45)
-  - Added Path object handling with `as_posix()` in `convert_to_json_serializable()`
-  - Excluded non-serializable sklearn PCA object from StepResult metadata
-  - Fixed numpy type serialization (int64, float64) in pipeline summary JSON
-- **TypeError in interactive image gallery** when image paths are None
-  - Added null check before Path conversion in `create_interactive_image_gallery()`
-- **ipykernel hanging bug** in VS Code Jupyter notebooks
-  - Pinned ipykernel to <7.0.0 (ipykernel 7.x has known kernel hanging issues)
-
-### Added
-- Comprehensive test suite with 150+ tests achieving 97%+ coverage across all modules
+- Comprehensive test suite with 1900+ tests achieving 97%+ coverage across all modules
 - Complete PCA module with mathematical validation (88 tests)
   - Per-feature variance explained calculations with configurable ddof
   - Mathematical validation test suite (11 properties verified)
@@ -100,7 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Detailed removal statistics and metadata tracking
 - Modular data cleanup functions: `remove_zero_inflated_traits()`, `remove_traits_with_many_nans()`, `remove_low_sample_traits()`
 - Claude commands for PR review (`.claude/commands/review-pr.md`) and changelog updates (`.claude/commands/update-changelog.md`)
-
 - **Visualization Module** (`sleap_roots_analyze.visualization`):
   - `create_feature_contribution_heatmap()`: Heatmap showing feature contributions to principal components
   - `save_publication_figure()`: Save figures in publication-ready formats (PDF, EPS, PNG, SVG)
@@ -121,6 +93,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Integration with new PCA artifact export functionality
 
 ### Changed
+- **Adaptive boxplot layout** for trait visualizations (Issue #73):
+  - Auto-switch from vertical to horizontal orientation when genotype count exceeds threshold (default: 8)
+  - Configurable via `orientation` ("vertical", "horizontal", "auto") and `horizontal_threshold` parameters
+  - Consistent unfilled boxplot styling across both orientations: blue (`#1f77b4`) outlines, green (`#2ca02c`) medians, gridlines
+  - Adaptive figure sizing: subplot width scales with genotype count (0.5 in/genotype, min 4.0, max 20.0 inches)
+  - Font scaling for x-axis labels when genotype count exceeds 10 (min 6pt)
+  - `tight_layout()` called by batched wrapper after suptitle (not in base function) to prevent overlap
+  - Replaced seaborn horizontal boxplot with matplotlib for consistent styling
+- **PC boxplot layout** now stacks vertically (1 column) instead of grid layout for better display with many genotypes
+  - Default figsize updated from (16, 10) to (20, 6) for wider genotype labels
+- **Goodness-of-fit display** removed from outlier detection plots (too crowded)
+  - Results still available in JSON output and via `print_goodness_of_fit_summary()`
+  - Cleaner, more focused visualization
 - **Outlier Detection Refactoring**:
   - Removed redundant validation checks from outlier detection functions (now handled by `perform_pca_analysis`)
   - Isolation Forest now uses shared `standardize_data` function for consistency
@@ -137,6 +122,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored `apply_data_cleanup_filters()` to use new modular functions
 
 ### Fixed
+- **JSON serialization in pipeline summaries** (PR #45)
+  - Added Path object handling with `as_posix()` in `convert_to_json_serializable()`
+  - Excluded non-serializable sklearn PCA object from StepResult metadata
+  - Fixed numpy type serialization (int64, float64) in pipeline summary JSON
+- **TypeError in interactive image gallery** when image paths are None
+  - Added null check before Path conversion in `create_interactive_image_gallery()`
+- **ipykernel hanging bug** in VS Code Jupyter notebooks
+  - Pinned ipykernel to <7.0.0 (ipykernel 7.x has known kernel hanging issues)
 - Line ending consistency issues across different platforms
 - Test accuracy for heritability calculations with mixed models
 - Handling of infinity values in statistical calculations
@@ -151,7 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved test organization and fixture management
 - Enhanced numerical stability tests
 
-## [0.1.0] - 2025-01-XX (Upcoming)
+## [0.0.1] - 2024-12-01
 
 ### Added
 - **Core Modules**:
@@ -193,25 +186,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ruff` linting with Google docstring convention
   - `pytest` with coverage reporting
 
-### Dependencies
-- Core: `pandas>=2.0.0`, `numpy>=1.24.0`, `scipy>=1.10.0`, `statsmodels>=0.14.0`
-- Development: `pytest>=8.0.0`, `pytest-cov>=6.0.0`, `black>=24.0.0`, `ruff>=0.8.0`
-
 ## Version History
 
 ### Versioning Scheme
 
 We use [Semantic Versioning](https://semver.org/):
 - **MAJOR** version for incompatible API changes
-- **MINOR** version for backwards-compatible functionality additions  
+- **MINOR** version for backwards-compatible functionality additions
 - **PATCH** version for backwards-compatible bug fixes
-
-### Pre-release Versions
-
-- `0.0.1-alpha` - Initial development
-- `0.0.2-alpha` - Core data loading functionality
-- `0.0.3-alpha` - Statistical analysis implementation
-- `0.0.4-alpha` - Test suite development
 
 ## Contributing
 
@@ -223,4 +205,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and th
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](../LICENSE) file for details.
