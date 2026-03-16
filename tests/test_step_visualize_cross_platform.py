@@ -766,3 +766,347 @@ def test_representative_heatmap_shows_significance_annotations(tmp_path):
 
     # Check metadata indicates heatmap was generated
     assert "representative_heatmap" in result.metadata or heatmap_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# Empty correlation DataFrame tests (Issue #86)
+# ---------------------------------------------------------------------------
+
+# Schema columns produced by CalculateCrossPlatformCorrelationsStep.
+# Duplicated here because the step builds these dynamically (no shared constant).
+# The empty-path guard only checks correlation_df.empty, so the exact columns
+# don't affect correctness, but they make the test fixture realistic.
+EMPTY_CORRELATION_COLUMNS = [
+    "exp1_trait",
+    "exp2_trait",
+    "spearman_r",
+    "spearman_p",
+    "pearson_r",
+    "pearson_p",
+    "n_genotypes",
+    "spearman_p_adjusted",
+    "pearson_p_adjusted",
+    "significant_fdr",
+    "spearman_r_ci_low",
+    "spearman_r_ci_high",
+    "pearson_r_ci_low",
+    "pearson_r_ci_high",
+    "achieved_power",
+]
+
+
+def _empty_correlation_fixtures(tmp_path):
+    """Build common objects for empty-correlation tests.
+
+    Returns (step, data, config, prev_result, run_dir).
+    """
+    from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+        VisualizeCrossPlatformStep,
+    )
+
+    empty_corr_df = pd.DataFrame(columns=EMPTY_CORRELATION_COLUMNS)
+
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B"],
+            "replicate": [1, 1],
+            "trait1": [1.0, 2.0],
+        }
+    )
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B"],
+            "replicate": [1, 1],
+            "trait_a": [10.0, 20.0],
+        }
+    )
+
+    data = {
+        "exp1_df": exp1_df,
+        "exp2_df": exp2_df,
+        "common_genotypes": ["A", "B"],
+        "correlation_df": empty_corr_df,
+    }
+
+    prev_result = StepResult(
+        data=data,
+        metadata={
+            "exp1_name": "Exp1",
+            "exp2_name": "Exp2",
+            "total_correlations": 0,
+            "exp1_trait_names": ["trait1"],
+            "exp2_trait_names": ["trait_a"],
+        },
+        files_generated=[],
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="genotype",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="genotype",
+        top_n_joint_plots=6,
+        top_n_boxplots=6,
+    )
+
+    step = VisualizeCrossPlatformStep()
+    return step, data, config, prev_result, tmp_path
+
+
+# -- Task 1 tests -----------------------------------------------------------
+
+
+def test_visualize_empty_correlation_df_does_not_crash(tmp_path):
+    """Empty correlation_df should not raise ValueError.
+
+    GIVEN an empty correlation_df with the correct schema columns
+    WHEN VisualizeCrossPlatformStep.execute() is called
+    THEN the step completes without error
+    """
+    step, data, config, prev_result, run_dir = _empty_correlation_fixtures(tmp_path)
+    result = step.execute(
+        data=data, config=config, run_dir=run_dir, prev_result=prev_result
+    )
+    assert result is not None
+
+
+def test_visualize_empty_correlation_df_generates_no_files(tmp_path):
+    """Empty correlation_df should produce zero output files.
+
+    GIVEN an empty correlation_df
+    WHEN VisualizeCrossPlatformStep.execute() is called
+    THEN files_generated is empty and plots_generated is 0
+    """
+    step, data, config, prev_result, run_dir = _empty_correlation_fixtures(tmp_path)
+    result = step.execute(
+        data=data, config=config, run_dir=run_dir, prev_result=prev_result
+    )
+    assert result.files_generated == []
+    assert result.metadata["plots_generated"] == 0
+
+
+def test_visualize_empty_correlation_df_logs_warning(tmp_path, caplog):
+    """Empty correlation_df should emit a warning log.
+
+    GIVEN an empty correlation_df
+    WHEN VisualizeCrossPlatformStep.execute() is called
+    THEN a warning about empty correlations is logged
+    """
+    import logging
+
+    step, data, config, prev_result, run_dir = _empty_correlation_fixtures(tmp_path)
+    with caplog.at_level(logging.WARNING):
+        step.execute(
+            data=data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_result,
+        )
+    assert any("empty" in record.message.lower() for record in caplog.records)
+
+
+# -- Task 2 tests -----------------------------------------------------------
+
+
+def test_visualize_empty_metadata_includes_flag(tmp_path):
+    """Empty correlation_df should set empty_correlations metadata flag.
+
+    GIVEN an empty correlation_df
+    WHEN VisualizeCrossPlatformStep.execute() is called
+    THEN metadata["empty_correlations"] is True
+    """
+    step, data, config, prev_result, run_dir = _empty_correlation_fixtures(tmp_path)
+    result = step.execute(
+        data=data, config=config, run_dir=run_dir, prev_result=prev_result
+    )
+    assert result.metadata["empty_correlations"] is True
+
+
+def test_visualize_empty_metadata_preserves_prev_result(tmp_path):
+    """Empty correlation path should preserve upstream metadata.
+
+    GIVEN an empty correlation_df
+    WHEN VisualizeCrossPlatformStep.execute() is called
+    THEN metadata from prev_result is preserved (exp names, trait lists, etc.)
+    """
+    step, data, config, prev_result, run_dir = _empty_correlation_fixtures(tmp_path)
+    result = step.execute(
+        data=data, config=config, run_dir=run_dir, prev_result=prev_result
+    )
+    # Upstream metadata should be preserved
+    assert result.metadata["exp1_name"] == "Exp1"
+    assert result.metadata["exp2_name"] == "Exp2"
+    assert result.metadata["exp1_trait_names"] == ["trait1"]
+    assert result.metadata["exp2_trait_names"] == ["trait_a"]
+    assert result.metadata["total_correlations"] == 0
+    # Empty-path specific metadata also present
+    assert result.metadata["empty_correlations"] is True
+    assert result.metadata["plots_generated"] == 0
+
+
+def test_visualize_nonempty_metadata_no_empty_flag(tmp_path):
+    """Non-empty correlation_df should NOT have empty_correlations key.
+
+    GIVEN a non-empty correlation_df
+    WHEN VisualizeCrossPlatformStep.execute() is called
+    THEN metadata does NOT contain the "empty_correlations" key
+    """
+    from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+        VisualizeCrossPlatformStep,
+    )
+
+    correlation_df = pd.DataFrame(
+        {
+            "exp1_trait": ["trait1"],
+            "exp2_trait": ["trait_a"],
+            "spearman_r": [0.8],
+            "spearman_p": [0.01],
+            "pearson_r": [0.75],
+            "pearson_p": [0.02],
+            "n_genotypes": [10],
+        }
+    )
+
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait1": np.random.randn(9),
+        }
+    )
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B", "C"] * 3,
+            "replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            "trait_a": np.random.randn(9),
+        }
+    )
+
+    prev_result = StepResult(
+        data={
+            "exp1_df": exp1_df,
+            "exp2_df": exp2_df,
+            "common_genotypes": ["A", "B", "C"],
+            "correlation_df": correlation_df,
+        },
+        metadata={
+            "exp1_name": "Exp1",
+            "exp2_name": "Exp2",
+            "total_correlations": 1,
+            "exp1_trait_names": ["trait1"],
+            "exp2_trait_names": ["trait_a"],
+        },
+        files_generated=[],
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="Geno",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno",
+        top_n_joint_plots=1,
+        top_n_boxplots=1,
+    )
+
+    step = VisualizeCrossPlatformStep()
+    result = step.execute(
+        data=prev_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=prev_result,
+    )
+    assert "empty_correlations" not in result.metadata
+
+
+# -- Task 3 integration test ------------------------------------------------
+
+
+def test_cross_platform_pipeline_completes_with_empty_correlations(
+    tmp_path,
+):
+    """Pipeline completes when all correlations are filtered out.
+
+    GIVEN two experiments that share common genotypes
+    WHEN CalculateCrossPlatformCorrelationsStep filters out all trait-pair
+         correlations (e.g., due to insufficient replicates for correlation)
+    THEN the visualization step completes without error
+    AND plots_generated is 0
+    """
+    from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
+        VisualizeCrossPlatformStep,
+    )
+    from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (  # noqa: E501
+        CalculateCrossPlatformCorrelationsStep,
+    )
+
+    # Both experiments share genotypes A and B, but each genotype has only
+    # one sample per experiment.  With min_genotypes_for_correlation=10
+    # (the default), only 2 shared genotypes are available, so every
+    # trait pair is filtered out and correlation_df ends up empty.
+    exp1_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B"],
+            "replicate": [1, 1],
+            "trait1": [1.0, 2.0],
+        }
+    )
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": ["A", "B"],
+            "replicate": [1, 1],
+            "trait_a": [10.0, 20.0],
+        }
+    )
+
+    load_data = {
+        "exp1_df": exp1_df,
+        "exp2_df": exp2_df,
+        "common_genotypes": ["A", "B"],
+    }
+    load_result = StepResult(
+        data=load_data,
+        metadata={
+            "exp1_name": "Exp1",
+            "exp2_name": "Exp2",
+            "exp1_trait_names": ["trait1"],
+            "exp2_trait_names": ["trait_a"],
+        },
+        files_generated=[],
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="dummy1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="genotype",
+        exp2_data_path="dummy2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="genotype",
+        top_n_joint_plots=6,
+        top_n_boxplots=6,
+    )
+
+    # Run correlation step -- should produce empty correlation_df
+    # because only 2 genotypes exist (below min_genotypes_for_correlation)
+    corr_step = CalculateCrossPlatformCorrelationsStep()
+    corr_result = corr_step.execute(
+        data=load_data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=load_result,
+    )
+    assert corr_result.data["correlation_df"].empty
+
+    # Run visualization step -- should not crash
+    viz_step = VisualizeCrossPlatformStep()
+    viz_result = viz_step.execute(
+        data=corr_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=corr_result,
+    )
+    assert viz_result.metadata["plots_generated"] == 0
+    assert viz_result.files_generated == []
