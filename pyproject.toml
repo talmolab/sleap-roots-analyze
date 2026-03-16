@@ -3,10 +3,20 @@ name = "sleap-roots-analyze"
 version = "0.0.1"
 description = "Analyze, visualize, and interpret root traits output from sleap-roots."
 readme = "README.md"
+license = "GPL-3.0-or-later"
 authors = [
     { name = "eberrigan", email = "eberrigan@salk.edu" }
 ]
 requires-python = ">=3.11"
+keywords = ["sleap", "roots", "phenotyping", "plant-science", "trait-analysis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research",
+]
 dependencies = [
     "adjustText>=1.3.0",
     "click>=8.0.0",
@@ -25,6 +35,12 @@ dependencies = [
     "statsmodels>=0.14.5",
     "umap-learn>=0.5.9.post2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/talmolab/sleap-roots-analyze"
+Repository = "https://github.com/talmolab/sleap-roots-analyze"
+Issues = "https://github.com/talmolab/sleap-roots-analyze/issues"
+Changelog = "https://github.com/talmolab/sleap-roots-analyze/blob/main/docs/CHANGELOG.md"
 
 [project.scripts]
 sleap-roots-analyze = "sleap_roots_analyze.cli:main"
@@ -45,7 +61,6 @@ dev = [
     "pytest-cov>=6.2.1",
     "ruff>=0.12.11",
     "toml>=0.10.2",
-    "twine>=6.1.0",
 ]
 
 [tool.black]
