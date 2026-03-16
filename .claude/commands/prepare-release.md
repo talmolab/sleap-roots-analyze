@@ -165,8 +165,8 @@ Check for consistency across documentation:
    - Include both `pip install` and `uv add` examples
 
 3. **Version consistency**:
-   - `pyproject.toml` version field
-   - `src/sleap_roots_analyze/__init__.py` `__version__`
+   - `pyproject.toml` version field (single source of truth)
+   - `__init__.py` uses dynamic versioning via `importlib.metadata` — no manual sync needed
 
 Report all issues found. Fix or ask the user about ambiguous issues.
 
@@ -217,8 +217,7 @@ uv version --bump $ARGUMENTS    # e.g., alpha, beta, rc, patch, minor, major, st
 uv version $NEW_VERSION
 ```
 
-Verify `src/sleap_roots_analyze/__init__.py` `__version__` was also updated.
-If not, update it manually to match.
+`__init__.py` uses dynamic versioning via `importlib.metadata` — no manual update needed.
 
 ### Step 8: Build and Test Release Artifacts
 
@@ -245,15 +244,16 @@ uv run --isolated --with dist/*.whl sleap-roots-analyze --help
 
 ```bash
 # Stage changes (version and changelog)
-git add pyproject.toml src/sleap_roots_analyze/__init__.py docs/CHANGELOG.md
+git add pyproject.toml docs/CHANGELOG.md
 
 # Include any other files fixed during audit (README, etc.)
 # git add README.md  # if updated
 
 # Commit with standard message format
+# Note: __init__.py uses dynamic versioning, only pyproject.toml needs updating
 git commit -m "chore: bump version to v$NEW_VERSION
 
-- Update version in pyproject.toml and __init__.py
+- Update version in pyproject.toml
 - Update CHANGELOG.md with release notes"
 
 # Push release branch
