@@ -67,6 +67,7 @@ jobs:
     needs: validate-release
     runs-on: ubuntu-latest
     permissions:
+      contents: read   # Required for actions/checkout
       id-token: write  # Required for PyPI trusted publishing
     steps:
       - name: Checkout repo
@@ -82,10 +83,7 @@ jobs:
 
       - name: Verify wheel installs correctly
         run: |
-          uv run --isolated --with dist/*.whl python -c "
-          import sleap_roots_analyze
-          print(f'Version: {sleap_roots_analyze.__version__}')
-          "
+          uv run --isolated --with dist/*.whl python -c "import sleap_roots_analyze; print(f'Version: {sleap_roots_analyze.__version__}')"
 
       - name: Verify CLI entry point
         run: |
