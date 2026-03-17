@@ -6,7 +6,7 @@ Thank you for your interest in contributing to `sleap-roots-analyze`! We welcome
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.11+
 - `uv` package manager ([installation guide](https://docs.astral.sh/uv/))
 - Git
 

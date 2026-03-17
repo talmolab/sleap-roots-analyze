@@ -119,7 +119,7 @@ src/sleap_roots_analyze/
 **Coverage Goals:**
 - **Target**: 95%+ coverage for critical modules
 - **Current**: 88-98% across all core modules
-- **Total Tests**: 150+ tests (growing with each feature)
+- **Total Tests**: ~1939 tests across 77 test files (growing with each feature)
 
 **Test Organization:**
 ```

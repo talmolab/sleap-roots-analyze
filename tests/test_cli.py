@@ -131,10 +131,13 @@ def test_cli_group(runner):
 
 
 def test_cli_version(runner):
-    """Test CLI version flag."""
+    """Test CLI version flag uses dynamic version from package metadata."""
+    from importlib.metadata import version
+
     result = runner.invoke(cli, ["--version"])
     assert result.exit_code == 0
-    assert "0.0.1" in result.output
+    expected_version = version("sleap-roots-analyze")
+    assert expected_version in result.output
 
 
 def test_main_entry_point():
