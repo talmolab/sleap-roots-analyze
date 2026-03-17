@@ -1,6 +1,11 @@
 """User exposed API."""
 
-__version__ = "0.0.1"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("sleap-roots-analyze")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 from sleap_roots_analyze.cli import main
 

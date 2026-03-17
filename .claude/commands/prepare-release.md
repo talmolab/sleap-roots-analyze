@@ -22,7 +22,7 @@ This command guides you through the complete release process, ensuring:
 This project uses **uv** as its build backend and package manager:
 
 - **`uv run <tool>`** — Run tools from the dev dependency group (pytest, black, ruff)
-- **`uvx <tool>`** — Run one-off tools without installing (twine, pip-audit)
+- **`uvx <tool>`** — Run one-off tools without installing (pip-audit)
 - **`uv build`** — Build wheel and sdist using the `uv_build` backend
 - **`uv publish`** — Publish to PyPI using trusted publishing (no tokens needed in CI)
 - **`uv version`** — Manage version numbers with semantic versioning support
@@ -96,8 +96,6 @@ uv run pytest tests/ -x -q --cov=src/sleap_roots_analyze --cov-report=term-missi
 uv build
 
 # Validate package metadata (one-off tool via uvx, no install needed)
-uvx twine check dist/*
-
 # Security audit (one-off tool via uvx)
 uvx pip-audit || echo "Security audit found issues (review before releasing)"
 ```
@@ -167,8 +165,8 @@ Check for consistency across documentation:
    - Include both `pip install` and `uv add` examples
 
 3. **Version consistency**:
-   - `pyproject.toml` version field
-   - `src/sleap_roots_analyze/__init__.py` `__version__`
+   - `pyproject.toml` version field (single source of truth)
+   - `__init__.py` uses dynamic versioning via `importlib.metadata` — no manual sync needed
 
 Report all issues found. Fix or ask the user about ambiguous issues.
 
@@ -219,8 +217,7 @@ uv version --bump $ARGUMENTS    # e.g., alpha, beta, rc, patch, minor, major, st
 uv version $NEW_VERSION
 ```
 
-Verify `src/sleap_roots_analyze/__init__.py` `__version__` was also updated.
-If not, update it manually to match.
+`__init__.py` uses dynamic versioning via `importlib.metadata` — no manual update needed.
 
 ### Step 8: Build and Test Release Artifacts
 
@@ -236,9 +233,6 @@ ls -lh dist/
 # Should see: sleap_roots_analyze-X.Y.Z-py3-none-any.whl
 #             sleap_roots_analyze-X.Y.Z.tar.gz
 
-# Validate package metadata (uvx = no install needed)
-uvx twine check dist/*
-
 # Test wheel installation in isolated environment
 uv run --isolated --with dist/*.whl python -c "import sleap_roots_analyze; print(f'Version: {sleap_roots_analyze.__version__}')"
 
@@ -250,15 +244,16 @@ uv run --isolated --with dist/*.whl sleap-roots-analyze --help
 
 ```bash
 # Stage changes (version and changelog)
-git add pyproject.toml src/sleap_roots_analyze/__init__.py docs/CHANGELOG.md
+git add pyproject.toml docs/CHANGELOG.md
 
 # Include any other files fixed during audit (README, etc.)
 # git add README.md  # if updated
 
 # Commit with standard message format
+# Note: __init__.py uses dynamic versioning, only pyproject.toml needs updating
 git commit -m "chore: bump version to v$NEW_VERSION
 
-- Update version in pyproject.toml and __init__.py
+- Update version in pyproject.toml
 - Update CHANGELOG.md with release notes"
 
 # Push release branch
@@ -280,7 +275,7 @@ gh pr create \
 - [x] All tests pass locally
 - [x] Coverage verified
 - [x] Linting checks pass (uv run black, uv run ruff)
-- [x] Build artifacts verified (uv build + uvx twine check)
+- [x] Build artifacts verified (uv build)
 - [x] Package installs correctly from wheel
 - [x] CLI entry point works
 - [x] CI passing on main branch
@@ -344,9 +339,8 @@ The GitHub Actions workflow `.github/workflows/build.yml` will automatically:
 1. Validate version consistency (tag vs pyproject.toml vs CHANGELOG)
 2. Run the full test suite
 3. Build the wheel and sdist with `uv build`
-4. Check package metadata with `uvx twine check`
-5. Test wheel installation
-6. Publish to PyPI with `uv publish` (trusted publishing, no tokens needed)
+4. Test wheel installation
+5. Publish to PyPI with `uv publish` (trusted publishing, no tokens needed)
 
 ### Step 12: Verify Release
 
@@ -400,23 +394,19 @@ git push origin main
 **Note:** You cannot delete releases from PyPI, only "yank" them.
 
 ```bash
-# Yank the bad release (uvx = no install needed)
-uvx twine yank sleap-roots-analyze -v $NEW_VERSION -r pypi
-
-# Release a patch version with fixes
+# PyPI yanking must be done through the PyPI web interface
+# Go to: https://pypi.org/manage/project/sleap-roots-analyze/releases/
+# Or release a patch version with fixes
 ```
 
 ## Publishing Architecture
 
-This repo uses **uv-native publishing** (not twine):
+This repo uses **uv-native publishing**:
 
 - **Build backend**: `uv_build` (defined in `pyproject.toml [build-system]`)
+- **Build command**: `uv build` (validates metadata, creates wheel + sdist)
 - **CI publishing**: `uv publish` with PyPI trusted publishing (`id-token: write`)
 - **No tokens needed in CI**: Trusted publishing authenticates via GitHub OIDC
-- **Local validation only**: `uvx twine check` is used for metadata validation, not uploading
-
-This differs from repos using setuptools + twine (like Ariadne). Here, `uv` handles the
-entire build → publish pipeline natively.
 
 ## Integration with Other Commands
 
