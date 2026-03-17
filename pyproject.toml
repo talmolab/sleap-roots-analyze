@@ -1,6 +1,6 @@
 [project]
 name = "sleap-roots-analyze"
-version = "0.0.1"
+version = "0.1.0a1"
 description = "Analyze, visualize, and interpret root traits output from sleap-roots."
 readme = "README.md"
 license = "GPL-3.0-or-later"

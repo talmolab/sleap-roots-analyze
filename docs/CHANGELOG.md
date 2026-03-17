@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a1] - 2026-03-17 (Pre-release)
+
 ### Added
 - **FDR Correction for Cross-Platform Correlations** (PR #45)
   - Configurable False Discovery Rate (FDR) correction via `fdr_correction_method` config parameter
