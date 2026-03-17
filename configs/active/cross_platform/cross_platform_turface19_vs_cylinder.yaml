@@ -5,12 +5,12 @@
 #          capture similar genetic variation patterns
 
 # Experiment 1: Turface 19 Genotypes (RhizoVision imaging) - QC'd but NOT heritability filtered
-exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_19genotypes_qc_20251215_133523/07_data_outliers_removed.csv"
+exp1_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/turface_19genotypes_qc_20260316_115849/07_data_outliers_removed.csv"
 exp1_name: "Turface 19 Genotypes (QC'd)"
 exp1_genotype_col: "Genotype"
 
 # Experiment 2: Cylinder (SLEAP Roots imaging) - QC'd but NOT heritability filtered
-exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/cylinder_edpie_qc_20251215_133553/07_data_outliers_removed.csv"
+exp2_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/cylinder_edpie_qc_20260316_115918/07_data_outliers_removed.csv"
 exp2_name: "Cylinder EDPIE (QC'd)"
 exp2_genotype_col: "Genotype"
 
@@ -40,7 +40,9 @@ figsize_joint: [10, 10]         # Joint plot figure size
 figsize_boxplot: [16, 6]        # Boxplot figure size
 
 # Column Exclusions - metadata columns to exclude from trait analysis
-# exp1_exclude_cols not needed - Turface 19 has no extra metadata columns
+exp1_exclude_cols:
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Med Num Roots"        # 13/19 unique geno means (68%)
 
 # Cylinder data (exp2) has SLEAP Roots pipeline metadata columns
 exp2_exclude_cols:
@@ -75,6 +77,17 @@ exp2_exclude_cols:
   - "wave_id"            # Wave identifier
   - "wave_name"          # Wave name
   - "wave_number"        # Wave number
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Scanline First Ind Min"                   # 12/19 unique geno means (63%)
+  - "Seminal Count Max"                        # 12/19 unique geno means (63%)
+  - "Scanline Intersection Counts Max P75"     # 14/19 unique geno means (74%)
+  - "Scanline Intersection Counts P75 Min"     # 14/19 unique geno means (74%)
+  - "Scanline First Ind Med"                   # 15/19 unique geno means (79%)
+  - "Scanline First Ind P25"                   # 15/19 unique geno means (79%)
+  - "Scanline Intersection Counts Max Med"     # 15/19 unique geno means (79%)
+  - "Scanline Intersection Counts Max Min"     # 15/19 unique geno means (79%)
+  - "Scanline Last Ind Max"                    # 15/19 unique geno means (79%)
+  - "Seminal Count Min"                        # 15/19 unique geno means (79%)
 
 # Analysis Notes:
 # - 19 genotypes present in both experiments

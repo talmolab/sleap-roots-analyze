@@ -6,12 +6,12 @@
 
 # Experiment 1: Root Core EDPIE (Field root coring data - QC'd but NOT heritability filtered)
 # Note: Using 07_data_outliers_removed.csv which has all 12 depth intervals + biomass
-exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/EDPIE Root Core Full QC_20251215_134134/07_data_outliers_removed.csv"
+exp1_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/edpie_root_core_qc_20260316_120039/07_data_outliers_removed.csv"
 exp1_name: "Root Core EDPIE (QC'd)"
 exp1_genotype_col: "Genotype"
 
 # Experiment 2: Turface 19 Genotypes (RhizoVision imaging) - QC'd but NOT heritability filtered
-exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_19genotypes_qc_20251215_133523/07_data_outliers_removed.csv"
+exp2_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/turface_19genotypes_qc_20260316_115849/07_data_outliers_removed.csv"
 exp2_name: "Turface 19 Genotypes (QC'd)"
 exp2_genotype_col: "Genotype"
 
@@ -55,8 +55,20 @@ exp1_exclude_cols:
   - "outlier_flag"     # QC outlier flag
   - "outlier_reason"   # QC outlier reason
   - "plant_identifier" # Plant identifier
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Rspkgp Calc Pct"   # 11/20 unique geno means (55%)
+  - "Ant Dto Day"        # 13/20 unique geno means (65%), CV=0.025
+  - "Boot Dtoinit Day"   # 13/20 unique geno means (65%), CV=0.029
+  - "Hd Dto Day"         # 13/20 unique geno means (65%), CV=0.026
+  - "Root Count 45cm"    # 13/20 unique geno means (65%)
+  - "Gwsp Calc (g)"      # 14/20 unique geno means (70%)
+  - "Mat Dto Day"        # 15/20 unique geno means (75%), CV=0.020
+  - "Root Count 35cm"    # 15/20 unique geno means (75%)
+  - "Root Count 40cm"    # 15/20 unique geno means (75%)
 
-# exp2_exclude_cols not needed - Turface 19 has no extra metadata columns
+exp2_exclude_cols:
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Med Num Roots"        # 13/19 unique geno means (68%)
 
 # Analysis Notes:
 # - Root Core data (07_data_outliers_removed.csv) includes:

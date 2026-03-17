@@ -5,12 +5,12 @@
 #          measurement consistency and identify the most reproducible traits
 
 # Experiment 1: Turface 150 Genotypes (larger experiment) - QC'd but NOT heritability filtered
-exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_150genotypes_qc_20251215_133424/07_data_outliers_removed.csv"
+exp1_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/turface_150genotypes_qc_20260316_115754/07_data_outliers_removed.csv"
 exp1_name: "Turface 150 Genotypes (QC'd)"
 exp1_genotype_col: "Genotype"
 
 # Experiment 2: Turface 19 Genotypes (smaller experiment) - QC'd but NOT heritability filtered
-exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_19genotypes_qc_20251215_133523/07_data_outliers_removed.csv"
+exp2_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/turface_19genotypes_qc_20260316_115849/07_data_outliers_removed.csv"
 exp2_name: "Turface 19 Genotypes (QC'd)"
 exp2_genotype_col: "Genotype"
 
@@ -48,8 +48,13 @@ exp1_exclude_cols:
   - "Entry"
   - "GID"
   - "scanner"
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Med Num Roots"        # 72/156 unique geno means (46%)
+  - "Max Num Roots"        # 93/156 unique geno means (60%)
 
-# exp2_exclude_cols not needed - Turface 19 has no extra metadata columns
+exp2_exclude_cols:
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Med Num Roots"        # 13/19 unique geno means (68%)
 
 # Analysis Notes:
 # - 19 genotypes overlap between experiments (all from Dataset 2 are in Dataset 1)
