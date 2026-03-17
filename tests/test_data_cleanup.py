@@ -1648,6 +1648,57 @@ class TestModularCleanupFunctions:
         assert len(traits2) <= len(traits1)
         assert len(traits3) <= len(traits2)
 
+    def test_apply_data_cleanup_filters_propagates_removal_details(
+        self, mixed_problem_data
+    ):
+        """Regression test: removed_samples_detail must be non-empty when samples removed.
+
+        This test catches the key mismatch bug where apply_data_cleanup_filters()
+        used "removed_samples_detail" to read from removal_stats, but
+        remove_nan_samples() stores the data under "removal_details".
+        """
+        from src.sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        df = mixed_problem_data
+        trait_cols = [c for c in df.columns if c.startswith("trait_")]
+
+        df_clean, cleanup_log = apply_data_cleanup_filters(
+            df,
+            trait_cols,
+            max_zeros_per_trait=0.5,
+            max_nans_per_trait=0.3,
+            max_nans_per_sample=0.2,
+            min_samples_per_trait=5,
+        )
+
+        # Verify samples were actually removed (precondition for the test)
+        samples_removed = cleanup_log["original_samples"] - cleanup_log["final_samples"]
+        assert (
+            samples_removed > 0
+        ), "Fixture must remove at least one sample for this test to be meaningful"
+
+        # Core regression assertion: detail list must be populated, not empty
+        assert len(cleanup_log["removed_samples_detail"]) == samples_removed
+
+        # Each entry must contain all required fields
+        required_fields = {
+            "sample_index",
+            "barcode",
+            "genotype",
+            "rep",
+            "nan_count",
+            "nan_fraction",
+            "nan_traits",
+            "removal_reason",
+        }
+        for entry in cleanup_log["removed_samples_detail"]:
+            assert required_fields == set(
+                entry.keys()
+            ), f"Entry missing fields: {required_fields - set(entry.keys())}"
+            assert 0.0 < entry["nan_fraction"] <= 1.0
+            assert entry["nan_count"] > 0
+            assert entry["nan_traits"]  # non-empty string
+
 
 class TestInspectNanSamples:
     """Test the inspect_nan_samples function."""
