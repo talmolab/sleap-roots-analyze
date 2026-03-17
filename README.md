@@ -1,21 +1,30 @@
 # SLEAP Roots Analyze
 
+[![PyPI version](https://img.shields.io/pypi/v/sleap-roots-analyze)](https://pypi.org/project/sleap-roots-analyze/)
+[![Python: 3.11+](https://img.shields.io/pypi/pyversions/sleap-roots-analyze)](https://pypi.org/project/sleap-roots-analyze/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-![Coverage: 88%](https://img.shields.io/badge/Coverage-88%25-brightgreen)
-![Tests: 1300+](https://img.shields.io/badge/Tests-1300%2B-brightgreen)
-![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
+![Tests: 1900+](https://img.shields.io/badge/Tests-1900%2B-brightgreen)
 
 Statistical analysis tools for root trait data from [SLEAP Roots](https://github.com/talmolab/sleap-roots).
 
 ## Installation
 
 ```bash
-# Clone the repository
+pip install sleap-roots-analyze
+```
+
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv add sleap-roots-analyze
+```
+
+For development:
+
+```bash
 git clone https://github.com/talmolab/sleap-roots-analyze.git
 cd sleap-roots-analyze
-
-# Install with uv
-uv sync --group dev  # Includes development dependencies
+uv sync --group dev
 ```
 
 ## Quick Start
@@ -321,7 +330,7 @@ sleap-roots-analyze/
 ├── configs/                     # Pipeline configurations
 │   ├── active/                  # Active run manifests
 │   └── examples/                # Example configs for different use cases
-├── tests/                       # Test suite (1300+ tests)
+├── tests/                       # Test suite (1900+ tests)
 ├── docs/                        # Documentation
 └── pyproject.toml              # Project configuration
 ```
@@ -336,7 +345,7 @@ GNU General Public License v3.0 - see [LICENSE](LICENSE) file.
 @software{sleap_roots_analyze,
   title = {SLEAP Roots Analyze},
   author = {Elizabeth Berrigan},
-  year = {2025},
+  year = {2026},
   url = {https://github.com/talmolab/sleap-roots-analyze}
 }
 ```
