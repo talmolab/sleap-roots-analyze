@@ -115,7 +115,7 @@ class CleanupTraitsStep(BaseStep):
         removed_sample_indices = []
         if cleanup_log.get("removed_samples_detail"):
             for sample_info in cleanup_log["removed_samples_detail"]:
-                removed_sample_indices.append(sample_info["index"])
+                removed_sample_indices.append(sample_info["sample_index"])
 
         # Get data after trait cleanup but before sample removal
         df_traits_cleaned = df[
@@ -146,7 +146,16 @@ class CleanupTraitsStep(BaseStep):
             removed_samples_df = pd.DataFrame(cleanup_log["removed_samples_detail"])
         else:
             removed_samples_df = pd.DataFrame(
-                columns=["index", barcode_col, "nan_count", "nan_fraction"]
+                columns=[
+                    "sample_index",
+                    "barcode",
+                    "genotype",
+                    "rep",
+                    "nan_count",
+                    "nan_fraction",
+                    "nan_traits",
+                    "removal_reason",
+                ]
             )
 
         # Reorder columns before saving: metadata first, then traits (sorted)

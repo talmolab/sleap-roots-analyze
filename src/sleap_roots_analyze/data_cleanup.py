@@ -641,7 +641,19 @@ def apply_data_cleanup_filters(
         min_samples_per_trait: Minimum number of valid samples required per trait
 
     Returns:
-        Tuple of (cleaned_dataframe, cleanup_log)
+        Tuple of (cleaned_dataframe, cleanup_log) where cleanup_log is a dict with keys:
+        - ``original_samples``: int — sample count before cleanup
+        - ``original_traits``: int — trait count before cleanup
+        - ``final_samples``: int — sample count after cleanup
+        - ``final_traits``: int — trait count after cleanup
+        - ``removed_traits``: list[dict] — one entry per removed trait
+        - ``removed_samples``: list[dict] — alias for ``removed_samples_detail``
+        - ``removed_samples_detail``: list[dict] — one entry per removed sample;
+          each dict has keys ``sample_index``, ``barcode``, ``genotype``, ``rep``,
+          ``nan_count``, ``nan_fraction``, ``nan_traits``, ``removal_reason``.
+          Populated from ``remove_nan_samples()`` via its ``"removal_details"`` key.
+        - ``cleanup_steps``: list[dict] — one entry per cleanup step with step name
+          and counts
     """
     cleanup_log = {
         "original_samples": len(df),
@@ -700,9 +712,7 @@ def apply_data_cleanup_filters(
         )
 
         # Update cleanup log with sample removal details
-        cleanup_log["removed_samples_detail"] = removal_stats.get(
-            "removed_samples_detail", []
-        )
+        cleanup_log["removed_samples_detail"] = removal_stats.get("removal_details", [])
         cleanup_log["removed_samples"] = cleanup_log["removed_samples_detail"]
 
         cleanup_log["cleanup_steps"].append(

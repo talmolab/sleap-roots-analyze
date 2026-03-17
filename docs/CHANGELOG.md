@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **NaN-removed sample traceability** — Corrected a dictionary key mismatch in
+  `apply_data_cleanup_filters()` where `removal_stats.get("removed_samples_detail")`
+  should have been `removal_stats.get("removal_details")`, causing
+  `02_removed_samples_detail.csv` to always be written as a header-only file.
+  Also fixed a secondary key mismatch in `CleanupTraitsStep` (`sample_info["index"]`
+  → `sample_info["sample_index"]`) and aligned the empty-DataFrame fallback column
+  schema. Affected datasets: Turface 19 (29 samples, 15.5% of dataset) and
+  Turface 150 (1 sample).
+
 ## [0.1.0a1] - 2026-03-17 (Pre-release)
 
 ### Added
