@@ -24,7 +24,7 @@ the column names that are active in the DataFrame at the time of removal.
 - **THEN** it contains exactly these keys: `sample_index`, `barcode`, `genotype`,
   `rep`, `nan_count`, `nan_fraction`, `nan_traits`, `removal_reason`
 - **AND** `nan_fraction` is a float between 0.0 and 1.0
-- **AND** `nan_traits` is a non-empty comma-separated string of NaN trait column names in trait-column order (e.g., `"trait_a, trait_b"`)
+- **AND** `nan_traits` is a non-empty semicolon-separated string of NaN trait column names in trait-column order (e.g., `"trait_a; trait_b"`)
 
 #### Scenario: Genotype and replicate fields populated when column names are non-default
 
@@ -77,9 +77,10 @@ the column names that are active in the DataFrame at the time of removal.
 
 #### Scenario: No removal when max_nan_fraction is 1.0
 
-- **GIVEN** `max_nan_fraction=1.0` (only fully-NaN samples removed)
-- **WHEN** a sample has some but not all traits as NaN
+- **GIVEN** `max_nan_fraction=1.0` (removal condition is `nan_fraction > 1.0`, which is never true)
+- **WHEN** a sample has some but not all traits as NaN (or even all traits as NaN, giving `nan_fraction == 1.0`)
 - **THEN** `cleanup_log["removed_samples_detail"]` is an empty list
+- **AND** the sample is retained because removal requires strictly greater than `max_nan_fraction`
 
 #### Scenario: Default column names produce correct output for direct callers
 

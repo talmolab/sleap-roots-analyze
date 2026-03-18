@@ -676,7 +676,7 @@ def apply_data_cleanup_filters(
         - ``final_samples``: int — sample count after cleanup
         - ``final_traits``: int — trait count after cleanup
         - ``removed_traits``: list[dict] — one entry per removed trait
-        - ``removed_samples``: list[dict] — alias for ``removed_samples_detail``
+        - ``removed_samples``: list[dict] — independent deep copy of ``removed_samples_detail``
         - ``removed_samples_detail``: list[dict] — one entry per removed sample;
           each dict has keys ``sample_index``, ``barcode``, ``genotype``, ``rep``,
           ``nan_count``, ``nan_fraction``, ``nan_traits``, ``removal_reason``.

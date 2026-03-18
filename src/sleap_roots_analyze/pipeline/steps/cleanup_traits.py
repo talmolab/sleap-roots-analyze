@@ -99,9 +99,9 @@ class CleanupTraitsStep(BaseStep):
             max_nans_per_trait=config.cleanup.max_nans_per_trait,
             max_nans_per_sample=config.cleanup.max_nan_fraction,
             min_samples_per_trait=config.cleanup.min_samples_per_trait,
-            barcode_col="Barcode",
-            genotype_col="Genotype",
-            replicate_col="Replicate",
+            barcode_col=barcode_col,
+            genotype_col=genotype_col,
+            replicate_col=replicate_col,
         )
 
         # Extract trait-only state (after trait removal, before sample removal)
