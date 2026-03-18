@@ -43,8 +43,8 @@ cleanup:
 outlier_detection:
   traditional_methods:
     - mahalanobis
-  clustering_methods:
     - isolation_forest
+  clustering_methods: []
 
   # Mahalanobis settings (matching notebook parameters)
   mahalanobis:

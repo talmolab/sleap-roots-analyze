@@ -153,8 +153,8 @@ cleanup:
 outlier_detection:
   traditional_methods:
     - mahalanobis
-  clustering_methods:
     - isolation_forest
+  clustering_methods: []
 
   mahalanobis:
     variance_threshold: 0.95

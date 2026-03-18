@@ -59,10 +59,10 @@ outlier_detection:
   # Traditional outlier detection methods to run
   traditional_methods:
     - mahalanobis
+    - isolation_forest
 
   # Clustering-based outlier detection methods
-  clustering_methods:
-    - isolation_forest
+  clustering_methods: []
 
   # Mahalanobis distance configuration
   mahalanobis:
