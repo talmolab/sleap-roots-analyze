@@ -15,7 +15,7 @@ enable_parallel: false
 
 # Data configuration
 data:
-  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/all_EDPIE.whole.root_raw_RSR_diameter_angle_traits_removed.csv"
+  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/all_EDPIE.whole.root_raw_RSR_diameter_angle_traits_removed_deduped.csv"
   image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/turface_150_genotypes_rhizovision_processed_images"
   additional_exclude_cols:
     - "File.me"
