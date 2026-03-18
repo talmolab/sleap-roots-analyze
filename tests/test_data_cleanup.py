@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
-from src.sleap_roots_analyze.data_cleanup import (
+from sleap_roots_analyze.data_cleanup import (
     load_trait_data,
     get_trait_columns,
     save_cleaned_data,
@@ -16,7 +16,7 @@ from src.sleap_roots_analyze.data_cleanup import (
     get_numeric_traits_only,
     remove_low_heritability_traits,
 )
-from src.sleap_roots_analyze.data_utils import (
+from sleap_roots_analyze.data_utils import (
     create_run_directory,
     convert_to_json_serializable,
     link_rhizovision_images_to_samples,
@@ -1432,7 +1432,7 @@ class TestModularCleanupFunctions:
 
     def test_remove_zero_inflated_traits_basic(self, zero_inflated_data):
         """Test removal of zero-inflated traits."""
-        from src.sleap_roots_analyze.data_cleanup import remove_zero_inflated_traits
+        from sleap_roots_analyze.data_cleanup import remove_zero_inflated_traits
 
         df = zero_inflated_data
         trait_cols = [
@@ -1464,7 +1464,7 @@ class TestModularCleanupFunctions:
 
     def test_remove_zero_inflated_traits_edge_cases(self):
         """Test edge cases for zero-inflated trait removal."""
-        from src.sleap_roots_analyze.data_cleanup import remove_zero_inflated_traits
+        from sleap_roots_analyze.data_cleanup import remove_zero_inflated_traits
 
         # Empty dataframe
         df_empty = pd.DataFrame()
@@ -1495,7 +1495,7 @@ class TestModularCleanupFunctions:
 
     def test_remove_traits_with_many_nans_basic(self, nan_data):
         """Test removal of traits with many NaNs."""
-        from src.sleap_roots_analyze.data_cleanup import remove_traits_with_many_nans
+        from sleap_roots_analyze.data_cleanup import remove_traits_with_many_nans
 
         df = nan_data
         trait_cols = [
@@ -1531,7 +1531,7 @@ class TestModularCleanupFunctions:
 
     def test_remove_low_sample_traits_basic(self, sparse_data):
         """Test removal of traits with insufficient samples."""
-        from src.sleap_roots_analyze.data_cleanup import remove_low_sample_traits
+        from sleap_roots_analyze.data_cleanup import remove_low_sample_traits
 
         df = sparse_data
         trait_cols = ["trait_sparse", "trait_dense", "trait_half"]
@@ -1559,7 +1559,7 @@ class TestModularCleanupFunctions:
 
     def test_remove_low_sample_traits_with_real_data(self, features_df):
         """Test with real feature data."""
-        from src.sleap_roots_analyze.data_cleanup import (
+        from sleap_roots_analyze.data_cleanup import (
             remove_low_sample_traits,
             get_trait_columns,
         )
@@ -1585,7 +1585,7 @@ class TestModularCleanupFunctions:
 
     def test_apply_data_cleanup_filters_integration(self, mixed_problem_data):
         """Test the integrated cleanup function with mixed problems."""
-        from src.sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
 
         df = mixed_problem_data
         trait_cols = [c for c in df.columns if c.startswith("trait_")]
@@ -1621,7 +1621,7 @@ class TestModularCleanupFunctions:
 
     def test_modular_functions_preserve_data_integrity(self, features_df):
         """Test that modular functions don't modify original data."""
-        from src.sleap_roots_analyze.data_cleanup import (
+        from sleap_roots_analyze.data_cleanup import (
             remove_zero_inflated_traits,
             remove_traits_with_many_nans,
             remove_low_sample_traits,
@@ -1657,7 +1657,7 @@ class TestModularCleanupFunctions:
         used "removed_samples_detail" to read from removal_stats, but
         remove_nan_samples() stores the data under "removal_details".
         """
-        from src.sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
 
         df = mixed_problem_data
         trait_cols = [c for c in df.columns if c.startswith("trait_")]
@@ -1699,13 +1699,177 @@ class TestModularCleanupFunctions:
             assert entry["nan_count"] > 0
             assert entry["nan_traits"]  # non-empty string
 
+    def test_apply_data_cleanup_filters_uses_genotype_col_and_replicate_col(self):
+        """Regression: non-default column names must be forwarded to remove_nan_samples."""
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        # Use enough samples so traits are NOT removed by max_nans_per_trait (default 0.3)
+        # before the sample-level filter runs. Only b4/b5 have all-NaN (100% per trait if only
+        # 2 of 5 samples), which is 2/5=0.4 > 0.3, so we must raise max_nans_per_trait.
+        df = pd.DataFrame(
+            {
+                "Barcode": ["b1", "b2", "b3", "b4", "b5"],
+                "Genotype": ["A", "B", "A", "B", "B"],
+                "Replicate": [1, 2, 1, 2, 1],
+                "trait1": [1.0, 2.0, 3.0, float("nan"), float("nan")],
+                "trait2": [4.0, 5.0, 6.0, float("nan"), float("nan")],
+            }
+        )
+        df_clean, cleanup_log = apply_data_cleanup_filters(
+            df,
+            trait_cols=["trait1", "trait2"],
+            max_nans_per_sample=0.0,
+            max_nans_per_trait=0.5,  # Allow up to 50% NaN per trait (2/5=0.4 < 0.5)
+            min_samples_per_trait=1,  # Low threshold so traits are kept
+            genotype_col="Genotype",
+            replicate_col="Replicate",
+        )
+        detail = cleanup_log["removed_samples_detail"]
+        assert len(detail) >= 1
+        assert all(
+            d["genotype"] != "" for d in detail
+        ), f"Expected genotype populated, got: {[d['genotype'] for d in detail]}"
+        assert all(
+            d["rep"] != "" for d in detail
+        ), f"Expected rep populated, got: {[d['rep'] for d in detail]}"
+
+    def test_apply_data_cleanup_filters_removed_samples_is_independent_copy(self):
+        """Regression: removed_samples must be a deep copy of removed_samples_detail."""
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        df = pd.DataFrame(
+            {
+                "Barcode": ["b1", "b2"],
+                "geno": ["A", "B"],
+                "rep": [1, 2],
+                "trait1": [1.0, float("nan")],
+                "trait2": [2.0, float("nan")],
+            }
+        )
+        df_clean, cleanup_log = apply_data_cleanup_filters(
+            df,
+            trait_cols=["trait1", "trait2"],
+            max_nans_per_sample=0.0,
+        )
+        # Lists must be separate objects
+        assert (
+            cleanup_log["removed_samples"] is not cleanup_log["removed_samples_detail"]
+        )
+        original_detail_len = len(cleanup_log["removed_samples_detail"])
+        # Appending to removed_samples must not affect removed_samples_detail
+        cleanup_log["removed_samples"].append({"sentinel": True})
+        assert len(cleanup_log["removed_samples_detail"]) == original_detail_len
+        # Mutating a dict entry in removed_samples must not affect removed_samples_detail
+        if cleanup_log["removed_samples_detail"]:
+            cleanup_log["removed_samples"][0]["genotype"] = "__mutated__"
+            assert cleanup_log["removed_samples_detail"][0]["genotype"] != "__mutated__"
+
+    def test_apply_data_cleanup_filters_empty_detail_when_no_samples_removed(self):
+        """Regression: removed_samples_detail must be empty list when no samples removed."""
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        df = pd.DataFrame(
+            {
+                "Barcode": ["b1", "b2"],
+                "geno": ["A", "B"],
+                "rep": [1, 2],
+                "trait1": [1.0, 2.0],
+                "trait2": [3.0, 4.0],
+            }
+        )
+        df_clean, cleanup_log = apply_data_cleanup_filters(
+            df,
+            trait_cols=["trait1", "trait2"],
+            max_nans_per_sample=1.0,
+        )
+        assert cleanup_log["removed_samples_detail"] == []
+        assert cleanup_log["removed_samples"] == []
+
+    def test_remove_nan_samples_max_nan_fraction_zero(self):
+        """Edge case: max_nans_per_sample=0.0 removes any sample with at least one NaN."""
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        # Use enough samples so the trait with 1 NaN is below the trait-level threshold
+        # (1/4 = 0.25 < default max_nans_per_trait=0.3), so the trait is kept.
+        df = pd.DataFrame(
+            {
+                "Barcode": ["b1", "b2", "b3", "b4"],
+                "geno": ["A", "B", "A", "B"],
+                "rep": [1, 2, 1, 2],
+                "trait1": [1.0, float("nan"), 3.0, 4.0],
+                "trait2": [2.0, 3.0, 4.0, 5.0],
+            }
+        )
+        df_clean, cleanup_log = apply_data_cleanup_filters(
+            df,
+            trait_cols=["trait1", "trait2"],
+            max_nans_per_sample=0.0,
+            min_samples_per_trait=1,  # Low threshold
+        )
+        detail = cleanup_log["removed_samples_detail"]
+        assert len(detail) == 1
+        assert detail[0]["nan_count"] == 1
+        assert detail[0]["nan_fraction"] > 0.0
+
+    def test_remove_nan_samples_max_nan_fraction_one_keeps_partial_nan(self):
+        """Edge case: max_nans_per_sample=1.0 keeps samples with partial NaN."""
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        df = pd.DataFrame(
+            {
+                "Barcode": ["b1", "b2"],
+                "geno": ["A", "B"],
+                "rep": [1, 2],
+                "trait1": [1.0, float("nan")],
+                "trait2": [2.0, 3.0],
+            }
+        )
+        df_clean, cleanup_log = apply_data_cleanup_filters(
+            df,
+            trait_cols=["trait1", "trait2"],
+            max_nans_per_sample=1.0,
+        )
+        assert cleanup_log["removed_samples_detail"] == []
+
+    def test_remove_nan_samples_missing_column_fallback(self, caplog):
+        """Edge case: missing replicate column produces empty-string fallback with warning."""
+        import logging
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        # Use enough samples so traits aren't dropped by max_nans_per_trait before samples.
+        # b4/b5 have all-NaN (2/5=0.4), so set max_nans_per_trait=0.5 to keep traits.
+        df = pd.DataFrame(
+            {
+                "Barcode": ["b1", "b2", "b3", "b4", "b5"],
+                "geno": ["A", "B", "A", "B", "B"],
+                # no "rep" column
+                "trait1": [1.0, 2.0, 3.0, float("nan"), float("nan")],
+                "trait2": [4.0, 5.0, 6.0, float("nan"), float("nan")],
+            }
+        )
+        with caplog.at_level(logging.WARNING):
+            df_clean, cleanup_log = apply_data_cleanup_filters(
+                df,
+                trait_cols=["trait1", "trait2"],
+                max_nans_per_sample=0.0,
+                max_nans_per_trait=0.5,
+                min_samples_per_trait=1,
+            )
+        detail = cleanup_log["removed_samples_detail"]
+        assert len(detail) >= 1
+        assert detail[0]["rep"] == ""
+        assert any(
+            "rep" in msg.lower() or "replicate" in msg.lower()
+            for msg in caplog.messages
+        ), f"Expected warning about missing replicate column, got: {caplog.messages}"
+
 
 class TestInspectNanSamples:
     """Test the inspect_nan_samples function."""
 
     def test_basic_nan_inspection(self):
         """Test basic NaN inspection functionality."""
-        from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
+        from sleap_roots_analyze.data_cleanup import inspect_nan_samples
 
         # Create test data with some NaN values
         df = pd.DataFrame(
@@ -1744,7 +1908,7 @@ class TestInspectNanSamples:
 
     def test_no_nan_values(self):
         """Test when no NaN values are present."""
-        from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
+        from sleap_roots_analyze.data_cleanup import inspect_nan_samples
 
         # Create test data without NaN
         df = pd.DataFrame(
@@ -1769,7 +1933,7 @@ class TestInspectNanSamples:
 
     def test_custom_column_names(self):
         """Test with custom column names."""
-        from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
+        from sleap_roots_analyze.data_cleanup import inspect_nan_samples
 
         # Create test data with custom column names
         df = pd.DataFrame(
@@ -1801,7 +1965,7 @@ class TestInspectNanSamples:
 
     def test_missing_metadata_columns(self):
         """Test when metadata columns don't exist."""
-        from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
+        from sleap_roots_analyze.data_cleanup import inspect_nan_samples
 
         # Create test data without metadata columns
         df = pd.DataFrame({"trait1": [1.0, np.nan, 3.0], "trait2": [4.0, 5.0, np.nan]})
@@ -1822,7 +1986,7 @@ class TestInspectNanSamples:
 
     def test_save_to_csv(self, tmp_path):
         """Test saving inspection results to CSV."""
-        from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
+        from sleap_roots_analyze.data_cleanup import inspect_nan_samples
 
         # Create test data
         df = pd.DataFrame(
@@ -1851,7 +2015,7 @@ class TestInspectNanSamples:
 
     def test_with_turface_data(self, turface_traits_df):
         """Test with real Turface data fixture."""
-        from src.sleap_roots_analyze.data_cleanup import (
+        from sleap_roots_analyze.data_cleanup import (
             inspect_nan_samples,
             get_trait_columns,
         )
@@ -1883,7 +2047,7 @@ class TestInspectNanSamples:
 
     def test_with_traits_summary_data(self, traits_summary_df):
         """Test with real traits summary data."""
-        from src.sleap_roots_analyze.data_cleanup import (
+        from sleap_roots_analyze.data_cleanup import (
             inspect_nan_samples,
             get_trait_columns,
         )
@@ -1911,7 +2075,7 @@ class TestInspectNanSamples:
 
     def test_fraction_calculation(self):
         """Test that NaN fraction is calculated correctly."""
-        from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
+        from sleap_roots_analyze.data_cleanup import inspect_nan_samples
 
         # Create test data with specific NaN patterns
         df = pd.DataFrame(
@@ -1941,7 +2105,7 @@ class TestInspectNanSamples:
 
     def test_verbose_false(self, caplog):
         """Test with verbose=False to ensure quiet operation."""
-        from src.sleap_roots_analyze.data_cleanup import inspect_nan_samples
+        from sleap_roots_analyze.data_cleanup import inspect_nan_samples
         import logging
 
         # Create test data with NaN

@@ -271,6 +271,29 @@ def remove_nan_samples(
         "removal_details": [],
     }
 
+    # Warn once if metadata columns are missing before iterating
+    if barcode_col not in df.columns:
+        logger.warning(
+            "Column '%s' not found in DataFrame; barcode will be empty string "
+            "in removal details. Available columns: %s",
+            barcode_col,
+            df.columns.tolist(),
+        )
+    if genotype_col not in df.columns:
+        logger.warning(
+            "Column '%s' not found in DataFrame; genotype will be empty string "
+            "in removal details. Available columns: %s",
+            genotype_col,
+            df.columns.tolist(),
+        )
+    if replicate_col and replicate_col not in df.columns:
+        logger.warning(
+            "Column '%s' not found in DataFrame; rep will be empty string "
+            "in removal details. Available columns: %s",
+            replicate_col,
+            df.columns.tolist(),
+        )
+
     # Identify samples with NaN in trait columns
     samples_to_remove = []
     removed_details = []
@@ -623,6 +646,9 @@ def apply_data_cleanup_filters(
     max_nans_per_trait: float = 0.3,
     max_nans_per_sample: float = 0.2,
     min_samples_per_trait: int = 10,
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: Optional[str] = "rep",
 ) -> Tuple[pd.DataFrame, Dict]:
     """Apply configurable data cleanup filters to minimize sample loss.
 
@@ -639,6 +665,9 @@ def apply_data_cleanup_filters(
         max_nans_per_trait: Maximum fraction of NaNs allowed per trait (0-1)
         max_nans_per_sample: Maximum fraction of NaNs allowed per sample (0-1)
         min_samples_per_trait: Minimum number of valid samples required per trait
+        barcode_col: Name of the barcode/plant ID column (default: "Barcode")
+        genotype_col: Name of the genotype column (default: "geno")
+        replicate_col: Name of the replicate column if present (default: "rep")
 
     Returns:
         Tuple of (cleaned_dataframe, cleanup_log) where cleanup_log is a dict with keys:
@@ -708,12 +737,17 @@ def apply_data_cleanup_filters(
             df_clean,
             valid_traits,
             max_nan_fraction=max_nans_per_sample,
+            barcode_col=barcode_col,
+            genotype_col=genotype_col,
+            replicate_col=replicate_col,
             save_removed_path=None,  # Don't save to file here
         )
 
         # Update cleanup log with sample removal details
         cleanup_log["removed_samples_detail"] = removal_stats.get("removal_details", [])
-        cleanup_log["removed_samples"] = cleanup_log["removed_samples_detail"]
+        cleanup_log["removed_samples"] = [
+            dict(e) for e in cleanup_log["removed_samples_detail"]
+        ]
 
         cleanup_log["cleanup_steps"].append(
             {

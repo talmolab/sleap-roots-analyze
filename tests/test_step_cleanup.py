@@ -241,6 +241,22 @@ def test_removed_samples_csv_contains_correct_rows(
     # Barcodes of removed samples must match rows 15-17
     assert set(removed_samples["barcode"]) == {"plant15", "plant16", "plant17"}
 
+    # Verify genotype and rep are correctly populated (not empty strings due to column mismatch)
+    assert (
+        removed_samples["genotype"] == "B"
+    ).all(), f"Expected all genotype='B', got: {removed_samples['genotype'].tolist()}"
+    assert (
+        removed_samples["rep"].ne("").all()
+    ), f"Expected rep to be non-empty, got: {removed_samples['rep'].tolist()}"
+    assert (
+        removed_samples["nan_count"] == 2
+    ).all(), f"Expected nan_count=2, got: {removed_samples['nan_count'].tolist()}"
+    assert (
+        removed_samples["nan_fraction"] == 1.0
+    ).all(), (
+        f"Expected nan_fraction=1.0, got: {removed_samples['nan_fraction'].tolist()}"
+    )
+
 
 def test_validate_clean_step_initialization():
     """Test ValidateCleanStep initialization."""

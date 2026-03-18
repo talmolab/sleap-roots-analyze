@@ -99,6 +99,9 @@ class CleanupTraitsStep(BaseStep):
             max_nans_per_trait=config.cleanup.max_nans_per_trait,
             max_nans_per_sample=config.cleanup.max_nan_fraction,
             min_samples_per_trait=config.cleanup.min_samples_per_trait,
+            barcode_col="Barcode",
+            genotype_col="Genotype",
+            replicate_col="Replicate",
         )
 
         # Extract trait-only state (after trait removal, before sample removal)
@@ -108,14 +111,6 @@ class CleanupTraitsStep(BaseStep):
             for col in trait_cols
             if col not in [t["trait"] for t in cleanup_log["removed_traits"]]
         ]
-
-        # Create intermediate DataFrame (after trait removal, before sample removal)
-        # This is the state after steps 1, 2, 4 but before step 3 (sample removal)
-        # We can get original samples since cleanup_log tracks removed samples
-        removed_sample_indices = []
-        if cleanup_log.get("removed_samples_detail"):
-            for sample_info in cleanup_log["removed_samples_detail"]:
-                removed_sample_indices.append(sample_info["sample_index"])
 
         # Get data after trait cleanup but before sample removal
         df_traits_cleaned = df[

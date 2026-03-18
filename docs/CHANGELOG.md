@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Forward sanitized column names (`Genotype`, `Replicate`) from `CleanupTraitsStep`
+  to `apply_data_cleanup_filters()` so `02_removed_samples_detail.csv` contains
+  correct genotype and replicate values instead of empty strings
+- Fix `removed_samples` cleanup log key to be an independent deep copy of
+  `removed_samples_detail` (was a mutable alias to the same list object)
+- Remove dead `removed_sample_indices` code from `cleanup_traits.py`
+- Fix `from src.sleap_roots_analyze` import path in test files
 - **NaN-removed sample traceability** — Corrected a dictionary key mismatch in
   `apply_data_cleanup_filters()` where `removal_stats.get("removed_samples_detail")`
   should have been `removal_stats.get("removal_details")`, causing

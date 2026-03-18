@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import warnings
 
-from src.sleap_roots_analyze.statistics import (
+from sleap_roots_analyze.statistics import (
     calculate_trait_statistics,
     perform_anova_by_genotype,
     calculate_heritability_estimates,
