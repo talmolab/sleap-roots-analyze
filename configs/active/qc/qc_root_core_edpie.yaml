@@ -8,7 +8,7 @@
 
 # Pipeline metadata
 pipeline_name: "edpie_root_core_qc"
-version: "1.0"
+version: "1.1"
 
 # ============================================================================
 # ROOT CORE PROCESSING (Steps 0a-0f)
@@ -153,7 +153,8 @@ cleanup:
 outlier_detection:
   traditional_methods:
     - mahalanobis
-  clustering_methods: []
+  clustering_methods:
+    - isolation_forest
 
   mahalanobis:
     variance_threshold: 0.95
@@ -187,7 +188,7 @@ visualization:
   create_cluster_plots: false
   create_outlier_plots: true
   interactive: false
-  dpi: 300
+  dpi: 500  # Publication-quality DPI
   figsize: [10, 8]
 
   # Font sizes (explicit configuration)

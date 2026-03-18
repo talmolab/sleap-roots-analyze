@@ -10,7 +10,7 @@
 
 # Pipeline metadata
 pipeline_name: "turface_150genotypes_qc"
-version: "1.0"
+version: "1.1"
 enable_parallel: false
 
 # Data configuration
@@ -43,7 +43,8 @@ cleanup:
 outlier_detection:
   traditional_methods:
     - mahalanobis
-  clustering_methods: []  # Not used in notebook
+  clustering_methods:
+    - isolation_forest
 
   # Mahalanobis settings (matching notebook parameters)
   mahalanobis:
@@ -59,6 +60,7 @@ outlier_removal:
 # PCA configuration (for consistency with outlier detection)
 pca:
   n_components: 0.95              # EXPLAINED_VARIANCE = 0.95
+  standardize: true               # Standardize features before PCA
   feature_selection_strategy: "top_variance"
 
 # Heritability filtering (matching notebook)
@@ -69,7 +71,7 @@ heritability:
 
 # Visualization settings (matching notebook)
 visualization:
-  dpi: 100                       # FIGURE_DPI = 300
+  dpi: 500                       # Publication-quality DPI
   figsize: [12, 8]
 
   # Font sizes (explicit configuration)
