@@ -198,6 +198,66 @@ def test_cleanup_traits_step_removed_traits_detail(
     assert "Low Sample Trait" in removed_traits["trait"].values
 
 
+def test_removed_samples_csv_contains_correct_rows(
+    sample_data_with_issues, config, prev_result, tmp_path
+):
+    """Regression test: 02_removed_samples_detail.csv must contain rows when samples removed.
+
+    Catches the key mismatch bug that caused the file to always be header-only.
+    The fixture has rows 15-17 with 100% NaN in both good traits, so 3 samples
+    should be removed and recorded.
+    """
+    step = CleanupTraitsStep()
+    step.execute(
+        data=sample_data_with_issues,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=prev_result,
+    )
+
+    removed_samples = pd.read_csv(tmp_path / "02_removed_samples_detail.csv")
+
+    # Must have exactly 3 removed samples (rows 15, 16, 17)
+    assert len(removed_samples) == 3, (
+        f"Expected 3 removed sample rows, got {len(removed_samples)} "
+        "(empty file indicates key mismatch bug)"
+    )
+
+    # Must have all required columns
+    required_cols = {
+        "sample_index",
+        "barcode",
+        "genotype",
+        "rep",
+        "nan_count",
+        "nan_fraction",
+        "nan_traits",
+        "removal_reason",
+    }
+    assert required_cols.issubset(
+        set(removed_samples.columns)
+    ), f"Missing columns: {required_cols - set(removed_samples.columns)}"
+
+    # Barcodes of removed samples must match rows 15-17
+    assert set(removed_samples["barcode"]) == {"plant15", "plant16", "plant17"}
+
+    # Verify genotype and rep are correctly populated (not empty strings due to column mismatch)
+    assert (
+        removed_samples["genotype"] == "B"
+    ).all(), f"Expected all genotype='B', got: {removed_samples['genotype'].tolist()}"
+    assert (
+        removed_samples["rep"].ne("").all()
+    ), f"Expected rep to be non-empty, got: {removed_samples['rep'].tolist()}"
+    assert (
+        removed_samples["nan_count"] == 2
+    ).all(), f"Expected nan_count=2, got: {removed_samples['nan_count'].tolist()}"
+    assert (
+        removed_samples["nan_fraction"] == 1.0
+    ).all(), (
+        f"Expected nan_fraction=1.0, got: {removed_samples['nan_fraction'].tolist()}"
+    )
+
+
 def test_validate_clean_step_initialization():
     """Test ValidateCleanStep initialization."""
     step = ValidateCleanStep()
