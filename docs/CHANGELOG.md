@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Forward sanitized column names (`Genotype`, `Replicate`) from `CleanupTraitsStep`
+  to `apply_data_cleanup_filters()` so `02_removed_samples_detail.csv` contains
+  correct genotype and replicate values instead of empty strings
+- Fix `removed_samples` cleanup log key to be an independent deep copy of
+  `removed_samples_detail` (was a mutable alias to the same list object)
+- Remove dead `removed_sample_indices` code from `cleanup_traits.py`
+- Fix `from src.sleap_roots_analyze` import path in test files
+- **NaN-removed sample traceability** — Corrected a dictionary key mismatch in
+  `apply_data_cleanup_filters()` where `removal_stats.get("removed_samples_detail")`
+  should have been `removal_stats.get("removal_details")`, causing
+  `02_removed_samples_detail.csv` to always be written as a header-only file.
+  Also fixed a secondary key mismatch in `CleanupTraitsStep` (`sample_info["index"]`
+  → `sample_info["sample_index"]`) and aligned the empty-DataFrame fallback column
+  schema. Affected datasets: Turface 19 (29 samples, 15.5% of dataset) and
+  Turface 150 (1 sample).
+
 ## [0.1.0a1] - 2026-03-17 (Pre-release)
 
 ### Added
