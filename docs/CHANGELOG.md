@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a2] - 2026-03-18 (Pre-release)
+
 ### Fixed
 - Forward sanitized column names (`Genotype`, `Replicate`) from `CleanupTraitsStep`
   to `apply_data_cleanup_filters()` so `02_removed_samples_detail.csv` contains
