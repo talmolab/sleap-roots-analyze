@@ -301,6 +301,30 @@ echo "Request review from maintainers, then merge when approved"
 
 After PR is merged to main:
 
+**GUARDRAILS before creating the release:**
+
+1. **Verify CHANGELOG is up-to-date**: Read `docs/CHANGELOG.md` and confirm:
+   - The `[Unreleased]` section is empty (all changes moved to the new version section)
+   - The new version section `## [X.Y.Z]` exists with today's date
+   - The section contains meaningful content (not just a header)
+
+2. **Extract the exact changelog section** for this version using Python:
+   ```python
+   import re
+   with open("docs/CHANGELOG.md") as f:
+       content = f.read()
+   # Extract section for NEW_VERSION
+   pattern = rf"## \[{re.escape(NEW_VERSION)}\].*?(?=\n## \[|\Z)"
+   match = re.search(pattern, content, re.DOTALL)
+   if not match:
+       raise ValueError(f"Version {NEW_VERSION} not found in CHANGELOG.md!")
+   changelog_section = match.group(0).strip()
+   print(changelog_section)
+   ```
+   If the version section is missing or empty, **stop and fix the CHANGELOG first**.
+
+3. **Confirm the extracted content looks correct** before proceeding.
+
 ```bash
 # Switch to main and pull
 git checkout main
@@ -324,9 +348,15 @@ Or with uv:
 uv add sleap-roots-analyze==$NEW_VERSION
 \`\`\`
 
+One-shot usage (no install needed):
+
+\`\`\`bash
+uvx --from sleap-roots-analyze==$NEW_VERSION sleap-roots-analyze --help
+\`\`\`
+
 ## What's Changed
 
-See [CHANGELOG.md](docs/CHANGELOG.md) for full details.
+<INSERT EXTRACTED CHANGELOG SECTION HERE — the content from docs/CHANGELOG.md for this version, excluding the version header line>
 
 **Full Changelog**: https://github.com/talmolab/sleap-roots-analyze/commits/v$NEW_VERSION
 
