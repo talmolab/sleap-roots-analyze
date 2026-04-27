@@ -70,7 +70,7 @@ static_viz:
   create_genotype_comparisons: true
   pca_biplot_top_features: 1
 interactive_viz:
-  enabled: true
+  enabled: false  # workaround: step 10_generate_interactive crashes with "Length of values (412) does not match length of index (431)" on this dataset shape
   create_pca_plots: true
   create_umap_plots: true
   create_cluster_plots: false
