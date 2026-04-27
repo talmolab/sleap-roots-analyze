@@ -1,0 +1,16 @@
+# Run manifest: alfalfa_gwas_groups_1_to_6_combined_no_root_widths
+#
+# Date: 2026-04-26
+
+run_name: alfalfa_gwas_groups_1_to_6_combined_no_root_widths
+description: QC + Viz for Mauricio alfalfa GWAS Groups 1-6 with Root Widths trait
+  family explicitly excluded (81 root_widths_* columns dropped at step 01). Follow-up
+  to initial run alfalfa_gwas_groups_1_to_6_combined where Root Widths NaN failures
+  dropped 55 samples; exclusion retains those samples and removes the unreliable trait
+  family up-front.
+qc_configs:
+- qc/alfalfa_gwas_groups_1_to_6_combined_no_root_widths.yaml
+viz_configs:
+- viz/alfalfa_gwas_groups_1_to_6_combined_no_root_widths.yaml
+qc_mapping:
+  viz/alfalfa_gwas_groups_1_to_6_combined_no_root_widths.yaml: qc/alfalfa_gwas_groups_1_to_6_combined_no_root_widths.yaml

@@ -1,0 +1,149 @@
+# QC Pipeline Configuration: alfalfa_gwas_groups_1_to_6_combined_no_root_widths
+#
+# Same as alfalfa_gwas_groups_1_to_6_combined.yaml but with all 81 root_widths_*
+# columns explicitly excluded via additional_exclude_cols. Root Widths is known
+# unreliable for non-soybean crops (lateral-root proximity threshold tuned for
+# soybean morphology). Excluding up-front rather than relying on per-trait NaN
+# filter (which doesn't catch ~5% NaN rate) — see notable_results.md.
+#
+# Date: 2026-04-26 (follow-up run after initial analysis)
+
+pipeline_name: alfalfa_gwas_groups_1_to_6_combined_no_root_widths_qc
+version: '1.0'
+enable_parallel: false
+data:
+  csv_path: Z:/users/eberrigan/20260425_Mauricio_Chiurazzi_Alfalfa_GWAS_groups_1-6_canola_models/combined_analysis/combined_traits_summary.csv
+  image_dir: null
+  additional_exclude_cols:
+  - root_widths_max_max
+  - root_widths_max_mean
+  - root_widths_max_median
+  - root_widths_max_min
+  - root_widths_max_p25
+  - root_widths_max_p5
+  - root_widths_max_p75
+  - root_widths_max_p95
+  - root_widths_max_std
+  - root_widths_mean_max
+  - root_widths_mean_mean
+  - root_widths_mean_median
+  - root_widths_mean_min
+  - root_widths_mean_p25
+  - root_widths_mean_p5
+  - root_widths_mean_p75
+  - root_widths_mean_p95
+  - root_widths_mean_std
+  - root_widths_median_max
+  - root_widths_median_mean
+  - root_widths_median_median
+  - root_widths_median_min
+  - root_widths_median_p25
+  - root_widths_median_p5
+  - root_widths_median_p75
+  - root_widths_median_p95
+  - root_widths_median_std
+  - root_widths_min_max
+  - root_widths_min_mean
+  - root_widths_min_median
+  - root_widths_min_min
+  - root_widths_min_p25
+  - root_widths_min_p5
+  - root_widths_min_p75
+  - root_widths_min_p95
+  - root_widths_min_std
+  - root_widths_p25_max
+  - root_widths_p25_mean
+  - root_widths_p25_median
+  - root_widths_p25_min
+  - root_widths_p25_p25
+  - root_widths_p25_p5
+  - root_widths_p25_p75
+  - root_widths_p25_p95
+  - root_widths_p25_std
+  - root_widths_p5_max
+  - root_widths_p5_mean
+  - root_widths_p5_median
+  - root_widths_p5_min
+  - root_widths_p5_p25
+  - root_widths_p5_p5
+  - root_widths_p5_p75
+  - root_widths_p5_p95
+  - root_widths_p5_std
+  - root_widths_p75_max
+  - root_widths_p75_mean
+  - root_widths_p75_median
+  - root_widths_p75_min
+  - root_widths_p75_p25
+  - root_widths_p75_p5
+  - root_widths_p75_p75
+  - root_widths_p75_p95
+  - root_widths_p75_std
+  - root_widths_p95_max
+  - root_widths_p95_mean
+  - root_widths_p95_median
+  - root_widths_p95_min
+  - root_widths_p95_p25
+  - root_widths_p95_p5
+  - root_widths_p95_p75
+  - root_widths_p95_p95
+  - root_widths_p95_std
+  - root_widths_std_max
+  - root_widths_std_mean
+  - root_widths_std_median
+  - root_widths_std_min
+  - root_widths_std_p25
+  - root_widths_std_p5
+  - root_widths_std_p75
+  - root_widths_std_p95
+  - root_widths_std_std
+  group_by: plant_age_days
+columns:
+  barcode: scan_id
+  genotype: accession_name
+  replicate: plant_id
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 30
+outlier_detection:
+  traditional_methods:
+  - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+outlier_removal:
+  strategy: single
+  method: mahalanobis
+pca:
+  n_components: 0.75
+  feature_selection_strategy: extreme
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+visualization:
+  dpi: 300
+  figsize:
+  - 12
+  - 8
+  figure_format: png
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+logging:
+  level: INFO
+  log_to_file: true
+  log_file: pipeline.log
