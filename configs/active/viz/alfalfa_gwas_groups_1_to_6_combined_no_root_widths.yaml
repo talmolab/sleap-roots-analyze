@@ -1,7 +1,8 @@
 # Viz Pipeline Configuration: alfalfa_gwas_groups_1_to_6_combined_no_root_widths
 #
-# Pairs with qc/{NEW_NAME}.yaml (Root Widths excluded at QC).
-# Viz reads from QC's 10_final_data.csv so root_widths cols are already absent.
+# Pairs with qc/alfalfa_gwas_groups_1_to_6_combined_no_root_widths.yaml.
+# Reads from the QC's 10_final_data.csv. interactive_viz re-enabled now that
+# the no-RW dataset uses a pre-filtered input CSV (no additional_exclude_cols).
 
 pipeline_name: alfalfa_gwas_groups_1_to_6_combined_no_root_widths_viz
 version: '1.0'
@@ -70,7 +71,7 @@ static_viz:
   create_genotype_comparisons: true
   pca_biplot_top_features: 1
 interactive_viz:
-  enabled: false  # workaround: step 10_generate_interactive crashes with "Length of values (412) does not match length of index (431)" on this dataset shape
+  enabled: true
   create_pca_plots: true
   create_umap_plots: true
   create_cluster_plots: false
