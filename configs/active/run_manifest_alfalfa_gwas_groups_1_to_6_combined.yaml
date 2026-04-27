@@ -1,0 +1,22 @@
+# Run Manifest: Mauricio Alfalfa GWAS Groups 1-6 Combined (day 9 + 12)
+#
+# Dataset: combined_traits_summary.csv (1,022 rows, 35 accessions across 6 Bloom experiments)
+# Analysis date: 2026-04-26
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_alfalfa_gwas_groups_1_to_6_combined.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "alfalfa_gwas_groups_1_to_6_combined"
+description: "QC and Viz for Mauricio Chiurazzi alfalfa GWAS — combined 6 Bloom experiments (Wave1+2 + Group3-6), days 9 and 12 only, 35 accessions, 1,022 scans. Grouped by plant_age_days."
+
+qc_configs:
+  - qc/alfalfa_gwas_groups_1_to_6_combined.yaml
+
+viz_configs:
+  - viz/alfalfa_gwas_groups_1_to_6_combined.yaml
+
+qc_mapping:
+  viz/alfalfa_gwas_groups_1_to_6_combined.yaml: qc/alfalfa_gwas_groups_1_to_6_combined.yaml
