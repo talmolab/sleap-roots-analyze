@@ -1,0 +1,25 @@
+# Run Manifest: Javier TTC-SALK Soybean — BRIGHTNESS RETRAIN (2026-05-04)
+#
+# Dataset: Z:/users/eberrigan/20260401_Javier_Martinez_Pacheco_TTC_SALK_Soybean/2026-05-08_aug_retrain/brightness/traits_output/traits_summary_with_genotype.csv
+# Analysis date: 2026-05-04
+# Adapted from: run_manifest_javier_ttc_salk_soybean.yaml (the Apr-8 deployed_2022 baseline)
+#
+# Reproduce this run:
+#   uv run python -m sleap_roots_analyze run-all --manifest configs/active/run_manifest_javier_ttc_salk_soybean_brightness.yaml \
+#     -o "Z:/users/eberrigan/20260401_Javier_Martinez_Pacheco_TTC_SALK_Soybean/2026-05-08_aug_retrain/brightness/sleap-roots-analyze-output"
+#
+# Pair with the Apr-8 baseline for before/after comparison:
+#   - Baseline (deployed_2022 traits, Apr 8): Z:/.../sleap-roots-analyze-output/2026-04-08_154841/
+#   - This run (brightness retrain traits, May 4): Z:/.../2026-05-08_aug_retrain/brightness/sleap-roots-analyze-output/
+
+run_name: "Javier TTC-SALK Soybean — Brightness Retrain"
+description: "QC and Viz for the brightness-aug retrain output on TTC-SALK soybean cylinder experiment (Day 10 only, 82 genotypes after the dim-wave + Wave-8 scoping). Pairs with the Apr-8 deployed_2022 baseline run for before/after comparison."
+
+qc_configs:
+  - qc/javier_ttc_salk_soybean_brightness.yaml
+
+viz_configs:
+  - viz/javier_ttc_salk_soybean_brightness.yaml
+
+qc_mapping:
+  viz/javier_ttc_salk_soybean_brightness.yaml: qc/javier_ttc_salk_soybean_brightness.yaml
