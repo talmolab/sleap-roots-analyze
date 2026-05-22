@@ -1,0 +1,132 @@
+# Visualization Pipeline Configuration: suyash_arabidopsis_pgm1_pac_2026_05_22
+#
+# Dataset: QC output from qc/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml
+# Analysis date: 2026-05-22
+# Generated from: viz_template_with_images.yaml
+#
+# Note: csv_path will be auto-updated to QC output when run via run-all.
+# Heritability disabled in QC, so interesting_genotypes uses only pc_extreme + trait_extreme.
+
+pipeline_name: "suyash_arabidopsis_pgm1_pac_2026_05_22"
+version: "1.0"
+
+data:
+  csv_path: "PLACEHOLDER_AUTO_UPDATED_BY_RUN_ALL"
+
+  image_dir: "Z:/users/eberrigan/20260522_Suyash_Patil_Arabidopsis_PGM1-PAC-EFFECT_EXP1/images_downloader_output"
+
+columns:
+  barcode: "Barcode"
+  genotype: "Genotype"
+  replicate: "Replicate"
+  image_path: null
+
+statistics:
+  calculate_anova: true
+
+  calculate_heritability: false
+
+  alpha: 0.05
+
+pca:
+  n_components: 0.75
+
+  standardize: true
+
+  feature_selection_strategy: "extreme"
+
+  n_top_features: 5
+
+umap:
+  enabled: true
+
+  n_neighbors: 5
+
+  min_dist: 0.1
+
+  metric: "euclidean"
+
+  random_state: 42
+
+clustering:
+  enabled: false
+
+heritability:
+  enabled: false
+  threshold: 0.30
+
+interesting_genotypes:
+  enabled: true
+
+  methods:
+    - pc_extreme
+    - trait_extreme
+
+  pc_threshold: 2.0
+
+  trait_percentile: 95.0
+
+  min_heritability: 0.30
+
+  max_genotypes: 3
+
+  generate_image_grids: true
+
+  images_per_genotype: 6
+
+adaptive_sizing:
+  enabled: true
+
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+static_viz:
+  enabled: true
+
+  formats:
+    - png
+    - pdf
+
+  dpi: 300
+
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: false
+  create_genotype_comparisons: true
+
+  pca_biplot_top_features: 1
+
+interactive_viz:
+  enabled: true
+
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+
+  show_images_on_hover: true
+
+dashboard:
+  enabled: false
+
+summary:
+  enabled: true
+
+  formats:
+    - markdown
+    - json
+
+logging:
+  level: "INFO"
+
+  log_to_file: true
+  log_file: "viz_pipeline.log"

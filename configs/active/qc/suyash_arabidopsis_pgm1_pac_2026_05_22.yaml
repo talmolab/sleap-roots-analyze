@@ -1,0 +1,104 @@
+# QC Pipeline Configuration: suyash_arabidopsis_pgm1_pac_2026_05_22
+#
+# Dataset: Z:/users/eberrigan/20260522_Suyash_Patil_Arabidopsis_PGM1-PAC-EFFECT_EXP1/sleap_roots_traits_output/traits_summary_with_genotype.csv
+# Analysis date: 2026-05-22
+# Generated from: qc_template_ungrouped.yaml
+#
+# Key choices (n=26, 3 genotypes, single timepoint at day 21 DAG):
+#   outlier_detection: isolation_forest (Mahalanobis chi2 unreliable for n<30 per guardrail)
+#   heritability.enabled: false (3 genotypes too few for trustworthy H²)
+#   cleanup.min_samples_per_trait: 20 (strict — keeps only well-populated traits)
+#   pca.feature_selection_strategy: extreme (lab pattern for designed treatment experiments)
+#   pca.n_components: 0.75 (lab pattern)
+#   group_by: null (single timepoint, single wave)
+#
+# Note: pipeline ran with model age clamped to "14" since 21 DAG exceeds standard
+# arabidopsis cylinder model training range (2-14 DAG). Predictions noisier than
+# training-range data — flagging downstream in delivery email.
+
+pipeline_name: "suyash_arabidopsis_pgm1_pac_2026_05_22"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260522_Suyash_Patil_Arabidopsis_PGM1-PAC-EFFECT_EXP1/sleap_roots_traits_output/traits_summary_with_genotype.csv"
+
+  image_dir: null
+
+  additional_exclude_cols: []
+
+  group_by: null
+
+columns:
+  barcode: "plant_qr_code"
+
+  genotype: "genotype"
+
+  replicate: "scan_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+
+  max_nans_per_trait: 0.2
+
+  max_nan_fraction: 0.0
+
+  min_samples_per_trait: 20
+
+outlier_detection:
+  traditional_methods:
+    - isolation_forest
+
+  clustering_methods: []
+
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+
+  method: "isolation_forest"
+
+pca:
+  n_components: 0.75
+
+  feature_selection_strategy: "extreme"
+
+heritability:
+  enabled: false
+
+  threshold: 0.40
+
+  generate_diagnostics: true
+
+visualization:
+  dpi: 100
+
+  figsize: [12, 8]
+
+  figure_format: "png"
+
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+
+  log_to_file: true
+  log_file: "pipeline.log"

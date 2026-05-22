@@ -1,0 +1,23 @@
+# Run Manifest: suyash_arabidopsis_pgm1_pac_2026_05_22
+#
+# Dataset: Z:/users/eberrigan/20260522_Suyash_Patil_Arabidopsis_PGM1-PAC-EFFECT_EXP1/sleap_roots_traits_output/traits_summary_with_genotype.csv
+# Analysis date: 2026-05-22
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_suyash_arabidopsis_pgm1_pac_2026_05_22.yaml \
+#     -o Z:/users/eberrigan/20260522_Suyash_Patil_Arabidopsis_PGM1-PAC-EFFECT_EXP1/sleap-roots-analyze-output
+#
+# All paths are relative to configs/active/
+
+run_name: "suyash_arabidopsis_pgm1_pac_2026_05_22"
+description: "QC and Viz for Suyash Patil's PGM1-PAC-EFFECT_EXP1 (Arabidopsis cylinder, day 21 DAG, 26 scans, 3 accessions: ARB-80 n=3, ARB-95 n=4, ARB103 n=19). GA paper request. Configured via /configure-run-all on 2026-05-22 with isolation_forest outlier detection (n<30 Mahalanobis guardrail), heritability disabled (3 genotypes too few), min_samples_per_trait=20 (strict), UMAP n_neighbors=5 (small-n appropriate)."
+
+qc_configs:
+  - qc/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml
+
+viz_configs:
+  - viz/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml
+
+qc_mapping:
+  viz/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml: qc/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml
