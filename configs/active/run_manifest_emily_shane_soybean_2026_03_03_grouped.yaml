@@ -1,0 +1,19 @@
+# Run Manifest: emily_shane_soybean_2026_03_03_grouped
+#
+# Dataset: Z:/users/eberrigan/20260327_Emily_Shane_Cquesta_Soy_2026-03-03/traits_summary_with_genotype.csv
+# Analysis date: 2026-03-27
+#
+# Grouped by plant_age_days to compare supported ages (7-8 DAG) vs unsupported (14-15 DAG).
+# Companion to the ungrouped run_manifest_emily_shane_soybean_2026_03_03.yaml.
+
+run_name: "emily_shane_soybean_2026_03_03_grouped"
+description: "QC and Viz for Emily Shane CQuesta soybean cylinders (2026-03-03). GROUPED by plant_age_days. 150 scans, 7 genotypes, ages 7/8/14/15 DAG."
+
+qc_configs:
+  - qc/emily_shane_soybean_2026_03_03_grouped.yaml
+
+viz_configs:
+  - viz/emily_shane_soybean_2026_03_03_grouped.yaml
+
+qc_mapping:
+  viz/emily_shane_soybean_2026_03_03_grouped.yaml: qc/emily_shane_soybean_2026_03_03_grouped.yaml

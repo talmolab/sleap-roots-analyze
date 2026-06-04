@@ -1,0 +1,81 @@
+# QC Pipeline Configuration: emily_shane_soybean_2026_03_03
+#
+# Dataset: Z:/users/eberrigan/20260327_Emily_Shane_Cquesta_Soy_2026-03-03/traits_summary_with_genotype.csv
+# Analysis date: 2026-03-27
+# Generated from: qc_template_ungrouped.yaml
+#
+# Key choices:
+#   csv_path: preprocessed CSV with derived genotype column (see scripts/add_genotype.py)
+#   heritability.threshold: 0.0 — Calculate H² but don't filter (7 genotypes, informative but noisy)
+#   group_by: null — Ungrouped analysis (all 150 samples together)
+#   genotype: derived "genotype" column (A3244WT, ECQM11, ECQM11-009, ECQM13-003, ECQM2-VP8, ECQM8-003, ECQM8-006)
+#   replicate: scan_id (unique per scan; different from barcode to avoid column rename conflict)
+#   pca: extreme feature selection, 75% variance
+#   Note: Ages 14-15 DAG outside supported model range (2-8) — predictions may be less reliable
+
+pipeline_name: "emily_shane_soybean_2026_03_03"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260327_Emily_Shane_Cquesta_Soy_2026-03-03/traits_summary_with_genotype.csv"
+  image_dir: null
+  additional_exclude_cols: []
+  group_by: null
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "genotype"
+  replicate: "scan_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 30
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.75
+  feature_selection_strategy: "extreme"
+
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+
+visualization:
+  dpi: 100
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"
