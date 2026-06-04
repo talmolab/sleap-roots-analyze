@@ -1,0 +1,22 @@
+# Run Manifest: Javier TTC-SALK Soybean
+#
+# Dataset: Z:/users/eberrigan/20260401_Javier_Martinez_Pacheco_TTC_SALK_Soybean/sleap_roots_traits_output/traits_summary_with_genotype.csv
+# Analysis date: 2026-04-08
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_javier_ttc_salk_soybean.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "Javier TTC-SALK Soybean"
+description: "QC and Viz for TTC-SALK soybean cylinder experiment (94 genotypes, Day 8 + Day 10). Groups: plant_age_days (8, 10)."
+
+qc_configs:
+  - qc/javier_ttc_salk_soybean.yaml
+
+viz_configs:
+  - viz/javier_ttc_salk_soybean.yaml
+
+qc_mapping:
+  viz/javier_ttc_salk_soybean.yaml: qc/javier_ttc_salk_soybean.yaml

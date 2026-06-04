@@ -1,0 +1,25 @@
+# Run Manifest: Javier TTC-SALK Soybean — Round-3 Full Experiment 9-Wave (PER-WAVE GROUPED)
+#
+# Generated 2026-05-26 via /configure-run-all
+# Companion to: run_manifest_javier_ttc_salk_soybean_full_experiment_9wave.yaml (whole-dataset run)
+#
+# When run-all sees `group_by: wave_number` in the QC config, it fans out into 9 independent
+# QC sub-runs (one per wave). The Viz config then automatically runs 9 times too, each consuming
+# the corresponding QC group output.
+#
+# Reproduce this run:
+#   uv run python -m sleap_roots_analyze run-all \
+#     --manifest configs/active/run_manifest_javier_ttc_salk_soybean_full_experiment_9wave_per_wave.yaml \
+#     -o "Z:/users/eberrigan/20260401_Javier_Martinez_Pacheco_TTC_SALK_Soybean/2026-05-08_aug_retrain/brightness/sleap-roots-analyze-output-9wave-per-wave"
+
+run_name: "Javier TTC-SALK Soybean — Round-3 Full Experiment 9-Wave — Per-Wave Grouped"
+description: "Per-wave (grouped by wave_number) QC and Viz for the brightness-aug retrain output on TTC-SALK soybean cylinder experiment, Day 10. 9 sub-runs (one per wave) with per-wave plant counts 37–83. Companion to the whole-dataset run (Phase 3a)."
+
+qc_configs:
+  - qc/javier_ttc_salk_soybean_full_experiment_9wave_per_wave.yaml
+
+viz_configs:
+  - viz/javier_ttc_salk_soybean_full_experiment_9wave_per_wave.yaml
+
+qc_mapping:
+  viz/javier_ttc_salk_soybean_full_experiment_9wave_per_wave.yaml: qc/javier_ttc_salk_soybean_full_experiment_9wave_per_wave.yaml

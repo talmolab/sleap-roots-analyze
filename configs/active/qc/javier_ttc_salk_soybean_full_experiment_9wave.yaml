@@ -1,0 +1,80 @@
+# QC Pipeline Configuration: Javier TTC-SALK Soybean — Round-3 Full Experiment 9-Wave
+#
+# Dataset: Z:/users/eberrigan/20260401_Javier_Martinez_Pacheco_TTC_SALK_Soybean/2026-05-08_aug_retrain/brightness/traits_output_9wave/traits_summary_with_genotype.csv
+# Analysis date: 2026-05-26
+# Generated from: qc_template_ungrouped.yaml via /configure-run-all
+#
+# Key choices:
+#   group_by: null — single whole-dataset analysis (per-wave runs handled separately in Phase 3b)
+#   heritability.threshold: 0.0 — visualize H² across all traits; do NOT filter (per Elizabeth's first-pass exploratory convention)
+#   outlier_detection.mahalanobis.chi2_percentile: 99.0 — strict; all wave-level group sizes ≥ 37 so reliable
+#   cleanup.min_samples_per_trait: 30 — matches round-2 absolute strictness for trait parity
+#   cleanup.max_zeros_per_trait: 0.5, max_nans_per_trait: 0.2, max_nan_fraction: 0.0 — round-2 values
+#   pca.n_components: 0.75, feature_selection_strategy: "extreme" — round-2 values
+
+pipeline_name: "javier_ttc_salk_soybean_full_experiment_9wave"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260401_Javier_Martinez_Pacheco_TTC_SALK_Soybean/2026-05-08_aug_retrain/brightness/traits_output_9wave/traits_summary_with_genotype.csv"
+  image_dir: null
+  additional_exclude_cols: []
+  group_by: null
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "genotype"
+  replicate: "scan_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 30
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.75
+  feature_selection_strategy: "extreme"
+
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+
+visualization:
+  dpi: 100
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"
