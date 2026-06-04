@@ -1,0 +1,78 @@
+# QC Pipeline Configuration: weep_maurizio_wave1
+#
+# Dataset: Weep_Maurizio Arabidopsis Wave 1 (Maurizio Chiurazzi)
+# Analysis date: 2026-03-20
+# Bloom ID: 12649675
+#
+# Key choices:
+#   group_by: plant_age_days — 5 timepoints (3, 6, 11, 13, 23 DAG)
+#   columns.genotype: genotype — derived from plant_qr_code (WT, WT_pep, CPK13, weep, weep_pep)
+#   heritability.enabled: true, threshold: 0.0 — calculate H2 for diagnostics, no filtering
+#   columns.replicate: scan_id — MUST differ from barcode (issue #96)
+
+pipeline_name: "weep_maurizio_wave1_qc"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260319_Maurizio_Chiurazzi_Weep_Arabidopsis_Wave1/sleap_roots_traits_output/traits_summary_with_genotype.csv"
+  image_dir: null
+  additional_exclude_cols: []
+  group_by: "plant_age_days"
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "genotype"
+  replicate: "scan_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 30
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.75
+  feature_selection_strategy: "extreme"
+
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+
+visualization:
+  dpi: 300
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

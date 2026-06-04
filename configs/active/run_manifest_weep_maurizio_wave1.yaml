@@ -1,0 +1,20 @@
+# Run Manifest: weep_maurizio_wave1
+#
+# Dataset: Weep_Maurizio Arabidopsis Wave 1 (Maurizio Chiurazzi)
+# Analysis date: 2026-03-20
+# Bloom ID: 12649675
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all --manifest configs/active/run_manifest_weep_maurizio_wave1.yaml
+
+run_name: "weep_maurizio_wave1"
+description: "QC and Viz for Weep_Maurizio Arabidopsis Wave 1. Grouped by plant_age_days (5 timepoints: 3, 6, 11, 13, 23 DAG). 5 genotypes: WT, WT_pep, CPK13, weep, weep_pep. 222 scans total."
+
+qc_configs:
+  - qc/weep_maurizio_wave1.yaml
+
+viz_configs:
+  - viz/weep_maurizio_wave1.yaml
+
+qc_mapping:
+  viz/weep_maurizio_wave1.yaml: qc/weep_maurizio_wave1.yaml
