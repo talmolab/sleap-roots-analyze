@@ -1,0 +1,79 @@
+# QC Pipeline Configuration: Shree Pariyar WEEP Soybean
+#
+# Dataset: Z:/users/eberrigan/20250328_Shree_Pariyar_WEEP_Soybean_March_2025/sleap_roots_traits_output/traits_summary_with_accessions.csv
+# Analysis date: 2026-04-09
+# Generated from: qc_template_grouped.yaml
+#
+# Key choices:
+#   group_by: plant_age_days — Day 3 (132 scans), Day 7 (132 scans), Day 10 (108 scans)
+#   heritability.threshold: 0.0 — calculate + visualize H2, don't filter (only 3 accessions)
+#   max_nan_fraction: 0.0 — strict, drop any sample with ANY NaN trait (required by pipeline)
+#   pca.n_components: 0.75 — reduces noise
+#   pca.feature_selection_strategy: extreme — shows traits at both ends of each PC axis
+
+pipeline_name: "shree_weep_soybean"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20250328_Shree_Pariyar_WEEP_Soybean_March_2025/sleap_roots_traits_output/traits_summary_with_genotype.csv"
+  image_dir: null
+  additional_exclude_cols: []
+  group_by: "plant_age_days"
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "genotype"
+  replicate: "scan_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 30
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.75
+  feature_selection_strategy: "extreme"
+
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+
+visualization:
+  dpi: 100
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: false
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

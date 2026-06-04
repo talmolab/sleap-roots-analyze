@@ -1,0 +1,22 @@
+# Run Manifest: Shree Pariyar WEEP Soybean
+#
+# Dataset: Z:/users/eberrigan/20250328_Shree_Pariyar_WEEP_Soybean_March_2025/sleap_roots_traits_output/traits_summary_with_accessions.csv
+# Analysis date: 2026-04-09
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   uv run python -m sleap_roots_analyze run-all --manifest configs/active/run_manifest_shree_weep_soybean.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "Shree Pariyar WEEP Soybean"
+description: "QC and Viz for WEEP_Soybean experiment (3 accessions, Day 3 + Day 7 + Day 10). Groups: plant_age_days (3, 7, 10). Used to identify well-germinated samples for labeling package."
+
+qc_configs:
+  - qc/shree_weep_soybean.yaml
+
+viz_configs:
+  - viz/shree_weep_soybean.yaml
+
+qc_mapping:
+  viz/shree_weep_soybean.yaml: qc/shree_weep_soybean.yaml
