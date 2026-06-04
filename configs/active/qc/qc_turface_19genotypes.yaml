@@ -15,8 +15,8 @@ enable_parallel: false
 
 # Data configuration
 data:
-  csv_path: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_19_genotypes/Turface_all_traits_2024_RSR_diameter_angle_traits_removed.csv"
-  image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/turface_rve_processed_images/Rhizovision_processed_images"
+  csv_path: "C:/vaults/sleap-roots/wheat-edpie-paper/data/turface_19genotypes/Turface_19genotypes_traits_scaled.csv"
+  image_dir: "C:/vaults/sleap-roots/wheat-edpie-paper/data/turface_19genotypes/images/Rhizovision_processed_images"
   additional_exclude_cols: []  # No additional exclusions for this dataset
 
 # Column names (turface data)
