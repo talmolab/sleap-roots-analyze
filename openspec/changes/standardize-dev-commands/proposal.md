@@ -21,10 +21,12 @@ the same dev-command surface.
   branch → `/openspec:proposal` → `/tdd` → `/pre-merge-check` → `/openspec:archive`.
 - **DROP** `/black` — superseded by `/lint` (check) + `/fix-formatting` (fix).
 - **DROP** `/generate-pr-review` — superseded by `/review-pr`.
-- **MODIFY** `/pre-merge-check` to best-of: add a Phase 3.5 pre-PR `/review-pr` subagent
-  self-review and an OpenSpec-validation step, and triage Copilot comments via `/copilot-review`
-  (repo-agnostic) instead of hardcoding `talmolab/sleap-roots-analyze`. Keep this repo's
-  pipeline-specific coverage/CI phases.
+- **MODIFY** `/pre-merge-check` to best-of: add a Phase 3.5 pre-PR self-review of the local diff
+  (via `/code-review`, plus `/review-openspec` when a change is in flight) and an
+  OpenSpec-validation step, and triage Copilot comments via `/copilot-review` (repo-agnostic)
+  instead of hardcoding `talmolab/sleap-roots-analyze`. Keep this repo's pipeline-specific
+  coverage/CI phases. (`/review-pr` stays scoped to triaging comments on an existing PR — it is
+  a PR-comment fetcher, not a local-diff reviewer.)
 - **KEEP** this repo's domain commands unchanged (`configure-run-all`, `run-pipelines`,
   `dry-run`, `validate-config`, `verify-results`, `cross-platform-summary`) and the descriptive
   command names (`pre-merge-check`, `update-changelog`, `prepare-release`, `cleanup-merged`).

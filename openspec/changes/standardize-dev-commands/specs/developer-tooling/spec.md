@@ -66,8 +66,8 @@ starting a feature, orchestrating the lab's spec-driven + TDD workflow end to en
 ### Requirement: Pre-Merge Verification
 
 The pre-merge check command SHALL perform comprehensive PR readiness verification before
-merging, including local CI checks, a pre-PR subagent self-review, OpenSpec validation, GitHub
-Copilot comment triage, and CI status verification. Copilot comments SHALL be fetched via the
+merging, including local CI checks, a pre-PR self-review of the local diff, OpenSpec validation,
+GitHub Copilot comment triage, and CI status verification. Copilot comments SHALL be fetched via the
 repo-agnostic `/copilot-review` command (no hardcoded repository). The command SHALL retain this
 repository's pipeline-specific phases (coverage reporting via `--cov`, CI status via
 `gh pr checks`, and final verification) and use this repository's `src/sleap_roots_analyze` paths.
@@ -81,12 +81,14 @@ repository's pipeline-specific phases (coverage reporting via `--cov`, CI status
 - **AND** GitHub Actions CI status is verified via `gh pr checks`
 - **AND** issues are reported with actionable fix guidance
 
-#### Scenario: Pre-PR subagent self-review
+#### Scenario: Pre-PR self-review of the local diff
 
 - **GIVEN** user has finished implementing a change but has not yet opened the PR
 - **WHEN** the pre-merge check reaches the pre-PR self-review phase
-- **THEN** `/review-pr` is run against the local branch diff (branch name, not a PR number)
+- **THEN** the local branch diff is critically reviewed via `/code-review` (and
+  `/review-openspec` when an OpenSpec change is in flight), applying the PR-comment severity rubric
 - **AND** any BLOCKING / IMPORTANT findings are fixed before the PR is created
+- **AND** `/review-pr` is reserved for triaging comments on the existing PR (post-creation)
 
 #### Scenario: OpenSpec validation during pre-merge
 

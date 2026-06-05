@@ -35,11 +35,13 @@ Confirm the associated OpenSpec tasks are checked off (`openspec list`).
 
 ## Phase 3.5: Pre-PR self-review (do this BEFORE creating the PR)
 
-Run `/review-pr` on the **local branch diff** (pass the branch name, not a PR number — the PR
-doesn't exist yet). This launches the critical-review subagent team against the change the
-same way they'd review an external PR.
+Critically review the **local branch diff** before the PR exists. Run `/code-review` on the
+current diff (and `/review-openspec` if an OpenSpec change is in flight) to surface
+correctness, test-gap, and maintainability issues, applying the same severity rubric used for
+PR comments (CRITICAL / IMPORTANT / nice-to-have). `/review-pr` itself triages comments on an
+*existing* PR, so it belongs to Phase 6 — this phase is the pre-PR equivalent.
 
-**Rationale:** Copilot reliably flags exactly what this team would catch (e.g. a test that
+**Rationale:** Copilot reliably flags exactly what a diff review would catch (e.g. a test that
 bypasses the path it was meant to regression-test). Running our own review pre-PR fixes those
 in one iteration instead of two, and avoids burning a Copilot review cycle. If any BLOCKING /
 IMPORTANT findings come back, fix them and restart from Phase 1.
@@ -59,7 +61,8 @@ Investigate any failure before proceeding.
 
 ## Phase 6: Copilot + review feedback triage
 
-Fetch Copilot's comments with `/copilot-review`, then categorize:
+Fetch Copilot's comments with `/copilot-review` (and human comments with `/review-pr`), then
+categorize:
 
 - **CRITICAL** — data consistency issues, incorrect statistical calculations, broken
   functionality, security vulnerabilities
@@ -93,7 +96,7 @@ git fetch origin main && git merge-base --is-ancestor origin/main HEAD   # branc
 ## Code Quality:  [x] black  [x] ruff
 ## Tests:         [x] pytest (X passed)  [x] coverage
 ## OpenSpec:      [x] validated (or N/A)
-## Self-review:   [x] /review-pr clean (or findings fixed)
+## Self-review:   [x] /code-review clean (or findings fixed)
 ## PR:            [x] #X created, checks green
 ## Copilot:       [x] CRITICAL/HIGH addressed; MEDIUM/LOW filed
 ## Changelog:     [x] entry added (or N/A)
@@ -106,8 +109,9 @@ git fetch origin main && git merge-base --is-ancestor origin/main HEAD   # branc
 - `/fix-formatting` — auto-fix formatting and lint issues
 - `/coverage` — detailed test coverage analysis
 - `/run-ci-locally` — run exact CI checks locally
-- `/review-pr` — pre-PR / PR subagent review
-- `/copilot-review` — fetch Copilot review comments (repo-agnostic)
+- `/code-review` — pre-PR critical review of the local diff (Phase 3.5)
+- `/review-pr` — triage human comments on an existing PR (Phase 6)
+- `/copilot-review` — fetch Copilot review comments on an existing PR, repo-agnostic (Phase 6)
 - `/update-changelog` — update CHANGELOG before merge
 
 ## When to Use

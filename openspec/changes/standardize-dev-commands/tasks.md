@@ -17,10 +17,11 @@
 
 ## 3. Upgrade pre-merge-check to best-of
 
-- [x] 3.1 Rewrite `.claude/commands/pre-merge-check.md`: add Phase 3.5 pre-PR `/review-pr`
-  subagent self-review (run against the local branch diff) and an OpenSpec `validate --strict`
-  step; route Copilot-comment triage through `/copilot-review` (drop the hardcoded
-  `talmolab/sleap-roots-analyze` API paths).
+- [x] 3.1 Rewrite `.claude/commands/pre-merge-check.md`: add Phase 3.5 pre-PR self-review of the
+  local diff (via `/code-review`, plus `/review-openspec` when a change is in flight) and an
+  OpenSpec `validate --strict` step; route Copilot-comment triage through `/copilot-review` (drop
+  the hardcoded `talmolab/sleap-roots-analyze` API paths). `/review-pr` stays scoped to existing-PR
+  comment triage.
 - [x] 3.2 Keep this repo's pipeline-specific phases (coverage report with `--cov`, CI status via
   `gh pr checks`, final verification) and its `src/sleap_roots_analyze` paths.
 
