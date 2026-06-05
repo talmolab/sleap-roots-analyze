@@ -22,13 +22,17 @@ It works in **two modes**:
 
 ## Step 1: Gather Change Context
 
-Detect the mode and the repo (owner/name stay dynamic — never hardcode the repository):
+Detect the mode and the repo (owner / name / base branch stay dynamic — never hardcode):
 
 ```bash
 REPO_OWNER=$(gh repo view --json owner --jq '.owner.login')
 REPO_NAME=$(gh repo view --json name --jq '.name')
+BASE_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')  # usually "main"
 
-# Resolve a PR number from the argument or the current branch (empty => pre-PR mode)
+# $1 is the PR number passed to /review-pr (if any); otherwise detect the current branch's
+# open PR. An empty result means no PR exists yet => pre-PR mode. NOTE: gh failures
+# (offline / unauthenticated) also yield empty, so an unexpected pre-PR classification can
+# signal a gh/auth problem rather than a missing PR — run `gh auth status` if surprised.
 PR_NUMBER="${1:-$(gh pr view --json number --jq '.number' 2>/dev/null)}"
 ```
 
@@ -47,9 +51,11 @@ gh api "repos/$REPO_OWNER/$REPO_NAME/pulls/$PR_NUMBER/comments" \
 **Pre-PR mode** (`$PR_NUMBER` empty) — the change is the local branch diff:
 
 ```bash
-git fetch origin main --quiet
-git diff origin/main...HEAD          # the change under review (PR_DIFF)
-git log --oneline origin/main..HEAD  # commit-level intent (PR_BODY substitute)
+git fetch origin "$BASE_BRANCH" --quiet
+# three-dot `diff` = changes since the merge-base (the change under review);
+# two-dot `log` = commits on HEAD not on the base branch. Keep them distinct.
+git diff "origin/$BASE_BRANCH...HEAD"          # the change under review (PR_DIFF)
+git log --oneline "origin/$BASE_BRANCH..HEAD"  # commit-level intent (PR_BODY substitute)
 ```
 
 Also read any OpenSpec proposal linked in the PR body or present on the branch (look for
@@ -141,7 +147,8 @@ description: "Review testing strategy and TDD discipline"
 >   `tests/conftest.py`; sample inputs under `tests/data/`.
 > - **Coverage**: pytest-cov via `--cov=src/sleap_roots_analyze`.
 > - **CI matrix**: tests run on **Ubuntu, Windows, and macOS** with **Python 3.11** — tests must
->   pass on all three. Lint (Black + Ruff) runs on Ubuntu.
+>   pass on all three. Lint (Black + Ruff) runs on Ubuntu. CI runs `pytest -m "not integration"`
+>   (issue #69), so `@pytest.mark.integration` tests are NOT executed/gated in CI.
 >
 > **Check:**
 >
@@ -197,8 +204,12 @@ description: "Review statistical rigor and reproducibility"
 >    (Mahalanobis distance, Isolation Forest, PCA reconstruction) must be computed correctly and
 >    use appropriate assumptions. Reference published methods where applicable.
 > 2. **Threshold validity** — Mahalanobis chi-squared reliability needs n ≥ 30 per group;
->    broad-sense heritability needs ≥ 3 replicates per genotype. Multiple-comparison correction
->    (FDR) must be applied where many traits are tested. Power/CI reporting must be sound.
+>    broad-sense heritability needs ≥ 3 replicates per genotype. These two are surfaced as
+>    **config-authoring-time advisory warnings** (`config_authoring.py`, via `/configure-run-all`),
+>    not runtime guards inside the stat functions. Multiple-comparison correction (FDR,
+>    Benjamini-Hochberg) is applied in the **cross-experiment correlation** path
+>    (`cross_experiment_analysis.py`) — per-trait ANOVA in `statistics.py` intentionally has no
+>    FDR, so do not demand it there. Power/CI reporting must be sound.
 > 3. **Reproducibility** — analyses are pinned to a git SHA via committed configs; stochastic
 >    steps (UMAP, Isolation Forest, train/test splits) must set explicit random seeds.
 > 4. **Metadata preservation** — dataset identity, parameters, and config provenance must flow
@@ -212,9 +223,13 @@ description: "Review statistical rigor and reproducibility"
 >
 > 1. Are statistical computations correct? Trace the algorithm (e.g. H² variance components,
 >    ANOVA model terms, Mahalanobis covariance inversion, PCA scaling) step by step.
-> 2. Are method references / assumptions documented? Is FDR applied to multi-trait testing?
-> 3. Are the n ≥ 30 (Mahalanobis) and ≥ 3 replicates (H²) guardrails respected, with WARNINGs
->    when violated rather than silently producing unreliable numbers?
+> 2. Are method references / assumptions documented? Is FDR applied where many cross-experiment
+>    correlations are tested? (Per-trait ANOVA has no FDR by design — flag only if the change
+>    introduces broad multiple testing without correction.)
+> 3. Are the small-sample guardrails surfaced at config-authoring time (n ≥ 30 Mahalanobis,
+>    ≥ 3 replicates H²)? Compute-time Mahalanobis reliability is instead assessed by the χ²
+>    Kolmogorov–Smirnov goodness-of-fit test (`validate_chi_squared_distribution`) — check that,
+>    not for a runtime n<30 warning inside the outlier function.
 > 4. Are random seeds set for every stochastic step so results are reproducible?
 > 5. Could this change alter previously published results (changed thresholds, defaults, or
 >    formulas)? If so, is it documented as a breaking change with a migration note?
@@ -450,10 +465,10 @@ else
 fi
 ```
 
-For COMMENT (no detection needed):
+For COMMENT (no own-PR detection needed — `--comment` is always allowed):
 
 ```bash
-gh pr review "$PR_NUMBER" --comment -b "..."
+gh pr review "$PR_NUMBER" --comment -b "$(printf '> **Verdict: COMMENT**\n\n%s' "$BODY")"
 ```
 
 After posting, show the user the full synthesized review and the GitHub link.

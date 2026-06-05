@@ -23,7 +23,8 @@ subagent-team `review-pr` removes the workaround and gives this repo the real be
   and Windows/Ubuntu/macOS portability).
 - **GENERALIZE** the command to two modes: review an **existing PR** by number (posts the review
   to GitHub), and — when **no PR exists yet** — review the **local branch diff** (`git diff
-  main...HEAD`) for the pre-PR self-review. Owner/name stay dynamic via `gh repo view`; own-PR
+  origin/main...HEAD`, against the resolved default branch) for the pre-PR self-review. Owner,
+  name, and base branch stay dynamic via `gh repo view`; own-PR
   reviews post as a `--comment` with a verdict banner.
 - **REVERT** `pre-merge-check` Phase 3.5 to use `/review-pr` (local-diff mode) for the pre-PR
   self-review, undoing the `/code-review` workaround. `/copilot-review` stays the Copilot fetch

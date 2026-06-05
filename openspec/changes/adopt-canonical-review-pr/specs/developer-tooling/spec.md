@@ -23,8 +23,8 @@ review to GitHub. The repository owner/name SHALL be resolved dynamically via `g
 
 - **GIVEN** the user has implemented a change but not yet opened a PR
 - **WHEN** user invokes `/review-pr` and no PR exists for the branch
-- **THEN** the command reviews the local branch diff (`git diff main...HEAD`) with the same
-  subagent team and severity rubric
+- **THEN** the command reviews the local branch diff (`git diff origin/main...HEAD`, against the
+  resolved default branch) with the same subagent team and severity rubric
 - **AND** findings are reported locally so BLOCKING / IMPORTANT items can be fixed before the PR
 
 #### Scenario: Own-PR review posts as a comment

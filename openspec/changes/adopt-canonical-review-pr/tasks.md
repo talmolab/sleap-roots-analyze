@@ -6,7 +6,8 @@
 - [x] 1.2 Retarget the five review lenses: Code Quality & Architecture; Testing & TDD; Statistical
   Rigor & Reproducibility; Performance/Memory & Cross-Platform; Behavioural Correctness & Edge Cases.
 - [x] 1.3 Add two modes — existing-PR (by number, posts review to GitHub) and pre-PR local-diff
-  (`git diff main...HEAD` when no PR exists). Keep owner/name dynamic via `gh repo view`; own-PR
+  (`git diff origin/main...HEAD` against the resolved default branch when no PR exists). Keep
+  owner/name/base-branch dynamic via `gh repo view`; own-PR
   posts as `--comment` with a verdict banner.
 - [x] 1.4 Use this repo's CI reality in the subagent prompts (lint on ubuntu; tests on
   ubuntu/windows/macOS, Python 3.11; `tests/data/` fixtures; coverage via `--cov`).
@@ -27,6 +28,6 @@
 
 ## 4. Ship (dogfood the new command)
 
-- [ ] 4.1 Run `/pre-merge-check`; open the PR.
-- [ ] 4.2 Run the new `/review-pr` (subagent team) on the PR as the self-review.
+- [x] 4.1 Run `/pre-merge-check`; open the PR.
+- [x] 4.2 Run the new `/review-pr` (subagent team) on the PR as the self-review.
 - [ ] 4.3 After merge, run `/openspec:archive adopt-canonical-review-pr`.

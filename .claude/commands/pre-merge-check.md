@@ -39,8 +39,8 @@ Run `/review-pr` on the **local branch diff** (no PR exists yet, so it runs in p
 reviews `git diff origin/main...HEAD`). This launches the subagent review team — Code Quality,
 Testing, Statistical Rigor, Performance/Memory, and Behavioural Correctness — against the change
 the same way it would review an external PR, and reports findings locally without posting.
-(`/code-review` remains available as a lighter single-pass alternative; `/review-openspec` covers
-an in-flight OpenSpec proposal.)
+(`/code-review` — a built-in skill, not a repo command — remains available as a lighter
+single-pass alternative; `/review-openspec` covers an in-flight OpenSpec proposal.)
 
 **Rationale:** Copilot reliably flags exactly what this team would catch (e.g. a test that
 bypasses the path it was meant to regression-test). Running our own review pre-PR fixes those
