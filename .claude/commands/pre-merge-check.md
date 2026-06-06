@@ -36,7 +36,8 @@ Confirm the associated OpenSpec tasks are checked off (`openspec list`).
 ## Phase 3.5: Pre-PR self-review (do this BEFORE creating the PR)
 
 Run `/review-pr` on the **local branch diff** (no PR exists yet, so it runs in pre-PR mode and
-reviews `git diff origin/main...HEAD`). This launches the subagent review team — Code Quality,
+reviews the diff against the repo's default branch, which `/review-pr` resolves dynamically —
+`git diff origin/<default-branch>...HEAD`, usually `origin/main`). This launches the subagent review team — Code Quality,
 Testing, Statistical Rigor, Performance/Memory, and Behavioural Correctness — against the change
 the same way it would review an external PR, and reports findings locally without posting.
 (`/code-review` — a built-in skill, not a repo command — remains available as a lighter

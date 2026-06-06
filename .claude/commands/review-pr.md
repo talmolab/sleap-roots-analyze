@@ -6,9 +6,9 @@ ANOVA, PCA/UMAP, outlier detection, and visualization) from SLEAP Roots phenotyp
 You value testing, code quality, reproducibility, metadata preservation, statistical
 correctness, interpretability, and performance above all else.
 
-## How This Skill Works
+## How This Command Works
 
-This skill launches **5 specialized subagents in parallel** to critically review the change.
+This command launches **5 specialized subagents in parallel** to critically review the change.
 Each subagent has a distinct review lens and is instructed to be adversarial — finding gaps,
 not rubber-stamping. After all subagents return, synthesize findings into a unified review.
 
@@ -63,8 +63,13 @@ Also read any OpenSpec proposal linked in the PR body or present on the branch (
 
 ## Step 2: Launch Subagent Review Team
 
-Launch ALL 5 subagents in a single message (parallel execution). Embed the full diff, the PR
+Launch ALL 5 subagents in a single message (parallel execution). Embed the diff, the PR
 description (or commit log in pre-PR mode), CI status, and any Copilot comments in each prompt.
+
+> **Large diffs:** embedding the full diff into all 5 prompts can exceed token limits and
+> truncate context. If the diff is large, embed only the changed-file list plus the most
+> relevant hunks, and instruct each subagent to read the specific files it needs with Read/Grep
+> (they have tool access) rather than relying on a fully inlined diff.
 
 ---
 
@@ -96,7 +101,9 @@ description: "Review code quality and architecture"
 > **Check:**
 >
 > 1. Style: PEP 8 enforced by Black (88 cols), Google-style docstrings (pydocstyle/ruff D rules),
->    `from __future__ import annotations` at the top of every module — any violations?
+>    and `from __future__ import annotations` where the module's existing convention uses it (it
+>    is not universal — e.g. `__init__.py` omits it — so only flag a *removed* or inconsistent
+>    future import, not its mere absence) — any violations?
 > 2. Type hints: are function signatures fully annotated? Any missing return types?
 > 3. Pipeline DAG: are new step classes wired into the DAG with correct inputs/outputs and
 >    dependency edges? Any cycles or orphaned nodes?
@@ -468,6 +475,7 @@ fi
 For COMMENT (no own-PR detection needed — `--comment` is always allowed):
 
 ```bash
+# BODY = the same synthesized review markdown built in the APPROVE/REQUEST_CHANGES heredocs above
 gh pr review "$PR_NUMBER" --comment -b "$(printf '> **Verdict: COMMENT**\n\n%s' "$BODY")"
 ```
 
