@@ -57,6 +57,10 @@ def calculate_figure_size(
     Returns:
         Tuple of (width, height) in inches.
 
+    Raises:
+        ValueError: If ``layout`` is not one of "grid", "horizontal", "vertical",
+            or "single".
+
     Example:
         >>> from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig
         >>> config = AdaptiveSizingConfig()
@@ -205,6 +209,9 @@ def calculate_barplot_size(
 
     Returns:
         Tuple of (width, height) in inches.
+
+    Raises:
+        ValueError: If ``orientation`` is not "vertical" or "horizontal".
 
     Example:
         >>> from sleap_roots_analyze.pipeline.config import AdaptiveSizingConfig

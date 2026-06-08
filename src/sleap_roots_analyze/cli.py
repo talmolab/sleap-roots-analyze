@@ -915,8 +915,13 @@ def config_list():
     console.print(table)
 
 
-def main():
-    """Entry point for the CLI."""
+def main() -> None:
+    """Entry point for the CLI.
+
+    Returns:
+        None. Dispatches to the Click command group, which parses ``sys.argv`` and
+        runs the selected subcommand.
+    """
     cli()
 
 

@@ -401,6 +401,10 @@ def save_viz_config(config: VizPipelineConfig, config_path: str | Path) -> None:
         config: VizPipelineConfig object to save.
         config_path: Path to save the YAML file.
 
+    Returns:
+        None. Writes the configuration to ``config_path`` as a side effect,
+        creating parent directories as needed.
+
     Example:
         >>> config = VizPipelineConfig(pipeline_name="viz_pipeline")
         >>> save_viz_config(config, "viz_config.yaml")
@@ -431,6 +435,9 @@ def validate_viz_config(config: VizPipelineConfig) -> None:
 
     Args:
         config: VizPipelineConfig object to validate.
+
+    Returns:
+        None. Returns normally when the configuration is valid; otherwise raises.
 
     Raises:
         ValueError: If configuration is invalid.

@@ -719,6 +719,11 @@ def calculate_optimal_clusters_hierarchical(
         - k_values: k values tested
         - method: Metric used for optimization
 
+    Raises:
+        ValueError: If fewer than 2 clusters can be tested, or ``method`` is not one
+            of "silhouette", "calinski", or "davies_bouldin".
+        RuntimeError: If the cluster-quality calculation fails.
+
     Examples:
         >>> optimal_result = calculate_optimal_clusters_hierarchical(
         ...     hier_result, max_clusters=10, method='silhouette'
