@@ -109,12 +109,12 @@ class TestDocsInSync:
     @pytest.mark.parametrize("name", STATISTICS_FUNCTIONS)
     def test_api_md_lists_function(self, name):
         """docs/API.md documents each of the eight functions."""
-        api_md = (REPO_ROOT / "docs" / "API.md").read_text()
+        api_md = (REPO_ROOT / "docs" / "API.md").read_text(encoding="utf-8")
         assert name in api_md, f"{name} not documented in docs/API.md"
 
     def test_changelog_records_public_api(self):
         """docs/CHANGELOG.md [Unreleased] notes the newly-importable functions."""
-        changelog = (REPO_ROOT / "docs" / "CHANGELOG.md").read_text()
+        changelog = (REPO_ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         unreleased = changelog.split("## [Unreleased]", 1)[1].split("## [", 1)[0]
         assert "sleap_roots_analyze" in unreleased
         for name in STATISTICS_FUNCTIONS:
