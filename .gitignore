@@ -257,3 +257,7 @@ local_notes/
 
 # Temporary test/example output
 examples/heritability_diagnostics/
+
+# macOS
+.DS_Store
+**/.DS_Store

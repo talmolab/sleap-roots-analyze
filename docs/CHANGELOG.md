@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Expose the eight `statistics.py` functions through the top-level
+  `sleap_roots_analyze` namespace and `__all__`, so they can be imported directly
+  (e.g. `from sleap_roots_analyze import calculate_heritability_estimates`) instead
+  of reaching into the internal `statistics` submodule:
+  `calculate_trait_statistics`, `perform_anova_by_genotype`,
+  `calculate_heritability_estimates`, `identify_high_heritability_traits`,
+  `analyze_heritability_thresholds`, `analyze_trait_variance`,
+  `diagnose_heritability_issues`, and `compare_trait_heritabilities` (Part of #116).
+
+### Fixed
+- Add the missing `from typing import Any` import in `statistics.py` so
+  `typing.get_type_hints()` no longer raises `NameError` on the three functions that
+  annotate `Dict[str, Any]`, unblocking downstream tool-schema generation.
+
 ## [0.1.0a2] - 2026-03-18 (Pre-release)
 
 ### Fixed

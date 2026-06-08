@@ -10,13 +10,13 @@ except PackageNotFoundError:
 from sleap_roots_analyze.cli import main
 
 from sleap_roots_analyze.statistics import (
-    calculate_trait_statistics, 
+    calculate_trait_statistics,
     perform_anova_by_genotype,
     calculate_heritability_estimates,
     identify_high_heritability_traits,
     analyze_heritability_thresholds,
     analyze_trait_variance,
-    diagnose_heritability_issues, 
+    diagnose_heritability_issues,
     compare_trait_heritabilities,
 )
 from sleap_roots_analyze.data_cleanup import (
@@ -298,12 +298,12 @@ __all__ = [
     "plot_depth_profile_faceted",
     "plot_depth_profile_replicates",
     # Statistics / heritability functions
-    "calculate_trait_statistics", 
+    "calculate_trait_statistics",
     "perform_anova_by_genotype",
     "calculate_heritability_estimates",
     "identify_high_heritability_traits",
     "analyze_heritability_thresholds",
     "analyze_trait_variance",
-    "diagnose_heritability_issues", 
+    "diagnose_heritability_issues",
     "compare_trait_heritabilities",
 ]
