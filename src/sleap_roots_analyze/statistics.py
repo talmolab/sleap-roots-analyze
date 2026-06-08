@@ -1,4 +1,16 @@
-"""Statistical analysis utilities for trait heritability and ANOVA."""
+"""Single-experiment trait statistics: heritability, ANOVA, and variance analysis.
+
+This module computes statistics *within a single experiment* — broad-sense
+heritability (H²) via mixed models, one-way ANOVA by genotype, and per-trait
+variance decomposition and diagnostics. It operates on a tidy DataFrame whose rows
+are individual observations (genotype × replicate) and whose columns are traits.
+
+It is distinct from :mod:`sleap_roots_analyze.cross_experiment_analysis`, which
+operates *across* experiments — aligning trait names, computing genotype-level
+summaries, and correlating results between separate experiments/platforms. Use this
+module when analyzing one experiment's replicated measurements; use
+``cross_experiment_analysis`` when comparing or combining multiple experiments.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +23,7 @@ import statsmodels.formula.api as smf
 from statsmodels.regression.mixed_linear_model import MixedLM
 from scipy import stats
 from scipy.stats import f_oneway
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Any, Dict, List, Tuple, Optional, Union
 
 # Import for optional filtering
 from .data_cleanup import remove_low_heritability_traits
@@ -25,7 +37,22 @@ def calculate_trait_statistics(df: pd.DataFrame, trait_cols: List[str]) -> Dict:
         trait_cols: List of trait column names
 
     Returns:
-        Dictionary with statistics for each trait
+        Dictionary mapping each trait name to a dictionary of statistics. Columns
+        listed in ``trait_cols`` but absent from ``df`` are skipped. For a trait
+        with at least one non-NA value the inner dictionary contains:
+            - count: Number of non-NA observations
+            - mean: Arithmetic mean
+            - std: Sample standard deviation
+            - min: Minimum value
+            - max: Maximum value
+            - median: Median value
+            - q25: 25th percentile
+            - q75: 75th percentile
+            - cv: Coefficient of variation (std / mean), or ``np.inf`` if mean is 0
+            - skewness: Fisher-Pearson skewness
+            - kurtosis: Excess kurtosis
+        If a trait has no non-NA values, its entry is ``{"error": "No valid data"}``
+        instead.
     """
     stats_dict = {}
 
@@ -82,11 +109,20 @@ def perform_anova_by_genotype(
         alpha: Significance level for hypothesis testing (default: 0.05)
 
     Returns:
-        Dictionary with ANOVA results for each trait including:
-        - f_statistic: F-test statistic
-        - p_value: Probability of observing F-statistic under null hypothesis
-        - significant: Whether p < alpha
-        - group_stats: Descriptive statistics for each genotype
+        Dictionary mapping each trait name to its ANOVA result. If ``genotype_col``
+        is missing or fewer than two genotypes are present, a single
+        ``{"error": ...}`` dictionary is returned instead of per-trait results. For a
+        successfully analyzed trait the inner dictionary contains:
+            - f_statistic: F-test statistic
+            - p_value: Probability of observing the F-statistic under the null
+            - eta_squared: Effect size (proportion of variance explained by genotype)
+            - significant: Whether ``p_value < alpha`` (Python ``bool``)
+            - n_groups: Number of genotype groups with data
+            - total_n: Total number of observations across groups
+            - group_stats: Per-genotype dictionary of ``n``, ``mean``, ``std``, and
+              ``sem`` (standard error of the mean)
+        A trait that cannot be analyzed (missing column, too few groups with data,
+        or a computation failure) maps to an ``{"error": ...}`` dictionary.
     """
     anova_results = {}
 

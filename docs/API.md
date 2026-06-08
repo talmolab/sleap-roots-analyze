@@ -286,7 +286,8 @@ Calculate comprehensive statistics for each trait.
   - Basic: `mean`, `std`, `min`, `max`, `median`
   - Percentiles: `q25`, `q75`
   - Shape: `skewness`, `kurtosis`
-  - Data quality: `count`, `cv` (coefficient of variation)
+  - Data quality: `count`, `cv` (coefficient of variation as a raw ratio,
+    `std / mean`; `np.inf` if `mean` is 0)
 
 **Example:**
 ```python
@@ -303,7 +304,8 @@ for trait, values in stats.items():
 perform_anova_by_genotype(
     df: pd.DataFrame,
     trait_cols: List[str],
-    genotype_col: str = "geno"
+    genotype_col: str = "geno",
+    alpha: float = 0.05
 ) -> Dict[str, Dict]
 ```
 
@@ -312,14 +314,18 @@ Perform one-way ANOVA for each trait by genotype.
 **Parameters:**
 - `df`: Input DataFrame
 - `trait_cols`: List of trait columns
-- `genotype_col`: Name of genotype column
+- `genotype_col`: Name of genotype column (default: "geno")
+- `alpha`: Significance level for hypothesis testing (default: 0.05)
 
 **Returns:**
 - Dictionary with ANOVA results for each trait:
   - `f_statistic`: F-statistic value
   - `p_value`: Statistical significance
-  - `n_groups`: Number of genotype groups
-  - `group_means`: Mean value per genotype
+  - `eta_squared`: Effect size (proportion of variance explained by genotype)
+  - `significant`: Whether `p_value < alpha`
+  - `n_groups`: Number of genotype groups with data
+  - `total_n`: Total number of observations across groups
+  - `group_stats`: Per-genotype dictionary of `n`, `mean`, `std`, and `sem`
 
 **Example:**
 ```python
@@ -336,7 +342,7 @@ for trait, result in anova_results.items():
 ```python
 identify_high_heritability_traits(
     heritability_results: Dict,
-    threshold: float = 0.3
+    threshold: float = 0.5
 ) -> List[str]
 ```
 
@@ -344,10 +350,10 @@ Identify traits with heritability above threshold.
 
 **Parameters:**
 - `heritability_results`: Dictionary from `calculate_heritability_estimates`
-- `threshold`: Minimum heritability threshold (default: 0.3)
+- `threshold`: Minimum heritability threshold (default: 0.5)
 
 **Returns:**
-- List of trait names with H² above threshold
+- List of trait names with H² at or above threshold
 
 ---
 
@@ -372,6 +378,96 @@ Analyze trait retention at different heritability thresholds.
   - `traits_retained`: Number retained at each threshold
   - `traits_removed`: Number removed at each threshold
   - `fraction_retained`: Fraction retained at each threshold
+
+---
+
+#### `analyze_trait_variance`
+
+```python
+analyze_trait_variance(
+    df: pd.DataFrame,
+    trait: str,
+    genotype_col: str = "geno",
+    replicate_col: str = "rep"
+) -> Dict[str, Any]
+```
+
+Decompose a single trait's variance into between- and within-genotype components.
+
+**Parameters:**
+- `df`: Input DataFrame with trait data
+- `trait`: Name of the trait column to analyze
+- `genotype_col`: Name of genotype column (default: "geno")
+- `replicate_col`: Name of replicate column (default: "rep")
+
+**Returns:**
+- Dictionary of variance metrics: `n_observations`, `n_genotypes`,
+  `mean_reps_per_geno`, `min_reps_per_geno`, `max_reps_per_geno`, `trait_mean`,
+  `trait_std`, `trait_cv`, `overall_variance`, `between_genotype_variance`,
+  `within_genotype_variance`, and `pct_variance_between_geno`. If fewer than 3 valid
+  observations exist, returns `{"error": ..., "n_observations": ...}` instead.
+- Note: `trait_cv` here is a **percentage**, `(std / mean) * 100` — unlike the `cv`
+  from `calculate_trait_statistics`, which is a raw ratio (`std / mean`).
+
+---
+
+#### `diagnose_heritability_issues`
+
+```python
+diagnose_heritability_issues(
+    df: pd.DataFrame,
+    trait: str,
+    heritability_result: Dict[str, Any],
+    genotype_col: str = "geno",
+    replicate_col: str = "rep"
+) -> Dict[str, Any]
+```
+
+Identify likely causes of low or zero heritability with actionable explanations.
+
+**Parameters:**
+- `df`: Input DataFrame with trait data
+- `trait`: Name of the trait to diagnose
+- `heritability_result`: Per-trait dictionary from `calculate_heritability_estimates`
+- `genotype_col`: Name of genotype column (default: "geno")
+- `replicate_col`: Name of replicate column (default: "rep")
+
+**Returns:**
+- Dictionary with `has_issues` (bool), `issues` (list of descriptions), `severity`
+  (`"critical"`, `"warning"`, or `"info"`), and `recommendations` (list of suggested
+  actions).
+
+---
+
+#### `compare_trait_heritabilities`
+
+```python
+compare_trait_heritabilities(
+    df: pd.DataFrame,
+    traits: List[str],
+    heritability_results: Dict[str, Dict[str, Any]],
+    genotype_col: str = "geno",
+    replicate_col: str = "rep",
+    sort_by: Optional[str] = None
+) -> pd.DataFrame
+```
+
+Build a comparison table of variance components and heritability across traits.
+
+**Parameters:**
+- `df`: Input DataFrame with trait data
+- `traits`: List of trait names to compare
+- `heritability_results`: Dictionary mapping trait names to heritability results
+- `genotype_col`: Name of genotype column (default: "geno")
+- `replicate_col`: Name of replicate column (default: "rep")
+- `sort_by`: Optional column name to sort the result by (default: None)
+
+**Returns:**
+- DataFrame with one row per trait and columns `trait`, `heritability`,
+  `var_genetic`, `var_residual`, `between_geno_var`, `within_geno_var`,
+  `pct_var_between`, `n_observations`, `n_genotypes`, `mean_reps_per_geno`,
+  `trait_mean`, `trait_cv`, and `model_type`. As in `analyze_trait_variance`,
+  `trait_cv` is a **percentage** (`(std / mean) * 100`).
 
 ---
 
