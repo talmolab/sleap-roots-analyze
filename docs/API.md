@@ -286,7 +286,8 @@ Calculate comprehensive statistics for each trait.
   - Basic: `mean`, `std`, `min`, `max`, `median`
   - Percentiles: `q25`, `q75`
   - Shape: `skewness`, `kurtosis`
-  - Data quality: `count`, `cv` (coefficient of variation)
+  - Data quality: `count`, `cv` (coefficient of variation as a raw ratio,
+    `std / mean`; `np.inf` if `mean` is 0)
 
 **Example:**
 ```python
@@ -405,6 +406,8 @@ Decompose a single trait's variance into between- and within-genotype components
   `trait_std`, `trait_cv`, `overall_variance`, `between_genotype_variance`,
   `within_genotype_variance`, and `pct_variance_between_geno`. If fewer than 3 valid
   observations exist, returns `{"error": ..., "n_observations": ...}` instead.
+- Note: `trait_cv` here is a **percentage**, `(std / mean) * 100` — unlike the `cv`
+  from `calculate_trait_statistics`, which is a raw ratio (`std / mean`).
 
 ---
 
@@ -463,7 +466,8 @@ Build a comparison table of variance components and heritability across traits.
 - DataFrame with one row per trait and columns `trait`, `heritability`,
   `var_genetic`, `var_residual`, `between_geno_var`, `within_geno_var`,
   `pct_var_between`, `n_observations`, `n_genotypes`, `mean_reps_per_geno`,
-  `trait_mean`, `trait_cv`, and `model_type`.
+  `trait_mean`, `trait_cv`, and `model_type`. As in `analyze_trait_variance`,
+  `trait_cv` is a **percentage** (`(std / mean) * 100`).
 
 ---
 

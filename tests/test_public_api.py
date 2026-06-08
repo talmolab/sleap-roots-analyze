@@ -95,6 +95,12 @@ class TestDocstrings:
         assert doc is not None, f"{name} has no docstring"
         assert "Args:" in doc, f"{name} docstring missing Args:"
         assert "Returns:" in doc, f"{name} docstring missing Returns:"
+        # Guard against empty section headings: there must be indented body text
+        # after each header, not just the bare label.
+        for section in ("Args:", "Returns:"):
+            body = doc.split(section, 1)[1]
+            first_line = body.splitlines()[1] if len(body.splitlines()) > 1 else ""
+            assert first_line.strip(), f"{name} has an empty {section} section"
 
     def test_module_docstring_distinguishes_cross_experiment(self):
         """The module docstring names cross_experiment_analysis to clarify scope."""
@@ -111,6 +117,19 @@ class TestDocsInSync:
         """docs/API.md documents each of the eight functions."""
         api_md = (REPO_ROOT / "docs" / "API.md").read_text(encoding="utf-8")
         assert name in api_md, f"{name} not documented in docs/API.md"
+
+    @pytest.mark.parametrize(
+        "snippet",
+        [
+            # Defaults reconciled in this PR — guard against doc drift.
+            "threshold: float = 0.5",  # identify_high_heritability_traits
+            "alpha: float = 0.05",  # perform_anova_by_genotype
+        ],
+    )
+    def test_api_md_documents_signature_defaults(self, snippet):
+        """docs/API.md documents the corrected signature defaults verbatim."""
+        api_md = (REPO_ROOT / "docs" / "API.md").read_text(encoding="utf-8")
+        assert snippet in api_md, f"docs/API.md missing documented default: {snippet!r}"
 
     def test_changelog_records_public_api(self):
         """docs/CHANGELOG.md [Unreleased] notes the newly-importable functions."""
