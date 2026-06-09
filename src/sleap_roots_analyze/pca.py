@@ -745,6 +745,12 @@ def perform_pca_analysis(
             - data_processed: Processed data (standardized or cleaned)
             - feature_names: List of feature names used
             - feature_metrics_df: DataFrame with per-feature metrics (if include_feature_metrics=True)
+
+    Raises:
+        ValueError: If the input array is not 2D, the DataFrame is empty, no valid
+            samples remain after dropping NaN values, no numeric columns (or none
+            with non-zero variance) are found, or fewer than 2 samples remain after
+            preprocessing.
     """
     # Convert numpy array to DataFrame if needed
     if not isinstance(data, pd.DataFrame):

@@ -11,7 +11,7 @@ This module provides basic static visualization functions including:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -2039,6 +2039,9 @@ def create_pca_biplot(
 
     Returns:
         PCA biplot figure.
+
+    Raises:
+        ValueError: If the PCA sample count cannot be matched to ``df``.
     """
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -2838,6 +2841,9 @@ def identify_extreme_genotypes_by_pc(
 
     Returns:
         DataFrame with extreme genotypes, their median PC scores, and rankings.
+
+    Raises:
+        ValueError: If ``genotype_col`` is not a column in ``df``.
     """
     if genotype_col not in df.columns:
         raise ValueError(f"Genotype column '{genotype_col}' not found in dataframe")
@@ -2936,6 +2942,9 @@ def create_pc_genotype_boxplots(
 
     Returns:
         Boxplot figure.
+
+    Raises:
+        ValueError: If ``genotype_col`` is not a column in ``df``.
     """
     if genotype_col not in df.columns:
         raise ValueError(f"Genotype column '{genotype_col}' not found in dataframe")
@@ -3107,6 +3116,10 @@ def create_feature_contribution_heatmap(
     Returns:
         Single figure if plot_type is "variance" or "loadings",
         tuple of (variance_fig, loadings_fig) if plot_type is "both".
+
+    Raises:
+        ValueError: If ``pca_results`` does not contain both "loadings" and
+            "eigenvalues" keys.
     """
     # Get necessary data from pca_results
     if "loadings" not in pca_results or "eigenvalues" not in pca_results:
@@ -3214,6 +3227,9 @@ def create_publication_figure(
         format: Output format ('pdf', 'eps', 'png', 'svg').
         transparent: Whether to use transparent background.
         bbox_inches: Bbox setting for matplotlib figures.
+
+    Returns:
+        None. Writes the figure to ``output_path`` as a side effect.
 
     Raises:
         ValueError: If figure type is not supported.

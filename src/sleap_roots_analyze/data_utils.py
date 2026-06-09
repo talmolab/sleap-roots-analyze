@@ -573,6 +573,9 @@ def link_rhizovision_images_to_samples(
 
     Returns:
         Dictionary mapping barcode to Rhizovision image paths
+
+    Raises:
+        ValueError: If ``barcode_col`` is not a column in ``df``.
     """
     if image_types is None:
         image_types = ["features.png", "seg.png"]
@@ -627,6 +630,10 @@ def link_cylinder_images_from_scan_path(
     Returns:
         Dictionary mapping barcode to image paths, compatible with
         create_genotype_image_grid() and other visualization functions.
+
+    Raises:
+        ValueError: If ``barcode_col`` or ``scan_path_col`` is not a column in
+            ``df``.
 
     Example:
         >>> from sleap_roots_analyze.data_utils import link_cylinder_images_from_scan_path

@@ -647,6 +647,9 @@ def detect_outliers_pca(
         - explained_variance_per_feature: Variance explained for each original feature
         - explained_variance_ratio_per_feature: Fraction of each feature's variance explained
         - error: Error message if detection failed
+
+    Raises:
+        ValueError: If the processed data needed for reconstruction is unavailable.
     """
     # Convert to DataFrame to handle indices consistently
     if isinstance(data, np.ndarray):
