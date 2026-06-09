@@ -105,7 +105,11 @@ class ColumnConfig:
     Attributes:
         barcode: Name of the barcode/plant ID column.
         genotype: Name of the genotype column.
-        replicate: Name of the replicate column (None if not present).
+        replicate: Name of the replicate column. Optional — set to None (or omit)
+            for datasets with no replicate factor (e.g. cylinder data, where the
+            plant is the replicate unit). Replicate values are never used in any
+            computation and are not a term in the heritability model; the field
+            exists only for metadata/labeling. See issue #142.
         image_path: Name of the image path column (optional).
     """
 

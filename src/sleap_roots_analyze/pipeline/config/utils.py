@@ -117,11 +117,10 @@ def validate_explicit_config(config: QCPipelineConfig) -> None:
             "columns.genotype must be explicitly set (dataset-specific)\n"
             "  Examples: 'geno', 'genotype', 'accession', 'salk_geno'"
         )
-    if config.columns.replicate is None:
-        errors.append(
-            "columns.replicate must be explicitly set (dataset-specific)\n"
-            "  Examples: 'rep', 'replicate', 'Rep', 'block'"
-        )
+    # OPTIONAL: columns.replicate may be None (or omitted). Its values are never
+    # used in any computation — heritability fits value ~ 1 + (1|genotype) and
+    # weights by rows-per-genotype, not by replicate. Datasets with no replicate
+    # factor (e.g. cylinder data) leave it unset. See issue #142.
 
     # REQUIRED: PCA n_components (affects dimensionality)
     if config.pca.n_components is None:

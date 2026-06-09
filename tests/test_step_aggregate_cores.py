@@ -147,6 +147,30 @@ def test_aggregate_biomass_mean(biomass_long_data, config_biomass, tmp_path):
     assert source_meta["max_cores_per_group"] == 3
 
 
+@pytest.mark.parametrize("replicate_value", [None, "rep", "block"])
+def test_rep_aggregation_invariant_to_columns_replicate(
+    biomass_long_data, config_biomass, tmp_path, replicate_value
+):
+    """Root-core aggregation keys on hardcoded "Rep", not columns.replicate (issue #142).
+
+    Making columns.replicate optional must not change field/root-core behavior:
+    the "Rep" column is a separate, hardcoded field.
+    """
+    config_biomass.columns.replicate = replicate_value
+    input_data = {"biomass": biomass_long_data}
+
+    step = AggregateCoresStep()
+    result = step.execute(data=input_data, config=config_biomass, run_dir=tmp_path)
+    df_agg = result.data["biomass"]
+
+    # Aggregation still groups on hardcoded "Rep" regardless of columns.replicate.
+    num_unique_groups = biomass_long_data.groupby(
+        ["Plot", "Rep", "geno", "Depth_cm"]
+    ).ngroups
+    assert len(df_agg) == num_unique_groups
+    assert "Rep" in df_agg.columns
+
+
 def test_aggregate_counting_median(counting_long_data, config_counting, tmp_path):
     """Test aggregating counting data using median."""
     input_data = {"counting": counting_long_data}

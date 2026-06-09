@@ -196,7 +196,7 @@ def calculate_heritability_estimates(
     df: pd.DataFrame,
     trait_cols: List[str],
     genotype_col: str = "geno",
-    replicate_col: str = "rep",
+    replicate_col: Optional[str] = "rep",
     force_method: Optional[str] = None,
     remove_low_h2: bool = False,
     h2_threshold: float = 0.3,
@@ -226,7 +226,9 @@ def calculate_heritability_estimates(
         df: DataFrame with trait, genotype, and replicate data
         trait_cols: List of trait column names
         genotype_col: Name of genotype column
-        replicate_col: Name of replicate column
+        replicate_col: Name of replicate column, or None if the dataset has no
+            replicate column. Replicate values are never used in the model
+            (value ~ 1 + (1|genotype)); H² is identical whether this is set or None.
         force_method: Force a specific method ('mixed_model' or 'anova_based') for all traits.
                      If None or 'mixed_model', will use mixed model approach (default).
         remove_low_h2: If True, remove traits with low heritability and return filtered DataFrame
@@ -269,7 +271,11 @@ def calculate_heritability_estimates(
         "method_consistency": True,
     }
 
-    required_cols = [genotype_col, replicate_col]
+    # replicate_col is optional: its values are never used in the model
+    # (value ~ 1 + (1|genotype)), so only require it when it was provided.
+    required_cols = [genotype_col]
+    if replicate_col is not None:
+        required_cols.append(replicate_col)
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
         return {"error": f"Missing required columns: {missing_cols}"}
@@ -279,8 +285,12 @@ def calculate_heritability_estimates(
             heritability_results[trait] = {"error": f"Trait column '{trait}' not found"}
             continue
 
-        # Create a subset with complete data
-        subset = df[[trait, genotype_col, replicate_col]].dropna()
+        # Create a subset with complete data. replicate_col is included only when
+        # present; it is never used in the model, so its absence changes nothing.
+        subset_cols = [trait, genotype_col]
+        if replicate_col is not None:
+            subset_cols.append(replicate_col)
+        subset = df[subset_cols].dropna()
 
         if len(subset) < 4:  # Need minimum data for variance estimation
             heritability_results[trait] = {
@@ -318,7 +328,11 @@ def calculate_heritability_estimates(
                 # Use mixed model approach (matches R lme4)
                 # Create a clean dataframe for the model
                 model_data = subset.copy()
-                model_data.columns = ["value", "genotype", "replicate"]
+                model_data.columns = (
+                    ["value", "genotype", "replicate"]
+                    if replicate_col is not None
+                    else ["value", "genotype"]
+                )
 
                 # Fit mixed model: value ~ 1 + (1|genotype)
                 # This matches the R code: lmer(value ~ (1 | ecot_id), data = data_H)
@@ -501,7 +515,7 @@ def analyze_trait_variance(
     df: pd.DataFrame,
     trait: str,
     genotype_col: str = "geno",
-    replicate_col: str = "rep",
+    replicate_col: Optional[str] = "rep",
 ) -> Dict[str, Any]:
     """Analyze variance components for a single trait.
 
@@ -512,7 +526,9 @@ def analyze_trait_variance(
         df: DataFrame with trait data
         trait: Name of trait column to analyze
         genotype_col: Name of genotype column (default: "geno")
-        replicate_col: Name of replicate column (default: "rep")
+        replicate_col: Name of replicate column (default: "rep"), or None if the
+            dataset has no replicate column. Replicate values are not used in the
+            variance decomposition.
 
     Returns:
         Dictionary containing:
@@ -538,8 +554,12 @@ def analyze_trait_variance(
         >>> result = analyze_trait_variance(df, 'trait1')
         >>> print(f"Between-genotype variance: {result['between_genotype_variance']:.2f}")
     """
-    # Create subset with complete data
-    subset = df[[trait, genotype_col, replicate_col]].dropna()
+    # Create subset with complete data. replicate_col is optional and unused in
+    # the variance decomposition (which groups by genotype only).
+    subset_cols = [trait, genotype_col]
+    if replicate_col is not None:
+        subset_cols.append(replicate_col)
+    subset = df[subset_cols].dropna()
 
     # Check for insufficient data
     if len(subset) < 3:

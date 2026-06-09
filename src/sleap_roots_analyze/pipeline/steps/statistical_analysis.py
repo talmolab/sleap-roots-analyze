@@ -82,9 +82,12 @@ class StatisticalAnalysisStep(BaseStep):
             )
 
         # After CleanupTraitsStep (Step 02), column names are sanitized to standard names
-        # Use the sanitized names consistently across all subsequent steps
+        # Use the sanitized names consistently across all subsequent steps.
+        # columns.replicate is optional (issue #142): when unset there is no
+        # "Replicate" column downstream, so pass None to skip it in heritability
+        # (its values are never used in the model anyway).
         genotype_col = "Genotype"
-        replicate_col = "Replicate"
+        replicate_col = "Replicate" if config.columns.replicate is not None else None
 
         # 1. Calculate basic trait statistics
         trait_stats = calculate_trait_statistics(df=df, trait_cols=trait_cols)
