@@ -139,6 +139,9 @@ def _check_function(name: str, func: object) -> list[str]:
     if "Returns:" not in doc:
         problems.append(f"{name}: docstring missing 'Returns:' section")
     for p in params:
+        # Conservative: matches the param name anywhere in the docstring, so a name
+        # mentioned only in Returns:/Raises: still passes. This avoids brittle
+        # Args:-block parsing; tighten to the Args: section if false negatives matter.
         if not re.search(rf"\b{re.escape(p.name)}\b", doc):
             problems.append(f"{name}: parameter '{p.name}' not documented")
     if _raises_nontrivially(func) and "Raises:" not in doc:
