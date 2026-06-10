@@ -173,7 +173,26 @@ class StatisticalAnalysisStep(BaseStep):
             for trait, result in heritability_results.items():
                 if trait == "__calculation_metadata__":
                     continue
-                if "error" in result:
+                # CRITICAL: check for a string error message FIRST (mirrors the
+                # ANOVA loop above). A top-level {"error": ...} return from
+                # calculate_heritability_estimates iterates to trait="error",
+                # result=<str>, so checking "error" in result or calling
+                # result.get(...) without this guard raises AttributeError.
+                if isinstance(result, str):
+                    heritability_records.append(
+                        {
+                            "trait": trait,
+                            "heritability": None,
+                            "var_genetic": None,
+                            "var_residual": None,
+                            "mean_n_reps": None,
+                            "n_genotypes": None,
+                            "n_observations": None,
+                            "model_type": None,
+                            "error": result,
+                        }
+                    )
+                elif "error" in result:
                     heritability_records.append(
                         {
                             "trait": trait,

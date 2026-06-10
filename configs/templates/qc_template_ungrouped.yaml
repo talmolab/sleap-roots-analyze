@@ -5,10 +5,11 @@
 #
 # REQUIRED CUSTOMIZATIONS (replace FILL_IN_* placeholders):
 #   - data.csv_path
-#   - columns.barcode, columns.genotype, columns.replicate
+#   - columns.barcode, columns.genotype
 #   - pipeline_name
 #
 # OPTIONAL CUSTOMIZATIONS:
+#   - columns.replicate (omit, or set null, for data with no replicate factor)
 #   - cleanup thresholds (max_nan_fraction, max_zeros_per_trait, etc.)
 #   - heritability.threshold (default: 0.40 = moderate)
 #   - outlier_detection settings (default: Mahalanobis chi-squared at 99th percentile)
@@ -40,8 +41,10 @@ columns:
   # Column containing genotype/accession/variety identifiers
   genotype: "FILL_IN_GENOTYPE_COLUMN"  # E.g., "geno"
 
-  # Column containing replicate/plant ID (within each genotype)
-  replicate: "FILL_IN_REPLICATE_COLUMN"  # E.g., "rep"
+  # OPTIONAL: replicate/plant ID column (within each genotype). Disabled by
+  # default — omit this line (or set `replicate: null`) for data with no
+  # replicate factor, e.g. cylinder data. Uncomment only if your data has one.
+  # replicate: "FILL_IN_REPLICATE_COLUMN"  # E.g., "rep"
 
 cleanup:
   # Drop trait columns with >50% zero values (helps remove near-constant traits)

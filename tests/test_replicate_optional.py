@@ -40,7 +40,12 @@ from sleap_roots_analyze.pipeline import (
 )
 from sleap_roots_analyze.pipeline.config import load_qc_config
 from sleap_roots_analyze.pipeline.core import StepResult
-from sleap_roots_analyze.pipeline.steps import FilterHeritabilityStep
+from sleap_roots_analyze.pipeline.steps import (
+    CleanupTraitsStep,
+    FilterHeritabilityStep,
+    LoadDataStep,
+    StatisticalAnalysisStep,
+)
 from sleap_roots_analyze.statistics import (
     analyze_trait_variance,
     calculate_heritability_estimates,
@@ -314,3 +319,82 @@ def test_filter_heritability_retains_uncomputable_traits(tmp_path):
     retained = result.metadata["valid_trait_names"]
     assert "uncomputable_trait" in retained  # kept: can't fail an unmeasured threshold
     assert "low_h2_trait" not in retained  # dropped: computed H² below threshold
+
+
+# ---------------------------------------------------------------------------
+# 2b. Fast (non-integration) load -> cleanup -> stats chain on replicate-free
+#     data. The end-to-end pipeline test above is @pytest.mark.integration, so
+#     CI (`-m "not integration"`) skips it; this gates the load_trait_data +
+#     CleanupTraitsStep path against regression without the slow steps.
+# ---------------------------------------------------------------------------
+def test_load_cleanup_stats_chain_no_replicate_column(tmp_path):
+    """Load -> cleanup -> stats chain on a replicate-free CSV yields real H² (#142)."""
+    rng = np.random.default_rng(11)
+    n_per = 10
+    genos = ["G1", "G2", "G3"]
+    df = pd.DataFrame(
+        {
+            "Barcode": [f"p{i}" for i in range(n_per * len(genos))],
+            "geno": np.repeat(genos, n_per),
+            "trait1": rng.normal(50, 8, n_per * len(genos)),
+            "trait2": rng.normal(25, 4, n_per * len(genos)),
+        }
+    )
+    df.loc[df["geno"] == "G1", "trait1"] += 20  # genotype signal for trait1
+    csv_path = tmp_path / "cylinder_no_rep.csv"
+    df.to_csv(csv_path, index=False)
+
+    config = QCPipelineConfig(
+        pipeline_name="t",
+        columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate=None),
+        data=DataConfig(csv_path=str(csv_path)),
+        heritability=HeritabilityConfig(enabled=True, threshold=0.0),
+    )
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    loaded = LoadDataStep().execute(None, config, run_dir, None)
+    assert "Replicate" not in loaded.data.columns  # nothing fabricated on load
+
+    cleaned = CleanupTraitsStep().execute(loaded.data, config, run_dir, loaded)
+    assert "Replicate" not in cleaned.data.columns  # cleanup keys off no replicate
+
+    stats = StatisticalAnalysisStep().execute(cleaned.data, config, run_dir, cleaned)
+    h2 = stats.metadata["heritability_results"]
+    real = [t for t, v in h2.items() if isinstance(v, dict) and "heritability" in v]
+    assert real, f"expected at least one trait with real H², got {h2}"
+
+
+# ---------------------------------------------------------------------------
+# 3b. StatisticalAnalysisStep must not crash on a TOP-LEVEL heritability error.
+#     calculate_heritability_estimates returns a top-level {"error": ...} (a str
+#     value) when a declared column is absent; the record loop must guard the
+#     string case (mirrors the ANOVA loop) instead of raising AttributeError.
+# ---------------------------------------------------------------------------
+def test_statistical_analysis_handles_top_level_heritability_error(tmp_path):
+    """A top-level {"error": ...} heritability result yields an error row, no crash."""
+    df = pd.DataFrame(
+        {
+            "Barcode": [f"p{i}" for i in range(12)],
+            "Genotype": np.repeat(["A", "B", "C"], 4),
+            "trait1": np.linspace(1.0, 12.0, 12),
+            # No "Replicate" column, but the config declares one below.
+        }
+    )
+    config = QCPipelineConfig(
+        pipeline_name="t",
+        columns=ColumnConfig(
+            barcode="Barcode", genotype="Genotype", replicate="Replicate"
+        ),
+        data=DataConfig(csv_path="dummy.csv"),
+    )
+    prev_result = StepResult(
+        data=df,
+        metadata={"valid_trait_names": ["trait1"], "samples": 12},
+        files_generated=[],
+    )
+
+    # Must not raise (previously AttributeError on result.get for a str result).
+    result = StatisticalAnalysisStep().execute(df, config, tmp_path, prev_result)
+    h2 = result.metadata["heritability_results"]
+    assert "error" in h2  # top-level error preserved, not swallowed into a crash

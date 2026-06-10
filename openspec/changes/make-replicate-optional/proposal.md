@@ -50,5 +50,12 @@ load-bearing for field aggregation/merge and must remain untouched.
 - Affected specs: `config-management` (new requirement: Optional Replicate Column).
 - Affected code: `pipeline/config/utils.py`, `statistics.py`, `data_cleanup.py`
   (test only), `pipeline/config/components.py` (docstring), config example docs.
-- Backward compatible: existing configs that set `replicate` keep working
-  identically; the field simply becomes omittable.
+- Mostly backward compatible: existing configs that set `replicate` explicitly
+  keep working identically. **Default-behavior change:** `ColumnConfig.replicate`
+  now defaults to `None` (was `"rep"`), so omitting the key disables replicate
+  instead of silently assuming a `"rep"` column. No shipped config relies on the
+  old implicit default (every replicate-bearing config sets it explicitly, and
+  `configs/qc_cylinder_edpie.yaml` already omits it); a stray `rep` column under
+  the old default would only have been reclassified as a trait, never miscomputed.
+- The four golden QC templates (`configs/templates/qc_*`) now present `replicate`
+  as optional (commented out / omittable) rather than a REQUIRED field.
