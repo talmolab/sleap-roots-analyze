@@ -75,6 +75,11 @@ class FilterHeritabilityStep(BaseStep):
         """
         df = data.copy()
 
+        # columns.replicate is optional (issue #142): when unset (None or "") there
+        # is no sanitized "Replicate" column downstream, so use None to skip it in
+        # the diagnostics helpers (its values are never used in any computation).
+        replicate_col = "Replicate" if config.columns.replicate else None
+
         # Get visualization config (different attribute names in QC vs Viz pipelines)
         viz_config = (
             config.visualization
@@ -187,8 +192,20 @@ class FilterHeritabilityStep(BaseStep):
             heritability_results=heritability_results, threshold=threshold
         )
 
-        # Determine which traits to remove
-        removed_traits = [t for t in trait_cols if t not in high_h2_traits]
+        # Determine which traits to remove. Only remove a trait whose H² was
+        # actually computed and fell below the threshold. A trait whose H² is
+        # uncomputable (an "error" result — e.g. a single-genotype group, where
+        # heritability is not estimable) is retained rather than silently dropped:
+        # you cannot fail a threshold you could never measure (issue #142). This
+        # also prevents the degenerate "all traits removed" cascade that leaves
+        # downstream steps with a trait-less DataFrame.
+        def _has_computed_h2(trait: str) -> bool:
+            result = heritability_results.get(trait)
+            return isinstance(result, dict) and "heritability" in result
+
+        removed_traits = [
+            t for t in trait_cols if t not in high_h2_traits and _has_computed_h2(t)
+        ]
 
         # Remove low heritability trait columns from DataFrame
         # But keep all metadata columns (automatically handled by dropping only trait columns)
@@ -200,7 +217,7 @@ class FilterHeritabilityStep(BaseStep):
             df_filtered,
             barcode_col="Barcode",
             genotype_col="Genotype",
-            replicate_col="Replicate",
+            replicate_col=replicate_col,
             additional_exclude=config.data.additional_exclude_cols,
         )
 
@@ -230,7 +247,7 @@ class FilterHeritabilityStep(BaseStep):
                     traits=trait_cols,
                     heritability_results=heritability_results,
                     genotype_col="Genotype",
-                    replicate_col="Replicate",
+                    replicate_col=replicate_col,
                     sort_by="heritability",  # Sort by heritability (lowest first)
                 )
 

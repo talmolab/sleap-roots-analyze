@@ -271,10 +271,11 @@ def calculate_heritability_estimates(
         "method_consistency": True,
     }
 
-    # replicate_col is optional: its values are never used in the model
-    # (value ~ 1 + (1|genotype)), so only require it when it was provided.
+    # replicate_col is optional and its values are never used in the model
+    # (value ~ 1 + (1|genotype)). Only require the column when a (truthy) name was
+    # provided; treat None or "" identically as "no replicate column" (issue #142).
     required_cols = [genotype_col]
-    if replicate_col is not None:
+    if replicate_col:
         required_cols.append(replicate_col)
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
@@ -285,12 +286,10 @@ def calculate_heritability_estimates(
             heritability_results[trait] = {"error": f"Trait column '{trait}' not found"}
             continue
 
-        # Create a subset with complete data. replicate_col is included only when
-        # present; it is never used in the model, so its absence changes nothing.
-        subset_cols = [trait, genotype_col]
-        if replicate_col is not None:
-            subset_cols.append(replicate_col)
-        subset = df[subset_cols].dropna()
+        # Subset to the only columns the model uses. Replicate is deliberately
+        # excluded: its values are never used, so including it (and any NaNs in it)
+        # must not drop rows or change H² relative to replicate=None (issue #142).
+        subset = df[[trait, genotype_col]].dropna()
 
         if len(subset) < 4:  # Need minimum data for variance estimation
             heritability_results[trait] = {
@@ -302,6 +301,18 @@ def calculate_heritability_estimates(
             # Calculate mean number of replicates per genotype (for unbalanced design)
             reps_per_geno = subset.groupby(genotype_col).size()
             mean_n_reps = reps_per_geno.mean()
+
+            # Heritability needs between-genotype contrast: with a single genotype
+            # there is no estimable genetic variance, so report a structured error
+            # instead of a meaningless H² from an unidentifiable model (issue #142).
+            if len(reps_per_geno) < 2:
+                heritability_results[trait] = {
+                    "error": (
+                        "Insufficient genotypes for heritability estimation "
+                        "(need >= 2 genotypes)"
+                    )
+                }
+                continue
 
             # Check if all values are identical (no variance)
             if subset[trait].nunique() == 1:
@@ -328,11 +339,7 @@ def calculate_heritability_estimates(
                 # Use mixed model approach (matches R lme4)
                 # Create a clean dataframe for the model
                 model_data = subset.copy()
-                model_data.columns = (
-                    ["value", "genotype", "replicate"]
-                    if replicate_col is not None
-                    else ["value", "genotype"]
-                )
+                model_data.columns = ["value", "genotype"]
 
                 # Fit mixed model: value ~ 1 + (1|genotype)
                 # This matches the R code: lmer(value ~ (1 | ecot_id), data = data_H)
@@ -554,12 +561,15 @@ def analyze_trait_variance(
         >>> result = analyze_trait_variance(df, 'trait1')
         >>> print(f"Between-genotype variance: {result['between_genotype_variance']:.2f}")
     """
-    # Create subset with complete data. replicate_col is optional and unused in
-    # the variance decomposition (which groups by genotype only).
-    subset_cols = [trait, genotype_col]
-    if replicate_col is not None:
-        subset_cols.append(replicate_col)
-    subset = df[subset_cols].dropna()
+    # A named-but-absent replicate column is a caller error: return a structured
+    # error (mirroring calculate_heritability_estimates) rather than raising a raw
+    # KeyError. A falsy replicate_col (None or "") means "no replicate column".
+    if replicate_col and replicate_col not in df.columns:
+        return {"error": f"Missing required columns: {[replicate_col]}"}
+
+    # Subset to the only columns the decomposition uses (it groups by genotype).
+    # Replicate is excluded so its presence/NaNs never change the result (issue #142).
+    subset = df[[trait, genotype_col]].dropna()
 
     # Check for insufficient data
     if len(subset) < 3:
@@ -619,7 +629,7 @@ def diagnose_heritability_issues(
     trait: str,
     heritability_result: Dict[str, Any],
     genotype_col: str = "geno",
-    replicate_col: str = "rep",
+    replicate_col: Optional[str] = "rep",
 ) -> Dict[str, Any]:
     """Identify specific causes of low or zero heritability with explanations.
 
@@ -765,7 +775,7 @@ def compare_trait_heritabilities(
     traits: List[str],
     heritability_results: Dict[str, Dict[str, Any]],
     genotype_col: str = "geno",
-    replicate_col: str = "rep",
+    replicate_col: Optional[str] = "rep",
     sort_by: Optional[str] = None,
 ) -> pd.DataFrame:
     """Compare variance components and heritability metrics for multiple traits.

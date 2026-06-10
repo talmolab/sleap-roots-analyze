@@ -83,10 +83,12 @@ class CleanupTraitsStep(BaseStep):
             depth_range_mapping=depth_range_mapping,
         )
 
-        # Update column references to use sanitized names
+        # Update column references to use sanitized names. columns.replicate is
+        # optional (issue #142): when unset (None or "") there is no sanitized
+        # "Replicate" column, so downstream cleanup must not look for one.
         barcode_col = "Barcode"
         genotype_col = "Genotype"
-        replicate_col = "Replicate"
+        replicate_col = "Replicate" if config.columns.replicate else None
 
         # Update trait columns list with sanitized names
         trait_cols = [trait_name_mapping.get(col, col) for col in trait_cols]
