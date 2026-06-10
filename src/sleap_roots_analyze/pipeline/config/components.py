@@ -105,13 +105,20 @@ class ColumnConfig:
     Attributes:
         barcode: Name of the barcode/plant ID column.
         genotype: Name of the genotype column.
-        replicate: Name of the replicate column (None if not present).
+        replicate: Name of the replicate column. Optional and defaults to ``None``:
+            omitting the key from YAML (or setting ``replicate: null``, ``None``, or
+            ``""``) disables it, which is correct for datasets with no replicate
+            factor (e.g. cylinder data, where the plant is the replicate unit). Set
+            it to a column name (e.g. ``"rep"``) only when the dataset actually has a
+            replicate column you want carried through. Replicate values are never
+            used in any computation and are not a term in the heritability model; the
+            field exists only for metadata/labeling. See issue #142.
         image_path: Name of the image path column (optional).
     """
 
     barcode: str = "Barcode"
     genotype: str = "geno"
-    replicate: Optional[str] = "rep"
+    replicate: Optional[str] = None
     image_path: Optional[str] = "image_path"
 
 

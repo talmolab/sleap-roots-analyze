@@ -145,6 +145,27 @@ class TestGetTraitColumns:
         assert "trait1" in trait_cols
         assert "trait2" in trait_cols
 
+    def test_replicate_col_none_does_not_miscount_traits(self):
+        """With replicate_col=None, no trait is excluded as a replicate (issue #142)."""
+        df = pd.DataFrame(
+            {
+                "Barcode": ["BC001", "BC002"],
+                "geno": ["G1", "G2"],
+                # A numeric column named like a replicate, but the dataset has no
+                # replicate factor; it must be treated as a trait, not excluded.
+                "rep": [1.0, 2.0],
+                "trait1": [1.0, 2.0],
+                "trait2": [3.0, 4.0],
+            }
+        )
+
+        trait_cols = get_trait_columns(df, replicate_col=None)
+        assert "Barcode" not in trait_cols
+        assert "geno" not in trait_cols
+        assert "rep" in trait_cols  # not excluded when replicate_col is None
+        assert "trait1" in trait_cols
+        assert "trait2" in trait_cols
+
     def test_metadata_keyword_exclusion(self):
         """Test automatic exclusion of metadata keywords."""
         df = pd.DataFrame(

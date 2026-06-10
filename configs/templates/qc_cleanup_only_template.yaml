@@ -15,8 +15,12 @@ pipeline_name: "my_cleanup_pipeline"  # REQUIRED: Give your pipeline a descripti
 # ============================================================================
 columns:
   genotype: "geno"           # REQUIRED: Your genotype column name
-  replicate: "rep"           # REQUIRED: Your replicate column name
   barcode: "Barcode"         # Optional: Sample barcode column
+  # replicate is OPTIONAL and disabled by default. Omit this line (or set
+  # `replicate: null`) for data with no replicate factor, e.g. cylinder data
+  # where the plant is the replicate unit. Uncomment and set the column name
+  # only if your dataset actually has a replicate column (issue #142).
+  # replicate: "rep"         # OPTIONAL: Your replicate column name, if present
 
 # ============================================================================
 # REQUIRED: Data Configuration

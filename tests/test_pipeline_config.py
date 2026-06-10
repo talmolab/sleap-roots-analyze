@@ -233,6 +233,28 @@ def test_validate_config_valid():
     validate_qc_config(config)
 
 
+def test_validate_config_replicate_optional():
+    """columns.replicate=None passes validation (issue #142)."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
+    config.columns.replicate = None
+
+    # Should not raise — replicate values are never used in any computation.
+    validate_qc_config(config, check_files=False)
+
+
+def test_validate_config_genotype_still_required():
+    """Relaxing replicate must not relax genotype, which remains required."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
+    config.columns.genotype = None
+
+    with pytest.raises(ValueError, match="columns.genotype must be explicitly set"):
+        validate_qc_config(config, check_files=False)
+
+
 def test_validate_config_missing_pipeline_name():
     """Test validation fails for missing pipeline_name."""
     config = QCPipelineConfig(

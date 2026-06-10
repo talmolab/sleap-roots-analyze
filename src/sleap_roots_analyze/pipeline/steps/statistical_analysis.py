@@ -82,9 +82,12 @@ class StatisticalAnalysisStep(BaseStep):
             )
 
         # After CleanupTraitsStep (Step 02), column names are sanitized to standard names
-        # Use the sanitized names consistently across all subsequent steps
+        # Use the sanitized names consistently across all subsequent steps.
+        # columns.replicate is optional (issue #142): when unset (None or "") there
+        # is no "Replicate" column downstream, so pass None to skip it in
+        # heritability (its values are never used in the model anyway).
         genotype_col = "Genotype"
-        replicate_col = "Replicate"
+        replicate_col = "Replicate" if config.columns.replicate else None
 
         # 1. Calculate basic trait statistics
         trait_stats = calculate_trait_statistics(df=df, trait_cols=trait_cols)
@@ -170,7 +173,26 @@ class StatisticalAnalysisStep(BaseStep):
             for trait, result in heritability_results.items():
                 if trait == "__calculation_metadata__":
                     continue
-                if "error" in result:
+                # CRITICAL: check for a string error message FIRST (mirrors the
+                # ANOVA loop above). A top-level {"error": ...} return from
+                # calculate_heritability_estimates iterates to trait="error",
+                # result=<str>, so checking "error" in result or calling
+                # result.get(...) without this guard raises AttributeError.
+                if isinstance(result, str):
+                    heritability_records.append(
+                        {
+                            "trait": trait,
+                            "heritability": None,
+                            "var_genetic": None,
+                            "var_residual": None,
+                            "mean_n_reps": None,
+                            "n_genotypes": None,
+                            "n_observations": None,
+                            "model_type": None,
+                            "error": result,
+                        }
+                    )
+                elif "error" in result:
                     heritability_records.append(
                         {
                             "trait": trait,

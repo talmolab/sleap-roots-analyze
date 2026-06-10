@@ -57,10 +57,15 @@ You MUST explicitly set these in your config:
 **Column Mappings** (dataset-specific):
 ```yaml
 columns:
-  genotype: "geno"      # Your genotype column name
-  replicate: "rep"      # Your replicate column name
+  genotype: "geno"      # Your genotype column name (required)
+  replicate: "rep"      # Optional — omit or set null if no replicate column
+                        # (e.g. cylinder data). Never used in any computation.
   barcode: "Barcode"    # Sample ID column
 ```
+
+`replicate` is **optional**: its values are never used in any computation and it
+is not a term in the heritability model (`value ~ 1 + (1|genotype)`). Omit it (or
+set `replicate: null`) for datasets with no replicate factor.
 
 **Data Source**:
 ```yaml

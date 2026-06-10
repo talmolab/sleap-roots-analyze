@@ -251,9 +251,11 @@ class GenerateSummaryStep(BaseStep):
 
                 if "heritability" in results:
                     f.write(f"### Heritability\\n")
-                    f.write(
-                        f"- **Mean H²:** {results['heritability']['mean_h2']:.3f}\\n"
-                    )
+                    # mean_h2 is None when no trait has an estimable H² (e.g. a
+                    # single-genotype group); show "N/A" instead of crashing on format.
+                    mean_h2 = results["heritability"]["mean_h2"]
+                    mean_h2_str = f"{mean_h2:.3f}" if mean_h2 is not None else "N/A"
+                    f.write(f"- **Mean H²:** {mean_h2_str}\\n")
                     f.write(
                         f"- **High H² traits (H² >= 0.60):** {results['heritability']['n_high_h2']}\\n\\n"
                     )

@@ -297,6 +297,69 @@ class TestCalculateHeritabilityEstimates:
         assert "error" in results
         assert "Missing required columns" in results["error"]
 
+    def test_heritability_without_replicate_column(self):
+        """H² is computed when replicate_col=None and no replicate column exists.
+
+        Cylinder-shaped data: genotype -> multiple plants, no replicate column
+        (issue #142).
+        """
+        np.random.seed(42)
+        df = pd.DataFrame(
+            {
+                "geno": np.repeat(["G1", "G2", "G3"], 10),
+                "trait1": np.random.normal(10, 1, 30),
+            }
+        )
+        df.loc[df["geno"] == "G1", "trait1"] += 2
+        df.loc[df["geno"] == "G3", "trait1"] -= 2
+
+        results = calculate_heritability_estimates(df, ["trait1"], replicate_col=None)
+
+        assert "error" not in results
+        assert "trait1" in results
+        assert "heritability" in results["trait1"]
+        assert 0 <= results["trait1"]["heritability"] <= 1
+        assert results["trait1"]["n_genotypes"] == 3
+        assert results["trait1"]["n_observations"] == 30
+
+    def test_heritability_replicate_none_equivalent_to_present(self):
+        """H² is identical whether replicate_col is the column name or None.
+
+        Proves replicate values are never load-bearing in the model (issue #142).
+        """
+        np.random.seed(7)
+        df = pd.DataFrame(
+            {
+                "geno": np.repeat(["G1", "G2", "G3", "G4"], 8),
+                "rep": np.tile(range(1, 9), 4),
+                "trait1": np.random.normal(10, 1, 32),
+                "trait2": np.random.normal(5, 2, 32),
+            }
+        )
+        df.loc[df["geno"] == "G1", "trait1"] += 3
+        df.loc[df["geno"] == "G4", "trait2"] -= 3
+
+        trait_cols = ["trait1", "trait2"]
+        with_rep = calculate_heritability_estimates(df, trait_cols, replicate_col="rep")
+        without_rep = calculate_heritability_estimates(
+            df, trait_cols, replicate_col=None
+        )
+
+        for trait in trait_cols:
+            assert with_rep[trait]["heritability"] == pytest.approx(
+                without_rep[trait]["heritability"]
+            )
+            assert with_rep[trait]["var_genetic"] == pytest.approx(
+                without_rep[trait]["var_genetic"]
+            )
+            assert with_rep[trait]["var_residual"] == pytest.approx(
+                without_rep[trait]["var_residual"]
+            )
+            assert (
+                with_rep[trait]["n_observations"]
+                == without_rep[trait]["n_observations"]
+            )
+
 
 class TestIdentifyHighHeritabilityTraits:
     """Tests for identify_high_heritability_traits function."""

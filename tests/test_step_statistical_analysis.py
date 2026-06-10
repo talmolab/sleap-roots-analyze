@@ -99,6 +99,64 @@ class TestStatisticalAnalysisStepBasic:
         pd.testing.assert_frame_equal(result.data, original)
 
 
+class TestStatisticalAnalysisStepNoReplicate:
+    """Cylinder-shaped data with no replicate column (issue #142)."""
+
+    @pytest.fixture
+    def cylinder_data(self):
+        """Genotype -> multiple plants, no replicate column."""
+        np.random.seed(42)
+        n = 30
+        df = pd.DataFrame(
+            {
+                "Barcode": [f"plant{i}" for i in range(n)],
+                "Genotype": ["A"] * 10 + ["B"] * 10 + ["C"] * 10,
+                "trait1": np.random.randn(n) * 10 + 50,
+                "trait2": np.random.randn(n) * 5 + 25,
+            }
+        )
+        df.loc[df["Genotype"] == "A", "trait1"] += 15
+        return df
+
+    @pytest.fixture
+    def cylinder_config(self):
+        """Config with replicate unset (None)."""
+        return QCPipelineConfig(
+            pipeline_name="test_cylinder",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate=None
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+        )
+
+    @pytest.fixture
+    def cylinder_prev_result(self, cylinder_data):
+        return StepResult(
+            data=cylinder_data,
+            metadata={
+                "valid_trait_names": ["trait1", "trait2"],
+                "samples": len(cylinder_data),
+            },
+            files_generated=[],
+        )
+
+    def test_full_path_runs_and_produces_heritability(
+        self, cylinder_data, cylinder_config, cylinder_prev_result, tmp_path
+    ):
+        """The QC heritability step runs and returns real H², not an error dict."""
+        step = StatisticalAnalysisStep()
+        result = step.execute(
+            cylinder_data, cylinder_config, tmp_path, cylinder_prev_result
+        )
+
+        assert isinstance(result, StepResult)
+        h2 = result.metadata["heritability_results"]
+        for trait in ["trait1", "trait2"]:
+            assert trait in h2
+            assert "error" not in h2[trait]
+            assert 0 <= h2[trait]["heritability"] <= 1
+
+
 class TestStatisticalAnalysisStepMetadata:
     """Test metadata."""
 
