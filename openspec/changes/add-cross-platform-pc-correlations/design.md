@@ -40,9 +40,16 @@ already exist in the repo (`calculate_genotype_means`, `perform_pca_analysis`,
 - **New module `cross_platform_pc.py`.** Keeps a clearly named public workflow separate from the
   large `cross_experiment_analysis.py`, while importing its helpers. Exported from `__init__.py`.
 
-- **Genotype alignment per pair.** Each pair correlates over the intersection of the two platforms'
-  genotype indexes; the common-genotype count is recorded per pair and drives CI/power. Pairs with
-  too few common genotypes are reported (with their count), not raised on.
+- **Global genotype alignment (single shared panel).** All platforms are aligned to the genotypes
+  present in *every* platform, and that one panel is used for all pairwise correlations — matching
+  the reference `align_genotypes_across_platforms` and yielding a uniform `n` (19 for wheat EDPIE).
+  *Alternative considered:* per-pair intersection (each pair uses its own common genotypes) — gives
+  a larger, non-uniform `n` for 3+ platforms and does not reproduce the paper's single "19 aligned
+  genotypes"; rejected. Disjoint genotypes produce an empty panel and are reported, not raised on.
+
+- **Spearman is the primary correlation; `method` is selectable.** The reference computes CI, power,
+  and FDR from the Spearman coefficient (the issue is silent on method). The public signature adds a
+  keyword-only `method="spearman"` (also `pearson`/`kendall`) so the default reproduces the golden.
 
 ## Risks / Trade-offs
 

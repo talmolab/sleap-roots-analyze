@@ -42,11 +42,11 @@ genotype-mean PC scores.
 ### Requirement: Cross-Platform PC Correlations With Pooled FDR Correction
 
 For every unordered pair of platforms the workflow SHALL compute the correlation between each PC of
-one platform and each PC of the other, over the genotypes common to both platforms. The number of
-tests for a pair SHALL equal the product of the two platforms' component counts, and the total test
-family SHALL be the sum over all unordered pairs. Multiple-testing correction SHALL be applied once
-across the entire pooled family using `correction_method`, and each test SHALL carry its
-FDR-corrected p-value.
+one platform and each PC of the other, over the genotypes common to all platforms (a single shared
+panel). The number of tests for a pair SHALL equal the product of the two platforms' component
+counts, and the total test family SHALL be the sum over all unordered pairs. Multiple-testing
+correction SHALL be applied once across the entire pooled family using `correction_method`, and each
+test SHALL carry its FDR-corrected p-value.
 
 #### Scenario: Test count matches the component configuration
 
@@ -74,15 +74,17 @@ common genotypes used for that test.
 
 ### Requirement: Genotype Alignment Across Platforms
 
-Each pairwise correlation SHALL use only genotypes present in both platforms of the pair, and the
-result SHALL record the number of common genotypes used per pair.
+The workflow SHALL align all platforms to a single shared panel of genotypes — those present in
+every platform — and SHALL use that panel for all pairwise correlations, recording the panel size on
+every result row. This yields a consistent genotype set (and a uniform `n`) across all platform
+pairs.
 
 #### Scenario: Disjoint genotypes yield no usable correlation
 
-- **WHEN** two platforms share fewer than the minimum genotypes needed for a correlation
+- **WHEN** the platforms share fewer than the minimum genotypes needed for a correlation
 - **THEN** the workflow SHALL not raise
-- **AND** the affected pair's tests SHALL be reported with their common-genotype count so the caller
-  can see why they were not evaluated
+- **AND** the tests SHALL be reported with their common-genotype count so the caller can see why
+  they were not evaluated
 
 ### Requirement: Wheat EDPIE Golden Reproduction
 

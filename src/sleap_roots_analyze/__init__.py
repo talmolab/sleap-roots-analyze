@@ -116,6 +116,10 @@ from sleap_roots_analyze.outlier_visualization import (
     create_hierarchical_outlier_plots,
 )
 
+from sleap_roots_analyze.cross_platform_pc import (
+    CrossPlatformPCResult,
+    cross_platform_pc_correlations,
+)
 from sleap_roots_analyze.cross_experiment_analysis import (
     load_and_align_experiments,
     calculate_genotype_means,
@@ -275,6 +279,8 @@ __all__ = [
     # Cross-experiment analysis functions
     "load_and_align_experiments",
     "calculate_genotype_means",
+    "cross_platform_pc_correlations",
+    "CrossPlatformPCResult",
     "calculate_genotype_statistics",
     "calculate_cross_experiment_correlations",
     "calculate_cross_experiment_correlations_extended",
