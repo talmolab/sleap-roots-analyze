@@ -31,7 +31,7 @@ class TestColumnConfig:
         config = ColumnConfig()
         assert config.barcode == "Barcode"
         assert config.genotype == "geno"
-        assert config.replicate == "rep"
+        assert config.replicate is None  # optional; disabled unless set (issue #142)
         assert config.image_path == "image_path"
 
     def test_custom_values(self):

@@ -48,26 +48,23 @@ from sleap_roots_analyze.statistics import (
 
 
 # ---------------------------------------------------------------------------
-# 1. Config: omitting replicate vs. the documented `replicate: null` disable path
+# 1. Config: omitting replicate must behave like null (issue #142, B1)
 # ---------------------------------------------------------------------------
-def test_omit_replicate_in_yaml_keeps_rep_default(tmp_path):
-    """Omitting columns.replicate keeps the "rep" default — it does NOT disable it.
-
-    The documented disable path is an explicit ``replicate: null`` (see next test),
-    not omission. This pins B1 with the "rep"-default semantics (issue #142).
-    """
+def test_omit_replicate_in_yaml_disables_replicate(tmp_path):
+    """Omitting columns.replicate must behave like null, not default to 'rep' (issue #142)."""
     cfg_yaml = tmp_path / "qc.yaml"
     cfg_yaml.write_text(
         "pipeline_name: t\n"
-        "columns:\n  genotype: geno\n  barcode: Barcode\n"  # replicate omitted
+        "columns:\n  genotype: geno\n  barcode: Barcode\n"  # replicate intentionally omitted
         "data:\n  csv_path: data.csv\n"
+        "pca:\n  n_components: 2\n"
     )
     config = load_qc_config(str(cfg_yaml))
-    assert config.columns.replicate == "rep"
+    assert config.columns.replicate is None
 
 
 def test_replicate_null_in_yaml_disables_replicate(tmp_path):
-    """The documented disable path: explicit ``replicate: null`` round-trips to None."""
+    """An explicit ``replicate: null`` also round-trips to None (same as omitting)."""
     cfg_yaml = tmp_path / "qc.yaml"
     cfg_yaml.write_text(
         "pipeline_name: t\n"
