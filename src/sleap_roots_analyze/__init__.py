@@ -178,6 +178,12 @@ from sleap_roots_analyze.depth_profile_plots import (
     plot_depth_profile_replicates,
 )
 
+from sleap_roots_analyze.pc_correlations import (
+    cross_platform_pc_correlations,
+    trait_correlation_enrichment,
+    EnrichmentResult,
+)
+
 __all__ = [
     # CLI
     "main",
@@ -306,4 +312,8 @@ __all__ = [
     "analyze_trait_variance",
     "diagnose_heritability_issues",
     "compare_trait_heritabilities",
+    # PC-correlation & trait-enrichment workflows
+    "cross_platform_pc_correlations",
+    "trait_correlation_enrichment",
+    "EnrichmentResult",
 ]
