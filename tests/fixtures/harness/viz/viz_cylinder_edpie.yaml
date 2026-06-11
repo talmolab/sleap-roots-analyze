@@ -1,0 +1,177 @@
+# Visualization Pipeline Configuration: Cylinder (EDPIE)
+#
+# Platform: Cylinder greenhouse system with depth-profiled root traits
+# Input: Cleaned trait data from QC pipeline (qc_cylinder_edpie)
+# Dataset: Wheat EDPIE 11 DAG with 819 depth-profile traits
+#
+# Features:
+# - PCA analysis with top feature identification
+# - Statistical analysis (ANOVA, heritability)
+# - Static and interactive visualizations
+# - Interesting genotype identification
+# - Trait distributions and correlations
+#
+# Notes:
+# - Trait names sanitized with "seminal" instead of "crown" for wheat terminology
+# - Large trait count (819 → ~588 after H² filtering) may require adjusted parameters
+#
+# Source Notebook: trait_viz_cylinder_20251105.ipynb (2025-11-05)
+# Source QC Config: qc_cylinder_edpie.yaml
+# Last Verified: 2025-12-05
+# Verification Status: ✅ Parameters match notebook
+#
+# Key Parameters from Notebook:
+# - PCA_EXPLAINED_VARIANCE_THRESHOLD = 0.75 (Cell 6)
+# - GENOTYPES_TO_COLOR = ["GH_7293", "GH_7378", "GH_7327"] (Cell 7)
+# - GENOTYPES_TO_HIGHLIGHT = ["GH_7293", "GH_7378", "GH_7327"] (Cell 7)
+# - BIPLOT_ARROW_SCALE = 100.0 (Cell 6)
+
+# Pipeline metadata
+pipeline_name: "viz_cylinder_edpie"
+version: "1.0"
+
+# Data configuration
+data:
+  # Path to cleaned trait data from QC pipeline
+  csv_path: "qc_runs/cylinder_edpie_qc_20251215_121413/10_final_data.csv"
+
+  # Optional: Directory containing cylinder scanner images for image grids
+  # Cylinder images are in subdirectories named by plant_qr_code, with rotation images (1.jpg to 72.jpg)
+  image_dir: "Z:/users/eberrigan/20250328_Charlotte_Rambla_EDPIE_Feb_2025/images_downloader_output"
+
+  # Image linking method: "cylinder" uses scan_path column to find images
+  # (as opposed to "rhizovision" which uses barcode naming convention)
+  image_linking_method: "cylinder"
+  scan_path_col: "scan_path"  # Column containing relative paths like "./images_downloader_output/images/Wave1/..."
+
+# Column names (post-sanitization from QC pipeline)
+columns:
+  barcode: "Barcode"          # Sanitized from original plant_qr_code column
+  genotype: "Genotype"         # Sanitized from original Geno column
+  replicate: "Replicate"       # Sanitized from original Rep column
+  image_path: "image_path"     # Column containing image paths (if using image hover)
+
+# Statistics configuration
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# PCA configuration (matches notebook: trait_viz_cylinder_20251105.ipynb, Cell 6)
+# Note: n_top_features controls how many features are selected during PCA analysis.
+# For "extreme" strategy, this is the count per extreme (top + bottom).
+# See static_viz.pca_biplot_top_features for display settings.
+pca:
+  n_components: 0.75             # Keep components explaining 75% variance (PCA_EXPLAINED_VARIANCE_THRESHOLD)
+  standardize: true
+  feature_selection_strategy: "extreme"
+  n_top_features: 1              # 1 feature per extreme = 2 features per PC
+
+# UMAP configuration (disabled by default)
+umap:
+  enabled: true
+  n_neighbors: 15
+  min_dist: 0.1
+  metric: "euclidean"
+  random_state: 42
+
+# Clustering configuration (disabled by default)
+clustering:
+  enabled: false
+
+# Heritability filtering (optional - traits already filtered by QC)
+heritability:
+  enabled: false               # Traits already filtered at H² > 0.60 by QC pipeline
+  threshold: 0.60
+
+# Interesting genotypes identification
+interesting_genotypes:
+  enabled: true
+  methods:
+    - pc_extreme               # Extreme in PC space
+    - trait_extreme            # Extreme per-trait values
+    - heritable_extreme        # Extreme + heritable traits
+  pc_threshold: 2.0            # Z-score threshold for PC extremes
+  trait_percentile: 95.0       # Percentile for trait extremes
+  min_heritability: 0.60       # Minimum H² for heritable extremes (matching QC threshold)
+  max_genotypes: 10            # Max genotypes per method
+  generate_image_grids: true   # Create image grids (requires image_dir)
+  images_per_genotype: 9       # Images per genotype in grid
+
+# Adaptive figure sizing (important for large trait count)
+adaptive_sizing:
+  enabled: true
+  base_width: 10.0              # Larger base for many traits
+  base_height: 8.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 8.0
+  max_width: 24.0               # Allow larger figures
+  min_height: 6.0
+  max_height: 20.0
+
+# Static visualization settings
+# Note: pca_biplot_top_features controls how many feature arrows are shown on the
+# PCA biplot. This is separate from pca.n_top_features (analysis).
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+
+  # PCA biplot feature control - matches pca.n_top_features for extreme strategy
+  pca_biplot_top_features: 1
+
+  # Genotype highlighting (from notebook: trait_viz_cylinder_20251105.ipynb, Cell 7)
+  # genotypes_to_color: List of genotypes to color distinctly in PCA plots
+  #   - All listed genotypes get unique colors from the palette
+  #   - Other genotypes are shown in gray as "Other"
+  genotypes_to_color: ["GH_7293", "GH_7378", "GH_7327"]
+
+  # highlight_genotypes: List of genotypes to emphasize with special formatting
+  #   - Larger points (150 vs 50 for regular points)
+  #   - Black edge colors for visibility
+  #   - Bold, colored labels in PC boxplots
+  highlight_genotypes: ["GH_7293", "GH_7378", "GH_7327"]
+
+  # Genotype image grid configuration (cylinder scanner images)
+  # Cylinder scanners capture 72 images per sample (1.jpg to 72.jpg)
+  # Common choices: "1.jpg" (front), "36.jpg" (back/180 degrees)
+  genotype_image_grid_image_type: "1.jpg"
+  # Traits to show statistics for in the genotype image grid
+  genotype_image_grid_trait_cols:
+    - "Seminal Base Tip Dists P95 Mean"
+    - "Seminal Angles Proximal Mean Med"
+
+# Interactive visualization settings
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  show_images_on_hover: true   # Requires image_dir
+
+# Dashboard generation (disabled by default)
+dashboard:
+  enabled: false
+
+# Summary report
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

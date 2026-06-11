@@ -1,0 +1,166 @@
+# Visualization Pipeline Configuration: Turface 150 Genotypes
+#
+# Platform: Turface greenhouse system (150 genotypes panel)
+# Input: Cleaned trait data from QC pipeline (qc_turface_150genotypes)
+#
+# Features:
+# - PCA analysis with top feature identification
+# - Statistical analysis (ANOVA, heritability)
+# - Static and interactive visualizations
+# - Interesting genotype identification
+# - Trait distributions and correlations
+#
+# Source: QC pipeline output from qc_turface_150genotypes.yaml
+#         Based on trait_viz_150_genotypes_turface_20251105.ipynb
+
+# Pipeline metadata
+pipeline_name: "viz_turface_150genotypes"
+version: "1.0"
+
+# Data configuration
+data:
+  # Path to cleaned trait data from QC pipeline
+  csv_path: "qc_runs/turface_150genotypes_qc_20251215_121233/10_final_data.csv"
+
+  # Optional: Directory containing root images for hover visualization
+  image_dir: "C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/turface_150_genotypes_rhizovision_processed_images"
+
+  # Exclude additional metadata columns from trait analysis (matching notebook)
+  additional_exclude_cols: ["File.me", "region", "set", "Salk_geno", "Entry", "GID", "scanner"]
+
+# Column names (post-sanitization from QC pipeline)
+columns:
+  barcode: "Barcode"          # Sanitized from original barcode column
+  genotype: "Genotype"         # Sanitized from original geno column
+  replicate: "Replicate"       # Sanitized from original rep column
+  image_path: "image_path"     # Column containing image paths (if using image hover)
+
+# Statistics configuration
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# PCA configuration (matching notebook)
+pca:
+  n_components: 0.80             # Keep components explaining 80% variance (matches notebook)
+  standardize: true
+  feature_selection_strategy: "extreme"
+  n_top_features: 1
+
+# UMAP configuration (matching notebook parameters)
+umap:
+  enabled: true
+  n_neighbors: 8              # Matches notebook
+  min_dist: 0.1
+  metric: "euclidean"
+  random_state: 42
+
+# Clustering configuration (disabled by default)
+clustering:
+  enabled: false
+
+# Heritability filtering (optional - traits already filtered by QC)
+heritability:
+  enabled: false               # Traits already filtered at H² > 0.40 by QC pipeline
+  threshold: 0.40
+
+# Interesting genotypes identification (matching notebook)
+interesting_genotypes:
+  enabled: true
+  methods:
+    - pc_extreme               # Extreme in PC space
+    - trait_extreme            # Extreme per-trait values
+    - heritable_extreme        # Extreme + heritable traits
+  pc_threshold: 2.5            # Z-score threshold for PC extremes (matches notebook EXTREME_PC_N_STD)
+  trait_percentile: 95.0       # Percentile for trait extremes
+  min_heritability: 0.40       # Minimum H² for heritable extremes (matching QC threshold)
+  max_genotypes: 10            # Max genotypes per method
+  generate_image_grids: true   # Create image grids (requires image_dir)
+  images_per_genotype: 9       # Images per genotype in grid
+
+# Adaptive figure sizing
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+# Static visualization settings
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+
+  # PCA biplot feature control
+  # With "extreme" method: shows N most positive + N most negative for EACH PC axis
+  # So pca_biplot_top_features: 2 gives up to 8 features (2×2 directions × 2 PCs)
+  pca_biplot_top_features: 1  # Show extreme loadings for both PC1 and PC2
+
+  # Genotype highlighting (optional) - two-tier system for emphasis
+  #
+  # genotypes_to_color: List of genotypes to color distinctly in PCA plots
+  #   - All listed genotypes get unique colors from the palette
+  #   - Other genotypes are shown in gray as "Other"
+  #   - Set to null or [] to color all genotypes (default behavior)
+  #   - Example use case: Focus on specific lines of interest in a large panel
+  genotypes_to_color: [
+    "GH_7293", "GH_7295", "GH_7299", "GH_7300", "GH_7327", "GH_7328",
+    "GH_7361", "GH_7367", "GH_7368", "GH_7362", "GH_7378", "GH_7391",
+    "GH_7371", "GH_7386", "GH_7401", "GH_7417", "GH_7418", "GH_7420",
+    "GH_7440"
+]
+
+  # highlight_genotypes: List of genotypes to emphasize with special formatting
+  #   - Larger points (150 vs 50 for regular points)
+  #   - Black edge colors for visibility
+  #   - Bold, colored labels in PC boxplots
+  #   - Works independently of genotypes_to_color
+  #   - Set to null or [] to disable highlighting
+  #   - Example use case: Mark your positive/negative controls or extreme phenotypes
+  highlight_genotypes: ["GH_7401", "GH_7391", "GH_7361"]
+
+  # Genotype image grid configuration (RhizoVision flatbed scanner images)
+  # RhizoVision outputs: "features.png" (default), "seg.png" (segmentation)
+  genotype_image_grid_image_type: "features.png"
+  # Traits to show statistics for in the genotype image grid (null = no stats)
+  genotype_image_grid_trait_cols: null
+
+# Interactive visualization settings
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  show_images_on_hover: true   # Requires image_dir
+
+# Dashboard generation (disabled by default)
+dashboard:
+  enabled: false
+
+# Summary report
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

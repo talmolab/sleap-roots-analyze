@@ -1,0 +1,54 @@
+# Run Manifest: EDPIE Full Analysis
+#
+# This manifest defines which pipeline configs to run together as a cohesive analysis.
+# Used by: sleap-roots-analyze run-all
+#          /run-pipelines slash command
+#
+# All paths are relative to configs/active/
+
+run_name: "EDPIE Full Analysis"
+description: "Complete QC, Viz, and Cross-Platform analysis for EDPIE wheat phenotyping paper"
+
+# QC configs are run FIRST (outputs used by Viz and Cross-Platform)
+qc_configs:
+  - qc/qc_turface_150genotypes.yaml
+  - qc/qc_turface_19genotypes.yaml
+  - qc/qc_cylinder_edpie.yaml
+  - qc/qc_root_core_edpie.yaml
+
+# Viz configs are run AFTER QC (data.csv_path auto-updated to QC outputs)
+viz_configs:
+  - viz/viz_turface_150genotypes.yaml
+  - viz/viz_turface_19genotypes.yaml
+  - viz/viz_cylinder_edpie.yaml
+  - viz/viz_root_coring.yaml
+
+# Cross-Platform configs are run AFTER QC (exp*_data_path auto-updated to QC outputs)
+cross_platform_configs:
+  - cross_platform/cross_platform_turface_150vs19_genotypes.yaml
+  - cross_platform/cross_platform_turface19_vs_cylinder.yaml
+  - cross_platform/cross_platform_rootcore_vs_cylinder.yaml
+  - cross_platform/cross_platform_rootcore_vs_turface19.yaml
+
+# Config-to-QC mapping for path auto-update
+# Format: viz/cross_platform config -> QC config that produces its input data
+qc_mapping:
+  # Viz configs -> QC configs
+  viz/viz_turface_150genotypes.yaml: qc/qc_turface_150genotypes.yaml
+  viz/viz_turface_19genotypes.yaml: qc/qc_turface_19genotypes.yaml
+  viz/viz_cylinder_edpie.yaml: qc/qc_cylinder_edpie.yaml
+  viz/viz_root_coring.yaml: qc/qc_root_core_edpie.yaml
+
+  # Cross-Platform configs -> QC configs (exp1 and exp2 separately)
+  cross_platform/cross_platform_turface_150vs19_genotypes.yaml:
+    exp1: qc/qc_turface_150genotypes.yaml
+    exp2: qc/qc_turface_19genotypes.yaml
+  cross_platform/cross_platform_turface19_vs_cylinder.yaml:
+    exp1: qc/qc_turface_19genotypes.yaml
+    exp2: qc/qc_cylinder_edpie.yaml
+  cross_platform/cross_platform_rootcore_vs_cylinder.yaml:
+    exp1: qc/qc_root_core_edpie.yaml
+    exp2: qc/qc_cylinder_edpie.yaml
+  cross_platform/cross_platform_rootcore_vs_turface19.yaml:
+    exp1: qc/qc_root_core_edpie.yaml
+    exp2: qc/qc_turface_19genotypes.yaml

@@ -1,0 +1,19 @@
+{
+  "filtering_enabled": true,
+  "threshold": 0.6,
+  "traits_original": 16,
+  "traits_retained": 8,
+  "traits_removed": 8,
+  "removed_trait_names": [
+    "Root Shoot Ratio",
+    "Med Num Roots",
+    "Max Num Roots",
+    "Num Root Tips",
+    "Depth (mm)",
+    "Convex Area (mm\u00b2)",
+    "Lower Root Area (mm\u00b2)",
+    "Avg Hole Size (mm\u00b2)"
+  ],
+  "retention_fraction": 0.5,
+  "mean_heritability_retained": 0.7650052743157677
+}

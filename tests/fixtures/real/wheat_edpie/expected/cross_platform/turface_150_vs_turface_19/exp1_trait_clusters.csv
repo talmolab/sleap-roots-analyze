@@ -1,0 +1,16 @@
+trait,cluster_id,is_representative,variance
+Avg Hole Size (mm²),0,True,35.33418336278151
+Depth (mm),1,True,33.43005029370874
+Holes,5,False,24180.3100259909
+Med Num Roots,5,False,9.86337231968811
+Network Area (mm²),5,False,1425286.6963771963
+Perimeter (mm),5,False,6732614.716233481
+Surface Area (mm²),5,True,27276298.139572166
+Total Root Length (mm),5,False,2798882.5915352837
+Volume (mm³),5,False,4222531.126297823
+Lower Root Area (mm²),6,True,607544.3084439612
+Max Num Roots,2,True,34.55842755035737
+Num Root Tips,3,True,37977.01472384665
+Root (g),4,False,0.0007293236371020142
+Shoot (g),4,True,0.002854738987979208
+Root Shoot Ratio,7,True,0.0022680162184617663

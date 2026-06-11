@@ -1,0 +1,10 @@
+{
+  "validation_passed": "True",
+  "total_samples": 158,
+  "total_trait_columns": 16,
+  "total_metadata_columns": 7,
+  "nan_values_in_traits": 0,
+  "nan_values_in_metadata": 0,
+  "trait_nan_counts": {},
+  "metadata_nan_counts": {}
+}

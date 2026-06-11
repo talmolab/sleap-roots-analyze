@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "n_rows": 5,
+    "genotype_column": "genotype",
+    "metadata_columns": [
+      "barcode"
+    ],
+    "trait_columns": [
+      "primary_root_length_mm",
+      "lateral_root_count",
+      "network_solidity"
+    ],
+    "n_trait_columns": 3
+  }
+}

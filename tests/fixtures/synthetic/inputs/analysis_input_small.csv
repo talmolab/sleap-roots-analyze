@@ -1,0 +1,7 @@
+genotype,replicate,barcode,primary_root_length_mm,lateral_root_count,network_solidity
+G1,1,BC001,120.5,5.0,0.42
+G1,2,BC002,118.2,4.0,0.39
+G2,1,BC003,95.7,3.0,0.51
+G2,2,BC004,99.1,,0.48
+G3,1,BC005,140.3,7.0,0.55
+G3,2,BC006,138.9,6.0,0.53

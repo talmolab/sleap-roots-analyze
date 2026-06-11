@@ -1,5 +1,7 @@
 """Centralized pytest fixtures for test data."""
 
+import json
+
 import pandas as pd
 import numpy as np
 import pytest
@@ -3868,3 +3870,148 @@ def cross_platform_field_df(test_data_dir):
         pd.DataFrame: Real field experiment data with above-ground and root core data
     """
     return pd.read_csv(test_data_dir / "Field_2024_clean.csv")
+
+
+# ============================================================================
+# PIPELINE REPRODUCTION FIXTURES (#120)
+# Golden wheat-EDPIE fixtures backing the full pipeline (QC -> viz ->
+# cross-platform). Loaded once per session and shared across the per-stage
+# reproduction tests in test_pipeline_reproduction.py. See
+# tests/fixtures/README.md for layout, curation, and tolerance/regenerate policy.
+# ============================================================================
+
+
+def _viz_pipeline_step(pipeline_summary: dict, step_name: str) -> dict:
+    """Return the named viz pipeline step's ``metadata`` dict.
+
+    Args:
+        pipeline_summary: Parsed viz ``pipeline_summary.json`` contents.
+        step_name: Step name to locate (e.g. ``"03_pca_analysis"``).
+
+    Returns:
+        dict: The step's ``metadata`` mapping.
+
+    Raises:
+        KeyError: If no step with ``step_name`` is present.
+    """
+    for step in pipeline_summary["steps"]:
+        if step.get("name") == step_name:
+            return step["metadata"]
+    raise KeyError(step_name)
+
+
+@pytest.fixture(scope="session")
+def repro_fixtures_dir():
+    """Return the root of the pipeline reproduction fixture tree."""
+    return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(scope="session")
+def harness_dir(repro_fixtures_dir):
+    """Return the harness directory (runnable EDPIE recipe)."""
+    return repro_fixtures_dir / "harness"
+
+
+@pytest.fixture(scope="session")
+def edpie_real_dir(repro_fixtures_dir):
+    """Return the real wheat-EDPIE fixture directory."""
+    return repro_fixtures_dir / "real" / "wheat_edpie"
+
+
+@pytest.fixture(scope="session")
+def synthetic_inputs_dir(repro_fixtures_dir):
+    """Return the synthetic analysis-input directory."""
+    return repro_fixtures_dir / "synthetic" / "inputs"
+
+
+@pytest.fixture(scope="session")
+def turface19_final_data(edpie_real_dir):
+    """Load the turface_19 post-QC ``10_final_data.csv`` golden table."""
+    return pd.read_csv(
+        edpie_real_dir / "expected" / "qc" / "turface_19" / "10_final_data.csv"
+    )
+
+
+@pytest.fixture(scope="session")
+def turface19_qc_heritability_summary(edpie_real_dir):
+    """Load the turface_19 QC heritability-filter summary JSON."""
+    path = (
+        edpie_real_dir
+        / "expected"
+        / "qc"
+        / "turface_19"
+        / "09_heritability_filter_summary.json"
+    )
+    return json.loads(path.read_text())
+
+
+@pytest.fixture(scope="session")
+def turface19_qc_removed_outliers(edpie_real_dir):
+    """Load the turface_19 QC removed-outliers detail table."""
+    path = (
+        edpie_real_dir
+        / "expected"
+        / "qc"
+        / "turface_19"
+        / "07_removed_outliers_detail.csv"
+    )
+    return pd.read_csv(path)
+
+
+@pytest.fixture(scope="session")
+def turface19_qc_removed_traits(edpie_real_dir):
+    """Load the turface_19 QC removed-traits (cleanup) detail table."""
+    path = (
+        edpie_real_dir
+        / "expected"
+        / "qc"
+        / "turface_19"
+        / "01_removed_traits_detail.csv"
+    )
+    return pd.read_csv(path)
+
+
+@pytest.fixture(scope="session")
+def turface19_qc_removed_samples(edpie_real_dir):
+    """Load the turface_19 QC removed-samples (cleanup) detail table."""
+    path = (
+        edpie_real_dir
+        / "expected"
+        / "qc"
+        / "turface_19"
+        / "02_removed_samples_detail.csv"
+    )
+    return pd.read_csv(path)
+
+
+@pytest.fixture(scope="session")
+def turface19_viz_summary(edpie_real_dir):
+    """Load the turface_19 viz summary JSON (headline metrics)."""
+    path = edpie_real_dir / "expected" / "viz" / "turface_19" / "summary.json"
+    return json.loads(path.read_text())
+
+
+@pytest.fixture(scope="session")
+def turface19_viz_pipeline_summary(edpie_real_dir):
+    """Load and parse the full turface_19 viz ``pipeline_summary.json``."""
+    path = edpie_real_dir / "expected" / "viz" / "turface_19" / "pipeline_summary.json"
+    return json.loads(path.read_text())
+
+
+@pytest.fixture(scope="session")
+def turface19_viz_pca_metadata(turface19_viz_pipeline_summary):
+    """Return the golden PCA-step metadata from the viz pipeline summary."""
+    return _viz_pipeline_step(turface19_viz_pipeline_summary, "03_pca_analysis")
+
+
+@pytest.fixture(scope="session")
+def turface19_viz_umap_embedding(turface19_viz_pipeline_summary):
+    """Return the golden UMAP embedding (list of [x, y]) from the viz summary."""
+    meta = _viz_pipeline_step(turface19_viz_pipeline_summary, "04_umap_analysis")
+    return meta["umap_results"]["embedding"]
+
+
+@pytest.fixture(scope="session")
+def turface19_crossplatform_dir(edpie_real_dir):
+    """Return the directory holding turface_19 cross-platform golden pairings."""
+    return edpie_real_dir / "expected" / "cross_platform"

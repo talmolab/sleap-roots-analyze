@@ -1,0 +1,63 @@
+# Cross-Platform Analysis Configuration
+# Comparing Turface 19 Genotypes (Greenhouse) vs Field 2024 Clean
+# Updated: 2025-12-15
+# Purpose: Assess transferability of greenhouse root traits to field performance
+#          and identify traits predictive of field root architecture
+
+# Experiment 1: Turface 19 Genotypes (RhizoVision greenhouse imaging) - QC'd but NOT heritability filtered
+exp1_data_path: "pipeline_runs/2025-12-15_133418/qc/turface_19genotypes_qc_20251215_133523/07_data_outliers_removed.csv"
+exp1_name: "Turface 19 Genotypes (QC'd)"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Field 2024 Clean (Pre-aggregated field data) - QC'd but NOT heritability filtered
+# Note: Using clean data because core-level data is aggregated per plot
+#       and cores are not independent within plots
+exp2_data_path: "pipeline_runs/2025-12-15_133418/qc/Field 2024 Clean (Pre-aggregated)_20251215_134231/07_data_outliers_removed.csv"
+exp2_name: "Field 2024 Clean (QC'd)"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman for robustness across environments
+min_samples_per_genotype: 2     # Lower threshold due to field replicates
+significance_level: 0.05        # Standard p-value threshold
+
+# Multiple Testing Correction
+# Options: "fdr_bh" (Benjamini-Hochberg), "fdr_by" (Benjamini-Yekutieli), "none"
+# Default: "fdr_by" (conservative, valid for correlated traits)
+fdr_correction_method: "fdr_bh"
+
+# Trait Redundancy Reduction
+# Cluster highly correlated traits and select representatives to reduce multiple testing burden
+trait_reduction_method: "clustering"  # Options: "none", "clustering"
+trait_reduction_target: "both"        # Which experiment to cluster: "exp1", "exp2", or "both"
+trait_clustering_threshold: 0.8       # Traits with |r| >= 0.8 are clustered together
+trait_clustering_linkage: "complete"  # Linkage method: "complete", "average", "single"
+
+# Visualization Parameters
+top_n_correlations: 30          # Display top correlations
+top_n_joint_plots: 10           # Joint plots for top correlations
+top_n_boxplots: 10              # Boxplots for top comparisons
+figsize_summary: [14, 12]       # Summary heatmap figure size
+figsize_joint: [10, 10]         # Joint plot figure size
+figsize_boxplot: [14, 6]        # Boxplot figure size
+
+# Column Exclusions - metadata columns to exclude from trait analysis
+# exp1_exclude_cols not needed - Turface 19 has no extra metadata columns
+
+# exp2_exclude_cols not needed - Field 2024 Clean only has Genotype, Replicate, Barcode
+
+# Analysis Notes:
+# - 19 genotypes from Turface, 20 genotypes from Field
+# - Overlapping genotypes to be determined at runtime
+# - Dataset 1 (Turface): 153 samples, 19 genotypes, 8 traits (H² >= 0.6)
+#   * RhizoVision washed root scans
+#   * Traits: Holes, Network Area, Perimeter, Root/Shoot Biomass, Surface Area,
+#             Total Root Length, Volume
+# - Dataset 2 (Field): 57 samples, 20 genotypes, 23 traits (H² >= 0.5)
+#   * Root counting depths: C 0 10, C 0 30, C 30 60, C 50 60 2
+#   * Above-ground: phenology, biomass, yield components
+# - Key questions:
+#   * Do greenhouse root size traits predict field root counts?
+#   * Which greenhouse traits correlate with field yield?
+#   * Is greenhouse root biomass predictive of field performance?
+# - Critical for breeding program decisions on platform utility
