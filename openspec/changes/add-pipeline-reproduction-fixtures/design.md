@@ -3,9 +3,10 @@
 The full golden pipeline run (4 platforms × QC+viz+cross-platform) is ~109 MB on Box,
 dominated by non-assertable artifacts (`pipeline_summary.json` up to 52 MB,
 `code_snapshot.tar.gz`, `pipeline.log`). Committing it verbatim would bloat git history.
-The canonical synthetic analysis-input examples are owned by `sleap-roots-contracts`
-(contracts#3); this repo owns the **full real reproduction data** (original column names
-`Genotype`/`Barcode`/`Replicate`).
+This repo owns the **full real reproduction data** (original column names
+`Genotype`/`Barcode`/`Replicate`). The canonical synthetic analysis-input examples are
+owned by `sleap-roots-contracts` (contracts#3) and are consumed only in the follow-up
+contract-conformance change, not here.
 
 ## Goals / Non-Goals
 
@@ -27,12 +28,14 @@ The canonical synthetic analysis-input examples are owned by `sleap-roots-contra
 - **Per-stage assertions over full reproduction in CI.** Feed each stage its input
   fixture and assert its committed golden. Isolates failures and runs fast; the
   `harness/` configs keep a full reproduction runnable but out of CI.
-- **Synthetic derives from contracts.** Reference/derive from the contracts canonical
-  examples rather than maintaining a second copy, to avoid divergence.
-- **Contract validation is soft-optional.** `validate_analysis_input()` runs when
-  `sleap-roots-contracts` is importable; otherwise the test skips, so the analyze suite
-  does not hard-depend on the contracts package.
-- **Source = local contracts repo.** The full set is already at
+- **Split on the contracts dependency.** The reproduction harness imports no
+  `sleap-roots-contracts` and merges now. Analysis-input contract conformance (synthetic
+  examples from the package accessor + canonicalize-then-validate the post-QC fixture,
+  asserting the returned `ValidationResult`) moves to a follow-up change opened once
+  `sleap-roots-contracts[pandas]>=0.1.0a1` is released — it adds a dev dependency and one
+  test file, reusing the post-QC fixture committed here (canonicalizing a *copy*, never
+  the frame that feeds the golden harness).
+- **Source = local contracts bundle.** The full real golden set is already at
   `../sleap-roots-contracts/tests/fixtures/real/`; copy from there rather than
   re-downloading from Box.
 

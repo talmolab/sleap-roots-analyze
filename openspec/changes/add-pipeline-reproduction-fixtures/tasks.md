@@ -1,6 +1,6 @@
 ## 1. Fixture tree + harness
 
-- [x] 1.1 Create `tests/fixtures/{harness,real/wheat_edpie/{inputs,expected},synthetic}/`
+- [x] 1.1 Create `tests/fixtures/{harness,real/wheat_edpie/{inputs,expected}}/`
 - [x] 1.2 Copy EDPIE `run_manifest.yaml` + `harness/{qc,viz,cross_platform}/` configs from the contracts repo
 - [x] 1.3 Verify committed `harness/qc` + `harness/viz` configs pass `validate_qc_config()` / `validate_viz_config()`
 
@@ -12,16 +12,15 @@
 - [x] 2.4 Copy the cross-platform correlations slice involving `turface_19` (shared single source with #119)
 - [x] 2.5 Confirm committed real fixtures are well under the curation budget (no excluded large blobs)
 
-## 3. Synthetic fixtures
+## 3. Loaders + tests (TDD)
 
-- [x] 3.1 Cover replicate-present + replicate-absent via the contracts `examples.load_analysis_input_example()` accessor (no committed copy); document in `synthetic/README.md`
+- [x] 3.1 Add `scope="session"` loaders in `tests/fixtures.py` for the turface_19 fixture tables + harness config paths
+- [x] 3.2 Per-stage reproduction tests for turface_19 (QC / viz / cross-platform), `allclose` within documented tolerance
+- [x] 3.3 Harness-config validity test (`validate_qc_config()` / `validate_viz_config()`)
 
-## 4. Loaders + tests (TDD)
-
-- [x] 4.1 Add `scope="session"` loaders in `tests/fixtures.py` for the turface_19 fixture tables + harness config paths
-- [x] 4.2 Per-stage reproduction tests for turface_19 (QC / viz / cross-platform), `allclose` within documented tolerance
-- [x] 4.3 Contract-validation test: canonicalize post-QC (rename roles + `get_trait_columns`) + load canonical examples, assert via `raise_for_status()`; skip cleanly without `sleap-roots-contracts`
-- [x] 4.4 Harness-config validity test (`validate_qc_config()` / `validate_viz_config()`)
+> Analysis-input contract conformance (synthetic examples + canonicalize-then-validate
+> the post-QC fixture) is deferred to a follow-up change gated on the
+> `sleap-roots-contracts` release — this change imports no contracts package.
 
 ## 5. Docs + policy
 

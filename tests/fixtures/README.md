@@ -1,10 +1,9 @@
 # Pipeline reproduction fixtures
 
 Version-controlled golden fixtures that back the full `sleap-roots-analyze` pipeline
-(`run-all` = **QC → viz → cross-platform**) for the real wheat-EDPIE experiment, plus
-portable synthetic analysis-input examples. They are the single shared source for
-reproductions, downstream tool tests, and generated tests, so the published numbers do
-not silently drift.
+(`run-all` = **QC → viz → cross-platform**) for the real wheat-EDPIE experiment. They
+are the single shared source for reproductions, downstream tool tests, and generated
+tests, so the published numbers do not silently drift.
 
 Backs issue [#120](https://github.com/talmolab/sleap-roots-analyze/issues/120). The
 cross-platform slice is the single source shared with
@@ -25,19 +24,20 @@ tests/fixtures/
 │   ├── qc/                    per-platform QC configs
 │   ├── viz/                   per-platform viz configs
 │   └── cross_platform/        per-pairing cross-platform configs
-├── real/wheat_edpie/
-│   ├── inputs/
-│   │   ├── post_qc/           boundary-A analysis inputs (10_final_data per platform)
-│   │   └── raw/               raw pre-QC inputs (turface single CSV here)
-│   └── expected/              curated golden outputs, per stage, per platform
-│       ├── qc/turface_19/         QC per-step outputs (final data, removed-detail, heritability filter, summaries)
-│       ├── viz/turface_19/        viz outputs (summary, heritability, figure manifests, full step summary)
-│       └── cross_platform/        per-pairing correlations + alignment (turface_19 pairings)
-└── synthetic/
-    └── README.md              points at the canonical examples in sleap-roots-contracts
-                               (loaded via examples.load_analysis_input_example;
-                                replicate present + absent — no committed copy here)
+└── real/wheat_edpie/
+    ├── inputs/
+    │   ├── post_qc/           boundary-A analysis inputs (10_final_data per platform)
+    │   └── raw/               raw pre-QC inputs (turface single CSV here)
+    └── expected/              curated golden outputs, per stage, per platform
+        ├── qc/turface_19/         QC per-step outputs (final data, removed-detail, heritability filter, summaries)
+        ├── viz/turface_19/        viz outputs (summary, heritability, figure manifests, full step summary)
+        └── cross_platform/        per-pairing correlations + alignment (turface_19 pairings)
 ```
+
+> Analysis-input contract conformance — synthetic examples and validating the post-QC
+> table against `sleap_roots_contracts.validate_analysis_input()` — is **not** part of
+> this fixture set. It is a follow-up change gated on the `sleap-roots-contracts`
+> release; this tree adds no dependency on that package.
 
 ## What is committed (curation policy)
 
@@ -63,12 +63,8 @@ they are historical records, not runnable configs. The runnable recipe lives in
 - **Real wheat EDPIE** golden was produced by the EDPIE paper run (Phase 1, Metcalf
   2026) and staged on Box; copied here from the lab fixture bundle. This repo owns the
   **full real reproduction data** (original column names `Barcode`/`Genotype`/`Replicate`).
-- **Synthetic** examples are **owned by `sleap-roots-contracts`** (contracts#3) and
-  loaded via its `examples.load_analysis_input_example()` accessor — the single source
-  of truth for the canonical role-named tables (`genotype`/`sample_id`/`replicate`).
-  This repo keeps **no divergent copy**; `synthetic/README.md` documents the accessor.
-  Coverage: replicate-present (`turface`) and replicate-absent (`cylinder_no_replicate`,
-  the Bloom cylinder shape, #142).
+  The post-QC `inputs/post_qc/turface_19_final_data.csv` is reused by the follow-up
+  contract-conformance change (canonicalized to the contract's role names there).
 
 ## Tolerance policy
 
@@ -107,14 +103,16 @@ loaders (in `tests/fixtures.py`) and, for `turface_19`, asserts each stage again
 golden: QC (final-data shape/roster, removed-detail counts, heritability filter), viz
 (PCA explained-variance **re-run** vs golden, heritability/ANOVA summary), and
 cross-platform (correlations structure + alignment). It also checks the harness configs
-validate.
+validate. The module imports no `sleap-roots-contracts` and needs nothing beyond this
+repo's own dependencies.
 
-The **contract** tests assert the analysis inputs against the contracts#3 validator:
-the post-QC `10_final_data.csv` is **canonicalized first** (native roles renamed to
-`genotype`/`sample_id`/`replicate`, cast to string, metadata dropped via
-`get_trait_columns` — the analyze#144 boundary), and the canonical examples are loaded
-from `sleap_roots_contracts.examples`. Both assert the returned `ValidationResult` via
-`raise_for_status()` (the validator returns a result, it does not raise — a bare call
-would pass vacuously). These tests run only when `sleap-roots-contracts[pandas]` is
-importable; it is not yet published, so CI currently **skips** them. Once released, add
-`sleap-roots-contracts[pandas]>=0.1.0a1` to the dev dependency group so they run.
+Analysis-input contract conformance is a **follow-up change** (it depends on the
+unreleased `sleap-roots-contracts`): it will canonicalize a *copy* of the post-QC
+fixture committed here — native roles renamed to `genotype`/`sample_id`/`replicate`,
+cast to string, metadata dropped via `get_trait_columns` (the analyze#144 boundary) —
+and assert `validate_analysis_input(...).raise_for_status()`, plus validate the
+package's canonical examples loaded from `sleap_roots_contracts.examples`. That change
+adds `sleap-roots-contracts[pandas]>=0.1.0a1` to the dev group. The golden reproduction
+tests here (native names, `rtol=1e-6`) are the proof the pipeline is unchanged, so they
+must stay green — contract checks always run on a copy, never the frame that feeds the
+pipeline.

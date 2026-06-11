@@ -7,9 +7,10 @@ that backs the full pipeline (QC → viz → cross-platform) and is shared acros
 reproductions, downstream tool tests, and generated tests.
 
 The tree SHALL contain: a top-level `README.md`; a `harness/` directory holding the
-EDPIE `run_manifest.yaml` plus `qc/`, `viz/`, and `cross_platform/` configs; a
-`real/wheat_edpie/` directory with `inputs/` and `expected/`; and a `synthetic/`
-directory.
+EDPIE `run_manifest.yaml` plus `qc/`, `viz/`, and `cross_platform/` configs; and a
+`real/wheat_edpie/` directory with `inputs/` and `expected/`. (Synthetic analysis-input
+coverage and the contract-conformance tests are deferred to a follow-up change that
+depends on the unreleased `sleap-roots-contracts`; this change adds no dependency on it.)
 
 #### Scenario: Fixture tree is present and structured
 
@@ -17,7 +18,7 @@ directory.
 - **THEN** `tests/fixtures/README.md`, `tests/fixtures/harness/run_manifest.yaml`,
   `tests/fixtures/harness/qc/`, `tests/fixtures/harness/viz/`,
   `tests/fixtures/harness/cross_platform/`, `tests/fixtures/real/wheat_edpie/inputs/`,
-  `tests/fixtures/real/wheat_edpie/expected/`, and `tests/fixtures/synthetic/` all exist
+  and `tests/fixtures/real/wheat_edpie/expected/` all exist
 
 #### Scenario: Harness configs are valid
 
@@ -47,58 +48,6 @@ and trait statistics; and the cross-platform correlations slice shared with #119
 - **AND** no `pipeline.log`, `viz_pipeline.log`, or `code_snapshot.tar.gz` files are
   committed
 - **AND** the committed `turface_19` slice stays well under the curation budget (~3 MB)
-
-### Requirement: Synthetic Analysis-Input Coverage From Contracts
-
-The synthetic analysis-input coverage SHALL be sourced from the canonical examples
-owned by `sleap-roots-contracts` (contracts#3) via its
-`examples.load_analysis_input_example()` accessor (the single source of truth),
-covering both a replicate-present and a replicate-absent shape. The repository SHALL NOT
-maintain a divergent committed copy of those tables; the `synthetic/` directory
-documents the accessor instead.
-
-#### Scenario: Replicate-present and replicate-absent shapes are covered via the accessor
-
-- **WHEN** the synthetic contract test runs with `sleap-roots-contracts` installed
-- **THEN** it loads a replicate-present example (`turface`) and a replicate-absent
-  example (`cylinder_no_replicate`, #142) from `examples.load_analysis_input_example()`
-  and each validates
-
-#### Scenario: No divergent synthetic copy is committed
-
-- **WHEN** the `synthetic/` directory is inspected
-- **THEN** it contains documentation pointing at the contracts accessor
-- **AND** it does not commit a second copy of the canonical example CSVs
-
-### Requirement: Analysis-Input Contract Validation
-
-The contract tests SHALL validate the post-QC `10_final_data.csv` (after
-canonicalization) and the canonical synthetic examples with
-`sleap_roots_contracts.validate_analysis_input()`, and SHALL **assert the returned
-`ValidationResult`** (via `raise_for_status()` / `ok`) — the validator returns a result
-rather than raising, so a bare call would pass vacuously. The post-QC table SHALL be canonicalized first — native role columns renamed
-to `genotype`/`sample_id`/`replicate` and cast to string, with non-trait metadata
-dropped via `get_trait_columns` (the analyze#144 boundary) — because the contract takes
-fixed canonical role names and no column-mapping parameter. When
-`sleap-roots-contracts` (or `validate_analysis_input`) is unavailable, the test SHALL be
-skipped cleanly rather than fail.
-
-#### Scenario: Canonicalized inputs validate when contracts is installed
-
-- **WHEN** `sleap-roots-contracts` is installed and the validation tests run
-- **THEN** the canonicalized post-QC `10_final_data.csv` and each canonical example
-  produce a `ValidationResult` with `ok` true (asserted via `raise_for_status()`)
-
-#### Scenario: A non-conforming table fails the assertion
-
-- **WHEN** an analysis-input table is missing a required canonical role (e.g. the raw,
-  un-canonicalized post-QC table with native names)
-- **THEN** `validate_analysis_input(...).raise_for_status()` raises and the test fails
-
-#### Scenario: Validation test skips without contracts
-
-- **WHEN** `sleap-roots-contracts` or `validate_analysis_input` is not importable
-- **THEN** the contract-validation test is skipped, not failed
 
 ### Requirement: Per-Stage Reproduction Tests
 
