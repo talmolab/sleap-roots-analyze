@@ -7,27 +7,29 @@ failures are hard to localize. Issue [#120](https://github.com/talmolab/sleap-ro
 asks for one reusable fixture set backing the **full** pipeline end-to-end, per platform,
 with a documented tolerance + regenerate policy.
 
-This change lands the **infrastructure plus a single vertical platform slice
-(`turface_19`)** so the layout, loaders, README policy, harness, and per-stage tests are
-proven end-to-end on real data. Follow-up changes add the remaining platforms
-(`turface_150`, `cylinder`, `root_core`) against the same scaffold.
+This change lands the **infrastructure plus all four EDPIE platforms** (`turface_19`,
+`turface_150`, `cylinder`, `root_core`) so the layout, loaders, README policy, harness,
+and per-stage tests are proven end-to-end on real data across every platform.
 
 ## What Changes
 
 - Add `tests/fixtures/` reproduction layout: `README.md`, `harness/` (EDPIE
   `run_manifest.yaml` + `qc/` + `viz/` + `cross_platform/` configs), and
   `real/wheat_edpie/` (`inputs/` + `expected/`).
-- Commit **curated** real wheat-EDPIE golden artifacts for `turface_19` only — the
+- Commit **curated** real wheat-EDPIE golden artifacts for **all four platforms** — the
   assertable CSV/JSON outputs (`10_final_data`, removed-trait/sample/outlier counts,
-  heritability-filter results, PCA explained variance, UMAP, heritability H², ANOVA,
-  trait statistics, cross-platform correlations). Non-assertable artifacts
+  heritability-filter results + diagnostics, trait statistics, and the four
+  cross-platform correlation pairings). Non-assertable artifacts
   (`code_snapshot.tar.gz`, `pipeline.log`/`viz_pipeline.log`, oversized per-row
-  `cross_platform_exp*_loaded.csv` intermediates) are **excluded**; the small
-  `turface_19` `pipeline_summary.json` is kept because it is the practical carrier of
-  the viz PCA/UMAP/ANOVA/heritability metrics. Committed slice ≈ 3 MB.
-- Add `scope="session"` pytest loaders for the fixture tables and per-stage assertion
-  tests (`@pytest.mark.parametrize` over stage) for `turface_19`, asserting `allclose`
-  within a documented tolerance.
+  `cross_platform_exp*_loaded.csv` and per-step `*_data_*.csv` intermediates, and the
+  oversized per-stage `pipeline_summary.json` — up to 52 MB) are **excluded**. The
+  assertable viz metrics are extracted into a compact `viz_pca_metadata.json` (+
+  `viz_umap_embedding.csv` where the viz run produced one). Committed real golden ≈ 6 MB.
+- Add `scope="session"` pytest loaders (keyed by platform) for the fixture tables and
+  per-stage assertion tests **parametrized over all four platforms**, asserting
+  `allclose` within a documented tolerance. The viz PCA test re-runs
+  `perform_pca_analysis` and matches the golden explained variance via the deterministic
+  eigenvalue spectrum.
 - Document tolerance + regenerate policy in `tests/fixtures/README.md`, reusing
   `docs/reproducibility.md` (#118): a method change requires reviewer approval + a
   paper-supplementary update, never a quiet bugfix drift.
@@ -51,7 +53,6 @@ there, canonicalizing a copy). The runtime wiring (validate in `run-all`, the
 
 ## Non-Goals
 
-- Platforms other than `turface_19` (follow-up changes reuse this scaffold).
 - Analysis-input contract conformance (synthetic examples + `validate_analysis_input`)
   — deferred to a follow-up change gated on the `sleap-roots-contracts` release.
 - A full `run-all` re-execution in CI (per-stage assertions against committed golden

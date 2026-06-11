@@ -9,10 +9,9 @@ Backs issue [#120](https://github.com/talmolab/sleap-roots-analyze/issues/120). 
 cross-platform slice is the single source shared with
 [#119](https://github.com/talmolab/sleap-roots-analyze/issues/119).
 
-> **Scope of the current set.** This is the **infrastructure + `turface_19` vertical
-> slice** (one of the four EDPIE platforms). The layout, loaders, tolerance/regenerate
-> policy, harness, and per-stage tests are proven end-to-end on `turface_19`. Follow-up
-> changes add `turface_150`, `cylinder`, and `root_core` against the same scaffold.
+**Platforms covered (all four EDPIE):** `turface_19`, `turface_150`, `cylinder`, and
+`root_core` (the field root-core platform) — each with QC + viz golden, post-QC + raw
+inputs. The four `run_manifest` cross-platform pairings ship too.
 
 ## Layout
 
@@ -26,13 +25,19 @@ tests/fixtures/
 │   └── cross_platform/        per-pairing cross-platform configs
 └── real/wheat_edpie/
     ├── inputs/
-    │   ├── post_qc/           boundary-A analysis inputs (10_final_data per platform)
-    │   └── raw/               raw pre-QC inputs (turface single CSV here)
+    │   ├── post_qc/           boundary-A analysis inputs (<platform>_final_data.csv ×4)
+    │   └── raw/<platform>/     raw pre-QC inputs (turface/turface_150/cylinder single CSV;
+    │                           root_core = 3-file ingest)
     └── expected/              curated golden outputs, per stage, per platform
-        ├── qc/turface_19/         QC per-step outputs (final data, removed-detail, heritability filter, summaries)
-        ├── viz/turface_19/        viz outputs (summary, heritability, figure manifests, full step summary)
-        └── cross_platform/        per-pairing correlations + alignment (turface_19 pairings)
+        ├── qc/<platform>/         final data, removed trait/sample/outlier details,
+        │                          heritability filter + diagnostics, trait_statistics, config
+        ├── viz/<platform>/        summary.json, heritability filter, config, and the compact
+        │                          viz_pca_metadata.json (+ viz_umap_embedding.csv where UMAP ran)
+        └── cross_platform/        per-pairing correlations + alignment (4 pairings)
 ```
+
+`<platform>` ∈ {`turface_19`, `turface_150`, `cylinder`, `root_core`}. `root_core` has
+no UMAP embedding (its viz run disabled UMAP), so it has no `viz_umap_embedding.csv`.
 
 > Analysis-input contract conformance — synthetic examples and validating the post-QC
 > table against `sleap_roots_contracts.validate_analysis_input()` — is **not** part of
@@ -42,29 +47,33 @@ tests/fixtures/
 ## What is committed (curation policy)
 
 The full golden pipeline run is ~109 MB, dominated by **non-assertable** artifacts. We
-commit **only what a test asserts against** (the `turface_19` slice is ~3 MB). The
+commit **only what a test asserts against** (all four platforms together are ~6 MB). The
 following are intentionally **excluded** and never committed:
 
 - `pipeline.log` / `viz_pipeline.log` — run logs, no assertion value.
 - `code_snapshot.tar.gz` — per-run source tarball.
 - `cross_platform_exp{1,2}_loaded.csv` — large per-sample intermediates (the
   `cross_platform_correlations.csv` is the golden).
-- The multi-MB per-platform `pipeline_summary.json` for platforms whose summaries embed
-  raw per-row data. (`turface_19`'s summaries are small enough — QC 347 KB, viz 1.6 MB —
-  and carry the assertable PCA/UMAP/ANOVA/heritability metrics, so they are kept.)
+- The per-stage `pipeline_summary.json` and the per-step data CSVs (`00_data_loaded.csv`,
+  `01_data_traits_cleaned.csv`, …) — these embed raw per-row data and reach **52 MB**
+  (cylinder viz) / 13 MB (turface_150). Instead, the assertable viz metrics are extracted
+  into a **compact `viz_pca_metadata.json`** (trait roster, PCA explained variance,
+  component count, top features) and **`viz_umap_embedding.csv`** (the Nx2 embedding).
 
-The committed run records (`config.yaml`, `pipeline_summary.json`) are **verbatim** from
-the original run and contain absolute Windows paths and git metadata from that machine;
-they are historical records, not runnable configs. The runnable recipe lives in
-`harness/`.
+The committed `config.yaml` run records are **verbatim** from the original run and
+contain absolute Windows paths and git metadata from that machine; they are historical
+records, not runnable configs. The runnable recipe lives in `harness/`. The compact
+`viz_pca_metadata.json` / `viz_umap_embedding.csv` are **derived** from the original
+`pipeline_summary.json` (faithful subset, no transform) — regenerate them by re-running
+the relevant `harness/` viz config and re-extracting.
 
 ## Provenance
 
 - **Real wheat EDPIE** golden was produced by the EDPIE paper run (Phase 1, Metcalf
   2026) and staged on Box; copied here from the lab fixture bundle. This repo owns the
   **full real reproduction data** (original column names `Barcode`/`Genotype`/`Replicate`).
-  The post-QC `inputs/post_qc/turface_19_final_data.csv` is reused by the follow-up
-  contract-conformance change (canonicalized to the contract's role names there).
+  The post-QC `inputs/post_qc/<platform>_final_data.csv` tables are reused by the
+  follow-up contract-conformance change (canonicalized to the contract's role names there).
 
 ## Tolerance policy
 
@@ -82,7 +91,11 @@ Numeric golden comparisons follow [`docs/reproducibility.md`](../../docs/reprodu
 
 Reproductions that re-run a stage (e.g. PCA on the post-QC `10_final_data.csv`) match the
 committed golden to ~`1e-16` within a single environment; `rtol=1e-6` absorbs
-cross-OS / BLAS reordering. See the BLAS caveat in `docs/reproducibility.md`.
+cross-OS / BLAS reordering. See the BLAS caveat in `docs/reproducibility.md`. The PCA
+reproduction re-runs `perform_pca_analysis` and sums the first `n_pca_components`
+explained-variance ratios from the **deterministic eigenvalue spectrum** to match the
+golden `pca_explained_variance` (the pipeline's own component-selection rule is not
+re-derived; the golden component count indexes the reproduced spectrum).
 
 ## Regenerate policy
 
@@ -99,12 +112,13 @@ artifact:
 ## Tests
 
 `tests/test_pipeline_reproduction.py` loads these fixtures via `scope="session"` pytest
-loaders (in `tests/fixtures.py`) and, for `turface_19`, asserts each stage against its
-golden: QC (final-data shape/roster, removed-detail counts, heritability filter), viz
-(PCA explained-variance **re-run** vs golden, heritability/ANOVA summary), and
-cross-platform (correlations structure + alignment). It also checks the harness configs
-validate. The module imports no `sleap-roots-contracts` and needs nothing beyond this
-repo's own dependencies.
+loaders (in `tests/fixtures.py`) and asserts each stage against its golden,
+**parametrized over all four platforms**: QC (final-data sample count/roles, removed
+outlier/trait/sample counts, heritability filter), viz (PCA explained-variance **re-run**
+vs golden, heritability/ANOVA summary with cross-stage H² consistency, UMAP shape where
+present), and cross-platform (correlations structure + alignment over the 4 pairings). It
+also checks every harness config validates. The module imports no `sleap-roots-contracts`
+and needs nothing beyond this repo's own dependencies.
 
 Analysis-input contract conformance is a **follow-up change** (it depends on the
 unreleased `sleap-roots-contracts`): it will canonicalize a *copy* of the post-QC

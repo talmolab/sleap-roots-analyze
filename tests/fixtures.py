@@ -3881,23 +3881,15 @@ def cross_platform_field_df(test_data_dir):
 # ============================================================================
 
 
-def _viz_pipeline_step(pipeline_summary: dict, step_name: str) -> dict:
-    """Return the named viz pipeline step's ``metadata`` dict.
+# The four EDPIE platforms whose golden fixtures are committed under
+# tests/fixtures/real/wheat_edpie/expected/{qc,viz}/<platform>/.
+EDPIE_PLATFORMS = ("turface_19", "turface_150", "cylinder", "root_core")
 
-    Args:
-        pipeline_summary: Parsed viz ``pipeline_summary.json`` contents.
-        step_name: Step name to locate (e.g. ``"03_pca_analysis"``).
 
-    Returns:
-        dict: The step's ``metadata`` mapping.
-
-    Raises:
-        KeyError: If no step with ``step_name`` is present.
-    """
-    for step in pipeline_summary["steps"]:
-        if step.get("name") == step_name:
-            return step["metadata"]
-    raise KeyError(step_name)
+@pytest.fixture(scope="session")
+def edpie_platforms():
+    """Return the tuple of EDPIE platform keys with committed golden fixtures."""
+    return EDPIE_PLATFORMS
 
 
 @pytest.fixture(scope="session")
@@ -3919,93 +3911,85 @@ def edpie_real_dir(repro_fixtures_dir):
 
 
 @pytest.fixture(scope="session")
-def turface19_final_data(edpie_real_dir):
-    """Load the turface_19 post-QC ``10_final_data.csv`` golden table."""
-    return pd.read_csv(
-        edpie_real_dir / "expected" / "qc" / "turface_19" / "10_final_data.csv"
-    )
+def final_data_by_platform(edpie_real_dir):
+    """Load each platform's post-QC ``10_final_data.csv`` golden table (once)."""
+    return {
+        p: pd.read_csv(edpie_real_dir / "expected" / "qc" / p / "10_final_data.csv")
+        for p in EDPIE_PLATFORMS
+    }
 
 
 @pytest.fixture(scope="session")
-def turface19_qc_heritability_summary(edpie_real_dir):
-    """Load the turface_19 QC heritability-filter summary JSON."""
-    path = (
-        edpie_real_dir
-        / "expected"
-        / "qc"
-        / "turface_19"
-        / "09_heritability_filter_summary.json"
-    )
-    return json.loads(path.read_text())
+def qc_heritability_by_platform(edpie_real_dir):
+    """Load each platform's QC heritability-filter summary JSON."""
+    return {
+        p: json.loads(
+            (
+                edpie_real_dir
+                / "expected"
+                / "qc"
+                / p
+                / "09_heritability_filter_summary.json"
+            ).read_text()
+        )
+        for p in EDPIE_PLATFORMS
+    }
 
 
 @pytest.fixture(scope="session")
-def turface19_qc_removed_outliers(edpie_real_dir):
-    """Load the turface_19 QC removed-outliers detail table."""
-    path = (
-        edpie_real_dir
-        / "expected"
-        / "qc"
-        / "turface_19"
-        / "07_removed_outliers_detail.csv"
-    )
-    return pd.read_csv(path)
+def qc_removed_counts_by_platform(edpie_real_dir):
+    """Map each platform to its removed outlier/trait/sample row counts."""
+    detail = {
+        "outliers": "07_removed_outliers_detail.csv",
+        "traits": "01_removed_traits_detail.csv",
+        "samples": "02_removed_samples_detail.csv",
+    }
+    out = {}
+    for p in EDPIE_PLATFORMS:
+        qc = edpie_real_dir / "expected" / "qc" / p
+        out[p] = {k: len(pd.read_csv(qc / f)) for k, f in detail.items()}
+    return out
 
 
 @pytest.fixture(scope="session")
-def turface19_qc_removed_traits(edpie_real_dir):
-    """Load the turface_19 QC removed-traits (cleanup) detail table."""
-    path = (
-        edpie_real_dir
-        / "expected"
-        / "qc"
-        / "turface_19"
-        / "01_removed_traits_detail.csv"
-    )
-    return pd.read_csv(path)
+def viz_summary_by_platform(edpie_real_dir):
+    """Load each platform's viz summary JSON (headline metrics)."""
+    return {
+        p: json.loads(
+            (edpie_real_dir / "expected" / "viz" / p / "summary.json").read_text()
+        )
+        for p in EDPIE_PLATFORMS
+    }
 
 
 @pytest.fixture(scope="session")
-def turface19_qc_removed_samples(edpie_real_dir):
-    """Load the turface_19 QC removed-samples (cleanup) detail table."""
-    path = (
-        edpie_real_dir
-        / "expected"
-        / "qc"
-        / "turface_19"
-        / "02_removed_samples_detail.csv"
-    )
-    return pd.read_csv(path)
+def viz_pca_by_platform(edpie_real_dir):
+    """Load each platform's curated viz PCA metadata (trait_cols, explained var)."""
+    return {
+        p: json.loads(
+            (
+                edpie_real_dir / "expected" / "viz" / p / "viz_pca_metadata.json"
+            ).read_text()
+        )
+        for p in EDPIE_PLATFORMS
+    }
 
 
 @pytest.fixture(scope="session")
-def turface19_viz_summary(edpie_real_dir):
-    """Load the turface_19 viz summary JSON (headline metrics)."""
-    path = edpie_real_dir / "expected" / "viz" / "turface_19" / "summary.json"
-    return json.loads(path.read_text())
+def viz_umap_by_platform(edpie_real_dir):
+    """Map each platform with a UMAP embedding to its golden Nx2 array.
+
+    Platforms whose viz run produced no UMAP (e.g. ``root_core``) are absent.
+    """
+    out = {}
+    for p in EDPIE_PLATFORMS:
+        f = edpie_real_dir / "expected" / "viz" / p / "viz_umap_embedding.csv"
+        if f.is_file():
+            out[p] = pd.read_csv(f).to_numpy()
+    return out
 
 
 @pytest.fixture(scope="session")
-def turface19_viz_pipeline_summary(edpie_real_dir):
-    """Load and parse the full turface_19 viz ``pipeline_summary.json``."""
-    path = edpie_real_dir / "expected" / "viz" / "turface_19" / "pipeline_summary.json"
-    return json.loads(path.read_text())
-
-
-@pytest.fixture(scope="session")
-def turface19_viz_pca_metadata(turface19_viz_pipeline_summary):
-    """Return the golden PCA-step metadata from the viz pipeline summary."""
-    return _viz_pipeline_step(turface19_viz_pipeline_summary, "03_pca_analysis")
-
-
-@pytest.fixture(scope="session")
-def turface19_viz_umap_embedding(turface19_viz_pipeline_summary):
-    """Return the golden UMAP embedding (list of [x, y]) from the viz summary."""
-    meta = _viz_pipeline_step(turface19_viz_pipeline_summary, "04_umap_analysis")
-    return meta["umap_results"]["embedding"]
-
-
-@pytest.fixture(scope="session")
-def turface19_crossplatform_dir(edpie_real_dir):
-    """Return the directory holding turface_19 cross-platform golden pairings."""
+def crossplatform_dir(edpie_real_dir):
+    """Return the directory holding the cross-platform golden pairings."""
     return edpie_real_dir / "expected" / "cross_platform"

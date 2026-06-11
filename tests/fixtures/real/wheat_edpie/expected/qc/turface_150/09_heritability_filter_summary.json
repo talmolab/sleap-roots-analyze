@@ -1,0 +1,13 @@
+{
+  "filtering_enabled": true,
+  "threshold": 0.4,
+  "traits_original": 15,
+  "traits_retained": 13,
+  "traits_removed": 2,
+  "removed_trait_names": [
+    "Depth (mm)",
+    "Avg Hole Size (mm\u00b2)"
+  ],
+  "retention_fraction": 0.8666666666666667,
+  "mean_heritability_retained": 0.6194139599513456
+}

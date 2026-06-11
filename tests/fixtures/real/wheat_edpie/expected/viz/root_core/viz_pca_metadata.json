@@ -1,0 +1,36 @@
+{
+ "trait_cols": [
+  "Ant Dto Day",
+  "Bm Calc Gm2",
+  "Boot Dtoinit Day",
+  "Gfp Calc Pct",
+  "Gfr Calc Gm2Day",
+  "Gn Calc Grnm2",
+  "Grnspk Calc Grnspk",
+  "Gw M G1000Grn",
+  "Gwsp Calc (g)",
+  "Gy Calc Gm2",
+  "Hd Dto Day",
+  "Mat Dto Day",
+  "Ph M (cm)",
+  "Root Count 0cm",
+  "Root Count 15cm",
+  "Root Count 20cm",
+  "Root Count 35cm",
+  "Root Count 45cm",
+  "Root Count 55cm",
+  "Sheathdw M (g)",
+  "Sn Calc Spksm2",
+  "Spkdw Calc Gm2",
+  "Spkdw M (g)",
+  "Stmdw M (g)"
+ ],
+ "pca_explained_variance": 0.7597083832386647,
+ "n_pca_components": 5,
+ "top_features": [
+  "Root Count 35cm",
+  "Hd Dto Day",
+  "Sn Calc Spksm2",
+  "Gwsp Calc (g)"
+ ]
+}

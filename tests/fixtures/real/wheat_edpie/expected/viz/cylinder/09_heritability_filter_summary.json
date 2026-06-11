@@ -1,0 +1,8 @@
+{
+  "filtering_enabled": false,
+  "threshold": 0.6,
+  "traits_original": 588,
+  "traits_retained": 588,
+  "traits_removed": 0,
+  "removed_trait_names": []
+}

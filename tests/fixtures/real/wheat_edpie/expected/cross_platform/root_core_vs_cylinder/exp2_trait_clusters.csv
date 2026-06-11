@@ -1,0 +1,820 @@
+trait,cluster_id,is_representative,variance
+Chull Area Max,49,True,8827494297.936508
+Chull Area Mean,49,False,5667073290.410639
+Chull Area Med,49,False,5743620247.325974
+Chull Area Min,49,False,3186224384.4001694
+Chull Area P25,49,False,4386721842.502749
+Chull Area P5,49,False,3268353016.613268
+Chull Area P75,49,False,7390052722.20624
+Chull Area P95,49,False,8773680744.336311
+Chull Line Lengths Med Mean,49,False,5568.710104468809
+Chull Line Lengths Med Med,49,False,5712.783199246111
+Chull Line Lengths Med P25,49,False,5238.75778595721
+Chull Line Lengths Med P75,49,False,6172.760514016467
+Seminal Lengths P75 Std,49,False,363.1688525754272
+Chull Area Std,84,True,178476162.78544033
+Ellipse B Std,84,False,62.11030694360981
+Chull Line Lengths Max Max,48,False,17224.7982709416
+Chull Line Lengths Mean Max,48,False,6539.083462252935
+Chull Line Lengths Mean Mean,48,False,4715.179195023143
+Chull Line Lengths Mean Med,48,False,4708.847423062984
+Chull Line Lengths Mean Min,48,False,4170.588251139415
+Chull Line Lengths Mean P25,48,False,4712.583169375021
+Chull Line Lengths Mean P5,48,False,4378.380771910117
+Chull Line Lengths Mean P75,48,False,4786.749738697442
+Chull Line Lengths Mean P95,48,False,5284.0361837275805
+Chull Line Lengths Med Max,48,False,9208.47173212651
+Chull Line Lengths Med P95,48,False,7047.630947602939
+Chull Line Lengths P75 Min,48,False,7381.318699036026
+Chull Line Lengths P95 Max,48,False,14940.934718664186
+Chull Perimeter Max,48,True,126786.24012673118
+Chull Perimeter Mean,48,False,108752.52145792352
+Chull Perimeter Med,48,False,108752.97921253592
+Chull Perimeter Min,48,False,95014.53670886606
+Chull Perimeter P25,48,False,103272.32223227163
+Chull Perimeter P5,48,False,94016.01649033315
+Chull Perimeter P75,48,False,115918.3439433836
+Chull Perimeter P95,48,False,125376.35623510984
+Seminal Base Tip Dists Mean Max,48,False,13891.403504307826
+Seminal Base Tip Dists Mean P95,48,False,13586.423873809816
+Seminal Base Tip Dists Med Max,48,False,13891.403504307826
+Seminal Base Tip Dists Med P95,48,False,13586.061406961933
+Seminal Base Tip Dists Min Max,48,False,13516.800746206696
+Seminal Base Tip Dists Min P95,48,False,13821.988209516561
+Seminal Base Tip Dists P25 Max,48,False,13576.142679168082
+Seminal Base Tip Dists P25 P95,48,False,13744.786408519529
+Seminal Base Tip Dists P5 Max,48,False,13518.003298499305
+Seminal Base Tip Dists P5 P95,48,False,13814.654703862054
+Seminal Base Tip Dists P75 Max,48,False,14025.944300449042
+Seminal Count Min,48,False,0.18155778187384983
+Chull Line Lengths Max Mean,51,False,14148.66256272244
+Chull Line Lengths Max Med,51,False,14259.227483152727
+Chull Line Lengths Max Min,51,False,13636.29991299942
+Chull Line Lengths Max P5,51,False,13954.81511214549
+Chull Line Lengths P75 Mean,51,False,9637.010109675452
+Chull Line Lengths P75 P25,51,False,9636.079837570815
+Chull Line Lengths P75 P5,51,False,8464.881045333523
+Chull Line Lengths P75 P75,51,False,9944.300797079924
+Chull Line Lengths P95 Mean,51,False,12974.454858341804
+Chull Line Lengths P95 Med,51,False,12950.02798975867
+Chull Line Lengths P95 Min,51,False,13825.157554617243
+Chull Line Lengths P95 P5,51,False,13956.905785491179
+Chull Line Lengths P95 P75,51,False,12313.162446150527
+Chull Line Lengths P95 P95,51,False,12630.419840924202
+Chull Line Lengths Std Mean,51,False,1130.7112127372827
+Chull Line Lengths Std Med,51,False,1146.777465219165
+Chull Line Lengths Std Min,51,False,920.7507115095757
+Chull Line Lengths Std P25,51,False,1089.8995974587565
+Chull Line Lengths Std P5,51,False,1094.7558223620993
+Chull Line Lengths Std P75,51,False,1124.154309485882
+Chull Line Lengths Std P95,51,False,1367.494642376706
+Chull Max Height Mean,51,False,12463.740578224644
+Chull Max Height Med,51,False,12319.829108555668
+Chull Max Height P25,51,False,12284.864715734711
+Chull Max Height P5,51,False,13427.39353802233
+Chull Max Height P75,51,False,12508.495971001434
+Chull Max Height P95,51,False,12659.421475979963
+Ellipse A Max,51,False,3250.5079532760315
+Ellipse A Mean,51,False,2593.1432984539306
+Ellipse A Med,51,False,2511.485984074161
+Ellipse A Min,51,False,2119.70866637789
+Ellipse A P25,51,False,2428.66802063175
+Ellipse A P5,51,False,2321.409612380101
+Ellipse A P75,51,False,2770.3834962459355
+Ellipse A P95,51,False,3287.2481925843044
+Seminal Base Tip Dists Max Max,51,False,13871.707799590476
+Seminal Base Tip Dists Max P95,51,False,12694.258698310026
+Seminal Base Tip Dists P75 P95,51,False,13228.47113594396
+Seminal Base Tip Dists P95 Max,51,False,13979.779397993003
+Seminal Base Tip Dists P95 P95,51,False,12790.701347163133
+Seminal Lengths Max Max,51,True,14801.448709570728
+Seminal Lengths Max P95,51,False,12332.054593679868
+Seminal Lengths P95 Max,51,False,13865.40579869496
+Seminal Lengths P95 P95,51,False,12678.97767957056
+Seminal Lengths Std Max,51,False,1607.1430877872522
+Seminal Lengths Std Mean,51,False,1060.3760096441763
+Seminal Lengths Std Med,51,False,1014.3161020341608
+Seminal Lengths Std Min,51,False,416.11385506831925
+Seminal Lengths Std P25,51,False,1138.5442166225994
+Seminal Lengths Std P5,51,False,687.2883553779097
+Seminal Lengths Std P75,51,False,1213.6161986618563
+Seminal Lengths Std P95,51,False,1421.1055883771483
+Chull Line Lengths Max P25,52,False,14369.182487276448
+Chull Line Lengths Max P75,52,False,13740.915042977736
+Chull Line Lengths Max P95,52,False,14879.419696781251
+Chull Line Lengths P75 Max,52,False,12074.590935590455
+Chull Line Lengths P75 Med,52,False,9865.429466900103
+Chull Line Lengths P75 P95,52,False,10489.210680954422
+Chull Line Lengths P95 P25,52,False,13485.264585057528
+Network Length Lower Mean,52,False,169014.899150129
+Network Length Lower Med,52,False,177042.20691795915
+Network Length Lower P25,52,False,144181.5252295231
+Network Length Lower P5,52,False,100484.19516231072
+Network Length Lower P75,52,False,202725.56777978645
+Network Length Max,52,True,452999.02893496345
+Network Length Mean,52,False,306333.8268864339
+Network Length Med,52,False,314058.190777477
+Network Length Min,52,False,149920.86256803432
+Network Length P25,52,False,261074.3436036559
+Network Length P5,52,False,188509.94743049797
+Network Length P75,52,False,367095.45053661824
+Network Length P95,52,False,415490.2816830159
+Scanline Intersection Counts Mean Max,52,False,0.3849455940015382
+Scanline Intersection Counts Mean Mean,52,False,0.24503418946161096
+Scanline Intersection Counts Mean Med,52,False,0.24869385907882213
+Scanline Intersection Counts Mean Min,52,False,0.12101002589402667
+Scanline Intersection Counts Mean P25,52,False,0.20760705022248913
+Scanline Intersection Counts Mean P5,52,False,0.14792637711008952
+Scanline Intersection Counts Mean P75,52,False,0.2941557363147176
+Scanline Intersection Counts Mean P95,52,False,0.3439072184649961
+Scanline Intersection Counts Med Max,52,False,1.5173166973227454
+Scanline Intersection Counts Med Mean,52,False,0.8214432113521254
+Scanline Intersection Counts Med Med,52,False,0.8107793727871265
+Scanline Intersection Counts Med Min,52,False,0.3087576331702271
+Scanline Intersection Counts Med P25,52,False,0.6369060074662377
+Scanline Intersection Counts Med P5,52,False,0.439992450788084
+Scanline Intersection Counts Med P75,52,False,1.0991490836235949
+Scanline Intersection Counts Med P95,52,False,1.3482271847181382
+Scanline Intersection Counts Med Std,52,False,0.03153735883757813
+Scanline Intersection Counts P75 Min,52,False,0.22389874857309724
+Scanline Intersection Counts P75 P5,52,False,0.3050396482025319
+Scanline Last Ind P5,52,False,27.35129179419006
+Seminal Base Tip Dists Max Mean,52,False,17124.735835057796
+Seminal Base Tip Dists Max Med,52,False,19154.32233213912
+Seminal Base Tip Dists Max P75,52,False,14698.463660372243
+Seminal Base Tip Dists Mean P75,52,False,14992.144339326993
+Seminal Base Tip Dists Med P75,52,False,15282.101980207246
+Seminal Base Tip Dists P75 Mean,52,False,16716.79228544563
+Seminal Base Tip Dists P75 P75,52,False,14698.699675199941
+Seminal Base Tip Dists P95 Mean,52,False,17035.331853445634
+Seminal Base Tip Dists P95 Med,52,False,19100.032079636123
+Seminal Base Tip Dists P95 P75,52,False,14574.568951896757
+Seminal Lengths Max Mean,52,False,14274.296654460852
+Seminal Lengths Max Med,52,False,15504.670937830486
+Seminal Lengths Max P25,52,False,16977.509129619957
+Seminal Lengths Max P75,52,False,14126.315522731942
+Seminal Lengths Mean Max,52,False,10989.381300018285
+Seminal Lengths Med Max,52,False,14486.052207988716
+Seminal Lengths P25 Max,52,False,11577.13320693409
+Seminal Lengths P75 Max,52,False,14122.171427136338
+Seminal Lengths P75 P95,52,False,14272.55596940951
+Seminal Lengths P95 Mean,52,False,13564.010216680575
+Seminal Lengths P95 Med,52,False,14672.57933515299
+Seminal Lengths P95 P25,52,False,14831.787785731618
+Seminal Lengths P95 P75,52,False,14219.978661141195
+Seminal Tip Ys Med Max,52,False,14171.827073247163
+Seminal Tip Ys Med Mean,52,False,18690.80421484592
+Seminal Tip Ys Med Med,52,False,19190.142428479183
+Seminal Tip Ys Med P25,52,False,21592.182390177506
+Seminal Tip Ys Med P75,52,False,17161.131164993305
+Seminal Tip Ys Med P95,52,False,15808.633965275412
+Seminal Tip Ys P25 P95,52,False,16901.16070326288
+Seminal Tip Ys P75 Max,52,False,13409.656259077427
+Seminal Tip Ys P75 Mean,52,False,15686.511578418706
+Seminal Tip Ys P75 Med,52,False,15421.161578025865
+Seminal Tip Ys P75 P25,52,False,16833.964058580066
+Seminal Tip Ys P75 P75,52,False,14728.933590669883
+Seminal Tip Ys P75 P95,52,False,14119.845302258838
+Seminal Tip Ys P95 Mean,52,False,13167.189131982195
+Seminal Tip Ys P95 Med,52,False,13045.029760967309
+Seminal Tip Ys P95 P25,52,False,13266.53532984674
+Seminal Tip Ys P95 P5,52,False,13946.492338117076
+Seminal Tip Ys P95 P75,52,False,12977.65161536885
+Seminal Tip Ys P95 P95,52,False,12929.599715564296
+Chull Line Lengths Max Std,88,True,84.1929196925353
+Chull Line Lengths Mean Std,59,True,24.629545959563192
+Chull Line Lengths Med Min,36,False,4101.962152065226
+Chull Line Lengths Med P5,36,True,4368.857082370119
+Chull Line Lengths P25 Med,36,False,2229.2793537595057
+Chull Line Lengths P25 P25,36,False,2017.6147011535468
+Chull Line Lengths P25 P5,36,False,1434.8193606571454
+Chull Line Lengths P5 Med,36,False,354.74848260303906
+Chull Line Lengths P5 P75,36,False,406.95359904567385
+Scanline Intersection Counts Max Min,36,False,0.1516563316359682
+Scanline Intersection Counts P95 Min,36,False,0.16079059661388925
+Chull Line Lengths Med Std,11,True,123.22941190954624
+Chull Line Lengths Min Max,61,False,2081.811726642232
+Chull Line Lengths P5 Max,61,True,2251.7307674591993
+Chull Line Lengths Min Mean,40,False,79.95739707708103
+Chull Line Lengths Min P75,40,True,178.8847039945225
+Chull Line Lengths Min Med,43,True,53.36348933752023
+Chull Line Lengths Min Min,22,True,6.518591965993477
+Chull Line Lengths Min P25,44,True,30.816160763313494
+Chull Line Lengths Min P5,38,False,15.707778935124578
+Seminal Tip Ys Min Min,38,False,3810.864036201378
+Seminal Tip Ys Min P5,38,False,7923.40836491974
+Seminal Tip Ys P5 Min,38,False,4865.139374541327
+Seminal Tip Ys P5 P5,38,True,8629.594322052497
+Chull Line Lengths Min P95,62,False,893.9673096312881
+Chull Line Lengths Min Std,62,False,86.7478008303865
+Chull Line Lengths P5 P95,62,True,1210.9678274248251
+Chull Line Lengths P5 Std,62,False,85.60494531431857
+Chull Line Lengths P25 Max,41,True,4538.2852712976555
+Chull Line Lengths P25 Mean,41,False,2013.6014739382085
+Chull Line Lengths P25 P75,41,False,2249.20490088938
+Chull Line Lengths P25 P95,41,False,3297.7722648195136
+Chull Line Lengths P5 Mean,41,False,329.31677946489197
+Chull Line Lengths P25 Min,35,True,802.5743184293008
+Seminal Lengths P25 Min,35,False,650.6972867448276
+Seminal Lengths P5 Min,35,False,152.31265005667248
+Chull Line Lengths P25 Std,60,True,119.77302917391737
+Chull Line Lengths P5 Min,4,False,116.75646469703942
+Chull Line Lengths P5 P25,4,False,272.46477235941285
+Chull Line Lengths P5 P5,4,False,162.05752707588377
+Seminal Base Tip Dists Min Min,4,False,11109.121899903303
+Seminal Base Tip Dists P5 Min,4,True,11254.816894071955
+Seminal Lengths Min P5,4,False,107.83112508729396
+Seminal Lengths P5 P5,4,False,280.5660581615612
+Seminal Tip Ys P25 Min,4,False,11241.183299979839
+Chull Line Lengths P75 Std,103,True,62.52023437173237
+Seminal Curve Indices Max Min,103,False,5.931195516170876e-07
+Seminal Curve Indices Mean Min,103,False,6.180311935514474e-07
+Seminal Curve Indices Med Min,103,False,6.197512454315363e-07
+Seminal Curve Indices Min Min,103,False,3.755277281057521e-07
+Seminal Curve Indices P25 Min,103,False,6.250261697187766e-07
+Seminal Curve Indices P5 Min,103,False,5.078913420278713e-07
+Seminal Curve Indices P75 Min,103,False,6.00388046152568e-07
+Seminal Curve Indices P95 Min,103,False,5.943998687313809e-07
+Chull Line Lengths P95 Std,89,True,32.55964369817166
+Chull Line Lengths Std Max,54,False,1718.9276669455223
+Network Length Lower Max,54,True,267165.54717853054
+Network Length Lower P95,54,False,234784.17520614635
+Network Length Lower Std,54,False,3389.591249037406
+Network Length Std,54,False,4896.1969378993
+Scanline Intersection Counts Max Mean,54,False,0.15483646184061037
+Scanline Intersection Counts Max P25,54,False,0.14416786979574156
+Scanline Intersection Counts Max P75,54,False,0.18604676649737215
+Scanline Intersection Counts Mean Std,54,False,0.004226091745849025
+Scanline Intersection Counts P75 Max,54,False,0.49752129441770204
+Scanline Intersection Counts P75 Mean,54,False,0.3741423249027394
+Scanline Intersection Counts P75 Med,54,False,0.3841988754777752
+Scanline Intersection Counts P75 P25,54,False,0.34226416513619373
+Scanline Intersection Counts P75 P75,54,False,0.3879825134327255
+Scanline Intersection Counts P95 Max,54,False,0.28892487110449555
+Scanline Intersection Counts P95 Mean,54,False,0.20634797260586168
+Scanline Intersection Counts P95 Med,54,False,0.20226479968649116
+Scanline Intersection Counts P95 P25,54,False,0.1940890211571146
+Scanline Intersection Counts P95 P75,54,False,0.26231302047030536
+Scanline Intersection Counts P95 P95,54,False,0.3069489765457916
+Scanline Intersection Counts Std Max,54,False,0.04220682098494447
+Scanline Intersection Counts Std Mean,54,False,0.027520764719544615
+Scanline Intersection Counts Std Med,54,False,0.028339901303381803
+Scanline Intersection Counts Std P25,54,False,0.02666858698378393
+Scanline Intersection Counts Std P75,54,False,0.030703297964092928
+Scanline Intersection Counts Std P95,54,False,0.03431110153462866
+Chull Line Lengths Std Std,104,True,5.602304243162968
+Chull Max Height Max,53,False,12926.304764265798
+Chull Max Height Min,53,False,14164.64059899011
+Scanline Last Ind Max,53,False,25.73837633840627
+Scanline Last Ind Mean,53,False,25.783099500103972
+Scanline Last Ind Med,53,False,25.59310740199263
+Scanline Last Ind Min,53,False,30.66655787672444
+Scanline Last Ind P25,53,False,26.083158682088815
+Scanline Last Ind P75,53,False,25.388127185247058
+Scanline Last Ind P95,53,False,24.935030025679172
+Seminal Tip Ys Max Max,53,False,12778.014014279986
+Seminal Tip Ys Max Mean,53,False,12660.592827302735
+Seminal Tip Ys Max Med,53,False,12536.19426487806
+Seminal Tip Ys Max Min,53,True,14968.351397201865
+Seminal Tip Ys Max P25,53,False,12636.056682116343
+Seminal Tip Ys Max P5,53,False,13024.433825912427
+Seminal Tip Ys Max P75,53,False,12602.902312262442
+Seminal Tip Ys Max P95,53,False,12603.33075055141
+Seminal Tip Ys P95 Max,53,False,12961.502261134236
+Chull Max Height Std,87,True,71.63902857942936
+Scanline First Ind Max,87,False,2.772117067912285
+Scanline First Ind P95,87,False,2.155229762650674
+Scanline First Ind Std,87,False,0.1655037526145966
+Chull Perimeter Std,85,True,495.8227996749877
+Ellipse A Std,86,True,22.62062167833739
+Ellipse B Max,78,True,2283.769087356006
+Ellipse B Mean,78,False,1447.6042756965776
+Ellipse B Med,78,False,1427.4533465734626
+Ellipse B Min,78,False,898.4182148888428
+Ellipse B P25,78,False,1082.2564978961148
+Ellipse B P5,78,False,894.3260648017244
+Ellipse B P75,78,False,1981.6584633939128
+Ellipse B P95,78,False,2267.0590128669505
+Seminal Tip Xs Std Max,78,False,1450.6192874869712
+Seminal Tip Xs Std Mean,78,False,1045.6873632227466
+Seminal Tip Xs Std Med,78,False,987.950962612498
+Seminal Tip Xs Std P25,78,False,1023.8199495854892
+Seminal Tip Xs Std P75,78,False,1156.392723753231
+Seminal Tip Xs Std P95,78,False,1390.6437744758177
+Ellipse Ratio Max,79,True,0.6991595918305993
+Ellipse Ratio P95,79,False,0.29999703682815787
+Ellipse Ratio Std,79,False,0.02051809608719672
+Ellipse Ratio Mean,76,False,0.09374313330250955
+Ellipse Ratio Med,76,False,0.0831828619859296
+Ellipse Ratio Min,76,False,0.04937806302751474
+Ellipse Ratio P25,76,False,0.05407322150097593
+Ellipse Ratio P5,76,False,0.04653064463663454
+Ellipse Ratio P75,76,True,0.13282546526037667
+Lateral Count Max,5,False,178.71415631229752
+Lateral Count Mean,5,False,122.34917378675765
+Lateral Count Med,5,False,123.18622306634643
+Lateral Count Min,5,False,67.94208090497406
+Lateral Count P25,5,False,106.98952829783298
+Lateral Count P5,5,False,82.5522184202998
+Lateral Count P75,5,False,141.62514531875738
+Lateral Count P95,5,False,162.07746558922153
+Lateral Count Std,5,False,1.337767124598727
+Lateral Lengths Max Std,5,False,568.625497786848
+Total Lateral Length Max,5,True,1295072.1302855255
+Total Lateral Length Mean,5,False,794029.9569646935
+Total Lateral Length Med,5,False,786429.9048855868
+Total Lateral Length P25,5,False,670921.4387233187
+Total Lateral Length P75,5,False,929888.1178518772
+Total Lateral Length P95,5,False,1144016.6054463617
+Lateral Lengths Max Max,6,True,21324.656572221305
+Lateral Lengths Max Mean,6,False,6105.001319506673
+Lateral Lengths Max Med,6,False,5302.2543472675125
+Lateral Lengths Max Min,6,False,1921.866778735755
+Lateral Lengths Max P25,6,False,3647.850861065672
+Lateral Lengths Max P5,6,False,2538.0460684783743
+Lateral Lengths Max P75,6,False,8399.500256734327
+Lateral Lengths Max P95,6,False,15207.233125093908
+Lateral Lengths Mean Min,6,False,194.98465629895048
+Lateral Lengths Mean P25,6,False,148.62644432344518
+Lateral Lengths Mean P5,6,False,181.95320983152521
+Lateral Lengths Med Min,6,False,75.43166807870661
+Lateral Lengths Med P5,6,False,67.14101783751971
+Lateral Lengths P75 Med,6,False,280.05932455007337
+Lateral Lengths P75 Min,6,False,323.2538684817064
+Lateral Lengths P75 P25,6,False,317.542263669069
+Lateral Lengths P75 P5,6,False,328.4982771936615
+Lateral Lengths P95 Max,6,False,6480.366280197484
+Lateral Lengths P95 Mean,6,False,2074.1717945556056
+Lateral Lengths P95 Med,6,False,1835.3563693075146
+Lateral Lengths P95 Min,6,False,1207.8025838879903
+Lateral Lengths P95 P25,6,False,1574.8842532977774
+Lateral Lengths P95 P5,6,False,1333.213911958218
+Lateral Lengths P95 P75,6,False,2346.5691871737754
+Lateral Lengths P95 P95,6,False,4321.356394059987
+Lateral Lengths Std Max,6,False,991.8218922307099
+Lateral Lengths Std Mean,6,False,389.00290301855256
+Lateral Lengths Std Med,6,False,362.7927487075583
+Lateral Lengths Std P25,6,False,283.0095001963893
+Lateral Lengths Std P75,6,False,518.4903820419257
+Lateral Lengths Std P95,6,False,805.0163962673156
+Total Lateral Length Std,6,False,12051.67748842237
+Lateral Lengths Mean Max,105,False,353.70930492731657
+Lateral Lengths P75 Max,105,True,700.18171359094
+Lateral Lengths P75 P95,105,False,479.8567806881184
+Lateral Lengths Mean Mean,106,False,132.86922884891317
+Lateral Lengths Mean Med,106,False,126.70121919763675
+Lateral Lengths Med P25,106,False,59.12861743137026
+Lateral Lengths P75 Mean,106,False,302.95944212420727
+Lateral Lengths P75 P75,106,True,305.27969448302275
+Lateral Lengths Mean P75,58,False,139.3217634860587
+Lateral Lengths Mean P95,58,True,241.5785511294454
+Lateral Lengths Med Mean,58,False,63.48411385632577
+Lateral Lengths Med Med,58,False,65.35768722832344
+Lateral Lengths Med P75,58,False,109.44579933646105
+Lateral Lengths Med P95,58,False,173.9804147368605
+Lateral Lengths Mean Std,17,False,30.13638843529266
+Lateral Lengths Med Std,17,False,32.375046431373924
+Lateral Lengths Min Max,17,True,763.4425440398186
+Lateral Lengths Min P95,17,False,538.6022108887629
+Lateral Lengths Min Std,17,False,53.81639140734818
+Lateral Lengths P25 Max,17,False,433.16977058321123
+Lateral Lengths P25 P95,17,False,271.4608583662196
+Lateral Lengths P25 Std,17,False,40.300650063407275
+Lateral Lengths P5 Max,17,False,665.009541592362
+Lateral Lengths P5 P95,17,False,457.1754056065604
+Lateral Lengths P5 Std,17,False,51.417905517289576
+Lateral Lengths Med Max,57,True,319.179581538965
+Lateral Lengths P75 Std,57,False,28.819311791873588
+Lateral Lengths Min Mean,16,False,195.28563036822518
+Lateral Lengths Min Med,16,False,180.4202552138055
+Lateral Lengths Min Min,16,False,16.375754239262385
+Lateral Lengths Min P25,16,False,79.74197733418401
+Lateral Lengths Min P5,16,False,30.808427672471552
+Lateral Lengths Min P75,16,True,386.6737239743347
+Lateral Lengths P5 Mean,16,False,154.46583453318524
+Lateral Lengths P5 Med,16,False,144.21575075656608
+Lateral Lengths P5 Min,16,False,6.495702963855022
+Lateral Lengths P5 P25,16,False,54.98002576642364
+Lateral Lengths P5 P5,16,False,16.720454279213662
+Lateral Lengths P5 P75,16,False,325.6060661471727
+Lateral Lengths P25 Mean,15,False,74.06194254558147
+Lateral Lengths P25 Med,15,False,71.88931970624668
+Lateral Lengths P25 P25,15,False,21.707721508701795
+Lateral Lengths P25 P75,15,True,181.55366674733904
+Lateral Lengths P25 Min,107,True,8.962548354677828
+Lateral Lengths P25 P5,108,True,7.642266461125756
+Lateral Lengths P95 Std,45,True,94.96652367424748
+Lateral Lengths Std Std,45,False,26.09986146014917
+Network Distribution Ratio Max,117,False,0.0008534147732598736
+Network Distribution Ratio P75,117,True,0.001109057891718125
+Network Distribution Ratio P95,117,False,0.0009091640399439455
+Network Distribution Ratio Mean,118,False,0.001156110489131206
+Network Distribution Ratio Med,118,False,0.0011546509763270272
+Network Distribution Ratio Min,118,True,0.0015569306699632832
+Network Distribution Ratio P25,118,False,0.001325259351165757
+Network Distribution Ratio P5,118,False,0.001490473532255222
+Network Distribution Ratio Std,18,True,3.770986582323688e-05
+Network Length Lower Min,55,True,74978.79128463258
+Scanline Intersection Counts Max P5,55,False,0.14031746710664447
+Scanline Intersection Counts P95 P5,55,False,0.179204103866201
+Scanline Intersection Counts Std Min,55,False,0.0178617143542033
+Scanline Intersection Counts Std P5,55,False,0.01981742036522917
+Seminal Lengths P75 Min,55,False,4115.138645088634
+Seminal Tip Ys Mean Min,55,False,11825.304928993197
+Seminal Tip Ys Mean P5,55,False,13674.52689926438
+Seminal Tip Ys Med Min,55,False,21539.71610444157
+Seminal Tip Ys Med P5,55,False,24476.93498380813
+Seminal Tip Ys P75 Min,55,False,20575.48016120606
+Seminal Tip Ys P75 P5,55,False,19331.762969468185
+Seminal Tip Ys P95 Min,55,False,15622.066965630856
+Scanline First Ind Mean,69,False,0.449520190816266
+Scanline First Ind Med,69,False,0.3640698196107553
+Scanline First Ind P75,69,True,0.6263540087358312
+Scanline First Ind Min,111,True,0.2650038382257821
+Scanline First Ind P25,68,True,0.34221538469188845
+Scanline First Ind P5,68,False,0.2642884261124041
+Scanline Intersection Counts Max Max,47,True,0.26911365255437236
+Scanline Intersection Counts Max Med,47,False,0.1966490833933747
+Scanline Intersection Counts Max P95,47,False,0.2050286456353442
+Scanline Intersection Counts Max Std,28,True,0.00422370051221653
+Scanline Intersection Counts P75 P95,56,False,0.5273838531306771
+Seminal Base Tip Dists Mean Mean,56,False,15954.502790452822
+Seminal Base Tip Dists Mean Med,56,False,18073.13870401518
+Seminal Base Tip Dists Mean P25,56,False,19315.54023980386
+Seminal Base Tip Dists Med Mean,56,False,16382.906037796134
+Seminal Base Tip Dists Med Med,56,False,18736.715460606036
+Seminal Base Tip Dists Med P25,56,True,20283.062536862024
+Seminal Base Tip Dists Min Mean,56,False,14824.639644711715
+Seminal Base Tip Dists Min Med,56,False,17643.291062481243
+Seminal Base Tip Dists Min P75,56,False,15649.06560391383
+Seminal Base Tip Dists P25 Mean,56,False,15562.598650717442
+Seminal Base Tip Dists P25 Med,56,False,18024.65347487635
+Seminal Base Tip Dists P25 P75,56,False,15547.976861923073
+Seminal Base Tip Dists P5 Mean,56,False,14956.839285424221
+Seminal Base Tip Dists P5 Med,56,False,17708.71427085834
+Seminal Base Tip Dists P5 P75,56,False,15649.482157596067
+Seminal Base Tip Dists P75 Med,56,False,18825.067553855763
+Seminal Lengths Max Min,56,False,8867.66246920406
+Seminal Lengths Max P5,56,False,12298.37741891718
+Seminal Lengths Mean Mean,56,False,6202.674182450217
+Seminal Lengths Mean Med,56,False,6452.702516467735
+Seminal Lengths Mean Min,56,False,2866.961564529478
+Seminal Lengths Mean P25,56,False,5249.271460565355
+Seminal Lengths Mean P5,56,False,3794.4973921772407
+Seminal Lengths Mean P75,56,False,7291.436876969343
+Seminal Lengths Mean P95,56,False,8760.130371684621
+Seminal Lengths Med Mean,56,False,7018.570909592575
+Seminal Lengths Med Med,56,False,6787.834433506624
+Seminal Lengths Med P25,56,False,4880.67363941885
+Seminal Lengths Med P5,56,False,3713.5505290306633
+Seminal Lengths Med P75,56,False,10139.158341581315
+Seminal Lengths Med P95,56,False,12876.382160094343
+Seminal Lengths P25 Mean,56,False,3721.1962856887712
+Seminal Lengths P25 Med,56,False,3715.0795192999212
+Seminal Lengths P25 P25,56,False,2868.494349643665
+Seminal Lengths P25 P5,56,False,1400.3084193783848
+Seminal Lengths P75 Mean,56,False,11153.93714474237
+Seminal Lengths P75 Med,56,False,12580.848633373898
+Seminal Lengths P75 P25,56,False,9387.794083681169
+Seminal Lengths P75 P5,56,False,5531.393247236994
+Seminal Lengths P75 P75,56,False,14294.36662411451
+Seminal Lengths P95 Min,56,False,7925.188782679358
+Seminal Lengths P95 P5,56,False,10869.277438141755
+Seminal Tip Ys Mean Max,56,False,13711.944393915028
+Seminal Tip Ys Mean Mean,56,False,14334.541450018576
+Seminal Tip Ys Mean Med,56,False,14729.030541016316
+Seminal Tip Ys Mean P25,56,False,15488.621302056783
+Seminal Tip Ys Mean P75,56,False,13990.137019730235
+Seminal Tip Ys Mean P95,56,False,14132.813787804642
+Seminal Tip Ys Min Max,56,False,15681.022455608872
+Seminal Tip Ys Min P95,56,False,15198.928922293799
+Seminal Tip Ys P25 Max,56,False,14637.760038067147
+Seminal Tip Ys P25 Mean,56,False,17780.0474538108
+Seminal Tip Ys P25 Med,56,False,19203.70755509287
+Seminal Tip Ys P25 P25,56,False,19969.917825607965
+Seminal Tip Ys P25 P75,56,False,18672.63188423795
+Seminal Tip Ys P5 Max,56,False,15369.608059196507
+Seminal Tip Ys P5 P95,56,False,15254.625993343137
+Scanline Intersection Counts P75 Std,116,True,0.004005215369399901
+Scanline Intersection Counts P95 Std,109,True,0.00476799683408179
+Scanline Intersection Counts Std Std,110,True,0.000562779563621547
+Scanline Last Ind Std,37,True,0.04303268975233502
+Seminal Angles Distal Max Max,90,True,24.96764727751283
+Seminal Angles Distal P95 Max,90,False,23.241446148224906
+Seminal Angles Distal Std Max,90,False,4.429736304304812
+Seminal Angles Distal Max Mean,19,False,7.948435307147776
+Seminal Angles Distal Max Med,19,True,12.145077534762027
+Seminal Angles Distal Mean P25,19,False,4.013112816036449
+Seminal Angles Distal Med P25,19,False,4.233639915049172
+Seminal Angles Distal P75 Med,19,False,9.50069680411423
+Seminal Angles Distal P75 P25,19,False,4.463420959008399
+Seminal Angles Distal P95 Mean,19,False,7.760054269781717
+Seminal Angles Distal P95 Med,19,False,11.521102533947818
+Seminal Angles Distal Max Min,66,True,0.5534067646095511
+Seminal Angles Distal Mean Min,66,False,0.46581540562733953
+Seminal Angles Distal Med Min,66,False,0.4985815043949475
+Seminal Angles Distal P25 Min,66,False,0.21173574625921135
+Seminal Angles Distal P75 Min,66,False,0.5238179990401921
+Seminal Angles Distal P95 Min,66,False,0.5474071481115003
+Seminal Angles Distal Max P25,20,True,4.864868929290263
+Seminal Angles Distal P25 P5,20,False,0.6977190510074184
+Seminal Angles Distal P95 P25,20,False,4.7935635231086815
+Seminal Angles Distal Max P5,65,True,2.0019023364894126
+Seminal Angles Distal Mean P5,65,False,1.185459180307094
+Seminal Angles Distal Med P5,65,False,1.128111447513808
+Seminal Angles Distal P75 P5,65,False,1.5723435785875535
+Seminal Angles Distal P95 P5,65,False,1.9373327115768957
+Seminal Angles Distal Max P75,97,True,16.95138537148885
+Seminal Angles Distal Mean Mean,97,False,6.498349848518695
+Seminal Angles Distal Mean Med,97,False,7.1798570506682715
+Seminal Angles Distal Med Mean,97,False,6.780792004683665
+Seminal Angles Distal Med Med,97,False,7.213716338217803
+Seminal Angles Distal P75 Mean,97,False,7.176885258998161
+Seminal Angles Distal P75 P75,97,False,14.3629220836648
+Seminal Angles Distal P95 P75,97,False,16.549064449316763
+Seminal Angles Distal Std Std,97,False,0.2965107254460495
+Seminal Angles Distal Max P95,95,False,17.313164739299665
+Seminal Angles Distal Max Std,95,False,1.9351059985295602
+Seminal Angles Distal Mean Max,95,False,23.397755850855532
+Seminal Angles Distal Mean P95,95,False,21.277916689598353
+Seminal Angles Distal Mean Std,95,False,1.778289056727151
+Seminal Angles Distal Med Max,95,False,24.091762164272037
+Seminal Angles Distal Med P95,95,False,21.336994286521396
+Seminal Angles Distal Med Std,95,False,1.715007913772313
+Seminal Angles Distal Min Max,95,False,24.067533748803577
+Seminal Angles Distal Min P95,95,True,27.235036908432367
+Seminal Angles Distal Min Std,95,False,1.9297281398883959
+Seminal Angles Distal P25 Max,95,False,24.081526315833127
+Seminal Angles Distal P25 P95,95,False,25.475901029279694
+Seminal Angles Distal P25 Std,95,False,1.7588532365917586
+Seminal Angles Distal P5 Max,95,False,24.026043931699157
+Seminal Angles Distal P5 P95,95,False,26.938542014250505
+Seminal Angles Distal P5 Std,95,False,1.888061527786959
+Seminal Angles Distal P75 Max,95,False,21.320436846354355
+Seminal Angles Distal P75 P95,95,False,17.312669614974272
+Seminal Angles Distal P75 Std,95,False,1.8471075961134988
+Seminal Angles Distal P95 P95,95,False,16.68706622920373
+Seminal Angles Distal P95 Std,95,False,1.909195234491996
+Seminal Angles Distal Mean P75,96,False,11.937737412747614
+Seminal Angles Distal Med P75,96,True,12.031003729106768
+Seminal Angles Distal Min P75,96,False,11.79455232429464
+Seminal Angles Distal P25 P75,96,False,11.783499689801545
+Seminal Angles Distal P5 P75,96,False,11.938441048017086
+Seminal Angles Distal Min Mean,8,False,6.173730199558243
+Seminal Angles Distal Min Med,8,False,6.186794329723884
+Seminal Angles Distal Min P25,8,False,2.2234628152566436
+Seminal Angles Distal P25 Mean,8,True,6.36343870956152
+Seminal Angles Distal P25 Med,8,False,6.126913482389514
+Seminal Angles Distal P25 P25,8,False,2.997709150803111
+Seminal Angles Distal P5 Mean,8,False,6.187919759903726
+Seminal Angles Distal P5 Med,8,False,5.909777311241779
+Seminal Angles Distal P5 P25,8,False,2.301693919554129
+Seminal Angles Distal Min Min,112,True,0.03682005390065897
+Seminal Angles Distal Min P5,7,False,0.3603678163670868
+Seminal Angles Distal P5 P5,7,True,0.4234397870431153
+Seminal Angles Distal P5 Min,67,True,0.04562865959178136
+Seminal Angles Distal Std Mean,63,False,0.5929307667835784
+Seminal Angles Distal Std P75,63,True,2.7604523698082435
+Seminal Angles Distal Std Med,64,True,1.907384896146095
+Seminal Angles Distal Std P95,93,False,2.234766650591283
+Seminal Angles Proximal Max Mean,93,False,13.790210554391983
+Seminal Angles Proximal Max Med,93,True,18.817163757058932
+Seminal Angles Proximal Mean Med,93,False,10.00406712853201
+Seminal Angles Proximal Med Med,93,False,10.376185812598779
+Seminal Angles Proximal P75 Mean,93,False,10.51625479973328
+Seminal Angles Proximal P75 Med,93,False,13.686968511063641
+Seminal Angles Proximal P95 Mean,93,False,13.012240274051141
+Seminal Angles Proximal P95 Med,93,False,17.779390535231006
+Seminal Angles Proximal Max Max,81,True,47.60741994912747
+Seminal Angles Proximal Max P95,81,False,25.686922072649732
+Seminal Angles Proximal P95 Max,81,False,40.651766827413525
+Seminal Angles Proximal P95 P95,81,False,22.582803510365377
+Seminal Angles Proximal Max Min,74,True,5.253800971686885
+Seminal Angles Proximal Mean Min,74,False,1.8647773640024488
+Seminal Angles Proximal Med Min,74,False,1.248496075739289
+Seminal Angles Proximal P75 Min,74,False,3.424994111232841
+Seminal Angles Proximal P95 Min,74,False,5.016096873270207
+Seminal Angles Proximal Max P25,120,True,13.240725318601577
+Seminal Angles Proximal Mean P25,120,False,6.261436771290061
+Seminal Angles Proximal Med P25,120,False,6.432571803873458
+Seminal Angles Proximal P75 P25,120,False,9.125251325664802
+Seminal Angles Proximal P95 P25,120,False,12.407519985110254
+Seminal Angles Proximal Max P5,71,True,6.729111131720935
+Seminal Angles Proximal Mean P5,71,False,2.5193149107652903
+Seminal Angles Proximal P75 P5,71,False,3.82330793760983
+Seminal Angles Proximal P95 P5,71,False,6.263253765923327
+Seminal Angles Proximal Max P75,94,True,24.30833614930792
+Seminal Angles Proximal Mean Mean,94,False,8.333530594227307
+Seminal Angles Proximal Mean P75,94,False,14.972916789274588
+Seminal Angles Proximal Med Mean,94,False,8.79252005908911
+Seminal Angles Proximal Med P75,94,False,17.02146807964438
+Seminal Angles Proximal P75 P75,94,False,19.184443544782926
+Seminal Angles Proximal P75 P95,94,False,18.236718587814703
+Seminal Angles Proximal P95 P75,94,False,23.192526700086688
+Seminal Angles Proximal Max Std,92,True,2.1644016647119892
+Seminal Angles Proximal P75 Std,92,False,1.6018839552783097
+Seminal Angles Proximal P95 Std,92,False,1.9962854728085557
+Seminal Angles Proximal Mean Max,101,False,18.40524398876392
+Seminal Angles Proximal Mean P95,101,False,19.634691126934314
+Seminal Angles Proximal Mean Std,101,False,1.58716079445173
+Seminal Angles Proximal Med P95,101,False,21.512083008130826
+Seminal Angles Proximal Med Std,101,False,1.6031938170405176
+Seminal Angles Proximal Min Max,101,False,22.72622455840668
+Seminal Angles Proximal P25 Max,101,False,20.87048776993595
+Seminal Angles Proximal P25 P95,101,True,24.00770050534568
+Seminal Angles Proximal P5 Max,101,False,22.454748319786248
+Seminal Angles Proximal Med Max,91,False,16.758727816429925
+Seminal Angles Proximal P75 Max,91,True,21.423948906001677
+Seminal Angles Proximal Med P5,119,True,1.9164429247197674
+Seminal Angles Proximal P25 P5,119,False,1.0227087372909645
+Seminal Angles Proximal Min Mean,100,False,7.613242297893294
+Seminal Angles Proximal Min P75,100,False,17.598649688834584
+Seminal Angles Proximal Min P95,100,True,26.882334597093546
+Seminal Angles Proximal Min Std,100,False,2.656172504096719
+Seminal Angles Proximal P25 Mean,100,False,7.578255189449725
+Seminal Angles Proximal P25 P75,100,False,15.33874352690674
+Seminal Angles Proximal P25 Std,100,False,1.9616523177157918
+Seminal Angles Proximal P5 Mean,100,False,7.513208824957617
+Seminal Angles Proximal P5 P75,100,False,17.061447500585178
+Seminal Angles Proximal P5 P95,100,False,26.422453761430365
+Seminal Angles Proximal P5 Std,100,False,2.526411898287869
+Seminal Angles Proximal Min Med,115,False,9.486613045225539
+Seminal Angles Proximal Min P25,115,False,3.926031336341406
+Seminal Angles Proximal P25 Med,115,True,9.54739449484922
+Seminal Angles Proximal P25 P25,115,False,3.9987513958477114
+Seminal Angles Proximal P5 Med,115,False,9.226232945397427
+Seminal Angles Proximal P5 P25,115,False,3.674275907090584
+Seminal Angles Proximal Min Min,114,True,0.0348220904866421
+Seminal Angles Proximal Min P5,113,False,0.5571480021359982
+Seminal Angles Proximal P5 P5,113,True,0.5978249242704283
+Seminal Angles Proximal P25 Min,75,True,0.4626444518646235
+Seminal Angles Proximal P5 Min,75,False,0.0716011580493627
+Seminal Angles Proximal Std Max,82,True,5.5788545965463925
+Seminal Angles Proximal Std P95,82,False,4.465982148368524
+Seminal Angles Proximal Std Mean,72,False,1.786822889470066
+Seminal Angles Proximal Std Med,72,True,4.463346769401127
+Seminal Angles Proximal Std P75,73,True,2.754812565225654
+Seminal Angles Proximal Std Std,83,True,0.5153170215610118
+Seminal Base Tip Dists Max Min,3,False,14504.13243502137
+Seminal Base Tip Dists Max P5,3,True,23201.077956193
+Seminal Base Tip Dists Mean Min,3,False,13589.587816395586
+Seminal Base Tip Dists Mean P5,3,False,17964.76608327842
+Seminal Base Tip Dists Med Min,3,False,13415.113792833748
+Seminal Base Tip Dists Med P5,3,False,18013.61225624451
+Seminal Base Tip Dists Min P25,3,False,17581.90057384451
+Seminal Base Tip Dists Min P5,3,False,13585.199696421108
+Seminal Base Tip Dists P25 Min,3,False,12254.72515564544
+Seminal Base Tip Dists P25 P25,3,False,18197.752424294154
+Seminal Base Tip Dists P25 P5,3,False,14888.456973499777
+Seminal Base Tip Dists P5 P25,3,False,17652.657738922015
+Seminal Base Tip Dists P5 P5,3,False,13853.648652193451
+Seminal Base Tip Dists P75 Min,3,False,14335.650379597377
+Seminal Base Tip Dists P75 P5,3,False,20762.215990505112
+Seminal Base Tip Dists P95 Min,3,False,14512.529009658987
+Seminal Base Tip Dists P95 P5,3,False,22784.623975152484
+Seminal Base Tip Dists Max P25,0,True,24675.99115776571
+Seminal Base Tip Dists P75 P25,0,False,22418.218606526832
+Seminal Base Tip Dists P95 P25,0,False,24174.65611669552
+Seminal Lengths Min Max,0,False,8288.882764403434
+Seminal Lengths Min P95,0,False,4606.578449202502
+Seminal Lengths Min Std,0,False,327.17006262646373
+Seminal Lengths P25 P95,0,False,8854.457295585093
+Seminal Lengths P25 Std,0,False,320.1089796989897
+Seminal Lengths P5 Max,0,False,8488.921536817055
+Seminal Lengths P5 P95,0,False,5001.853337324796
+Seminal Lengths P5 Std,0,False,280.1962742057692
+Seminal Base Tip Dists Max Std,24,True,1151.7970341217833
+Seminal Base Tip Dists Mean Std,24,False,824.8027124048663
+Seminal Base Tip Dists Med Std,24,False,831.9258843999743
+Seminal Base Tip Dists P75 Std,24,False,984.695489068738
+Seminal Base Tip Dists P95 Std,24,False,1120.900224656219
+Seminal Base Tip Dists Min Std,30,True,917.6373973313766
+Seminal Base Tip Dists P25 Std,30,False,775.6969157791342
+Seminal Base Tip Dists P5 Std,30,False,868.1418986515735
+Seminal Base Tip Dists Std Max,33,False,1321.6882089973842
+Seminal Base Tip Dists Std Mean,33,False,239.0417002990292
+Seminal Base Tip Dists Std P95,33,True,1572.3018232079467
+Seminal Base Tip Dists Std Std,33,False,208.1788693239079
+Seminal Base Tip Dists Std P75,34,True,1359.654376591258
+Seminal Count Max,46,True,0.580324264696132
+Seminal Count Mean,46,False,0.3155571082904061
+Seminal Count Med,46,False,0.2985761915904546
+Seminal Count P25,46,False,0.2976585448892844
+Seminal Count P5,46,False,0.219914428830472
+Seminal Count P75,46,False,0.3972878508297676
+Seminal Count P95,46,False,0.5062890963929703
+Seminal Count Std,29,True,0.008249970588791398
+Seminal Curve Indices Max Max,99,False,0.0005689853064830808
+Seminal Curve Indices Max P95,99,False,0.0005691075673758125
+Seminal Curve Indices Max Std,99,False,4.532462436295873e-05
+Seminal Curve Indices Mean Max,99,False,0.0007598568261688416
+Seminal Curve Indices Mean Std,99,False,3.904895189494182e-05
+Seminal Curve Indices Med Max,99,False,0.0007588153077494274
+Seminal Curve Indices Med Std,99,False,3.901585768399433e-05
+Seminal Curve Indices Min Max,99,False,0.0009122555581279729
+Seminal Curve Indices Min Std,99,False,4.404919051677485e-05
+Seminal Curve Indices P25 Max,99,False,0.0008951133537817946
+Seminal Curve Indices P25 Std,99,False,4.027922480782839e-05
+Seminal Curve Indices P5 Max,99,True,0.0009155294534116564
+Seminal Curve Indices P5 Std,99,False,4.321570455954893e-05
+Seminal Curve Indices P75 Max,99,False,0.0006477020215404785
+Seminal Curve Indices P75 P95,99,False,0.0004643825879833726
+Seminal Curve Indices P75 Std,99,False,4.1261060984404115e-05
+Seminal Curve Indices P95 Max,99,False,0.0005700804926626684
+Seminal Curve Indices P95 P95,99,False,0.0005425486741295337
+Seminal Curve Indices P95 Std,99,False,4.424896251260262e-05
+Seminal Curve Indices Max Mean,98,False,9.566854900342693e-05
+Seminal Curve Indices Max P75,98,False,0.00021121527170227635
+Seminal Curve Indices Mean Mean,98,False,7.831562200630811e-05
+Seminal Curve Indices Mean P75,98,False,0.00016382002201599145
+Seminal Curve Indices Mean P95,98,False,0.0003922991580593116
+Seminal Curve Indices Med Mean,98,False,8.023137381094145e-05
+Seminal Curve Indices Med P75,98,False,0.00016773115314272247
+Seminal Curve Indices Med P95,98,False,0.0003997027915729897
+Seminal Curve Indices Min Mean,98,False,6.319421243928317e-05
+Seminal Curve Indices Min P75,98,False,0.00012598886577855925
+Seminal Curve Indices Min P95,98,True,0.0004061817128030055
+Seminal Curve Indices P25 Mean,98,False,7.117949249254061e-05
+Seminal Curve Indices P25 P75,98,False,0.00013786832938192763
+Seminal Curve Indices P25 P95,98,False,0.0003834026169208216
+Seminal Curve Indices P5 Mean,98,False,6.470136862589389e-05
+Seminal Curve Indices P5 P75,98,False,0.00012850500002884938
+Seminal Curve Indices P5 P95,98,False,0.0004024525249318714
+Seminal Curve Indices P75 Mean,98,False,8.769131153549445e-05
+Seminal Curve Indices P75 P75,98,False,0.0001945067203085083
+Seminal Curve Indices P95 Mean,98,False,9.397113057802304e-05
+Seminal Curve Indices P95 P75,98,False,0.00020757624063953643
+Seminal Curve Indices Max Med,102,True,8.438571921023252e-05
+Seminal Curve Indices Max P25,102,False,2.227827361698001e-05
+Seminal Curve Indices Max P5,102,False,1.9451908217374117e-06
+Seminal Curve Indices Mean Med,102,False,6.576688752582549e-05
+Seminal Curve Indices Mean P25,102,False,1.9418824421758792e-05
+Seminal Curve Indices Mean P5,102,False,1.7703808987092562e-06
+Seminal Curve Indices Med Med,102,False,6.603100381501454e-05
+Seminal Curve Indices Med P25,102,False,2.0250767968748206e-05
+Seminal Curve Indices Med P5,102,False,1.7990595861071393e-06
+Seminal Curve Indices Min Med,102,False,4.401617538465536e-05
+Seminal Curve Indices Min P25,102,False,1.1408951563645706e-05
+Seminal Curve Indices Min P5,102,False,1.7222877726437403e-06
+Seminal Curve Indices P25 Med,102,False,5.602544895441051e-05
+Seminal Curve Indices P25 P25,102,False,1.6211985724320288e-05
+Seminal Curve Indices P25 P5,102,False,1.6928938703272022e-06
+Seminal Curve Indices P5 Med,102,False,4.506345305323221e-05
+Seminal Curve Indices P5 P25,102,False,1.2008739243849516e-05
+Seminal Curve Indices P5 P5,102,False,1.651716658409501e-06
+Seminal Curve Indices P75 Med,102,False,7.875439238581806e-05
+Seminal Curve Indices P75 P25,102,False,2.1748849259228736e-05
+Seminal Curve Indices P75 P5,102,False,1.9055419630333257e-06
+Seminal Curve Indices P95 Med,102,False,8.318808711443138e-05
+Seminal Curve Indices P95 P25,102,False,2.2009336168888322e-05
+Seminal Curve Indices P95 P5,102,False,1.943620392251304e-06
+Seminal Curve Indices Std Max,13,True,0.00010052403984836807
+Seminal Curve Indices Std Mean,12,False,2.1392051000527253e-06
+Seminal Curve Indices Std P95,12,True,5.5146596055252644e-05
+Seminal Curve Indices Std Std,12,False,6.251944795674905e-06
+Seminal Curve Indices Std P75,21,True,7.261981353848356e-06
+Seminal Lengths Max Std,80,True,226.74784360071374
+Seminal Lengths P95 Std,80,False,169.44858992776506
+Seminal Lengths Mean Std,50,False,120.62863993926436
+Seminal Lengths Med Std,50,True,402.5753375057164
+Seminal Lengths Med Min,1,False,2500.9020633278406
+Seminal Lengths Min Mean,1,False,1131.5741267676417
+Seminal Lengths Min Med,1,False,1170.7999128618185
+Seminal Lengths Min P25,1,False,499.7320271400032
+Seminal Lengths Min P75,1,False,2352.0551081738686
+Seminal Lengths P25 P75,1,True,4451.582157494674
+Seminal Lengths P5 Mean,1,False,1505.2422807036155
+Seminal Lengths P5 Med,1,False,1526.2208654515023
+Seminal Lengths P5 P25,1,False,838.5912428519559
+Seminal Lengths P5 P75,1,False,2485.47038941728
+Seminal Lengths Min Min,39,True,66.71435085206484
+Seminal Lengths Std Std,9,True,17.297126829239552
+Seminal Tip Xs Std Min,77,True,1138.5349805282167
+Seminal Tip Xs Std P5,77,False,1046.2607750724437
+Seminal Tip Xs Std Std,70,True,48.109229849390246
+Seminal Tip Ys Max Std,14,True,24.977882858277663
+Seminal Tip Ys Mean Std,31,False,97.34565286313757
+Seminal Tip Ys P25 Std,31,True,551.6409452446776
+Seminal Tip Ys Med Std,25,True,596.4224780559059
+Seminal Tip Ys Min Mean,2,False,12725.690496588664
+Seminal Tip Ys Min Med,2,False,15543.34272956943
+Seminal Tip Ys Min P25,2,False,15672.862119255287
+Seminal Tip Ys Min P75,2,False,14318.58442385939
+Seminal Tip Ys P25 P5,2,False,15951.977752873949
+Seminal Tip Ys P5 Mean,2,False,13396.951897437297
+Seminal Tip Ys P5 Med,2,False,15518.24028335697
+Seminal Tip Ys P5 P25,2,True,16018.703356302472
+Seminal Tip Ys P5 P75,2,False,14573.79627354812
+Seminal Tip Ys Min Std,10,True,1060.5764748950248
+Seminal Tip Ys P5 Std,10,False,739.5469517076735
+Seminal Tip Ys Std Std,10,False,188.55982685468874
+Seminal Tip Ys P75 Std,42,True,235.90044478358064
+Seminal Tip Ys P95 Std,42,False,38.7658636541008
+Seminal Tip Ys Std Max,32,True,1643.0891758689518
+Seminal Tip Ys Std P95,32,False,1544.7954696847328
+Seminal Tip Ys Std Mean,26,False,1179.134590215865
+Seminal Tip Ys Std Med,26,True,1648.3699038092764
+Seminal Tip Ys Std P75,26,False,1431.0720151690994
+Seminal Tip Ys Std Min,23,False,353.58164053288374
+Seminal Tip Ys Std P5,23,True,710.5023508779469
+Seminal Tip Ys Std P25,27,True,1584.9553421121298
