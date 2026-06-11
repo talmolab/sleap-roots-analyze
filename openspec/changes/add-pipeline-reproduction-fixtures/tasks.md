@@ -14,13 +14,13 @@
 
 ## 3. Synthetic fixtures
 
-- [x] 3.1 Add replicate-present + replicate-absent synthetic analysis-input fixtures derived from the contracts canonical examples
+- [x] 3.1 Cover replicate-present + replicate-absent via the contracts `examples.load_analysis_input_example()` accessor (no committed copy); document in `synthetic/README.md`
 
 ## 4. Loaders + tests (TDD)
 
 - [x] 4.1 Add `scope="session"` loaders in `tests/fixtures.py` for the turface_19 fixture tables + harness config paths
 - [x] 4.2 Per-stage reproduction tests for turface_19 (QC / viz / cross-platform), `allclose` within documented tolerance
-- [x] 4.3 Contract-validation test: post-QC `10_final_data.csv` + synthetic inputs pass `validate_analysis_input()`, skip cleanly without `sleap-roots-contracts`
+- [x] 4.3 Contract-validation test: canonicalize post-QC (rename roles + `get_trait_columns`) + load canonical examples, assert via `raise_for_status()`; skip cleanly without `sleap-roots-contracts`
 - [x] 4.4 Harness-config validity test (`validate_qc_config()` / `validate_viz_config()`)
 
 ## 5. Docs + policy

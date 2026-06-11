@@ -231,34 +231,85 @@ def test_crossplatform_alignment_consistency(turface19_crossplatform_dir, pairin
 # ---------------------------------------------------------------------------
 # Analysis-input contract validation (contracts#3) — optional dependency
 # ---------------------------------------------------------------------------
+#
+# These tests run only when ``sleap-roots-contracts[pandas]`` is importable. It is
+# not yet published, so CI currently skips them; once it is released, add
+# ``sleap-roots-contracts[pandas]>=0.1.0a1`` to the dev dependency group so they run.
+# When they DO run they must be non-vacuous: ``validate_analysis_input`` *returns* a
+# ``ValidationResult`` (it does not raise), so every test asserts ``result.ok`` via
+# ``raise_for_status()`` — a bare call would pass regardless of the verdict.
+
+# Native (analyze-side) role column names in the post-QC tables -> canonical roles.
+_NATIVE_ROLES = {
+    "Genotype": "genotype",
+    "Barcode": "sample_id",
+    "Replicate": "replicate",
+}
 
 
-def _validate_analysis_input_or_skip():
-    """Return contracts' validate_analysis_input, or skip if unavailable."""
+def _require_contracts():
+    """Import the contracts validator, or skip the test if it is unavailable."""
     contracts = pytest.importorskip("sleap_roots_contracts")
-    fn = getattr(contracts, "validate_analysis_input", None)
-    if fn is None:
+    validate = getattr(contracts, "validate_analysis_input", None)
+    if validate is None:
         pytest.skip("sleap_roots_contracts.validate_analysis_input not available")
-    return fn
+    return validate
+
+
+def _canonicalize_post_qc(df):
+    """Canonicalize an analyze-native post-QC table to the contract's role names.
+
+    Mirrors the analysis-input boundary (analyze#144): rename native role columns to
+    the canonical ``genotype``/``sample_id``/``replicate``, cast them to string, and
+    drop non-trait metadata via ``get_trait_columns`` so only roles + numeric trait
+    columns reach the validator.
+    """
+    import pandas as pd
+
+    from sleap_roots_analyze.data_cleanup import get_trait_columns
+
+    traits = get_trait_columns(
+        df, barcode_col="Barcode", genotype_col="Genotype", replicate_col="Replicate"
+    )
+    roles = {
+        canonical: df[native].astype("string")
+        for native, canonical in _NATIVE_ROLES.items()
+        if native in df.columns
+    }
+    return pd.concat([pd.DataFrame(roles), df[traits]], axis=1)
 
 
 def test_post_qc_input_passes_contract(edpie_real_dir):
-    """Post-QC 10_final_data satisfies the analysis-input contract (contracts#3)."""
+    """Canonicalized post-QC 10_final_data satisfies the contract (contracts#3, #144)."""
     import pandas as pd
 
-    validate = _validate_analysis_input_or_skip()
-    df = pd.read_csv(
+    validate = _require_contracts()
+    raw = pd.read_csv(
         edpie_real_dir / "inputs" / "post_qc" / "turface_19_final_data.csv"
     )
-    validate(df)
+    canonical = _canonicalize_post_qc(raw)
+    # raise_for_status() turns a non-ok result into a failure (the result is asserted,
+    # not discarded).
+    validate(canonical).raise_for_status()
 
 
 @pytest.mark.parametrize(
-    "name", ["analysis_input_small.csv", "analysis_input_no_replicate.csv"]
+    "example",
+    [
+        pytest.param("turface", id="replicate_present"),
+        pytest.param("cylinder_no_replicate", id="replicate_absent"),
+    ],
 )
-def test_synthetic_inputs_pass_contract(synthetic_inputs_dir, name):
-    """Synthetic analysis inputs (replicate present + absent) satisfy the contract."""
-    import pandas as pd
+def test_canonical_examples_pass_contract(example):
+    """The canonical contracts examples (single source of truth) validate as-is.
 
-    validate = _validate_analysis_input_or_skip()
-    validate(pd.read_csv(synthetic_inputs_dir / name))
+    Replicate-present (``turface``) and replicate-absent (``cylinder_no_replicate``,
+    #142) shapes are loaded from ``sleap_roots_contracts.examples`` — analyze does not
+    maintain a divergent synthetic copy (#120 fixture-ownership note).
+    """
+    _require_contracts()
+    examples = pytest.importorskip("sleap_roots_contracts.examples")
+    from sleap_roots_contracts import validate_analysis_input
+
+    df = examples.load_analysis_input_example(example)
+    validate_analysis_input(df).raise_for_status()

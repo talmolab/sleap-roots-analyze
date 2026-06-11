@@ -48,34 +48,56 @@ and trait statistics; and the cross-platform correlations slice shared with #119
   committed
 - **AND** the committed `turface_19` slice stays well under the curation budget (~3 MB)
 
-### Requirement: Synthetic Per-Step Fixtures
+### Requirement: Synthetic Analysis-Input Coverage From Contracts
 
-The fixture set SHALL provide synthetic per-step fixtures covering both a
-replicate-present and a replicate-absent analysis-input shape, derived from the
-canonical examples owned by `sleap-roots-contracts` (contracts#3) rather than a second
-hand-maintained copy.
+The synthetic analysis-input coverage SHALL be sourced from the canonical examples
+owned by `sleap-roots-contracts` (contracts#3) via its
+`examples.load_analysis_input_example()` accessor (the single source of truth),
+covering both a replicate-present and a replicate-absent shape. The repository SHALL NOT
+maintain a divergent committed copy of those tables; the `synthetic/` directory
+documents the accessor instead.
 
-#### Scenario: Replicate-present and replicate-absent shapes exist
+#### Scenario: Replicate-present and replicate-absent shapes are covered via the accessor
+
+- **WHEN** the synthetic contract test runs with `sleap-roots-contracts` installed
+- **THEN** it loads a replicate-present example (`turface`) and a replicate-absent
+  example (`cylinder_no_replicate`, #142) from `examples.load_analysis_input_example()`
+  and each validates
+
+#### Scenario: No divergent synthetic copy is committed
 
 - **WHEN** the `synthetic/` directory is inspected
-- **THEN** a replicate-present fixture and a replicate-absent fixture are both present
+- **THEN** it contains documentation pointing at the contracts accessor
+- **AND** it does not commit a second copy of the canonical example CSVs
 
 ### Requirement: Analysis-Input Contract Validation
 
-The post-QC `10_final_data.csv` and the synthetic analysis-input fixtures SHALL pass
-`sleap_roots_contracts.validate_analysis_input()` when the `sleap-roots-contracts`
-package is installed. When the package is not installed, the validation test SHALL be
+The contract tests SHALL validate the post-QC `10_final_data.csv` (after
+canonicalization) and the canonical synthetic examples with
+`sleap_roots_contracts.validate_analysis_input()`, and SHALL **assert the returned
+`ValidationResult`** (via `raise_for_status()` / `ok`) — the validator returns a result
+rather than raising, so a bare call would pass vacuously. The post-QC table SHALL be canonicalized first — native role columns renamed
+to `genotype`/`sample_id`/`replicate` and cast to string, with non-trait metadata
+dropped via `get_trait_columns` (the analyze#144 boundary) — because the contract takes
+fixed canonical role names and no column-mapping parameter. When
+`sleap-roots-contracts` (or `validate_analysis_input`) is unavailable, the test SHALL be
 skipped cleanly rather than fail.
 
-#### Scenario: Inputs validate when contracts is installed
+#### Scenario: Canonicalized inputs validate when contracts is installed
 
-- **WHEN** `sleap-roots-contracts` is installed and the validation test runs
-- **THEN** the post-QC `10_final_data.csv` and each synthetic analysis-input fixture
-  pass `validate_analysis_input()`
+- **WHEN** `sleap-roots-contracts` is installed and the validation tests run
+- **THEN** the canonicalized post-QC `10_final_data.csv` and each canonical example
+  produce a `ValidationResult` with `ok` true (asserted via `raise_for_status()`)
+
+#### Scenario: A non-conforming table fails the assertion
+
+- **WHEN** an analysis-input table is missing a required canonical role (e.g. the raw,
+  un-canonicalized post-QC table with native names)
+- **THEN** `validate_analysis_input(...).raise_for_status()` raises and the test fails
 
 #### Scenario: Validation test skips without contracts
 
-- **WHEN** `sleap-roots-contracts` is not installed
+- **WHEN** `sleap-roots-contracts` or `validate_analysis_input` is not importable
 - **THEN** the contract-validation test is skipped, not failed
 
 ### Requirement: Per-Stage Reproduction Tests

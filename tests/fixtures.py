@@ -3919,12 +3919,6 @@ def edpie_real_dir(repro_fixtures_dir):
 
 
 @pytest.fixture(scope="session")
-def synthetic_inputs_dir(repro_fixtures_dir):
-    """Return the synthetic analysis-input directory."""
-    return repro_fixtures_dir / "synthetic" / "inputs"
-
-
-@pytest.fixture(scope="session")
 def turface19_final_data(edpie_real_dir):
     """Load the turface_19 post-QC ``10_final_data.csv`` golden table."""
     return pd.read_csv(

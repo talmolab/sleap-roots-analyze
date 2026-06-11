@@ -34,8 +34,9 @@ tests/fixtures/
 │       ├── viz/turface_19/        viz outputs (summary, heritability, figure manifests, full step summary)
 │       └── cross_platform/        per-pairing correlations + alignment (turface_19 pairings)
 └── synthetic/
-    ├── inputs/                analysis_input_small.csv (replicate present) + analysis_input_no_replicate.csv (absent)
-    └── expected/              per-input validation reports
+    └── README.md              points at the canonical examples in sleap-roots-contracts
+                               (loaded via examples.load_analysis_input_example;
+                                replicate present + absent — no committed copy here)
 ```
 
 ## What is committed (curation policy)
@@ -62,11 +63,12 @@ they are historical records, not runnable configs. The runnable recipe lives in
 - **Real wheat EDPIE** golden was produced by the EDPIE paper run (Phase 1, Metcalf
   2026) and staged on Box; copied here from the lab fixture bundle. This repo owns the
   **full real reproduction data** (original column names `Barcode`/`Genotype`/`Replicate`).
-- **Synthetic** `analysis_input_*.csv` are **derived from the canonical examples owned
-  by `sleap-roots-contracts`** (contracts#3) — the canonical role-named tables
-  (`genotype`/`sample_id`/`replicate`) are the source of truth there; this is a portable
-  copy for analyze-side tests, not a second maintained source. They cover both the
-  replicate-present (EDPIE) and replicate-absent (Bloom cylinder, #142) shapes.
+- **Synthetic** examples are **owned by `sleap-roots-contracts`** (contracts#3) and
+  loaded via its `examples.load_analysis_input_example()` accessor — the single source
+  of truth for the canonical role-named tables (`genotype`/`sample_id`/`replicate`).
+  This repo keeps **no divergent copy**; `synthetic/README.md` documents the accessor.
+  Coverage: replicate-present (`turface`) and replicate-absent (`cylinder_no_replicate`,
+  the Bloom cylinder shape, #142).
 
 ## Tolerance policy
 
@@ -105,5 +107,14 @@ loaders (in `tests/fixtures.py`) and, for `turface_19`, asserts each stage again
 golden: QC (final-data shape/roster, removed-detail counts, heritability filter), viz
 (PCA explained-variance **re-run** vs golden, heritability/ANOVA summary), and
 cross-platform (correlations structure + alignment). It also checks the harness configs
-validate and that the analysis inputs satisfy the contracts#3 validator when
-`sleap-roots-contracts` is installed (skipped cleanly otherwise).
+validate.
+
+The **contract** tests assert the analysis inputs against the contracts#3 validator:
+the post-QC `10_final_data.csv` is **canonicalized first** (native roles renamed to
+`genotype`/`sample_id`/`replicate`, cast to string, metadata dropped via
+`get_trait_columns` — the analyze#144 boundary), and the canonical examples are loaded
+from `sleap_roots_contracts.examples`. Both assert the returned `ValidationResult` via
+`raise_for_status()` (the validator returns a result, it does not raise — a bare call
+would pass vacuously). These tests run only when `sleap-roots-contracts[pandas]` is
+importable; it is not yet published, so CI currently **skips** them. Once released, add
+`sleap-roots-contracts[pandas]>=0.1.0a1` to the dev dependency group so they run.
