@@ -28,13 +28,21 @@ existing helpers, and expose two orchestrator functions.
   genotype labels → aggregate sample PC scores to genotype means → align on
   common genotypes → correlate every PC × every PC per platform pair → FDR
   correction at **both** `combined` and `per_pair` scopes → export tidy CSVs,
-  figures, and `metadata.json`. Returns a structured `dict` for inspection.
-- **New public capability — trait-level correlation enrichment.** Public
-  function `trait_correlation_enrichment(correlation_files, output_dir, ...)`
-  runs an **independent** DAG over existing trait-level
-  `cross_platform_correlations.csv` files: load → count nominally significant
-  (p < α) → binomial enrichment/depletion test (per-pair + combined) → export
-  `enrichment_results.csv`, a summary figure, and `metadata.json`.
+  figures, and `metadata.json`. Returns a typed `CrossPlatformPCResult`
+  (mirroring `EnrichmentResult`; pioneers the result-types pattern, #127–#130).
+  Its `fdr_methods` are validated by the workflow's own validator (full
+  `statsmodels` family incl. `bonferroni`), not the trait-config validator. A
+  `pc-correlations` CLI subcommand is added.
+- **New capability — trait-level correlation enrichment, in two homes.** A
+  config-gated **DAG step** (`CalculateTraitEnrichment`, default off via
+  `enrichment_enabled`) runs per-pair inside the existing cross-platform
+  pipeline (after correlations, before visualize), so it ships automatically
+  under `cross-platform` and `run-all`. A thin public function
+  `trait_correlation_enrichment(correlation_files, output_dir, ...)` covers
+  ad-hoc enrichment over historical `cross_platform_correlations.csv` files and
+  the **combined / all-pairs** pooled result. Enrichment uses the nominal p + an
+  exact binomial test (no FDR); `CrossPlatformConfig` gains `enrichment_enabled`
+  and `enrichment_p_value_column` (validated to match `correlation_method`).
 - **Reuse, not duplicate.** `correlate.py` imports the existing
   `calculate_correlation_ci`, `achieved_power`, and
   `minimum_detectable_correlation` from `cross_experiment_analysis.py` instead
@@ -57,9 +65,10 @@ existing helpers, and expose two orchestrator functions.
 
 - Affected specs: **new** `pc-correlation-workflow`, **new**
   `trait-correlation-enrichment`. The existing `cross-platform-analysis`
-  (trait-level pipeline) is unchanged — workflow 2 consumes its output but does
-  not modify it.
+  (trait-level pipeline) gains an optional, default-off enrichment step.
 - Affected code: new `src/sleap_roots_analyze/pc_correlations/` subpackage;
-  `__init__.py` exports; new reproduction scripts under `scripts/`; new tests
-  and synthetic fixtures.
-- No breaking changes; purely additive public API.
+  new `CalculateTraitEnrichmentStep` wired into `cross_platform_pipeline`;
+  `CrossPlatformConfig` enrichment fields + validation; `__init__.py` exports;
+  `pc-correlations` CLI subcommand; reproduction scripts; tests + fixtures.
+- No breaking changes; the enrichment step defaults off so existing runs are
+  unchanged; purely additive public API.

@@ -22,6 +22,9 @@ from sleap_roots_analyze.pipeline.steps.reduce_trait_redundancy import (
 from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
     CalculateCrossPlatformCorrelationsStep,
 )
+from sleap_roots_analyze.pipeline.steps.calculate_trait_enrichment import (
+    CalculateTraitEnrichmentStep,
+)
 from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
     VisualizeCrossPlatformStep,
 )
@@ -89,14 +92,15 @@ class CrossPlatformPipeline(BasePipeline):
         return sanitized
 
     def create_tasks(self) -> List[Task]:
-        """Create the cross-platform analysis task graph with 4 steps.
+        """Create the cross-platform analysis task graph with 5 steps.
 
         Returns:
             List of Tasks defining the pipeline DAG:
                 - Step 1: LoadCrossPlatformData
                 - Step 2: ReduceTraitRedundancy (optional, based on config)
                 - Step 3: CalculateCrossPlatformCorrelations
-                - Step 4: VisualizeCrossPlatform
+                - Step 4: CalculateTraitEnrichment (optional, based on config)
+                - Step 5: VisualizeCrossPlatform
         """
         tasks = []
 
@@ -130,12 +134,25 @@ class CrossPlatformPipeline(BasePipeline):
             )
         )
 
-        # Step 4: Visualize correlations
+        # Step 4: Trait-level enrichment (optional - always runs but may be no-op)
+        tasks.append(
+            Task(
+                func=self._run_calculate_trait_enrichment,
+                name="04_calculate_trait_enrichment",
+                depends_on=["03_calculate_correlations"],
+                description=(
+                    "Binomial enrichment on nominal significance "
+                    f"(enabled={self.config.enrichment_enabled})"
+                ),
+            )
+        )
+
+        # Step 5: Visualize correlations
         tasks.append(
             Task(
                 func=self._run_visualize_cross_platform,
-                name="04_visualize_cross_platform",
-                depends_on=["03_calculate_correlations"],
+                name="05_visualize_cross_platform",
+                depends_on=["04_calculate_trait_enrichment"],
                 description="Generate correlation visualizations",
             )
         )
@@ -182,10 +199,26 @@ class CrossPlatformPipeline(BasePipeline):
         )
         return result
 
-    def _run_visualize_cross_platform(self, config, run_dir, logger, **kwargs):
-        """Execute Step 4: Visualize Cross-Platform Correlations."""
-        logger.info("Step 4/4: Generating correlation visualizations...")
+    def _run_calculate_trait_enrichment(self, config, run_dir, logger, **kwargs):
+        """Execute Step 4: Trait-Level Enrichment (config-gated; pass-through)."""
+        logger.info(
+            "Step 4/5: Trait enrichment (enabled=%s)...", config.enrichment_enabled
+        )
         prev_task_result = kwargs.get("03_calculate_correlations")
+        prev_step_result = prev_task_result.data
+        step = CalculateTraitEnrichmentStep()
+        result = step.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_visualize_cross_platform(self, config, run_dir, logger, **kwargs):
+        """Execute Step 5: Visualize Cross-Platform Correlations."""
+        logger.info("Step 5/5: Generating correlation visualizations...")
+        prev_task_result = kwargs.get("04_calculate_trait_enrichment")
         prev_step_result = prev_task_result.data
         step = VisualizeCrossPlatformStep()
         result = step.execute(

@@ -48,7 +48,7 @@ def main() -> None:
         fdr_scope=args.fdr_scope,
         make_figures=not args.no_figures,
     )
-    summary = result["summary"]
+    summary = result.summary
     print(
         f"PC tests: {summary['n_tests']} | genotypes: {summary['n_genotypes']} | "
         f"combined-{args.primary_fdr_method} significant: "

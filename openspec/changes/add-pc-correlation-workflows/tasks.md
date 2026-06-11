@@ -57,3 +57,19 @@
 - [x] 11.2 black + ruff (`src`) clean; new tests green (13 passed, 1 skipped);
       `openspec validate add-pc-correlation-workflows --strict` passes. Full
       `/pre-merge-check` to run before marking the PR ready.
+
+## 12. Review-driven architecture (PR #148 review)
+- [x] 12.1 PC workflow returns a typed `CrossPlatformPCResult`
+      (`pc_correlations/results.py`); exported in `__all__`.
+- [x] 12.2 PC workflow validates its own `fdr_methods` (full statsmodels family,
+      incl. `bonferroni`) via `validate_fdr_methods`, not the trait-config
+      validator.
+- [x] 12.3 `CrossPlatformConfig` gains `enrichment_enabled` +
+      `enrichment_p_value_column` with `__post_init__` validation that the
+      column matches `correlation_method` (kendall rejected when enabled).
+- [x] 12.4 New config-gated `CalculateTraitEnrichmentStep` (per-pair binomial,
+      nominal p, no FDR, pass-through) wired into `cross_platform_pipeline` as
+      step 04 (visualize → 05); representative-only counting pinned by a test.
+- [x] 12.5 `pc-correlations` CLI subcommand added; `cross-platform` dry-run
+      lists the enrichment step.
+- [x] 12.6 Specs/design/proposal updated to the split-home architecture.

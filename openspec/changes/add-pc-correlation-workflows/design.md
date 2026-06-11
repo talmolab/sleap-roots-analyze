@@ -82,6 +82,43 @@ pairwise PC × PC enumeration, and the binomial `EnrichmentResult`.
 `combined fdr_by` is the paper's primary scope/method (0 significant); the
 `metadata.json` documents that the trait-level pipeline uses per-pair `fdr_by`.
 
+## Decision 5 — Split the two workflows by their natural home (review feedback)
+
+The two workflows have different shapes, so they get different homes:
+
+- **Trait enrichment → a config-gated step in the existing cross-platform DAG.**
+  Its input is the pipeline's own `cross_platform_correlations.csv`, so it slots
+  in as a pure downstream node: `… → CalculateCorrelations →
+  [CalculateTraitEnrichment] → Visualize`. Gated by `enrichment_enabled`
+  (default off), it runs automatically under `cross-platform` and `run-all`. The
+  step is **per-pair** (the pipeline is pairwise) and passes its input through so
+  visualization is unaffected. The public `trait_correlation_enrichment` remains
+  the thin ad-hoc entry point over historical CSVs and is where the **combined /
+  all-pairs** pooled ("Combined") result lives — an all-platforms synthesis,
+  above the pairwise DAG.
+
+- **PC correlations → the all-platforms synthesis case.** They need viz's
+  `pc_scores.csv` (a different pipeline) and span all pairs at once (the 47
+  tests), so they do not fit the pairwise DAG; the orchestrator-reads-a-run-dir
+  shape is justified, and a `pc-correlations` CLI subcommand is added.
+
+## Decision 6 — Typed results and separated FDR validation (review feedback)
+
+- The PC workflow returns a typed **`CrossPlatformPCResult`** (mirroring
+  `EnrichmentResult`), pioneering the serializable-result-types pattern
+  (#127–#130) for clean bloom-mcp wrapping.
+- PC FDR methods are validated by the workflow's **own** validator (the full
+  `statsmodels` family, incl. `bonferroni`) — never routed through the
+  trait-level `CrossPlatformConfig` validator (which only allows
+  `fdr_bh`/`fdr_by`/`none`).
+- Enrichment uses the **nominal** p + an exact binomial test (no FDR). The
+  config validates that `enrichment_p_value_column` matches `correlation_method`,
+  so it cannot silently count the wrong column.
+- **Representative population**: enrichment counts the rows of the produced
+  correlation CSV — representative-only under `trait_reduction_method=
+  "clustering"`, full-trait otherwise — an implicit inheritance made explicit
+  and pinned by a test. PC correlations are full-trait PCA by construction.
+
 ## Module layout
 
 ```

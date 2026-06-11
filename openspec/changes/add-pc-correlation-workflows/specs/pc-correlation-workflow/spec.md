@@ -4,21 +4,22 @@
 
 The package SHALL export a public function `cross_platform_pc_correlations` from
 the top-level `sleap_roots_analyze` namespace that runs the complete PC-level
-cross-platform correlation DAG in a single call and returns a structured `dict`.
-The function SHALL accept `pipeline_run` (path to a pipeline-run directory),
-`platform_config` (mapping of platform name → `{pca_dir, final_data,
-genotype_col, n_pcs}`), `output_dir`, and the keyword parameters `fdr_methods`
-(default `["fdr_by", "fdr_bh", "bonferroni"]` when `None`), `primary_fdr_method`
-(default `"fdr_by"`), `alpha` (default `0.05`), `confidence_level` (default
-`0.95`), `fdr_scope` (default `"both"`), and `make_figures` (default `True`).
-The function SHALL have complete type hints and a Google-style docstring and
-SHALL NOT hard-code paper-specific platform paths.
+cross-platform correlation DAG in a single call and returns a typed
+`CrossPlatformPCResult`. The function SHALL accept `pipeline_run` (path to a
+pipeline-run directory), `platform_config` (mapping of platform name →
+`{pca_dir, final_data, genotype_col, n_pcs}`), `output_dir`, and the keyword
+parameters `fdr_methods` (default `["fdr_by", "fdr_bh", "bonferroni"]` when
+`None`), `primary_fdr_method` (default `"fdr_by"`), `alpha` (default `0.05`),
+`confidence_level` (default `0.95`), `fdr_scope` (default `"both"`), and
+`make_figures` (default `True`). The function SHALL have complete type hints and
+a Google-style docstring and SHALL NOT hard-code paper-specific platform paths.
 
-#### Scenario: Function is importable from the package root
+#### Scenario: Function and result type are importable from the package root
 
-- **WHEN** a consumer runs `from sleap_roots_analyze import cross_platform_pc_correlations`
+- **WHEN** a consumer runs `from sleap_roots_analyze import cross_platform_pc_correlations, CrossPlatformPCResult`
 - **THEN** the import SHALL succeed
-- **AND** `cross_platform_pc_correlations` SHALL be listed in `sleap_roots_analyze.__all__`
+- **AND** both `cross_platform_pc_correlations` and `CrossPlatformPCResult` SHALL
+  be listed in `sleap_roots_analyze.__all__`
 
 #### Scenario: Runs the DAG from a pipeline-run directory
 
@@ -28,8 +29,28 @@ SHALL NOT hard-code paper-specific platform paths.
 - **THEN** it SHALL load per-platform sample PC scores and genotype labels,
   aggregate sample PC scores to genotype means, align on common genotypes,
   compute every-PC-by-every-PC correlations per platform pair, apply FDR
-  correction, and return a `dict` exposing the correlation table, the summary,
-  and the genotype-mean PC scores
+  correction, and return a `CrossPlatformPCResult` exposing the correlation
+  table (`correlations`), the `summary`, the `genotype_means`, the
+  `common_genotypes`, and the `output_paths`
+
+### Requirement: PC-Workflow FDR Validation Is Independent
+
+The PC workflow SHALL validate its own `fdr_methods` against the full
+`statsmodels` multiple-testing family (which includes `bonferroni`), independent
+of the trait-level `CrossPlatformConfig` validator (which only allows
+`fdr_bh`/`fdr_by`/`none`). An unsupported method SHALL raise `ValueError`.
+
+#### Scenario: bonferroni is accepted
+
+- **WHEN** the workflow is called with `fdr_methods=["bonferroni"]`
+- **THEN** it SHALL run and emit the corresponding `significant_*_bonferroni`
+  column
+
+#### Scenario: Unknown method is rejected
+
+- **WHEN** the workflow is called with an `fdr_methods` entry that is not a
+  supported method
+- **THEN** it SHALL raise `ValueError`
 
 ### Requirement: Sample-Level PCA Before Genotype Aggregation
 
@@ -92,15 +113,15 @@ The workflow SHALL write a reproducible set of artifacts under `output_dir`:
 `significant_per_pair.csv`, per-platform `genotype_means_*.csv`, a
 `metadata.json` recording parameters and headline results, and — when
 `make_figures=True` — combined/per-pair correlation figures and a sensitivity
-figure. The function SHALL also return the in-memory equivalents so the workflow
-is testable without reading files back.
+figure. The `CrossPlatformPCResult` SHALL also carry the in-memory equivalents
+so the workflow is testable without reading files back.
 
 #### Scenario: Artifacts and return value are both produced
 
 - **WHEN** the workflow completes with `make_figures=False`
 - **THEN** `correlations.csv` and `metadata.json` SHALL exist under `output_dir`
-- **AND** the returned `dict` SHALL expose the correlation table and summary
-  whose test count matches `correlations.csv`
+- **AND** the returned `CrossPlatformPCResult.correlations`/`.summary` SHALL have
+  a test count matching `correlations.csv`
 
 ### Requirement: Wheat EDPIE PC-Correlation Golden Reproduction
 

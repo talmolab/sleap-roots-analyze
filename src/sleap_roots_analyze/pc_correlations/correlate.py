@@ -28,6 +28,41 @@ from sleap_roots_analyze.cross_experiment_analysis import (
 
 DEFAULT_FDR_METHODS = ["fdr_by", "fdr_bh", "bonferroni"]
 
+# Multiple-testing methods the PC workflow accepts. This is the PC workflow's
+# own validation set (the statsmodels family, including ``bonferroni``) and is
+# intentionally broader than the trait-level ``CrossPlatformConfig``, which only
+# allows ``fdr_bh``/``fdr_by``/``none``. Do not route PC methods through the
+# trait-config validator.
+ALLOWED_FDR_METHODS = (
+    "bonferroni",
+    "sidak",
+    "holm-sidak",
+    "holm",
+    "simes-hochberg",
+    "hommel",
+    "fdr_bh",
+    "fdr_by",
+    "fdr_tsbh",
+    "fdr_tsbky",
+)
+
+
+def validate_fdr_methods(fdr_methods: list[str]) -> None:
+    """Validate PC-workflow FDR methods against the supported statsmodels family.
+
+    Args:
+        fdr_methods: Methods passed to ``statsmodels`` ``multipletests``.
+
+    Raises:
+        ValueError: If any method is not in :data:`ALLOWED_FDR_METHODS`.
+    """
+    unknown = [m for m in fdr_methods if m not in ALLOWED_FDR_METHODS]
+    if unknown:
+        raise ValueError(
+            f"Unsupported FDR method(s) {unknown}; expected any of "
+            f"{list(ALLOWED_FDR_METHODS)}."
+        )
+
 
 def calculate_correlation(
     x: np.ndarray, y: np.ndarray, method: str = "spearman"

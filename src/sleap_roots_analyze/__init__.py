@@ -181,6 +181,7 @@ from sleap_roots_analyze.depth_profile_plots import (
 from sleap_roots_analyze.pc_correlations import (
     cross_platform_pc_correlations,
     trait_correlation_enrichment,
+    CrossPlatformPCResult,
     EnrichmentResult,
 )
 
@@ -315,5 +316,6 @@ __all__ = [
     # PC-correlation & trait-enrichment workflows
     "cross_platform_pc_correlations",
     "trait_correlation_enrichment",
+    "CrossPlatformPCResult",
     "EnrichmentResult",
 ]

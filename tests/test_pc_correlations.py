@@ -25,6 +25,7 @@ import pandas as pd
 import pytest
 
 from sleap_roots_analyze import (
+    CrossPlatformPCResult,
     EnrichmentResult,
     cross_platform_pc_correlations,
     trait_correlation_enrichment,
@@ -237,12 +238,13 @@ def test_pc_workflow_produces_artifacts_and_matching_dict(synthetic_pipeline_run
         output_dir=out,
         make_figures=False,
     )
-    # Returned dict reflects the DAG.
-    assert result["summary"]["n_tests"] == 47
-    assert result["summary"]["n_genotypes"] == 10
-    assert result["common_genotypes"] == [f"G{i:02d}" for i in range(10)]
+    # Typed result reflects the DAG.
+    assert isinstance(result, CrossPlatformPCResult)
+    assert result.summary["n_tests"] == 47
+    assert result.summary["n_genotypes"] == 10
+    assert result.common_genotypes == [f"G{i:02d}" for i in range(10)]
     # Artifacts on disk match the returned table.
-    corr_path = Path(result["output_paths"]["correlations"])
+    corr_path = Path(result.output_paths["correlations"])
     assert corr_path.exists()
     assert len(pd.read_csv(corr_path)) == 47
     assert (out / "metadata.json").exists()
@@ -256,7 +258,7 @@ def test_pc_workflow_writes_figures_when_requested(synthetic_pipeline_run):
     result = cross_platform_pc_correlations(
         run_dir, config, out, fdr_scope="both", make_figures=True
     )
-    figures_dir = Path(result["output_paths"]["figures_dir"])
+    figures_dir = Path(result.output_paths["figures_dir"])
     assert (figures_dir / "sensitivity_analysis.png").exists()
     assert (figures_dir / "combined" / "correlation_summary.png").exists()
 
@@ -301,10 +303,31 @@ def test_public_api_exports():
     for name in (
         "cross_platform_pc_correlations",
         "trait_correlation_enrichment",
+        "CrossPlatformPCResult",
         "EnrichmentResult",
     ):
         assert name in sra.__all__
         assert hasattr(sra, name)
+
+
+def test_pc_workflow_rejects_unknown_fdr_method(synthetic_pipeline_run):
+    """PC FDR validation is its own (broader than CrossPlatformConfig)."""
+    run_dir, config = synthetic_pipeline_run
+    out = run_dir.parent / "bad_fdr"
+    with pytest.raises(ValueError, match="Unsupported FDR method"):
+        cross_platform_pc_correlations(
+            run_dir, config, out, fdr_methods=["fdr_by", "not_a_method"]
+        )
+
+
+def test_pc_workflow_accepts_bonferroni(synthetic_pipeline_run):
+    """bonferroni is valid for PC FDR even though CrossPlatformConfig forbids it."""
+    run_dir, config = synthetic_pipeline_run
+    out = run_dir.parent / "bonf"
+    result = cross_platform_pc_correlations(
+        run_dir, config, out, fdr_methods=["bonferroni"], make_figures=False
+    )
+    assert "significant_combined_bonferroni" in result.correlations.columns
 
 
 # ---------------------------------------------------------------------------

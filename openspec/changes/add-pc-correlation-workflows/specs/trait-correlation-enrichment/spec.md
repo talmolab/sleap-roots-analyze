@@ -1,5 +1,53 @@
 ## ADDED Requirements
 
+### Requirement: Trait Enrichment as a Config-Gated Pipeline Step
+
+The cross-platform pipeline SHALL include a config-gated trait-enrichment step
+that runs after correlation calculation and before visualization. The step SHALL
+run only when `CrossPlatformConfig.enrichment_enabled` is true; otherwise it
+SHALL pass its input through unchanged. When enabled, it SHALL count the
+nominally significant (`p < significance_level`) rows of the platform pair's
+correlation table using `enrichment_p_value_column`, run an exact binomial test
+(no FDR), and write `trait_enrichment.csv`. Because the upstream correlation
+table is already representative-only when `trait_reduction_method="clustering"`,
+the step SHALL count that table's rows directly without re-filtering.
+
+#### Scenario: Disabled enrichment is a pass-through
+
+- **WHEN** the step runs with `enrichment_enabled` false
+- **THEN** it SHALL not write `trait_enrichment.csv`
+- **AND** it SHALL pass the correlation data through so visualization still runs
+
+#### Scenario: Enabled enrichment counts the correlation rows
+
+- **WHEN** the step runs with `enrichment_enabled` true on a correlation table
+  of N rows with K nominally significant
+- **THEN** it SHALL write `trait_enrichment.csv` and report `n_tests = N` and
+  `n_significant = K`
+
+### Requirement: Enrichment Configuration Validation
+
+`CrossPlatformConfig` SHALL expose `enrichment_enabled` (default `False`) and
+`enrichment_p_value_column` (default `"spearman_p"`), reusing
+`significance_level` and `confidence_level`. When `enrichment_enabled` is true,
+the config SHALL validate that `enrichment_p_value_column` matches
+`correlation_method` (`spearman` → `spearman_p`, `pearson` → `pearson_p`) and
+SHALL reject methods with no emitted p-value column (e.g. `kendall`). Enrichment
+SHALL use the nominal p-value and a binomial test, distinct from the trait
+pipeline's per-pair `fdr_by` correction.
+
+#### Scenario: Mismatched p-value column is rejected
+
+- **WHEN** a config sets `enrichment_enabled` true, `correlation_method`
+  `"spearman"`, and `enrichment_p_value_column` `"pearson_p"`
+- **THEN** construction SHALL raise `ValueError`
+
+#### Scenario: Default-off enrichment skips validation
+
+- **WHEN** `enrichment_enabled` is false
+- **THEN** the config SHALL construct successfully regardless of
+  `enrichment_p_value_column`
+
 ### Requirement: Public Trait-Level Correlation Enrichment Workflow
 
 The package SHALL export a public function `trait_correlation_enrichment` from

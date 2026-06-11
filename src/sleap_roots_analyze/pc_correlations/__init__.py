@@ -21,6 +21,7 @@ confidence-interval and power helpers from
 from __future__ import annotations
 
 from sleap_roots_analyze.pc_correlations.enrichment import EnrichmentResult
+from sleap_roots_analyze.pc_correlations.results import CrossPlatformPCResult
 from sleap_roots_analyze.pc_correlations.workflow import (
     cross_platform_pc_correlations,
     trait_correlation_enrichment,
@@ -29,5 +30,6 @@ from sleap_roots_analyze.pc_correlations.workflow import (
 __all__ = [
     "cross_platform_pc_correlations",
     "trait_correlation_enrichment",
+    "CrossPlatformPCResult",
     "EnrichmentResult",
 ]

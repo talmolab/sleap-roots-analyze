@@ -27,12 +27,14 @@ from sleap_roots_analyze.pc_correlations.correlate import (
     DEFAULT_FDR_METHODS,
     calculate_all_platform_correlations,
     summarize_correlations,
+    validate_fdr_methods,
 )
 from sleap_roots_analyze.pc_correlations.enrichment import (
     calculate_all_enrichment_tests,
     create_enrichment_figure,
     results_to_dataframe,
 )
+from sleap_roots_analyze.pc_correlations.results import CrossPlatformPCResult
 from sleap_roots_analyze.pc_correlations.visualize import (
     create_correlation_heatmap,
     create_correlation_summary_figure,
@@ -76,7 +78,7 @@ def cross_platform_pc_correlations(
     confidence_level: float = 0.95,
     fdr_scope: str = "both",
     make_figures: bool = True,
-) -> dict[str, Any]:
+) -> CrossPlatformPCResult:
     """Run the PC-level cross-platform correlation workflow in one call.
 
     Loads per-platform sample PC scores and QC genotype labels from a pipeline
@@ -99,13 +101,23 @@ def cross_platform_pc_correlations(
         make_figures: Whether to render correlation and sensitivity figures.
 
     Returns:
-        Dict with keys ``correlations`` (DataFrame), ``summary`` (dict),
-        ``genotype_means`` (mapping of platform to aligned genotype-mean PCs),
-        ``common_genotypes`` (list), and ``output_paths`` (mapping of artifact
-        name to path).
+        A :class:`CrossPlatformPCResult`.
+
+    Raises:
+        ValueError: If ``fdr_scope`` is unknown or an ``fdr_methods`` entry is
+            not a supported multiple-testing method.
     """
     if fdr_methods is None:
         fdr_methods = list(DEFAULT_FDR_METHODS)
+    # PC-level FDR is validated independently of the trait-level
+    # CrossPlatformConfig (which only allows fdr_bh/fdr_by/none); the PC workflow
+    # deliberately supports the full statsmodels family, including bonferroni.
+    validate_fdr_methods(fdr_methods)
+    if fdr_scope not in ("combined", "per_pair", "both"):
+        raise ValueError(
+            f"fdr_scope must be 'combined', 'per_pair', or 'both', got "
+            f"{fdr_scope!r}."
+        )
     output_dir = Path(output_dir)
     data_dir = output_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -205,13 +217,13 @@ def cross_platform_pc_correlations(
         json.dump(metadata, fh, indent=2)
     output_paths["metadata"] = str(metadata_path)
 
-    return {
-        "correlations": correlations,
-        "summary": summary,
-        "genotype_means": aligned_data,
-        "common_genotypes": common_genotypes,
-        "output_paths": output_paths,
-    }
+    return CrossPlatformPCResult(
+        correlations=correlations,
+        summary=summary,
+        genotype_means=aligned_data,
+        common_genotypes=common_genotypes,
+        output_paths=output_paths,
+    )
 
 
 def trait_correlation_enrichment(
