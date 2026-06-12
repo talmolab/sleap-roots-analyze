@@ -40,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hard-fail (alongside missing `genotype`, no numeric trait, and bad role dtype), so
   exports carrying blank genotype cells will error unless `validate_input` is set to
   `off` or the column is cleaned first. (#144)
+- Extend the same optional input-contract validation to the **cross-platform**
+  load boundary (`LoadCrossPlatformDataStep`). New `validate_input: off | warn |
+  strict` flag (default `warn`) on `CrossPlatformConfig` validates each loaded
+  experiment frame on a discarded copy; no golden output change. Aligned frames carry
+  no per-sample id, so `strict` injects a synthetic positional `sample_id` into the
+  discarded copy (rather than failing on the structurally-absent role) and otherwise
+  enforces the full contract. Rows with a blank/NaN genotype are now dropped during
+  alignment, so `off`/`warn`/`strict` stay output-identical. (#154)
 - Expose the eight `statistics.py` functions through the top-level
   `sleap_roots_analyze` namespace and `__all__`, so they can be imported directly
   (e.g. `from sleap_roots_analyze import calculate_heritability_estimates`) instead
