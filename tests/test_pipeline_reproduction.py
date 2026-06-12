@@ -51,10 +51,26 @@ HARNESS_VIZ = {
 # paper run's committed golden artifacts.
 EXPECTED = {
     "turface_19": dict(
-        n_samples=153, threshold=0.6, retained=8, removed=8, outliers=5, anova_sig=8
+        n_samples=153,
+        threshold=0.6,
+        retained=8,
+        removed=8,
+        outliers=5,
+        removed_traits=0,
+        removed_samples=0,
+        anova_sig=8,
+        mean_h2=0.7650052743157677,
     ),
     "turface_150": dict(
-        n_samples=886, threshold=0.4, retained=13, removed=2, outliers=39, anova_sig=13
+        n_samples=886,
+        threshold=0.4,
+        retained=13,
+        removed=2,
+        outliers=39,
+        removed_traits=1,
+        removed_samples=0,
+        anova_sig=13,
+        mean_h2=0.6194139599513456,
     ),
     "cylinder": dict(
         n_samples=123,
@@ -62,10 +78,21 @@ EXPECTED = {
         retained=588,
         removed=231,
         outliers=6,
+        removed_traits=0,
+        removed_samples=0,
         anova_sig=587,
+        mean_h2=0.7638835940127436,
     ),
     "root_core": dict(
-        n_samples=58, threshold=0.5, retained=24, removed=11, outliers=2, anova_sig=24
+        n_samples=58,
+        threshold=0.5,
+        retained=24,
+        removed=11,
+        outliers=2,
+        removed_traits=0,
+        removed_samples=0,
+        anova_sig=24,
+        mean_h2=0.7583650568057024,
     ),
 }
 
@@ -107,8 +134,19 @@ def test_platform_golden_dirs_present(edpie_real_dir, platform):
 
 def test_curation_excludes_non_assertable_artifacts(repro_fixtures_dir):
     """No run logs / source tarballs / oversized stage summaries are committed."""
-    banned = {"pipeline.log", "viz_pipeline.log", "code_snapshot.tar.gz"}
-    offenders = [p for p in repro_fixtures_dir.rglob("*") if p.name in banned]
+    # Any log, source tarball, or oversized per-sample loaded-intermediate is excluded
+    # (enforces the README curation policy by glob, not just a fixed name list).
+    offenders = [
+        p
+        for p in repro_fixtures_dir.rglob("*")
+        if p.is_file()
+        and (
+            p.suffix == ".log"
+            or p.name == "code_snapshot.tar.gz"
+            or p.name.startswith("cross_platform_exp")
+            and p.name.endswith("_loaded.csv")
+        )
+    ]
     assert not offenders, f"non-assertable artifacts committed: {offenders}"
     # The oversized per-stage QC/viz summaries (52 MB cylinder / 13 MB turface_150)
     # are excluded; compact viz_pca_metadata.json + viz_umap_embedding.csv replace them.
@@ -162,16 +200,19 @@ def test_qc_heritability_filter_golden(qc_heritability_by_platform, platform):
     assert s["traits_retained"] == exp["retained"]
     assert s["traits_removed"] == exp["removed"]
     assert len(s["removed_trait_names"]) == exp["removed"]
-    assert 0.0 <= s["mean_heritability_retained"] <= 1.0
+    assert np.isclose(
+        s["mean_heritability_retained"], exp["mean_h2"], rtol=RTOL, atol=ATOL
+    )
 
 
 @pytest.mark.parametrize("platform", PLATFORMS)
-def test_qc_removed_outliers_count(qc_removed_counts_by_platform, platform):
-    """The golden number of samples were removed as outliers."""
-    assert (
-        qc_removed_counts_by_platform[platform]["outliers"]
-        == EXPECTED[platform]["outliers"]
-    )
+def test_qc_removed_counts(qc_removed_counts_by_platform, platform):
+    """The golden number of outliers / cleanup-removed traits / samples were removed."""
+    counts = qc_removed_counts_by_platform[platform]
+    exp = EXPECTED[platform]
+    assert counts["outliers"] == exp["outliers"]
+    assert counts["traits"] == exp["removed_traits"]
+    assert counts["samples"] == exp["removed_samples"]
 
 
 # ---------------------------------------------------------------------------
