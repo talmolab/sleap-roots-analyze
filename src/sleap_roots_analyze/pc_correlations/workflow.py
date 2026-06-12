@@ -5,8 +5,10 @@
 - :func:`trait_correlation_enrichment` runs the independent trait-level binomial
   enrichment DAG over existing ``cross_platform_correlations.csv`` files.
 
-Both return an in-memory ``dict`` (alongside the written artifacts) so they are
-testable without reading files back.
+``cross_platform_pc_correlations`` returns a typed
+:class:`CrossPlatformPCResult`; ``trait_correlation_enrichment`` returns a
+``dict``. Both carry the in-memory artifacts (alongside the written files) so
+they are testable without reading files back.
 """
 
 from __future__ import annotations

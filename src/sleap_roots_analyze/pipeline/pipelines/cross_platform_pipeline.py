@@ -1,7 +1,8 @@
 """Cross-Platform Pipeline orchestrator for comparing traits across experiments.
 
-This module provides the CrossPlatformPipeline class that orchestrates the 3 cross-platform
-analysis steps in a NetworkX-based DAG for reproducible, automated cross-experiment analysis.
+This module provides the CrossPlatformPipeline class that orchestrates the
+cross-platform analysis steps in a NetworkX-based DAG for reproducible, automated
+cross-experiment analysis.
 """
 
 from __future__ import annotations
@@ -35,8 +36,10 @@ class CrossPlatformPipeline(BasePipeline):
 
     This pipeline performs:
     1. Load and align data from two experiments
-    2. Calculate correlations between all trait pairs
-    3. Generate visualizations of correlations
+    2. Reduce trait redundancy (optional, config-gated)
+    3. Calculate correlations between all trait pairs
+    4. Trait-level binomial enrichment (optional, config-gated)
+    5. Generate visualizations of correlations
 
     The pipeline is designed to compare traits across different experimental
     platforms or conditions to identify which traits capture similar biological

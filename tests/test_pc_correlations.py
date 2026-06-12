@@ -333,13 +333,15 @@ def test_pc_workflow_accepts_bonferroni(synthetic_pipeline_run):
 # ---------------------------------------------------------------------------
 # Wheat EDPIE PC-correlation golden regression (pending issue #120 fixtures)
 # ---------------------------------------------------------------------------
-def test_wheat_edpie_pc_golden_47_19_0():
+@pytest.mark.skip(
+    reason="PENDING issue #120: needs all 3 platforms' sample-level PCA outputs "
+    "(pc_scores.csv) + QC final_data; only the turface_19 slice ships today. "
+    "Wired to real 47/19/0 assertions in a follow-up — this is a known-pending "
+    "placeholder, not live coverage."
+)
+def test_wheat_edpie_pc_golden_47_19_0_pending_120():
     """Reproduce 47 PC tests / 19 genotypes / 0 combined-fdr_by-significant.
 
-    Skipped: the PC workflow needs all three platforms' sample-level PCA outputs
-    (pc_scores.csv) + QC final_data, but issue #120 currently ships only the
-    turface_19 slice. This test is wired in a follow-up once the cylinder and
-    field PCA slices exist; today it would be a no-op rather than a real
-    reproduction, so it skips honestly instead of pinning a synthetic stand-in.
+    Decorator-level skip so it is visible as a known-pending test at collection
+    rather than reading as live coverage that silently no-ops.
     """
-    pytest.skip("Full 3-platform wheat EDPIE PCA fixture not yet available (#120).")

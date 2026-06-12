@@ -37,6 +37,13 @@ class CalculateTraitEnrichmentStep(BaseStep):
     ``trait_reduction_method="none"`` it is the full-trait enrichment. Either way
     the step counts the rows of the produced correlation table — it does not need
     to re-filter representatives.
+
+    Note:
+        ``n_tests`` is the number of correlation rows actually produced — pairs
+        dropped upstream for falling below ``min_genotypes_for_correlation`` are
+        not in the table and are correctly excluded from the binomial
+        denominator, so ``n_tests`` is the retained-pair count, not the full
+        ``len(exp1_traits) * len(exp2_traits)`` grid.
     """
 
     def __init__(self):

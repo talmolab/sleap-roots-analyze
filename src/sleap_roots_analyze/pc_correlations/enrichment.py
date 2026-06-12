@@ -68,6 +68,13 @@ def calculate_enrichment_test(
 ) -> EnrichmentResult:
     """Run a binomial enrichment test for nominally significant correlations.
 
+    Note:
+        The ``interpretation`` label (enriched/depleted/null) uses a fixed 0.05
+        threshold on the one-sided binomial p-values. This is the *meta-test*
+        threshold and is intentionally independent of ``confidence_level`` (which
+        only governs the proportion CI) and of ``alpha`` (which is the per-test
+        null proportion).
+
     Args:
         n_significant: Number of tests with ``p < alpha``.
         n_tests: Total number of correlation tests.

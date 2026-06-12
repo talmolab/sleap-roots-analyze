@@ -75,6 +75,16 @@ def aggregate_pc_scores_by_genotype(
     if pc_columns is None:
         pc_columns = list(pc_scores.columns)
 
+    # PC scores and genotype labels come from two separately loaded files
+    # (pc_scores.csv and the QC final_data) that must be row-aligned; guard with
+    # a clear message rather than pandas' generic length-mismatch error.
+    if len(genotype_series) != len(pc_scores):
+        raise ValueError(
+            f"PC scores have {len(pc_scores)} rows but genotype labels have "
+            f"{len(genotype_series)}; pc_scores.csv and the QC final_data must "
+            "be row-aligned (same samples, same order)."
+        )
+
     df = pc_scores[pc_columns].copy()
     df["genotype"] = genotype_series.to_numpy()
 
