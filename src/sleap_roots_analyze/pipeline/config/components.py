@@ -884,8 +884,22 @@ class CrossPlatformConfig:
     enrichment_enabled: bool = False
     enrichment_p_value_column: str = "spearman_p"
 
+    # Input-contract validation at the cross-platform load boundary (issue #154).
+    # Same off | warn | strict semantics as DataConfig.validate_input; validates each
+    # loaded experiment frame on a discarded copy. Requires the optional
+    # sleap-roots-contracts dependency; a logged no-op when it is absent.
+    validate_input: str = "warn"
+
     def __post_init__(self):
         """Validate configuration parameters."""
+        # Validate input-contract validation mode (issue #154)
+        valid_validate_input_modes = ["off", "warn", "strict"]
+        if self.validate_input not in valid_validate_input_modes:
+            raise ValueError(
+                f"validate_input must be one of off | warn | strict, "
+                f"got '{self.validate_input}'"
+            )
+
         # Validate correlation method
         valid_methods = ["spearman", "pearson", "kendall"]
         if self.correlation_method not in valid_methods:

@@ -154,6 +154,54 @@ def test_cross_platform_config_invalid_correlation_method():
         )
 
 
+def test_cross_platform_config_validate_input_defaults_to_warn():
+    """validate_input defaults to 'warn' on CrossPlatformConfig (issue #154)."""
+    from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+    config = CrossPlatformConfig(
+        exp1_data_path="exp1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno1",
+        exp2_data_path="exp2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno2",
+    )
+    assert config.validate_input == "warn"
+
+
+def test_cross_platform_config_invalid_validate_input():
+    """Invalid validate_input raises ValueError (issue #154)."""
+    from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+    with pytest.raises(ValueError, match=r"validate_input.*off \| warn \| strict"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            validate_input="lenient",
+        )
+
+
+def test_cross_platform_config_valid_validate_input_modes():
+    """Each valid validate_input mode is accepted (issue #154)."""
+    from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+
+    for mode in ["off", "warn", "strict"]:
+        config = CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            validate_input=mode,
+        )
+        assert config.validate_input == mode
+
+
 def test_cross_platform_config_pearson_method():
     """Test CrossPlatformConfig with pearson correlation method."""
     from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
