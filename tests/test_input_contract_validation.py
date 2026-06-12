@@ -192,3 +192,97 @@ def test_contracts_absent_is_logged_noop(good_input, caplog):
 def test_module_exposes_contracts_available_flag():
     """The module advertises whether contracts is importable."""
     assert CONTRACTS_AVAILABLE is True  # installed in the dev group
+
+
+# --- 5.1 / 5.2: equivalence + contracts-absent proofs on a real golden input ---
+
+from pathlib import Path  # noqa: E402
+
+from sleap_roots_analyze.pipeline import (  # noqa: E402
+    ColumnConfig as _ColumnConfig,
+    DataConfig,
+    QCPipelineConfig,
+)
+from sleap_roots_analyze.pipeline.steps import LoadDataStep  # noqa: E402
+
+# The committed #120/#146 turface_19 raw EDPIE input (smallest reproduction input).
+_TURFACE_19_RAW = (
+    Path(__file__).parent
+    / "fixtures"
+    / "real"
+    / "wheat_edpie"
+    / "inputs"
+    / "raw"
+    / "turface_19"
+    / "Turface_all_traits_2024_RSR_diameter_angle_traits_removed.csv"
+)
+
+
+def _turface_19_qc_config(mode: str) -> QCPipelineConfig:
+    """A QC config over the committed turface_19 raw input with the given mode."""
+    return QCPipelineConfig(
+        pipeline_name="turface_19_equivalence",
+        columns=_ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+        data=DataConfig(csv_path=str(_TURFACE_19_RAW), validate_input=mode),
+    )
+
+
+@pytest.mark.skipif(not _TURFACE_19_RAW.exists(), reason="repro fixture missing")
+def test_equivalence_off_vs_warn_on_golden(tmp_path):
+    """validate_input off vs warn yields an identical loaded entry frame (#144).
+
+    The validator only runs at LoadDataStep; every downstream QC/PCA stage is a pure
+    function of this frame, so identical load output guarantees identical results. We
+    reuse the #120/#146 turface_19 golden input and assert frame equality directly
+    rather than running the heavy (UMAP-flaky) full pipeline twice.
+    """
+    step = LoadDataStep()
+    off_dir, warn_dir = tmp_path / "off", tmp_path / "warn"
+    off_dir.mkdir()
+    warn_dir.mkdir()
+
+    r_off = step.execute(
+        data=None,
+        config=_turface_19_qc_config("off"),
+        run_dir=off_dir,
+        prev_result=None,
+    )
+    r_warn = step.execute(
+        data=None,
+        config=_turface_19_qc_config("warn"),
+        run_dir=warn_dir,
+        prev_result=None,
+    )
+    assert_frame_equal(r_off.data, r_warn.data)
+
+
+@pytest.mark.skipif(not _TURFACE_19_RAW.exists(), reason="repro fixture missing")
+def test_runs_without_contracts_identical_output(tmp_path, monkeypatch, caplog):
+    """With contracts unavailable, run-all loads cleanly with identical output (#144)."""
+    step = LoadDataStep()
+    baseline_dir, absent_dir = tmp_path / "base", tmp_path / "absent"
+    baseline_dir.mkdir()
+    absent_dir.mkdir()
+
+    # Baseline: validation active (contracts installed).
+    r_base = step.execute(
+        data=None,
+        config=_turface_19_qc_config("warn"),
+        run_dir=baseline_dir,
+        prev_result=None,
+    )
+
+    # Simulate contracts absent: the helper must degrade to a logged no-op.
+    monkeypatch.setattr(input_contract, "CONTRACTS_AVAILABLE", False)
+    monkeypatch.setattr(input_contract, "validate_analysis_input", None)
+    monkeypatch.setattr(input_contract, "canonicalize_role_dtypes", None)
+    with caplog.at_level(logging.INFO):
+        r_absent = step.execute(
+            data=None,
+            config=_turface_19_qc_config("warn"),
+            run_dir=absent_dir,
+            prev_result=None,
+        )
+
+    assert_frame_equal(r_base.data, r_absent.data)
+    assert any("skip" in r.message.lower() for r in caplog.records)
