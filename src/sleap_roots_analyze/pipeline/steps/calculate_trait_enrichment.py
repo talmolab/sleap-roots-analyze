@@ -95,6 +95,32 @@ class CalculateTraitEnrichmentStep(BaseStep):
         n_significant, n_tests = count_significant(
             correlation_df, p_value_column=p_col, alpha=config.significance_level
         )
+
+        # The upstream correlation step can legitimately emit an empty (or
+        # all-degenerate) table when every pair falls below
+        # min_genotypes_for_correlation. That is a survivable outcome the
+        # visualize step already handles, so skip the binomial (which requires
+        # n_tests > 0), warn, and pass data through instead of crashing the DAG.
+        if n_tests == 0:
+            logger.warning(
+                "Trait enrichment (%s): no testable correlations "
+                "(empty/all-degenerate table); skipping the binomial test.",
+                pair_label,
+            )
+            output_file = run_dir / "trait_enrichment.csv"
+            results_to_dataframe([]).to_csv(output_file, index=False)
+            return StepResult(
+                data=data,
+                metadata={
+                    **prev_metadata,
+                    "enrichment_enabled": True,
+                    "enrichment_p_value_column": p_col,
+                    "enrichment_n_tests": 0,
+                    "enrichment_skipped_reason": "no testable correlations",
+                },
+                files_generated=[str(output_file)],
+            )
+
         result = calculate_enrichment_test(
             n_significant=n_significant,
             n_tests=n_tests,

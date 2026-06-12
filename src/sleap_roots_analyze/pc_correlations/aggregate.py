@@ -156,6 +156,15 @@ def align_genotypes_across_platforms(
         Tuple of ``(common_genotypes, aligned_data)`` where ``common_genotypes``
         is the sorted intersection and ``aligned_data`` maps each platform name
         to its ``genotype_means`` filtered to those genotypes.
+
+    Note:
+        For three or more platforms this is the intersection across **all**
+        platforms, not the true pairwise intersection. Every pair is therefore
+        correlated on the same shared panel (a uniform ``n``), which can
+        understate the genotypes actually available to a given pair — and hence
+        makes the headline power / minimum-detectable-correlation slightly
+        conservative. This is intentional (one comparable panel across all
+        pairs).
     """
     genotype_sets = [
         set(data["genotype_means"].index) for data in platform_data.values()

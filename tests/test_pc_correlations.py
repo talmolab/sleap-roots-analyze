@@ -331,6 +331,67 @@ def test_pc_workflow_accepts_bonferroni(synthetic_pipeline_run):
 
 
 # ---------------------------------------------------------------------------
+# Edge cases: messy data must NOT crash (NaN/empty + survive, never raise)
+# ---------------------------------------------------------------------------
+def test_pc_workflow_zero_common_genotypes_does_not_crash(tmp_path):
+    """No shared genotypes -> NaN summary, not a crash (min-detectable n<4)."""
+    rng = np.random.default_rng(7)
+    run_dir = tmp_path / "run"
+    config = {}
+    # Two platforms with entirely disjoint genotype panels.
+    for name, gset in (("A", range(0, 6)), ("B", range(100, 106))):
+        pcs, genos = _make_sample_pc_scores(
+            rng, [f"G{i:02d}" for i in gset], n_reps=3, n_pc_cols=4
+        )
+        config[name] = _write_platform(run_dir, name, pcs, genos)
+    config["A"]["n_pcs"] = 2
+    config["B"]["n_pcs"] = 2
+
+    out = tmp_path / "pc_out"
+    result = cross_platform_pc_correlations(run_dir, config, out, make_figures=False)
+
+    assert result.summary["n_genotypes"] == 0
+    assert result.common_genotypes == []
+    assert np.isnan(result.summary["min_detectable_r_80_power"])
+    # Per-PC rows still produced (all-NaN correlations), and FDR is all-NaN.
+    assert result.summary["n_significant_combined"] == 0
+    assert (tmp_path / "pc_out" / "metadata.json").exists()
+
+
+def test_summarize_correlations_small_n_returns_nan_mdr():
+    from sleap_roots_analyze.pc_correlations.correlate import summarize_correlations
+
+    # Empty table -> n_tests 0, n_genotypes 0, NaN MDR, no crash.
+    summary = summarize_correlations(pd.DataFrame())
+    assert summary["n_tests"] == 0
+    assert summary["n_genotypes"] == 0
+    assert np.isnan(summary["min_detectable_r_80_power"])
+
+
+def test_degenerate_single_genotype_correlation_is_nan():
+    from sleap_roots_analyze.pc_correlations.correlate import (
+        calculate_all_platform_correlations,
+    )
+
+    one = pd.DataFrame({"PC1": [1.0], "PC2": [2.0]}, index=["g1"])
+    df = calculate_all_platform_correlations(
+        {"A": one, "B": one}, {"A": 2, "B": 2}, fdr_methods=["fdr_by"]
+    )
+    # n_genotypes < 2 -> correlations are NaN, not a spurious value or a crash.
+    assert df["spearman_r"].isna().all()
+    assert df["spearman_p"].isna().all()
+
+
+def test_count_significant_excludes_nan_p_rows():
+    from sleap_roots_analyze.pc_correlations.enrichment import count_significant
+
+    df = pd.DataFrame({"spearman_p": [0.01, 0.5, np.nan, np.nan, 0.04]})
+    n_sig, n_tests = count_significant(df, alpha=0.05)
+    assert n_tests == 3  # NaN rows excluded from the denominator
+    assert n_sig == 2
+
+
+# ---------------------------------------------------------------------------
 # Wheat EDPIE PC-correlation golden regression (pending issue #120 fixtures)
 # ---------------------------------------------------------------------------
 @pytest.mark.skip(

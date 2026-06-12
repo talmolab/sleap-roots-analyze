@@ -278,10 +278,15 @@ def calculate_all_platform_correlations(
     return combined
 
 
+#: Target power for the headline minimum-detectable-correlation summary.
+MIN_DETECTABLE_POWER = 0.80
+
+
 def summarize_correlations(
     correlation_df: pd.DataFrame,
     primary_method: str = "fdr_by",
     fdr_scope: str = "both",
+    alpha: float = 0.05,
 ) -> dict[str, Any]:
     """Summarise a cross-platform correlation table.
 
@@ -290,10 +295,13 @@ def summarize_correlations(
         primary_method: FDR method used for the headline significance counts.
         fdr_scope: Scope whose columns to read (``"combined"``, ``"per_pair"``,
             or ``"both"``).
+        alpha: Significance level for the minimum-detectable-correlation summary
+            (threaded through so it matches the workflow's ``alpha``).
 
     Returns:
         Dict of summary statistics (test counts, per-pair counts, significance
-        counts, power, and the minimum detectable correlation at 80% power).
+        counts, power, and the minimum detectable correlation at
+        :data:`MIN_DETECTABLE_POWER`).
     """
     n_tests = len(correlation_df)
     n_genotypes = int(correlation_df["n_genotypes"].iloc[0]) if n_tests > 0 else 0
@@ -308,9 +316,15 @@ def summarize_correlations(
         for (p1, p2), group in correlation_df.groupby(["platform1", "platform2"]):
             tests_per_pair[f"{p1}_vs_{p2}"] = len(group)
 
-    min_detectable_r = minimum_detectable_correlation(
-        n_genotypes, alpha=0.05, power=0.80
-    )
+    # The Fisher-z MDR is undefined for n < 4 (the helper raises on n <= 0); a
+    # zero/near-empty common panel is a survivable outcome, so report NaN rather
+    # than crash — mirroring the all-NaN per-row path used for degenerate pairs.
+    if n_genotypes >= 4:
+        min_detectable_r = minimum_detectable_correlation(
+            n_genotypes, alpha=alpha, power=MIN_DETECTABLE_POWER
+        )
+    else:
+        min_detectable_r = float("nan")
     mean_power = float(correlation_df["power"].mean()) if n_tests > 0 else float("nan")
 
     return {

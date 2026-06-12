@@ -18,6 +18,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -108,6 +109,14 @@ def cross_platform_pc_correlations(
     Raises:
         ValueError: If ``fdr_scope`` is unknown or an ``fdr_methods`` entry is
             not a supported multiple-testing method.
+
+    Note:
+        Correlations use the genotypes common to **all** platforms (one shared
+        panel), so per-pair ``n`` may understate the genotypes available to a
+        given pair. With a small panel (e.g. ~19 genotypes) the Fisher-z
+        confidence intervals and power are approximate (minimum detectable
+        ``|r|`` at 80% power ≈ 0.58 for n=19); interpret the headline power
+        accordingly.
     """
     if fdr_methods is None:
         fdr_methods = list(DEFAULT_FDR_METHODS)
@@ -143,7 +152,10 @@ def cross_platform_pc_correlations(
         fdr_scope=fdr_scope,
     )
     summary = summarize_correlations(
-        correlations, primary_method=primary_fdr_method, fdr_scope=fdr_scope
+        correlations,
+        primary_method=primary_fdr_method,
+        fdr_scope=fdr_scope,
+        alpha=alpha,
     )
 
     # 5. Export tidy CSVs.
@@ -185,16 +197,16 @@ def cross_platform_pc_correlations(
             scope_dir = figures_dir / scope
             fig = create_correlation_summary_figure(correlations, fdr_method=method_col)
             save_figure(fig, scope_dir, "correlation_summary")
-            fig.clf()
+            plt.close(fig)
             for p1, p2 in combinations(platform_config.keys(), 2):
                 fig = create_correlation_heatmap(
                     correlations, p1, p2, fdr_method=method_col
                 )
                 save_figure(fig, scope_dir, f"heatmap_{p1.lower()}_{p2.lower()}")
-                fig.clf()
+                plt.close(fig)
         fig = create_sensitivity_analysis_figure(correlations, methods=fdr_methods)
         save_figure(fig, figures_dir, "sensitivity_analysis")
-        fig.clf()
+        plt.close(fig)
         output_paths["figures_dir"] = str(figures_dir)
 
     # 7. Metadata.
@@ -275,7 +287,7 @@ def trait_correlation_enrichment(
     if make_figure:
         fig = create_enrichment_figure(results)
         paths = save_figure(fig, output_dir, "enrichment_summary")
-        fig.clf()
+        plt.close(fig)
         output_paths["enrichment_summary"] = str(paths[0])
 
     combined = results[0]

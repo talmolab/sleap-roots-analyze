@@ -34,7 +34,9 @@ def main() -> None:
         "--output-dir", type=Path, required=True, help="Output directory."
     )
     parser.add_argument("--primary-fdr-method", default="fdr_by")
-    parser.add_argument("--fdr-scope", default="both")
+    parser.add_argument(
+        "--fdr-scope", default="both", choices=["combined", "per_pair", "both"]
+    )
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--no-figures", action="store_true")
     args = parser.parse_args()

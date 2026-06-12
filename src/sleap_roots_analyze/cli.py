@@ -669,6 +669,10 @@ def pc_correlations(
     Example:
         sleap-roots-analyze pc-correlations platforms.yaml --pipeline-run ./run -o ./pc_out
     """
+    import matplotlib
+
+    matplotlib.use("Agg")  # headless figure rendering before pyplot is imported
+
     from omegaconf import OmegaConf
 
     from sleap_roots_analyze import cross_platform_pc_correlations

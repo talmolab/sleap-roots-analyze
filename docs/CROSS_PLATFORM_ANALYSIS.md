@@ -865,7 +865,7 @@ result = cross_platform_pc_correlations(
     primary_fdr_method="fdr_by",
     fdr_scope="both",
 )
-result["summary"]  # {"n_tests": 47, "n_genotypes": 19, "n_significant_combined": 0, ...}
+result.summary  # {"n_tests": 47, "n_genotypes": 19, "n_significant_combined": 0, ...}
 ```
 
 CLI reproduction: `uv run scripts/run_pc_correlations.py --pipeline-run <dir> --output-dir <dir>`.

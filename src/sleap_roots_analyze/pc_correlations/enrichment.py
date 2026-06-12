@@ -181,10 +181,14 @@ def count_significant(
         alpha: Significance threshold.
 
     Returns:
-        Tuple of ``(n_significant, n_tests)``.
+        Tuple of ``(n_significant, n_tests)``. ``n_tests`` counts only rows with
+        a non-NaN p-value: a degenerate pair (NaN p) is neither significant nor a
+        valid test, so including it in the denominator would bias the binomial
+        toward "depleted".
     """
-    n_tests = len(df)
-    n_significant = int((df[p_value_column] < alpha).sum())
+    valid = df[p_value_column].notna()
+    n_tests = int(valid.sum())
+    n_significant = int((df.loc[valid, p_value_column] < alpha).sum())
     return n_significant, n_tests
 
 
