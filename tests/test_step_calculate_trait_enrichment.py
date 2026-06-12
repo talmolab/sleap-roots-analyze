@@ -214,3 +214,26 @@ def test_config_enrichment_disabled_skips_validation():
     # Mismatched column is fine when enrichment is off (default).
     cfg = _config(enrichment_p_value_column="pearson_p")
     assert cfg.enrichment_enabled is False
+
+
+# ---------------------------------------------------------------------------
+# Wheat EDPIE trait-enrichment golden regression (pending issue #120 fixtures)
+# ---------------------------------------------------------------------------
+@pytest.mark.skip(
+    reason="PENDING issue #120: needs the full clustering->reduce-redundancy->"
+    "correlate->enrich pipeline over all 3 platforms' real EDPIE outputs; only "
+    "the turface_19 slice ships today. Wired to real 5,027/depleted/0.82 "
+    "assertions in a follow-up — this is a known-pending placeholder, not live "
+    "coverage, and must run on the real golden rather than synthetic values."
+)
+def test_wheat_edpie_enrichment_golden_5027_depleted_pending_120():
+    """Reproduce 5,027 representative trait tests / depleted / fold≈0.82.
+
+    Mirrors the PC-correlation golden placeholder: the enrichment headline is a
+    function of the same #120 fixtures (the representative-trait CSV feeding the
+    binomial), so it is pinned only once those land. Decorator-level skip so it
+    is visible as a known-pending test at collection rather than reading as live
+    coverage that silently no-ops. The real assertions (n_tests == 5027,
+    interpretation == "depleted", fold_enrichment ≈ 0.82) must be computed from
+    the real EDPIE golden — never from synthetic stand-in values.
+    """
