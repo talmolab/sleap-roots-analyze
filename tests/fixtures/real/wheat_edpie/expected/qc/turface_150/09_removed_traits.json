@@ -1,0 +1,18 @@
+[
+  {
+    "trait": "Depth (mm)",
+    "heritability": 0.1560608895671868,
+    "var_genetic": 4.955484719637195,
+    "var_residual": 152.19917574710786,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.4"
+  },
+  {
+    "trait": "Avg Hole Size (mm\u00b2)",
+    "heritability": 0.03331074641267876,
+    "var_genetic": 1.2038282847523256,
+    "var_residual": 198.41577290623022,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.4"
+  }
+]

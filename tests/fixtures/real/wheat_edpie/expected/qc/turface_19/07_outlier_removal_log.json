@@ -1,0 +1,18 @@
+{
+  "strategy": "single",
+  "methods_considered": [
+    "mahalanobis"
+  ],
+  "original_samples": 158,
+  "outliers_removed": 5,
+  "final_samples": 153,
+  "removal_fraction": 0.03164556962025317,
+  "removed_sample_barcodes": [
+    "9R7ATZEAZ4",
+    "CFQQVEDLYK",
+    "I462RKXHHN",
+    "UKAZXAPALS",
+    "UVA4M5QZG5"
+  ],
+  "method_used": "mahalanobis"
+}

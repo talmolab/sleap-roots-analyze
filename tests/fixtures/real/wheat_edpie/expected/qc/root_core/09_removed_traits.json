@@ -1,0 +1,90 @@
+[
+  {
+    "trait": "Root Count 10cm",
+    "heritability": 0.4507499581030513,
+    "var_genetic": 69.79356793888716,
+    "var_residual": 246.63107856982018,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Root Count 25cm",
+    "heritability": 0.17218204966812567,
+    "var_genetic": 7.070031912142052,
+    "var_residual": 98.57489836458893,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Root Count 30cm",
+    "heritability": 0.4170700945687429,
+    "var_genetic": 6.579976757858541,
+    "var_residual": 26.670406988007645,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Root Count 40cm",
+    "heritability": 0.38854564734585745,
+    "var_genetic": 1.310930033488542,
+    "var_residual": 5.982731381457214,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Root Count 50cm",
+    "heritability": 1.0871523777270374e-08,
+    "var_genetic": 3.842379622148968e-08,
+    "var_residual": 10.24962186661331,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Root Count 5cm",
+    "heritability": 0.30133977924644495,
+    "var_genetic": 68.5645983052717,
+    "var_residual": 461.0069628780175,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Rootdw 15cm",
+    "heritability": 0.27000542234740543,
+    "var_genetic": 0.0016571452352537738,
+    "var_residual": 0.0129928887140224,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Rootdw 45cm",
+    "heritability": 0.4494599197529198,
+    "var_genetic": 0.00012347040136450785,
+    "var_residual": 0.0004385901053577757,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Rspkgp Calc Pct",
+    "heritability": 0.49884197652992607,
+    "var_genetic": 0.3369805220552357,
+    "var_residual": 0.9817807060105221,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Plntstnd Calc Plntm2",
+    "heritability": 0.48991160773336784,
+    "var_genetic": 233.86081491255095,
+    "var_residual": 706.1275689505774,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  },
+  {
+    "trait": "Stmdw M Gm2",
+    "heritability": 0.46471682557414773,
+    "var_genetic": 10617.109225707803,
+    "var_residual": 35464.960355954856,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.5"
+  }
+]

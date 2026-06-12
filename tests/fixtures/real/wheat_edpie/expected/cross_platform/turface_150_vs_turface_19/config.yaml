@@ -1,0 +1,39 @@
+exp1_data_path: pipeline_runs/2026-02-12_191823/qc/turface_150genotypes_qc_20260212_191836/07_data_outliers_removed.csv
+exp1_name: Turface 150 Genotypes (QC'd)
+exp1_genotype_col: Genotype
+exp2_data_path: pipeline_runs/2026-02-12_191823/qc/turface_19genotypes_qc_20260212_191941/07_data_outliers_removed.csv
+exp2_name: Turface 19 Genotypes (QC'd)
+exp2_genotype_col: Genotype
+correlation_method: spearman
+min_samples_per_genotype: 3
+significance_level: 0.05
+fdr_correction_method: fdr_bh
+confidence_level: 0.95
+min_genotypes_for_correlation: 10
+power_analysis_alpha: 0.05
+power_analysis_power: 0.8
+top_n_correlations: 20
+top_n_joint_plots: 6
+top_n_boxplots: 6
+figsize_summary:
+- 14
+- 12
+figsize_joint:
+- 10
+- 10
+figsize_boxplot:
+- 14
+- 6
+exp1_exclude_cols:
+- File.me
+- region
+- set
+- Salk_geno
+- Entry
+- GID
+- scanner
+exp2_exclude_cols: null
+trait_reduction_method: clustering
+trait_reduction_target: both
+trait_clustering_threshold: 0.8
+trait_clustering_linkage: complete

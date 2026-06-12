@@ -1,0 +1,40 @@
+{
+  "pipeline_name": "viz_cylinder_edpie",
+  "version": "1.0",
+  "run_directory": "pipeline_runs\\2026-02-12_191823\\viz\\viz_cylinder_edpie_20260212_192902",
+  "data_file": "pipeline_runs/2026-02-12_191823/qc/cylinder_edpie_qc_20260212_192028/10_final_data.csv",
+  "n_samples": 123,
+  "n_traits_initial": 588,
+  "n_traits_final": 588,
+  "configuration": {
+    "pca": {
+      "n_components": 0.75,
+      "standardize": true,
+      "feature_selection_strategy": "extreme"
+    },
+    "umap_enabled": true,
+    "umap_status": "enabled",
+    "umap_skip_reason": null,
+    "clustering_enabled": false,
+    "statistics": {
+      "calculate_anova": true,
+      "calculate_heritability": true
+    },
+    "heritability_filtering": {
+      "enabled": false,
+      "threshold": 0.6
+    },
+    "interesting_genotypes_enabled": true,
+    "adaptive_sizing_enabled": true
+  },
+  "results": {
+    "anova": {
+      "n_traits_tested": 588,
+      "n_significant": 587
+    },
+    "heritability": {
+      "mean_h2": 0.7638835940127444,
+      "n_high_h2": 588
+    }
+  }
+}

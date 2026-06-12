@@ -1,0 +1,1850 @@
+[
+  {
+    "trait": "Seminal Count Min",
+    "heritability": 0.5575377451787696,
+    "var_genetic": 0.10297031066202265,
+    "var_residual": 0.5290119558516653,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Count Max",
+    "heritability": 0.5567247137856886,
+    "var_genetic": 0.3087758806281141,
+    "var_residual": 1.5915778912937695,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Count Std",
+    "heritability": 0.25866390884133966,
+    "var_genetic": 0.0020420758138350705,
+    "var_residual": 0.03788808715251166,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min Min",
+    "heritability": 0.5983909139492178,
+    "var_genetic": 43.36180244008036,
+    "var_residual": 188.3984720133559,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min Max",
+    "heritability": 0.4934522897393044,
+    "var_genetic": 3909.657736933898,
+    "var_residual": 25981.572829297984,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min Mean",
+    "heritability": 0.5214393902669853,
+    "var_genetic": 610.3991436628995,
+    "var_residual": 3626.5906697166492,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min Med",
+    "heritability": 0.4869436908208925,
+    "var_genetic": 581.9541481140204,
+    "var_residual": 3969.415562442016,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min Std",
+    "heritability": 0.21248737423150713,
+    "var_genetic": 71.99297006868709,
+    "var_residual": 1727.2929351777998,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min P5",
+    "heritability": 0.54283416817345,
+    "var_genetic": 62.19229547259209,
+    "var_residual": 339.07415266703384,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min P75",
+    "heritability": 0.4935156918030395,
+    "var_genetic": 1308.8119882608253,
+    "var_residual": 8695.484863917523,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Min P95",
+    "heritability": 0.3815924370605121,
+    "var_genetic": 1853.8814408151331,
+    "var_residual": 19449.50267287206,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Max Std",
+    "heritability": 0.5678977828169334,
+    "var_genetic": 156.14201162340208,
+    "var_residual": 769.1084844656759,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Mean Std",
+    "heritability": 0.3904900496697153,
+    "var_genetic": 39.79898521442753,
+    "var_residual": 402.1558006240987,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Std Min",
+    "heritability": 0.49213049383256247,
+    "var_genetic": 195.88262979935746,
+    "var_residual": 1308.637309166253,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths Std Std",
+    "heritability": 2.7745958607699966e-05,
+    "var_genetic": 0.0008192332694402483,
+    "var_residual": 191.13811876478763,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P5 Max",
+    "heritability": 0.5290066297814974,
+    "var_genetic": 4318.682382265448,
+    "var_residual": 24891.808696423686,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P5 Mean",
+    "heritability": 0.5946794457201778,
+    "var_genetic": 912.9960865164984,
+    "var_residual": 4028.43282767638,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P5 Med",
+    "heritability": 0.5969475429077156,
+    "var_genetic": 923.3232919222298,
+    "var_residual": 4035.8099422296923,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P5 Std",
+    "heritability": 0.22247989347512998,
+    "var_genetic": 64.61570192363179,
+    "var_residual": 1461.8756681300015,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P5 P75",
+    "heritability": 0.5694861212557784,
+    "var_genetic": 1729.6248447345781,
+    "var_residual": 8464.619441892612,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P5 P95",
+    "heritability": 0.520522600458132,
+    "var_genetic": 3136.0212382095365,
+    "var_residual": 18700.75136698213,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P25 Std",
+    "heritability": 0.5337551955492235,
+    "var_genetic": 204.52443341001074,
+    "var_residual": 1156.561146626279,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P25 P75",
+    "heritability": 0.5975931962149214,
+    "var_genetic": 2728.638134525147,
+    "var_residual": 11894.79949295155,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Lengths P95 Std",
+    "heritability": 0.55773235061866,
+    "var_genetic": 119.09254068134575,
+    "var_residual": 611.3577304324699,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline Intersection Counts Max Max",
+    "heritability": 0.48121209248403835,
+    "var_genetic": 0.11650506121061355,
+    "var_residual": 0.8131105857296891,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline Intersection Counts Max Std",
+    "heritability": 0.5072820001811182,
+    "var_genetic": 0.0021217263529535167,
+    "var_residual": 0.013341045230244935,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline Intersection Counts Max P95",
+    "heritability": 0.5967964370102131,
+    "var_genetic": 0.11699143692591189,
+    "var_residual": 0.5116862245207094,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline Intersection Counts Std Std",
+    "heritability": 0.5353343608937643,
+    "var_genetic": 0.000269224659251292,
+    "var_residual": 0.001512800938471036,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline Intersection Counts P75 Std",
+    "heritability": 0.3678424982306699,
+    "var_genetic": 0.0014058893658939263,
+    "var_residual": 0.015641055210005278,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline Intersection Counts P95 Std",
+    "heritability": 0.5105200164673652,
+    "var_genetic": 0.002019954519346433,
+    "var_residual": 0.012537624648530848,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Min Min",
+    "heritability": 6.010095433787545e-09,
+    "var_genetic": 1.838997742909572e-10,
+    "var_residual": 0.19808488419316073,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Min P5",
+    "heritability": 0.5943513846000619,
+    "var_genetic": 0.3024245562283749,
+    "var_residual": 1.336211735497911,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Min P25",
+    "heritability": 0.5363479332720947,
+    "var_genetic": 1.234681099250024,
+    "var_residual": 6.909583968115886,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Max Min",
+    "heritability": 1.3065573089305212e-07,
+    "var_genetic": 4.785292098204263e-08,
+    "var_residual": 2.3709993920392205,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Max P5",
+    "heritability": 0.2567395175568465,
+    "var_genetic": 0.43167638087865834,
+    "var_residual": 8.090178791702419,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Max P25",
+    "heritability": 0.37479794691439583,
+    "var_genetic": 1.9735344304451723,
+    "var_residual": 21.311764591058655,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Mean Min",
+    "heritability": 9.467139286054279e-09,
+    "var_genetic": 3.025091254613366e-09,
+    "var_residual": 2.0685747524429026,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Mean P5",
+    "heritability": 0.1475941109433344,
+    "var_genetic": 0.1485678243078168,
+    "var_residual": 5.554611462638269,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Med Min",
+    "heritability": 0.03012469919719033,
+    "var_genetic": 0.009284906845908145,
+    "var_residual": 1.9351838985608656,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Med P5",
+    "heritability": 0.25080499684041085,
+    "var_genetic": 0.24930305265893365,
+    "var_residual": 4.821007356801576,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Std Max",
+    "heritability": 0.5397508715228828,
+    "var_genetic": 2.6259940653093574,
+    "var_residual": 14.495889617192082,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Std Mean",
+    "heritability": 0.5695687523250208,
+    "var_genetic": 0.4686236502149575,
+    "var_residual": 2.2926267211928373,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Std Std",
+    "heritability": 0.35762177305284615,
+    "var_genetic": 0.12606336778566193,
+    "var_residual": 1.4659098935067523,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Std P75",
+    "heritability": 0.513070063832863,
+    "var_genetic": 1.6544115811911393,
+    "var_residual": 10.16447312760017,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal Std P95",
+    "heritability": 0.3032755781427169,
+    "var_genetic": 0.8206630443617196,
+    "var_residual": 12.205061777523536,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P5 Min",
+    "heritability": 5.06078203161397e-09,
+    "var_genetic": 2.9157661008187866e-10,
+    "var_residual": 0.3729808704468667,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P5 P5",
+    "heritability": 0.5024128731458176,
+    "var_genetic": 0.21745959703528156,
+    "var_residual": 1.3942429812892414,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P5 P25",
+    "heritability": 0.5817675708582714,
+    "var_genetic": 1.3919760034761228,
+    "var_residual": 6.478156780666476,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P25 Min",
+    "heritability": 1.0388285554411124e-08,
+    "var_genetic": 1.974856120693929e-09,
+    "var_residual": 1.2306741749468815,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P25 P5",
+    "heritability": 0.33959085335827666,
+    "var_genetic": 0.22831379073257949,
+    "var_residual": 2.87435728647184,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P75 Min",
+    "heritability": 4.9834128819082125e-09,
+    "var_genetic": 1.7096363140529203e-09,
+    "var_residual": 2.2208967667624218,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P75 P5",
+    "heritability": 0.17340435492429246,
+    "var_genetic": 0.231277878746076,
+    "var_residual": 7.137049657644738,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P75 P25",
+    "heritability": 0.47261999101585833,
+    "var_genetic": 2.2554839805808924,
+    "var_residual": 16.29306661188947,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P95 Min",
+    "heritability": 4.150818000089096e-08,
+    "var_genetic": 1.5006028065855327e-08,
+    "var_residual": 2.340364788778372,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P95 P5",
+    "heritability": 0.24782572921288165,
+    "var_genetic": 0.40402266122882025,
+    "var_residual": 7.938333063285318,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Distal P95 P25",
+    "heritability": 0.39260154498576755,
+    "var_genetic": 2.0332913745654313,
+    "var_residual": 20.364455729147164,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Min Min",
+    "heritability": 0.14117302883197133,
+    "var_genetic": 0.004460998998490417,
+    "var_residual": 0.17568617136176443,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Min P5",
+    "heritability": 0.25275117495984634,
+    "var_genetic": 0.1372068106271832,
+    "var_residual": 2.6260273045906026,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Min P25",
+    "heritability": 0.49484310829259237,
+    "var_genetic": 2.02012738460578,
+    "var_residual": 13.350238443275652,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Max Min",
+    "heritability": 0.4796052584905848,
+    "var_genetic": 2.458937276661726,
+    "var_residual": 17.272210593608616,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Max Max",
+    "heritability": 0.5973563033133144,
+    "var_genetic": 27.00544524652583,
+    "var_residual": 117.83934136245793,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Max Std",
+    "heritability": 0.4974411130999676,
+    "var_genetic": 1.0550272370540916,
+    "var_residual": 6.900180680754613,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Max P5",
+    "heritability": 0.3208773904253602,
+    "var_genetic": 2.24981359535065,
+    "var_residual": 30.825286352061855,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Max P25",
+    "heritability": 0.5244461041142086,
+    "var_genetic": 7.519939720881818,
+    "var_residual": 44.14329530101973,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Mean Min",
+    "heritability": 0.2493480574803292,
+    "var_genetic": 0.4717588266882069,
+    "var_residual": 9.193992998261182,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Mean P5",
+    "heritability": 0.17700190419032943,
+    "var_genetic": 0.5431520846171998,
+    "var_residual": 16.349100105548036,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Mean P25",
+    "heritability": 0.5862446734419504,
+    "var_genetic": 4.012629264360009,
+    "var_residual": 18.33349374253387,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Med Min",
+    "heritability": 0.1773800797204563,
+    "var_genetic": 0.22927748292855296,
+    "var_residual": 6.883467908713548,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Med Max",
+    "heritability": 0.575795981596403,
+    "var_genetic": 10.560989391989873,
+    "var_residual": 50.36887668143295,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Med P5",
+    "heritability": 0.01522930709207859,
+    "var_genetic": 0.034274792408671845,
+    "var_residual": 14.347667872267227,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Std Max",
+    "heritability": 0.2725429077722238,
+    "var_genetic": 1.5123490113433935,
+    "var_residual": 26.132203675810487,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Std Mean",
+    "heritability": 0.5403956769030676,
+    "var_genetic": 0.9728248718999175,
+    "var_residual": 5.356220101378118,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Std Std",
+    "heritability": 0.3955061086402921,
+    "var_genetic": 0.1957490545499827,
+    "var_residual": 1.936822869545927,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Std P75",
+    "heritability": 0.2821675869160436,
+    "var_genetic": 0.8554240523501241,
+    "var_residual": 14.08798590146544,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal Std P95",
+    "heritability": 0.5623538474576233,
+    "var_genetic": 2.868309710102246,
+    "var_residual": 14.450770294031237,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P5 Min",
+    "heritability": 0.15709933441797402,
+    "var_genetic": 0.012866049687847311,
+    "var_residual": 0.44688809619908487,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P5 P5",
+    "heritability": 0.3281008255853388,
+    "var_genetic": 0.21235497294545336,
+    "var_residual": 2.815209572480022,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P5 P25",
+    "heritability": 0.5106267184569461,
+    "var_genetic": 1.9689705235327521,
+    "var_residual": 12.215955555327252,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P25 Min",
+    "heritability": 0.18236189795459531,
+    "var_genetic": 0.09437634389204287,
+    "var_residual": 2.739313118381237,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P25 P5",
+    "heritability": 0.18822878970615858,
+    "var_genetic": 0.2461353687469747,
+    "var_residual": 6.87184144331097,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P25 P25",
+    "heritability": 0.5842209550229116,
+    "var_genetic": 2.5478542436269267,
+    "var_residual": 11.738471692487174,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P75 Min",
+    "heritability": 0.36744137626417683,
+    "var_genetic": 1.2225648345630402,
+    "var_residual": 13.62498811247958,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P75 Max",
+    "heritability": 0.5262875754602806,
+    "var_genetic": 11.515571078879644,
+    "var_residual": 67.10094693287796,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P75 P5",
+    "heritability": 0.21194099547147674,
+    "var_genetic": 0.9242893672498896,
+    "var_residual": 22.24862793950811,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P75 P25",
+    "heritability": 0.5562373210827766,
+    "var_genetic": 5.513762644445982,
+    "var_residual": 28.476737184367526,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P95 Min",
+    "heritability": 0.5626135626170076,
+    "var_genetic": 3.2403104336553454,
+    "var_residual": 16.307719943954847,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P95 Max",
+    "heritability": 0.5960799350535513,
+    "var_genetic": 23.25940478404015,
+    "var_residual": 102.0330882553942,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P95 Std",
+    "heritability": 0.5174313673802278,
+    "var_genetic": 1.0199160138631744,
+    "var_residual": 6.157752901478098,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P95 P5",
+    "heritability": 0.3085424178247474,
+    "var_genetic": 2.0326064397369628,
+    "var_residual": 29.488689490392133,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Angles Proximal P95 P25",
+    "heritability": 0.5207959840160822,
+    "var_genetic": 7.0206700519097955,
+    "var_residual": 41.81989094877146,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Xs Std Min",
+    "heritability": 0.588386627908257,
+    "var_genetic": 632.0449421724875,
+    "var_residual": 2862.372507734532,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Xs Std Max",
+    "heritability": 0.5828433618229988,
+    "var_genetic": 876.2925765677693,
+    "var_residual": 4060.2048668991265,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Xs Std Std",
+    "heritability": 1.384333929766982e-09,
+    "var_genetic": 8.31910565661503e-08,
+    "var_residual": 389.0337562515743,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Xs Std P95",
+    "heritability": 0.5920743519197835,
+    "var_genetic": 862.1636750431041,
+    "var_residual": 3845.439610093354,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Min Min",
+    "heritability": 0.43836570489292714,
+    "var_genetic": 1773.8349819970738,
+    "var_residual": 14712.340750336034,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Min Med",
+    "heritability": 0.5589465200589804,
+    "var_genetic": 8779.354140192834,
+    "var_residual": 44847.17329488458,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Min Std",
+    "heritability": 0.07708505241556066,
+    "var_genetic": 70.55023943354885,
+    "var_residual": 5468.163735406346,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Min P5",
+    "heritability": 0.48619648638839486,
+    "var_genetic": 4138.675696868532,
+    "var_residual": 28313.80007193109,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Min P25",
+    "heritability": 0.49500054023622214,
+    "var_genetic": 7544.3695882007805,
+    "var_residual": 49826.42256375672,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Min P75",
+    "heritability": 0.5662830665319271,
+    "var_genetic": 8723.58607931318,
+    "var_residual": 43253.311665948124,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Max Std",
+    "heritability": 0.2834872908841101,
+    "var_genetic": 6.39111643681362,
+    "var_residual": 104.5727537853724,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Mean Std",
+    "heritability": 0.1309777460079024,
+    "var_genetic": 12.49530129034159,
+    "var_residual": 536.7000411101205,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Med Std",
+    "heritability": 0.5988499354034983,
+    "var_genetic": 365.2275585175473,
+    "var_residual": 1583.813024344946,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std Min",
+    "heritability": 0.11424378415770764,
+    "var_genetic": 41.54809600210534,
+    "var_residual": 2085.375493558752,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std Max",
+    "heritability": 0.5417226758867421,
+    "var_genetic": 869.9256441977801,
+    "var_residual": 4764.145289594697,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std Mean",
+    "heritability": 0.5437988738108023,
+    "var_genetic": 856.3281906869174,
+    "var_residual": 4650.608714915414,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std Med",
+    "heritability": 0.36932315733902077,
+    "var_genetic": 672.6052551960133,
+    "var_residual": 7435.533108805857,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std Std",
+    "heritability": 0.288342145162454,
+    "var_genetic": 61.521419423515056,
+    "var_residual": 982.9716206558033,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std P5",
+    "heritability": 0.3142116902646444,
+    "var_genetic": 234.8868039851674,
+    "var_residual": 3318.7754425686876,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std P25",
+    "heritability": 0.3245878961094724,
+    "var_genetic": 445.1266211200852,
+    "var_residual": 5996.137691491217,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std P75",
+    "heritability": 0.09754256317514223,
+    "var_genetic": 155.97514317066094,
+    "var_residual": 9341.9915043745,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys Std P95",
+    "heritability": 0.3609084596721551,
+    "var_genetic": 570.3301087903512,
+    "var_residual": 6537.983447097668,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys P5 Min",
+    "heritability": 0.563393946724117,
+    "var_genetic": 2871.650092958269,
+    "var_residual": 14406.570445368405,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys P5 Std",
+    "heritability": 7.296933787980884e-08,
+    "var_genetic": 4.5505119657262694e-05,
+    "var_residual": 4037.116982105951,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys P5 P5",
+    "heritability": 0.5476262145105657,
+    "var_genetic": 4924.018132336904,
+    "var_residual": 26332.0308238428,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys P5 P25",
+    "heritability": 0.5770955988875697,
+    "var_genetic": 8882.257724455243,
+    "var_residual": 42137.55412808628,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Tip Ys P25 Std",
+    "heritability": 0.23288157895391612,
+    "var_genetic": 122.48861677559577,
+    "var_residual": 2612.008076887453,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Network Distribution Ratio Std",
+    "heritability": 0.381545617035215,
+    "var_genetic": 1.2614865670206133e-05,
+    "var_residual": 0.000132371760069711,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Min Std",
+    "heritability": 0.1696064490332358,
+    "var_genetic": 167.54496757660775,
+    "var_residual": 5310.366609526847,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Max Std",
+    "heritability": 0.5602398487100825,
+    "var_genetic": 683.1113451434275,
+    "var_residual": 3471.241952899377,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Mean Std",
+    "heritability": 0.4981076616252708,
+    "var_genetic": 497.27077087476243,
+    "var_residual": 3243.63357509837,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Med Std",
+    "heritability": 0.49671831691184365,
+    "var_genetic": 497.7044263308338,
+    "var_residual": 3264.554797782326,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Std Max",
+    "heritability": 0.24453769585812196,
+    "var_genetic": 411.7277389376815,
+    "var_residual": 8234.336694022637,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Std Mean",
+    "heritability": 0.2556746729454884,
+    "var_genetic": 43.4642381978944,
+    "var_residual": 819.1410121866745,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Std Std",
+    "heritability": 0.10906435487114798,
+    "var_genetic": 20.742876703814538,
+    "var_residual": 1096.9428365927406,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Std P75",
+    "heritability": 0.15995548942455023,
+    "var_genetic": 146.13374493981246,
+    "var_residual": 4968.269819324526,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists Std P95",
+    "heritability": 0.23849093642784308,
+    "var_genetic": 370.76049673179006,
+    "var_residual": 7663.870607075102,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists P5 Std",
+    "heritability": 0.18885211019248513,
+    "var_genetic": 178.52629611816062,
+    "var_residual": 4964.001522987168,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists P25 Std",
+    "heritability": 0.2973139682611129,
+    "var_genetic": 256.61583299116444,
+    "var_residual": 3926.277271930329,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists P75 Std",
+    "heritability": 0.5295731145447579,
+    "var_genetic": 553.9161684377721,
+    "var_residual": 3185.3837348631687,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Base Tip Dists P95 Std",
+    "heritability": 0.5591169585877457,
+    "var_genetic": 662.9293255729597,
+    "var_residual": 3384.071032924363,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Min Min",
+    "heritability": 0.5880172980497183,
+    "var_genetic": 2.344702017963122e-07,
+    "var_residual": 1.0634768660844028e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Max Min",
+    "heritability": 0.31879598186682884,
+    "var_genetic": 1.918664762556704e-07,
+    "var_residual": 2.6540858840885486e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Max Max",
+    "heritability": 0.34011127549194425,
+    "var_genetic": 0.0001772998881709829,
+    "var_residual": 0.0022269458131769686,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Max P5",
+    "heritability": 0.5058140778387733,
+    "var_genetic": 8.872700786931789e-07,
+    "var_residual": 5.61185968421888e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Mean Min",
+    "heritability": 0.36228884139800605,
+    "var_genetic": 2.2460782224369483e-07,
+    "var_residual": 2.559442905188107e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Mean P5",
+    "heritability": 0.5524908761375926,
+    "var_genetic": 9.900776605247063e-07,
+    "var_residual": 5.191556151764328e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Med Min",
+    "heritability": 0.36547731584983345,
+    "var_genetic": 2.274113426970886e-07,
+    "var_residual": 2.5559382593568435e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Med P5",
+    "heritability": 0.5740497696955917,
+    "var_genetic": 1.047198402621874e-06,
+    "var_residual": 5.0302525734650445e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Std Max",
+    "heritability": 0.286943730217079,
+    "var_genetic": 2.9729421853437388e-05,
+    "var_residual": 0.0004782610766908068,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Std Mean",
+    "heritability": 0.27831671143581505,
+    "var_genetic": 6.258896899424832e-07,
+    "var_residual": 1.0506466321929648e-05,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Std Std",
+    "heritability": 0.288281128711368,
+    "var_genetic": 1.4054323864310638e-06,
+    "var_residual": 2.246227475286122e-05,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Std P75",
+    "heritability": 0.20802596829832198,
+    "var_genetic": 1.6798971515910212e-06,
+    "var_residual": 4.140259797910854e-05,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices Std P95",
+    "heritability": 0.4922301394409878,
+    "var_genetic": 2.6774901442654607e-05,
+    "var_residual": 0.00017880436155089438,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices P5 Min",
+    "heritability": 0.5376577707019942,
+    "var_genetic": 2.8440366485975923e-07,
+    "var_residual": 1.5832311816602587e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices P25 Min",
+    "heritability": 0.4052162137264935,
+    "var_genetic": 2.5009572041185594e-07,
+    "var_residual": 2.3764576410850607e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices P75 Min",
+    "heritability": 0.3307759023728664,
+    "var_genetic": 2.0078114715602226e-07,
+    "var_residual": 2.6297359872000825e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices P75 P5",
+    "heritability": 0.5333706018093494,
+    "var_genetic": 9.529669543865508e-07,
+    "var_residual": 5.397247989754127e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices P95 Min",
+    "heritability": 0.32048499220073356,
+    "var_genetic": 1.931953088460453e-07,
+    "var_residual": 2.651791921294743e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices P95 Max",
+    "heritability": 0.49132168079755356,
+    "var_genetic": 0.00030106554394492745,
+    "var_residual": 0.0020178545751869843,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Seminal Curve Indices P95 P5",
+    "heritability": 0.5112968842521363,
+    "var_genetic": 8.993845428829384e-07,
+    "var_residual": 5.565047704509119e-06,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse A Max",
+    "heritability": 0.22185777467489531,
+    "var_genetic": 621.2871863903946,
+    "var_residual": 14106.79116919179,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse A Std",
+    "heritability": 1.0416365272997533e-05,
+    "var_genetic": 0.0004955424973578218,
+    "var_residual": 307.97232443027866,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse A P95",
+    "heritability": 0.58837919434422,
+    "var_genetic": 1757.0012362035832,
+    "var_residual": 7957.260732387441,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse B Std",
+    "heritability": 0.3023006176618178,
+    "var_genetic": 19.44567011073293,
+    "var_residual": 290.53852560004134,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Perimeter Std",
+    "heritability": 2.762747589777764e-09,
+    "var_genetic": 1.9869749842450196e-06,
+    "var_residual": 4655.889880883077,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Area Std",
+    "heritability": 0.5084784173771622,
+    "var_genetic": 88447504.88162868,
+    "var_residual": 553486668.7716022,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Max Height Std",
+    "heritability": 0.21119691932056192,
+    "var_genetic": 15.073526421068665,
+    "var_residual": 364.4579232287984,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min Min",
+    "heritability": 0.0836359181605733,
+    "var_genetic": 0.545814706238084,
+    "var_residual": 38.7143500479592,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min Max",
+    "heritability": 0.37820277650297734,
+    "var_genetic": 766.2739447588391,
+    "var_residual": 8155.669813796296,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min Mean",
+    "heritability": 0.5192539722904737,
+    "var_genetic": 45.636023116052755,
+    "var_residual": 273.52383617204555,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min Med",
+    "heritability": 0.48648628503178276,
+    "var_genetic": 30.777427713114896,
+    "var_residual": 210.31259230394687,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min Std",
+    "heritability": 0.5918142767976896,
+    "var_genetic": 67.28406225318871,
+    "var_residual": 300.4250121034861,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min P5",
+    "heritability": 0.5971577329808323,
+    "var_genetic": 14.277860868802945,
+    "var_residual": 62.35346994759221,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min P25",
+    "heritability": 0.3705109109158177,
+    "var_genetic": 11.245577882288735,
+    "var_residual": 123.68598536736867,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min P75",
+    "heritability": 0.5398019089262551,
+    "var_genetic": 111.5251890901184,
+    "var_residual": 615.5096632474474,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Min P95",
+    "heritability": 0.403448336243779,
+    "var_genetic": 295.15949581693195,
+    "var_residual": 2825.324937370517,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Max Std",
+    "heritability": 0.19339768401588683,
+    "var_genetic": 17.53470386272791,
+    "var_residual": 473.4325805568807,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Mean Std",
+    "heritability": 4.359642564775867e-09,
+    "var_genetic": 1.5968321160086875e-07,
+    "var_residual": 237.1154666375937,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Med Std",
+    "heritability": 1.5590627119701115e-08,
+    "var_genetic": 2.000672879518299e-06,
+    "var_residual": 830.7378612290627,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths Std Std",
+    "heritability": 6.871813070479308e-10,
+    "var_genetic": 7.1406949684364335e-09,
+    "var_residual": 67.26988025354026,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P5 Min",
+    "heritability": 0.5646058078744786,
+    "var_genetic": 60.0031909383809,
+    "var_residual": 299.54573978801875,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P5 Max",
+    "heritability": 0.4442135374648286,
+    "var_genetic": 972.1512067692377,
+    "var_residual": 7874.110495218325,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P5 Std",
+    "heritability": 0.5087051935995799,
+    "var_genetic": 42.29480227063334,
+    "var_residual": 264.4323052073491,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P25 Min",
+    "heritability": 0.5879516389806116,
+    "var_genetic": 385.4203870657275,
+    "var_residual": 1748.6092819252565,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P25 Max",
+    "heritability": 0.5816702753081333,
+    "var_genetic": 2692.856370083248,
+    "var_residual": 12537.373215091138,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P25 Std",
+    "heritability": 0.12527066284847418,
+    "var_genetic": 13.095596703684864,
+    "var_residual": 591.9719374204753,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P25 P95",
+    "heritability": 0.5850010788733397,
+    "var_genetic": 1914.6815451656003,
+    "var_residual": 8793.026104124996,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P75 Std",
+    "heritability": 3.2589750030488354e-09,
+    "var_genetic": 2.119481063137731e-07,
+    "var_residual": 421.0173761809226,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Chull Line Lengths P95 Std",
+    "heritability": 1.2594124675735398e-09,
+    "var_genetic": 7.222018465862886e-08,
+    "var_residual": 371.2291886531975,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse Ratio Max",
+    "heritability": 0.3876757195318685,
+    "var_genetic": 0.26882260344353853,
+    "var_residual": 2.7487179115611613,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse Ratio Mean",
+    "heritability": 0.5862085717108,
+    "var_genetic": 0.06013104528623613,
+    "var_residual": 0.2747765012994377,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse Ratio Med",
+    "heritability": 0.5725234725795444,
+    "var_genetic": 0.05060153153946241,
+    "var_residual": 0.24458743812894695,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse Ratio Std",
+    "heritability": 0.30960843861446946,
+    "var_genetic": 0.006952067620632538,
+    "var_residual": 0.10035711855173596,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse Ratio P25",
+    "heritability": 0.5542819510771887,
+    "var_genetic": 0.03240440983284038,
+    "var_residual": 0.16868835785904202,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse Ratio P75",
+    "heritability": 0.5242135690935092,
+    "var_genetic": 0.07677068547510012,
+    "var_residual": 0.45107704077893823,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Ellipse Ratio P95",
+    "heritability": 0.48757057410109406,
+    "var_genetic": 0.1626962620678692,
+    "var_residual": 1.1069440223022915,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind Min",
+    "heritability": 0.5801993805784027,
+    "var_genetic": 0.1961238439081665,
+    "var_residual": 0.9186450120402935,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind Max",
+    "heritability": 0.13647265155095858,
+    "var_genetic": 0.32240327999738355,
+    "var_residual": 13.206308216044011,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind Mean",
+    "heritability": 0.38939630725826896,
+    "var_genetic": 0.16418342884592058,
+    "var_residual": 1.6666654385146475,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind Med",
+    "heritability": 0.5574784108933633,
+    "var_genetic": 0.2874291779688242,
+    "var_residual": 1.4770281526801157,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind Std",
+    "heritability": 0.20138899774372934,
+    "var_genetic": 0.02837558158632725,
+    "var_residual": 0.7284434299082073,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind P5",
+    "heritability": 0.406474657861769,
+    "var_genetic": 0.11302990688661195,
+    "var_residual": 1.0684413150048644,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind P25",
+    "heritability": 0.4996307157183063,
+    "var_genetic": 0.17242213691597919,
+    "var_residual": 1.1178564739537415,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind P75",
+    "heritability": 0.5801041898497703,
+    "var_genetic": 0.48470945903154233,
+    "var_residual": 2.2712688485865464,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Scanline First Ind P95",
+    "heritability": 0.2117925203921224,
+    "var_genetic": 0.3710700825589207,
+    "var_residual": 8.939997235026734,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Mean Max",
+    "heritability": 0.2420654584868667,
+    "var_genetic": 82.27596400284337,
+    "var_residual": 1667.720884823963,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Mean Mean",
+    "heritability": 0.29925099954171186,
+    "var_genetic": 34.7426327969502,
+    "var_residual": 526.6730718208058,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Mean Med",
+    "heritability": 0.2515422844599952,
+    "var_genetic": 27.70865194680147,
+    "var_residual": 533.7319201990994,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Mean Std",
+    "heritability": 0.35667339790206204,
+    "var_genetic": 8.817788707169674,
+    "var_residual": 102.96081924708625,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Mean P25",
+    "heritability": 0.5783955733509941,
+    "var_genetic": 80.4806006974891,
+    "var_residual": 379.77198218136,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Mean P75",
+    "heritability": 6.63429754278504e-08,
+    "var_genetic": 8.466903673739263e-06,
+    "var_residual": 826.1923230734108,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Mean P95",
+    "heritability": 0.13217033350246024,
+    "var_genetic": 26.321718942159173,
+    "var_residual": 1118.8355685085337,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med Max",
+    "heritability": 8.484990315253174e-09,
+    "var_genetic": 2.2712290429766536e-06,
+    "var_residual": 1732.8504715931863,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med Mean",
+    "heritability": 3.670505216940519e-09,
+    "var_genetic": 2.362417193239871e-07,
+    "var_residual": 416.6604301727561,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med Med",
+    "heritability": 3.0966800531834353e-09,
+    "var_genetic": 2.0451001148223622e-07,
+    "var_residual": 427.53310170557864,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med Std",
+    "heritability": 0.4785073294469125,
+    "var_genetic": 14.618175500643597,
+    "var_residual": 103.13457815825342,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med P5",
+    "heritability": 0.5238724840268347,
+    "var_genetic": 34.52438958400251,
+    "var_residual": 203.13053468283033,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med P25",
+    "heritability": 0.18492325981659483,
+    "var_genetic": 9.913772854552773,
+    "var_residual": 282.87686735689744,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med P75",
+    "heritability": 4.352925710218517e-09,
+    "var_genetic": 4.941049409010439e-07,
+    "var_residual": 734.8343512552019,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths Med P95",
+    "heritability": 9.448123305093903e-09,
+    "var_genetic": 1.495004649579116e-06,
+    "var_residual": 1024.3502958926347,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P5 Min",
+    "heritability": 0.2223202869125831,
+    "var_genetic": 0.9076433769707093,
+    "var_residual": 20.553625025278535,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P5 Max",
+    "heritability": 0.5667542263832033,
+    "var_genetic": 367.6309058589272,
+    "var_residual": 1819.2948587422115,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P5 Med",
+    "heritability": 0.579467668778083,
+    "var_genetic": 77.97938637621277,
+    "var_residual": 366.35447847929413,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P5 P25",
+    "heritability": 0.5604440664690734,
+    "var_genetic": 25.945500263873168,
+    "var_residual": 131.73325736571252,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 Min",
+    "heritability": 0.19189040081211436,
+    "var_genetic": 1.6325426766975186,
+    "var_residual": 44.50748654121783,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 Max",
+    "heritability": 0.3848965468362554,
+    "var_genetic": 156.10471944549104,
+    "var_residual": 1614.9969034218132,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 Mean",
+    "heritability": 0.2746076853030591,
+    "var_genetic": 18.688059126939574,
+    "var_residual": 319.57733632671466,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 Med",
+    "heritability": 0.20693967774317287,
+    "var_genetic": 13.69140802778002,
+    "var_residual": 339.67382172540414,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 Std",
+    "heritability": 0.5700744331263264,
+    "var_genetic": 22.298850726182437,
+    "var_residual": 108.86686058103083,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 P5",
+    "heritability": 2.5095666594073398e-08,
+    "var_genetic": 2.1869414924475903e-07,
+    "var_residual": 56.41439409723692,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 P25",
+    "heritability": 6.631164794915943e-09,
+    "var_genetic": 1.4206943169995423e-07,
+    "var_residual": 138.6954870132032,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 P75",
+    "heritability": 0.37788710998721464,
+    "var_genetic": 64.75385069462298,
+    "var_residual": 690.1193933655711,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P25 P95",
+    "heritability": 0.5303808158071583,
+    "var_genetic": 166.39110196470128,
+    "var_residual": 953.7611567932171,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P75 Max",
+    "heritability": 0.35709536469654124,
+    "var_genetic": 207.03773911031948,
+    "var_residual": 2413.0336103702034,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P75 Mean",
+    "heritability": 0.5022520454761462,
+    "var_genetic": 132.25077958067294,
+    "var_residual": 848.4720119945749,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P75 Med",
+    "heritability": 0.35131039422684857,
+    "var_genetic": 71.93779820437236,
+    "var_residual": 859.9131520881841,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P75 Std",
+    "heritability": 0.3041678892313258,
+    "var_genetic": 7.930454373650225,
+    "var_residual": 117.44666353669025,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P75 P75",
+    "heritability": 0.26312123690446104,
+    "var_genetic": 68.16172813430529,
+    "var_residual": 1235.754616309545,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P75 P95",
+    "heritability": 0.3256564487049371,
+    "var_genetic": 127.9642092330518,
+    "var_residual": 1715.3847858659851,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lateral Lengths P95 Std",
+    "heritability": 0.5468772403983245,
+    "var_genetic": 50.07484874830497,
+    "var_residual": 268.5945422642173,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  }
+]

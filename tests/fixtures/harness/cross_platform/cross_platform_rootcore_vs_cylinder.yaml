@@ -1,0 +1,128 @@
+# Cross-Platform Analysis Configuration
+# Comparing Root Core EDPIE (QC'd, all traits) vs Cylinder (SLEAP Roots)
+# Updated: 2025-12-15
+# Purpose: Correlate field root coring measurements with greenhouse SLEAP Roots traits
+#          to identify lab-measurable predictors of field root architecture
+
+# Experiment 1: Root Core EDPIE (Field root coring data - QC'd but NOT heritability filtered)
+# Note: Using 07_data_outliers_removed.csv which has all 12 depth intervals + biomass
+#       This is QC'd (trait cleanup, sample cleanup, outlier removal) but keeps all traits
+exp1_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/edpie_root_core_qc_20260316_120039/07_data_outliers_removed.csv"
+exp1_name: "Root Core EDPIE (QC'd)"
+exp1_genotype_col: "Genotype"
+
+# Experiment 2: Cylinder (SLEAP Roots imaging) - QC'd but NOT heritability filtered
+exp2_data_path: "C:/repos/sleap-roots-analyze/pipeline_runs/2026-03-16_115747/qc/cylinder_edpie_qc_20260316_115918/07_data_outliers_removed.csv"
+exp2_name: "Cylinder EDPIE (QC'd)"
+exp2_genotype_col: "Genotype"
+
+# Correlation Analysis Parameters
+correlation_method: "spearman"  # Spearman for robustness
+min_samples_per_genotype: 2     # Lower threshold for field data
+significance_level: 0.05        # Standard p-value threshold
+
+# Multiple Testing Correction
+# Options: "fdr_bh" (Benjamini-Hochberg), "fdr_by" (Benjamini-Yekutieli), "none"
+# Default: "fdr_by" (conservative, valid for correlated traits)
+fdr_correction_method: "fdr_bh"
+
+# Trait Redundancy Reduction
+# Cluster highly correlated traits and select representatives to reduce multiple testing burden
+trait_reduction_method: "clustering"  # Options: "none", "clustering"
+trait_reduction_target: "both"        # Which experiment to cluster: "exp1", "exp2", or "both"
+trait_clustering_threshold: 0.8       # Traits with |r| >= 0.8 are clustered together
+trait_clustering_linkage: "complete"  # Linkage method: "complete", "average", "single"
+
+# Visualization Parameters
+top_n_correlations: 50          # More correlations (high-dimensional cylinder data)
+top_n_joint_plots: 15           # Joint plots for top correlations
+top_n_boxplots: 15              # Boxplots for top comparisons
+figsize_summary: [18, 16]       # Larger summary plot
+figsize_joint: [10, 10]         # Joint plot figure size
+figsize_boxplot: [16, 6]        # Boxplot figure size
+
+# Column Exclusions - metadata columns to exclude from trait analysis
+exp1_exclude_cols:
+  - "Plot"             # Plot number
+  - "Ent"              # Entry number
+  - "Sub"              # Sub-entry
+  - "Cid"              # Cross ID
+  - "Sid"              # Selection ID
+  - "GID"              # Germplasm ID
+  - "Cross name"       # Cross pedigree
+  - "Sel_Hist"         # Selection history
+  - "Origin"           # Germplasm origin
+  - "outlier_flag"     # QC outlier flag
+  - "outlier_reason"   # QC outlier reason
+  - "plant_identifier" # Plant identifier
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Rspkgp Calc Pct"   # 11/20 unique geno means (55%)
+  - "Ant Dto Day"        # 13/20 unique geno means (65%), CV=0.025
+  - "Boot Dtoinit Day"   # 13/20 unique geno means (65%), CV=0.029
+  - "Hd Dto Day"         # 13/20 unique geno means (65%), CV=0.026
+  - "Root Count 45cm"    # 13/20 unique geno means (65%)
+  - "Gwsp Calc (g)"      # 14/20 unique geno means (70%)
+  - "Mat Dto Day"        # 15/20 unique geno means (75%), CV=0.020
+  - "Root Count 35cm"    # 15/20 unique geno means (75%)
+  - "Root Count 40cm"    # 15/20 unique geno means (75%)
+
+# Cylinder data (exp2) has SLEAP Roots pipeline metadata columns
+exp2_exclude_cols:
+  - "Geno_rep"           # Genotype-replicate identifier
+  - "Sterilization"      # Sterilization treatment
+  - "DOT"                # Day of treatment
+  - "QC_SLEAP"           # SLEAP QC flag
+  - "QC_Code"            # QC status code
+  - "Date_QC"            # Date of QC
+  - "Outlier_Harvest_Only"  # Outlier flag
+  - "scan_id"            # Scan identifier
+  - "accession_id"       # Accession identifier
+  - "crown"              # Crown root count (metadata)
+  - "date_scanned"       # Date scanned
+  - "experiment_id"      # Experiment identifier
+  - "experiment_name"    # Experiment name
+  - "germ_day"           # Germination day
+  - "germ_day_color"     # Germination day color code
+  - "lateral"            # Lateral root count (metadata)
+  - "phenotyper_id"      # Phenotyper identifier
+  - "plant_age_days"     # Plant age in days
+  - "plant_id"           # Plant identifier
+  - "plant_name"         # Plant name
+  - "primary"            # Primary root count (metadata)
+  - "scan_path"          # Path to scan file
+  - "scanner_id"         # Scanner identifier
+  - "species_genus"      # Species genus
+  - "species_id"         # Species identifier
+  - "species_name"       # Species name
+  - "species_species"    # Species species
+  - "uploaded_at"        # Upload timestamp
+  - "wave_id"            # Wave identifier
+  - "wave_name"          # Wave name
+  - "wave_number"        # Wave number
+  # Low-discrimination traits (< 80% unique genotype means)
+  - "Scanline First Ind Min"                   # 12/19 unique geno means (63%)
+  - "Seminal Count Max"                        # 12/19 unique geno means (63%)
+  - "Scanline Intersection Counts Max P75"     # 14/19 unique geno means (74%)
+  - "Scanline Intersection Counts P75 Min"     # 14/19 unique geno means (74%)
+  - "Scanline First Ind Med"                   # 15/19 unique geno means (79%)
+  - "Scanline First Ind P25"                   # 15/19 unique geno means (79%)
+  - "Scanline Intersection Counts Max Med"     # 15/19 unique geno means (79%)
+  - "Scanline Intersection Counts Max Min"     # 15/19 unique geno means (79%)
+  - "Scanline Last Ind Max"                    # 15/19 unique geno means (79%)
+  - "Seminal Count Min"                        # 15/19 unique geno means (79%)
+
+# Analysis Notes:
+# - Root Core data (07_data_outliers_removed.csv) includes:
+#   * Root counts at ALL 12 depth intervals (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 cm)
+#   * Root biomass (Rootdw 15Cm, Rootdw 45Cm)
+#   * Above-ground phenology and yield traits
+#   * 58 samples, ~36 traits (QC'd but NOT heritability filtered)
+# - Cylinder data includes:
+#   * SLEAP Roots depth-profiled traits at 11 DAG
+#   * Seminal root angles, lengths, counts
+#   * Network and spatial distribution metrics
+# - Key questions:
+#   * Do cylinder seminal root angles predict field root distribution?
+#   * Which SLEAP traits correlate with field root counts/biomass at specific depths?
+#   * Can greenhouse depth profiles predict field depth profiles?
+# - Important for identifying SLEAP Roots traits predictive of field performance

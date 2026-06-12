@@ -1,0 +1,153 @@
+pipeline_name: viz_turface_150genotypes
+version: '1.0'
+enable_parallel: false
+columns:
+  barcode: Barcode
+  genotype: Genotype
+  replicate: Replicate
+  image_path: image_path
+data:
+  csv_path: pipeline_runs/2026-02-12_191823/qc/turface_150genotypes_qc_20260212_191836/10_final_data.csv
+  image_dir: C:/Users/Elizabeth/Desktop/phenotyping/EDPIE_paper/data/turface_150_genotypes/turface_150_genotypes_rhizovision_processed_images
+  output_dir: ./outputs
+  additional_exclude_cols:
+  - File.me
+  - region
+  - set
+  - Salk_geno
+  - Entry
+  - GID
+  - scanner
+  traits_to_include: null
+  traits_to_exclude: []
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+pca:
+  n_components: 0.8
+  standardize: true
+  feature_selection_strategy: extreme
+  n_top_features: 1
+umap:
+  enabled: true
+  n_neighbors: 8
+  min_dist: 0.1
+  metric: euclidean
+  random_state: 42
+clustering:
+  enabled: false
+  methods:
+  - kmeans
+  n_clusters: null
+  auto_optimize: true
+  min_clusters: 2
+  max_clusters: 10
+heritability:
+  enabled: false
+  threshold: 0.4
+  generate_diagnostics: false
+interesting_genotypes:
+  enabled: true
+  methods:
+  - pc_extreme
+  - trait_extreme
+  - heritable_extreme
+  pc_threshold: 2.5
+  trait_percentile: 95.0
+  min_heritability: 0.4
+  max_genotypes: 10
+  generate_image_grids: true
+  images_per_genotype: 9
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+  adaptive_batch_size: false
+  batch_size_threshold: 100
+  max_batch_size: 49
+static_viz:
+  enabled: true
+  formats:
+  - png
+  - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+  create_phenotype_variation_plots: true
+  phenotype_variation_top_n: 10
+  regression_trait_pairs: []
+  create_genotype_image_grids: true
+  genotype_image_grid_image_type: features.png
+  genotype_image_grid_trait_cols: null
+  feature_contribution_variance_threshold: null
+  feature_contribution_top_n: 20
+  pca_biplot_top_features: 1
+  pca_heatmap_features: 20
+  pca_n_components: 3
+  histogram_batch_size: 9
+  boxplot_batch_size: 6
+  genotypes_to_color:
+  - GH_7293
+  - GH_7295
+  - GH_7299
+  - GH_7300
+  - GH_7327
+  - GH_7328
+  - GH_7361
+  - GH_7367
+  - GH_7368
+  - GH_7362
+  - GH_7378
+  - GH_7391
+  - GH_7371
+  - GH_7386
+  - GH_7401
+  - GH_7417
+  - GH_7418
+  - GH_7420
+  - GH_7440
+  highlight_genotypes:
+  - GH_7401
+  - GH_7391
+  - GH_7361
+  title_fontsize: 14
+  label_fontsize: 12
+  tick_fontsize: 10
+  legend_fontsize: 10
+  bbox_inches: tight
+  transparent: false
+  save_pdf: true
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  show_images_on_hover: true
+  create_scatter_with_images: true
+  create_image_viewer: true
+  create_image_gallery: true
+dashboard:
+  enabled: false
+  create_summary_dashboard: true
+  create_trait_dashboard: false
+summary:
+  enabled: true
+  formats:
+  - markdown
+  - json
+logging:
+  level: INFO
+  log_to_file: true
+  log_file: viz_pipeline.log

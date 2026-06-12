@@ -1,0 +1,40 @@
+{
+  "pipeline_name": "viz_turface_150genotypes",
+  "version": "1.0",
+  "run_directory": "pipeline_runs\\2026-02-12_191823\\viz\\viz_turface_150genotypes_20260212_192447",
+  "data_file": "pipeline_runs/2026-02-12_191823/qc/turface_150genotypes_qc_20260212_191836/10_final_data.csv",
+  "n_samples": 886,
+  "n_traits_initial": 13,
+  "n_traits_final": 13,
+  "configuration": {
+    "pca": {
+      "n_components": 0.8,
+      "standardize": true,
+      "feature_selection_strategy": "extreme"
+    },
+    "umap_enabled": true,
+    "umap_status": "enabled",
+    "umap_skip_reason": null,
+    "clustering_enabled": false,
+    "statistics": {
+      "calculate_anova": true,
+      "calculate_heritability": true
+    },
+    "heritability_filtering": {
+      "enabled": false,
+      "threshold": 0.4
+    },
+    "interesting_genotypes_enabled": true,
+    "adaptive_sizing_enabled": true
+  },
+  "results": {
+    "anova": {
+      "n_traits_tested": 13,
+      "n_significant": 13
+    },
+    "heritability": {
+      "mean_h2": 0.6194139599513456,
+      "n_high_h2": 9
+    }
+  }
+}

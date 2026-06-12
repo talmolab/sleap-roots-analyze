@@ -1,5 +1,7 @@
 """Centralized pytest fixtures for test data."""
 
+import json
+
 import pandas as pd
 import numpy as np
 import pytest
@@ -3868,3 +3870,126 @@ def cross_platform_field_df(test_data_dir):
         pd.DataFrame: Real field experiment data with above-ground and root core data
     """
     return pd.read_csv(test_data_dir / "Field_2024_clean.csv")
+
+
+# ============================================================================
+# PIPELINE REPRODUCTION FIXTURES (#120)
+# Golden wheat-EDPIE fixtures backing the full pipeline (QC -> viz ->
+# cross-platform). Loaded once per session and shared across the per-stage
+# reproduction tests in test_pipeline_reproduction.py. See
+# tests/fixtures/README.md for layout, curation, and tolerance/regenerate policy.
+# ============================================================================
+
+
+# The four EDPIE platforms whose golden fixtures are committed under
+# tests/fixtures/real/wheat_edpie/expected/{qc,viz}/<platform>/.
+EDPIE_PLATFORMS = ("turface_19", "turface_150", "cylinder", "root_core")
+
+
+@pytest.fixture(scope="session")
+def edpie_platforms():
+    """Return the tuple of EDPIE platform keys with committed golden fixtures."""
+    return EDPIE_PLATFORMS
+
+
+@pytest.fixture(scope="session")
+def repro_fixtures_dir():
+    """Return the root of the pipeline reproduction fixture tree."""
+    return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(scope="session")
+def harness_dir(repro_fixtures_dir):
+    """Return the harness directory (runnable EDPIE recipe)."""
+    return repro_fixtures_dir / "harness"
+
+
+@pytest.fixture(scope="session")
+def edpie_real_dir(repro_fixtures_dir):
+    """Return the real wheat-EDPIE fixture directory."""
+    return repro_fixtures_dir / "real" / "wheat_edpie"
+
+
+@pytest.fixture(scope="session")
+def final_data_by_platform(edpie_real_dir):
+    """Load each platform's post-QC ``10_final_data.csv`` golden table (once)."""
+    return {
+        p: pd.read_csv(edpie_real_dir / "expected" / "qc" / p / "10_final_data.csv")
+        for p in EDPIE_PLATFORMS
+    }
+
+
+@pytest.fixture(scope="session")
+def qc_heritability_by_platform(edpie_real_dir):
+    """Load each platform's QC heritability-filter summary JSON."""
+    return {
+        p: json.loads(
+            (
+                edpie_real_dir
+                / "expected"
+                / "qc"
+                / p
+                / "09_heritability_filter_summary.json"
+            ).read_text()
+        )
+        for p in EDPIE_PLATFORMS
+    }
+
+
+@pytest.fixture(scope="session")
+def qc_removed_counts_by_platform(edpie_real_dir):
+    """Map each platform to its removed outlier/trait/sample row counts."""
+    detail = {
+        "outliers": "07_removed_outliers_detail.csv",
+        "traits": "01_removed_traits_detail.csv",
+        "samples": "02_removed_samples_detail.csv",
+    }
+    out = {}
+    for p in EDPIE_PLATFORMS:
+        qc = edpie_real_dir / "expected" / "qc" / p
+        out[p] = {k: len(pd.read_csv(qc / f)) for k, f in detail.items()}
+    return out
+
+
+@pytest.fixture(scope="session")
+def viz_summary_by_platform(edpie_real_dir):
+    """Load each platform's viz summary JSON (headline metrics)."""
+    return {
+        p: json.loads(
+            (edpie_real_dir / "expected" / "viz" / p / "summary.json").read_text()
+        )
+        for p in EDPIE_PLATFORMS
+    }
+
+
+@pytest.fixture(scope="session")
+def viz_pca_by_platform(edpie_real_dir):
+    """Load each platform's curated viz PCA metadata (trait_cols, explained var)."""
+    return {
+        p: json.loads(
+            (
+                edpie_real_dir / "expected" / "viz" / p / "viz_pca_metadata.json"
+            ).read_text()
+        )
+        for p in EDPIE_PLATFORMS
+    }
+
+
+@pytest.fixture(scope="session")
+def viz_umap_by_platform(edpie_real_dir):
+    """Map each platform with a UMAP embedding to its golden Nx2 array.
+
+    Platforms whose viz run produced no UMAP (e.g. ``root_core``) are absent.
+    """
+    out = {}
+    for p in EDPIE_PLATFORMS:
+        f = edpie_real_dir / "expected" / "viz" / p / "viz_umap_embedding.csv"
+        if f.is_file():
+            out[p] = pd.read_csv(f).to_numpy()
+    return out
+
+
+@pytest.fixture(scope="session")
+def crossplatform_dir(edpie_real_dir):
+    """Return the directory holding the cross-platform golden pairings."""
+    return edpie_real_dir / "expected" / "cross_platform"

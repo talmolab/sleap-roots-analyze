@@ -1,0 +1,66 @@
+[
+  {
+    "trait": "Root Shoot Ratio",
+    "heritability": 0.41325785391858316,
+    "var_genetic": 0.0005140572714821522,
+    "var_residual": 0.005877268146545565,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Med Num Roots",
+    "heritability": 0.36546278633997065,
+    "var_genetic": 0.30531643745889275,
+    "var_residual": 4.26876210237829,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Max Num Roots",
+    "heritability": 0.20594733654628145,
+    "var_genetic": 1.0003392003930651,
+    "var_residual": 31.05834035094598,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Num Root Tips",
+    "heritability": 0.5264583512555024,
+    "var_genetic": 90.89138117073992,
+    "var_residual": 658.3467491300689,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Depth (mm)",
+    "heritability": 0.4474935143529798,
+    "var_genetic": 7785.984323973735,
+    "var_residual": 77410.87739636016,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Convex Area (mm\u00b2)",
+    "heritability": 0.42564395378557474,
+    "var_genetic": 48144783234.25746,
+    "var_residual": 523144656967.39886,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Lower Root Area (mm\u00b2)",
+    "heritability": 0.08555421997464016,
+    "var_genetic": 92485374.82928495,
+    "var_residual": 7960262967.8774395,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  },
+  {
+    "trait": "Avg Hole Size (mm\u00b2)",
+    "heritability": 0.45538515679270014,
+    "var_genetic": 36067.76502714953,
+    "var_residual": 347350.2889194751,
+    "model_type": "mixed_model",
+    "reason": "h2 < 0.6"
+  }
+]

@@ -1,0 +1,24 @@
+{
+ "trait_cols": [
+  "Holes",
+  "Lower Root Area (mm\u00b2)",
+  "Max Num Roots",
+  "Med Num Roots",
+  "Network Area (mm\u00b2)",
+  "Num Root Tips",
+  "Perimeter (mm)",
+  "Root (g)",
+  "Root Shoot Ratio",
+  "Shoot (g)",
+  "Surface Area (mm\u00b2)",
+  "Total Root Length (mm)",
+  "Volume (mm\u00b3)"
+ ],
+ "pca_explained_variance": 0.8431244797711547,
+ "n_pca_components": 3,
+ "top_features": [
+  "Root Shoot Ratio",
+  "Total Root Length (mm)",
+  "Shoot (g)"
+ ]
+}

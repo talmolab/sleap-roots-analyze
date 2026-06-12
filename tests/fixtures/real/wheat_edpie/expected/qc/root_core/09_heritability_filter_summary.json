@@ -1,0 +1,22 @@
+{
+  "filtering_enabled": true,
+  "threshold": 0.5,
+  "traits_original": 35,
+  "traits_retained": 24,
+  "traits_removed": 11,
+  "removed_trait_names": [
+    "Root Count 10cm",
+    "Root Count 25cm",
+    "Root Count 30cm",
+    "Root Count 40cm",
+    "Root Count 50cm",
+    "Root Count 5cm",
+    "Rootdw 15cm",
+    "Rootdw 45cm",
+    "Rspkgp Calc Pct",
+    "Plntstnd Calc Plntm2",
+    "Stmdw M Gm2"
+  ],
+  "retention_fraction": 0.6857142857142857,
+  "mean_heritability_retained": 0.7583650568057024
+}

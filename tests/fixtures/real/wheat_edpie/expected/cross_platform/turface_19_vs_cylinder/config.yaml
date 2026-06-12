@@ -1,0 +1,63 @@
+exp1_data_path: pipeline_runs/2026-02-12_191823/qc/turface_19genotypes_qc_20260212_191941/07_data_outliers_removed.csv
+exp1_name: Turface 19 Genotypes (QC'd)
+exp1_genotype_col: Genotype
+exp2_data_path: pipeline_runs/2026-02-12_191823/qc/cylinder_edpie_qc_20260212_192028/07_data_outliers_removed.csv
+exp2_name: Cylinder EDPIE (QC'd)
+exp2_genotype_col: Genotype
+correlation_method: spearman
+min_samples_per_genotype: 3
+significance_level: 0.05
+fdr_correction_method: fdr_bh
+confidence_level: 0.95
+min_genotypes_for_correlation: 10
+power_analysis_alpha: 0.05
+power_analysis_power: 0.8
+top_n_correlations: 30
+top_n_joint_plots: 10
+top_n_boxplots: 10
+figsize_summary:
+- 16
+- 14
+figsize_joint:
+- 10
+- 10
+figsize_boxplot:
+- 16
+- 6
+exp1_exclude_cols: null
+exp2_exclude_cols:
+- Geno_rep
+- Sterilization
+- DOT
+- QC_SLEAP
+- QC_Code
+- Date_QC
+- Outlier_Harvest_Only
+- scan_id
+- accession_id
+- crown
+- date_scanned
+- experiment_id
+- experiment_name
+- germ_day
+- germ_day_color
+- lateral
+- phenotyper_id
+- plant_age_days
+- plant_id
+- plant_name
+- primary
+- scan_path
+- scanner_id
+- species_genus
+- species_id
+- species_name
+- species_species
+- uploaded_at
+- wave_id
+- wave_name
+- wave_number
+trait_reduction_method: clustering
+trait_reduction_target: both
+trait_clustering_threshold: 0.8
+trait_clustering_linkage: complete
