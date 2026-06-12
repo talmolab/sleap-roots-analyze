@@ -67,6 +67,77 @@ def test_load_cross_platform_data_step_initialization():
     assert "Load and align" in step.description
 
 
+def _xp_config(exp1_csv, exp2_csv, mode):
+    """Build a CrossPlatformConfig over the test CSVs with the given validate_input."""
+    return CrossPlatformConfig(
+        exp1_data_path=str(exp1_csv),
+        exp1_name="Cylinder",
+        exp1_genotype_col="Geno",
+        exp2_data_path=str(exp2_csv),
+        exp2_name="Turface",
+        exp2_genotype_col="geno",
+        correlation_method="spearman",
+        min_samples_per_genotype=2,
+        validate_input=mode,
+    )
+
+
+def test_load_cross_platform_validates_each_frame_once(
+    exp1_csv, exp2_csv, tmp_path, monkeypatch
+):
+    """The boundary helper is called once per experiment frame (exp1, exp2) (#154)."""
+    import sleap_roots_analyze.pipeline.steps.load_cross_platform_data as xp_mod
+
+    calls = []
+    monkeypatch.setattr(
+        xp_mod,
+        "validate_cross_platform_experiment",
+        lambda df, **kwargs: calls.append(kwargs["mode"]),
+    )
+
+    step = xp_mod.LoadCrossPlatformDataStep()
+    step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "warn"),
+        run_dir=tmp_path,
+        prev_result=None,
+    )
+
+    assert calls == ["warn", "warn"]  # exp1 and exp2
+
+
+def test_load_cross_platform_validation_does_not_change_output(
+    exp1_csv, exp2_csv, tmp_path
+):
+    """Output with validate_input=warn equals validate_input=off (#154)."""
+    from pandas.testing import assert_frame_equal
+
+    from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+        LoadCrossPlatformDataStep,
+    )
+
+    off_dir, warn_dir = tmp_path / "off", tmp_path / "warn"
+    off_dir.mkdir()
+    warn_dir.mkdir()
+    step = LoadCrossPlatformDataStep()
+
+    r_off = step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "off"),
+        run_dir=off_dir,
+        prev_result=None,
+    )
+    r_warn = step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "warn"),
+        run_dir=warn_dir,
+        prev_result=None,
+    )
+
+    assert_frame_equal(r_off.data["exp1_df"], r_warn.data["exp1_df"])
+    assert_frame_equal(r_off.data["exp2_df"], r_warn.data["exp2_df"])
+
+
 def test_load_cross_platform_data_step_execute(cross_platform_config, tmp_path):
     """Test LoadCrossPlatformDataStep execution."""
     from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
