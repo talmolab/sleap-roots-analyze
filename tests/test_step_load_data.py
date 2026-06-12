@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal
 
+import sleap_roots_analyze.pipeline.steps.load_data as load_data_mod
 from sleap_roots_analyze.pipeline import ColumnConfig, DataConfig, QCPipelineConfig
 from sleap_roots_analyze.pipeline.steps import LoadDataStep
 
@@ -104,6 +106,68 @@ def test_load_data_step_with_additional_exclude(sample_csv, tmp_path):
     assert result.metadata["trait_columns"] == 1  # Only trait1
     assert "trait1" in result.metadata["trait_column_names"]
     assert "trait2" not in result.metadata["trait_column_names"]
+
+
+def test_load_data_step_invokes_validation_once_on_entry(config, tmp_path, monkeypatch):
+    """The boundary helper is called exactly once on the loaded entry frame (#144)."""
+    calls = []
+
+    def spy(df, *, columns, mode, additional_exclude=None, logger=None):
+        calls.append((df, columns, mode, additional_exclude))
+
+    monkeypatch.setattr(load_data_mod, "validate_entry_input", spy)
+    config.data.validate_input = "warn"
+
+    step = LoadDataStep()
+    step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
+
+    assert len(calls) == 1
+    df_arg, cols_arg, mode_arg, addl = calls[0]
+    assert mode_arg == "warn"
+    assert cols_arg is config.columns
+    assert "Barcode" in df_arg.columns  # the raw entry frame
+
+
+def test_load_data_step_validates_preloaded_root_core_data(
+    config, tmp_path, monkeypatch
+):
+    """The pre-loaded (root-core) branch is validated too (#144)."""
+    calls = []
+    monkeypatch.setattr(
+        load_data_mod,
+        "validate_entry_input",
+        lambda df, **kwargs: calls.append(kwargs["mode"]),
+    )
+    config.data.validate_input = "strict"
+    preloaded = pd.DataFrame(
+        {
+            "Barcode": ["p1", "p2", "p3"],
+            "geno": ["A", "B", "A"],
+            "rep": [1, 1, 2],
+            "trait1": [1.0, 2.0, 3.0],
+        }
+    )
+
+    step = LoadDataStep()
+    step.execute(data=preloaded, config=config, run_dir=tmp_path, prev_result=None)
+
+    assert calls == ["strict"]
+
+
+def test_load_data_step_validation_does_not_change_output(config, tmp_path):
+    """Output with validate_input=warn equals validate_input=off (#144)."""
+    off_dir = tmp_path / "off"
+    warn_dir = tmp_path / "warn"
+    off_dir.mkdir()
+    warn_dir.mkdir()
+
+    step = LoadDataStep()
+    config.data.validate_input = "off"
+    r_off = step.execute(data=None, config=config, run_dir=off_dir, prev_result=None)
+    config.data.validate_input = "warn"
+    r_warn = step.execute(data=None, config=config, run_dir=warn_dir, prev_result=None)
+
+    assert_frame_equal(r_off.data, r_warn.data)
 
 
 def test_load_data_step_missing_file(tmp_path):

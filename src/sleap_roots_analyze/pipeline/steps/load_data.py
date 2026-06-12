@@ -9,6 +9,7 @@ import pandas as pd
 
 from sleap_roots_analyze.data_cleanup import get_trait_columns, load_trait_data
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
+from sleap_roots_analyze.validation import validate_entry_input
 
 
 class LoadDataStep(BaseStep):
@@ -72,6 +73,17 @@ class LoadDataStep(BaseStep):
 
         # Get additional columns to exclude if specified
         additional_exclude = config.data.additional_exclude_cols
+
+        # Input-contract validation at the entry boundary (issue #144). A
+        # non-intrusive, optional side-check on a copy of the entry frame; it never
+        # alters `df`. Degrades to a logged no-op when sleap-roots-contracts is absent
+        # or when validate_input == "off".
+        validate_entry_input(
+            df,
+            columns=config.columns,
+            mode=config.data.validate_input,
+            additional_exclude=additional_exclude,
+        )
 
         # Get trait columns (numeric, non-metadata)
         trait_cols = get_trait_columns(
