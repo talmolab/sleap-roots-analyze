@@ -13,9 +13,13 @@ See ``tests/fixtures.py`` for the ``scope="session"`` loaders these tests share.
 
 from __future__ import annotations
 
+import dataclasses
+import json
+
 import numpy as np
 import pytest
 
+from sleap_roots_analyze import PCAResult
 from sleap_roots_analyze.pca import perform_pca_analysis
 from sleap_roots_analyze.pipeline.config.utils import (
     load_qc_config,
@@ -261,6 +265,46 @@ def test_viz_pca_reproduction(final_data_by_platform, viz_pca_by_platform, platf
     assert np.isclose(
         reproduced, golden["pca_explained_variance"], rtol=RTOL, atol=ATOL
     )
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+def test_viz_pca_typed_view_golden(
+    final_data_by_platform, viz_pca_by_platform, platform
+):
+    """The ``PCAResult`` typed view carries the golden explained variance (#130).
+
+    Epic #130 acceptance: the #120 golden numbers assert against the serializable typed
+    view, not just the legacy dict. A ``PCAResult`` built from a fresh
+    ``perform_pca_analysis`` must (a) retain the golden component count, (b) sum to the
+    golden explained variance over those components, and (c) round-trip through
+    ``json.dumps(dataclasses.asdict(...))`` with no custom serializer — the property that
+    lets the result cross a JSON boundary.
+    """
+    golden = viz_pca_by_platform[platform]
+    n = golden["n_pca_components"]
+    res = perform_pca_analysis(
+        final_data_by_platform[platform][golden["trait_cols"]],
+        standardize=True,
+        explained_variance_threshold=0.95,
+        random_state=42,
+    )
+    result = PCAResult.from_pca_dict(
+        res, random_state=42, explained_variance_threshold=0.95
+    )
+
+    # Golden explained variance, asserted via the typed field. The typed view retains
+    # the 0.95-threshold components (>= the pipeline's golden component count); summing
+    # its first ``n`` ratios reproduces the golden value, matching the legacy-dict test.
+    assert result.n_components >= n
+    reproduced = float(np.sum(result.explained_variance_ratio[:n]))
+    assert np.isclose(
+        reproduced, golden["pca_explained_variance"], rtol=RTOL, atol=ATOL
+    )
+
+    # Serializable with no custom encoder — the whole point of the typed view.
+    restored = json.loads(json.dumps(dataclasses.asdict(result)))
+    assert restored["explained_variance_ratio"] == result.explained_variance_ratio
+    assert restored["n_components"] == result.n_components
 
 
 @pytest.mark.parametrize("platform", UMAP_PLATFORMS)
