@@ -9,6 +9,7 @@ module degrades to a logged no-op when ``sleap-roots-contracts`` is not installe
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import List, Optional, Protocol
 
 import pandas as pd
@@ -185,3 +186,73 @@ def validate_entry_input(
     for warning in result.warnings:
         log.warning("input validation: %s: %s", warning.column, warning.message)
     result.raise_for_status()
+
+
+@dataclass(frozen=True)
+class _AlignedRoles:
+    """Role-name view for already-canonicalized frames (satisfies ``ColumnRoles``).
+
+    A small typed stand-in rather than a config import: the aligned cross-platform
+    frames already use the contract-canonical role names, and a module-level import of
+    ``ColumnConfig`` here would close a ``validation -> pipeline -> validation`` import
+    cycle. Defaults are the canonical names, so it is self-documenting and type-checked.
+    """
+
+    genotype: str = "genotype"
+    barcode: str = "sample_id"
+    replicate: str = "replicate"
+    image_path: str = "image_path"
+
+
+# The aligned cross-platform experiment frames carry "genotype"/"replicate" columns and
+# have no per-sample id (issue #154). Reused as the ``columns`` object for the shared
+# validate_entry_input recipe.
+_ALIGNED_CANONICAL_ROLES = _AlignedRoles()
+
+
+def validate_cross_platform_experiment(
+    df: pd.DataFrame,
+    *,
+    mode: str,
+    additional_exclude: Optional[List[str]] = None,
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    """Validate one aligned cross-platform experiment frame (issue #154).
+
+    The aligned experiment frames already carry canonical ``genotype``/``replicate``
+    columns, so this is the same canonicalize-then-validate side-check as the QC
+    boundary, with fixed canonical role names. It delegates to
+    :func:`validate_entry_input`, sharing its copy-isolation, optional-dependency, and
+    severity (``off``/``warn``/``strict``) semantics.
+
+    Strict reinterpretation: aligned frames have no per-sample identifier (the source
+    barcode is intentionally dropped during alignment), so requiring ``sample_id`` under
+    ``strict`` would fail on every valid frame. To keep ``strict`` usable — enforcing the
+    rest of the contract (non-null ``genotype``, role dtypes, at least one numeric trait)
+    — a synthetic positional ``sample_id`` is injected into the *discarded* validation
+    copy when one is absent. This never touches ``df`` or pipeline output.
+
+    Args:
+        df: An aligned cross-platform experiment frame.
+        mode: One of ``"off"``, ``"warn"``, or ``"strict"``.
+        additional_exclude: Extra non-trait metadata columns to exclude from the copy.
+        logger: Logger to use; defaults to this module's logger.
+
+    Raises:
+        ValueError: If ``mode`` is invalid or the contract validation fails for ``mode``.
+    """
+    # Inject a synthetic per-row sample_id on a copy so strict does not fail on the
+    # structurally-absent recommended role. validate_entry_input copies again before
+    # mutating, but copying here keeps df pristine regardless of mode.
+    check_src = df
+    if mode != "off" and "sample_id" not in df.columns:
+        check_src = df.copy()
+        check_src["sample_id"] = [f"row_{i}" for i in range(len(check_src))]
+
+    validate_entry_input(
+        check_src,
+        columns=_ALIGNED_CANONICAL_ROLES,
+        mode=mode,
+        additional_exclude=additional_exclude,
+        logger=logger,
+    )
