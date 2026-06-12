@@ -32,7 +32,15 @@ from typing import Any, Optional
 
 import numpy as np
 
-__all__ = ["FeatureContribution", "PCAResult"]
+__all__ = [
+    "FeatureContribution",
+    "PCAResult",
+    "TraitHeritability",
+    "HeritabilityResult",
+]
+
+# Key the heritability dict reserves for calculation metadata (not a trait).
+_HERITABILITY_METADATA_KEY = "__calculation_metadata__"
 
 
 @dataclass(frozen=True)
@@ -191,4 +199,121 @@ class PCAResult:
             random_state=random_state,
             explained_variance_threshold=explained_variance_threshold,
             feature_contributions=feature_contributions,
+        )
+
+
+@dataclass(frozen=True)
+class TraitHeritability:
+    """A single trait's broad-sense heritability estimate.
+
+    Attributes:
+        trait: Trait (column) name.
+        h2: Broad-sense heritability estimate H² in ``[0, 1]``.
+        passed_threshold: Whether ``h2`` meets the result's threshold.
+        var_genetic: Genetic variance component (σ²_G).
+        var_residual: Residual/environmental variance component (σ²_E).
+        n_genotypes: Number of genotypes used for this trait.
+        n_observations: Number of observations used for this trait.
+        model_type: Model used for this trait (e.g. ``"mixed_model"``,
+            ``"anova_based"``, ``"no_variance"``).
+    """
+
+    trait: str
+    h2: float
+    passed_threshold: bool
+    var_genetic: float
+    var_residual: float
+    n_genotypes: int
+    n_observations: int
+    model_type: str
+
+
+@dataclass(frozen=True)
+class HeritabilityResult:
+    """JSON-serializable view of a heritability run (science only).
+
+    Built from the legacy ``calculate_heritability_estimates`` dict via
+    :meth:`from_heritability_dict`. Traits that failed estimation are listed in
+    ``failed_traits`` rather than ``per_trait``; no statsmodels model object is
+    retained.
+
+    Attributes:
+        method: Estimation method applied to all traits (e.g.
+            ``"mixed_model"``).
+        threshold: H² threshold used to classify ``passed_threshold``.
+        per_trait: Per-trait heritability estimates that succeeded.
+        failed_traits: Names of traits whose estimation errored or produced no
+            heritability value.
+    """
+
+    method: str
+    threshold: float
+    per_trait: list[TraitHeritability] = field(default_factory=list)
+    failed_traits: list[str] = field(default_factory=list)
+
+    @property
+    def mean_h2(self) -> float:
+        """Mean H² over successful traits (``0.0`` when there are none)."""
+        if not self.per_trait:
+            return 0.0
+        return float(sum(t.h2 for t in self.per_trait) / len(self.per_trait))
+
+    @property
+    def n_above_threshold(self) -> int:
+        """Number of successful traits whose H² meets the threshold."""
+        return sum(1 for t in self.per_trait if t.passed_threshold)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_heritability_dict(cls, d: dict, threshold: float) -> "HeritabilityResult":
+        """Build a :class:`HeritabilityResult` from a heritability dict.
+
+        Accepts the ``calculate_heritability_estimates`` return dict (the
+        ``remove_low_h2=False`` form, or the first element of the
+        ``remove_low_h2=True`` tuple). Does not mutate ``d``.
+
+        Args:
+            d: Trait-keyed heritability dict, optionally including the
+                ``__calculation_metadata__`` entry.
+            threshold: H² threshold used to set each trait's
+                ``passed_threshold``.
+
+        Returns:
+            A frozen :class:`HeritabilityResult` holding only serializable
+            science.
+        """
+        metadata = d.get(_HERITABILITY_METADATA_KEY) or {}
+        method = str(metadata.get("method_used_for_all_traits", "unknown"))
+        threshold = float(threshold)
+
+        per_trait: list[TraitHeritability] = []
+        failed_traits: list[str] = []
+        for trait, entry in d.items():
+            if trait == _HERITABILITY_METADATA_KEY:
+                continue
+            if not isinstance(entry, dict) or "heritability" not in entry:
+                failed_traits.append(str(trait))
+                continue
+            h2 = float(entry["heritability"])
+            per_trait.append(
+                TraitHeritability(
+                    trait=str(trait),
+                    h2=h2,
+                    passed_threshold=h2 >= threshold,
+                    var_genetic=float(entry.get("var_genetic", 0.0)),
+                    var_residual=float(entry.get("var_residual", 0.0)),
+                    n_genotypes=int(entry.get("n_genotypes", 0)),
+                    n_observations=int(entry.get("n_observations", 0)),
+                    model_type=str(entry.get("model_type", "unknown")),
+                )
+            )
+
+        return cls(
+            method=method,
+            threshold=threshold,
+            per_trait=per_trait,
+            failed_traits=failed_traits,
         )

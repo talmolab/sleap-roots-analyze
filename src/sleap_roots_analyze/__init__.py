@@ -44,6 +44,8 @@ from sleap_roots_analyze.pca import (
 from sleap_roots_analyze.result_types import (
     FeatureContribution,
     PCAResult,
+    HeritabilityResult,
+    TraitHeritability,
 )
 
 from sleap_roots_analyze.umap import (
@@ -224,6 +226,8 @@ __all__ = [
     # Serializable result types (#130)
     "PCAResult",
     "FeatureContribution",
+    "HeritabilityResult",
+    "TraitHeritability",
     # UMAP functions
     "perform_umap_analysis",
     # Clustering functions
