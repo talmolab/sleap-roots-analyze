@@ -138,6 +138,47 @@ def test_load_cross_platform_validation_does_not_change_output(
     assert_frame_equal(r_off.data["exp2_df"], r_warn.data["exp2_df"])
 
 
+def test_load_cross_platform_runs_without_contracts(
+    exp1_csv, exp2_csv, tmp_path, monkeypatch, caplog
+):
+    """With contracts unavailable, the step runs cleanly with identical output (#154)."""
+    import logging
+
+    from pandas.testing import assert_frame_equal
+
+    import sleap_roots_analyze.validation.input_contract as ic
+    from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+        LoadCrossPlatformDataStep,
+    )
+
+    base_dir, absent_dir = tmp_path / "base", tmp_path / "absent"
+    base_dir.mkdir()
+    absent_dir.mkdir()
+    step = LoadCrossPlatformDataStep()
+
+    r_base = step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "warn"),
+        run_dir=base_dir,
+        prev_result=None,
+    )
+
+    monkeypatch.setattr(ic, "CONTRACTS_AVAILABLE", False)
+    monkeypatch.setattr(ic, "validate_analysis_input", None)
+    monkeypatch.setattr(ic, "canonicalize_role_dtypes", None)
+    with caplog.at_level(logging.INFO):
+        r_absent = step.execute(
+            data=None,
+            config=_xp_config(exp1_csv, exp2_csv, "warn"),
+            run_dir=absent_dir,
+            prev_result=None,
+        )
+
+    assert_frame_equal(r_base.data["exp1_df"], r_absent.data["exp1_df"])
+    assert_frame_equal(r_base.data["exp2_df"], r_absent.data["exp2_df"])
+    assert any("skip" in r.message.lower() for r in caplog.records)
+
+
 def test_load_cross_platform_data_step_execute(cross_platform_config, tmp_path):
     """Test LoadCrossPlatformDataStep execution."""
     from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
