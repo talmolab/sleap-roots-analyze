@@ -46,6 +46,9 @@ from sleap_roots_analyze.result_types import (
     PCAResult,
     HeritabilityResult,
     TraitHeritability,
+    ClusterResult,
+    KMeansResult,
+    GMMResult,
 )
 
 from sleap_roots_analyze.umap import (
@@ -228,6 +231,9 @@ __all__ = [
     "FeatureContribution",
     "HeritabilityResult",
     "TraitHeritability",
+    "ClusterResult",
+    "KMeansResult",
+    "GMMResult",
     # UMAP functions
     "perform_umap_analysis",
     # Clustering functions

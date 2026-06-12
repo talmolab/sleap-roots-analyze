@@ -37,6 +37,9 @@ __all__ = [
     "PCAResult",
     "TraitHeritability",
     "HeritabilityResult",
+    "ClusterResult",
+    "KMeansResult",
+    "GMMResult",
 ]
 
 # Key the heritability dict reserves for calculation metadata (not a trait).
@@ -367,3 +370,162 @@ class HeritabilityResult:
             per_trait=per_trait,
             failed_traits=failed_traits,
         )
+
+
+@dataclass(frozen=True)
+class ClusterResult:
+    """JSON-serializable base view of a clustering run (science only).
+
+    KMeans and GMM return substantially different results, so the algorithm-
+    specific science lives on the :class:`KMeansResult` / :class:`GMMResult`
+    subclasses; this base holds only the fields common to both. The
+    ``algorithm`` field discriminates the concrete type for a JSON consumer.
+    Build via :meth:`from_kmeans_dict` / :meth:`from_gmm_dict`.
+
+    Attributes:
+        algorithm: Clustering algorithm, ``"kmeans"`` or ``"gmm"``.
+        n_clusters: Number of clusters (KMeans ``n_clusters`` / GMM
+            ``n_components``).
+        cluster_labels: Hard cluster assignment per sample.
+        cluster_sizes: Number of samples assigned to each cluster.
+        silhouette_score: Silhouette quality metric in ``[-1, 1]``.
+        davies_bouldin_score: Davies-Bouldin quality metric (lower is better).
+        calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
+            better).
+        feature_names: Feature (column) names used for clustering.
+        random_state: Random seed used for the run, stamped for reproducibility.
+    """
+
+    algorithm: str
+    n_clusters: int
+    cluster_labels: list[int]
+    cluster_sizes: list[int]
+    silhouette_score: float
+    davies_bouldin_score: float
+    calinski_harabasz_score: float
+    feature_names: list[str]
+    random_state: int
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_kmeans_dict(cls, d: dict, *, random_state: int) -> "KMeansResult":
+        """Build a :class:`KMeansResult` from a ``perform_kmeans_clustering`` dict.
+
+        Stamps ``random_state`` (the dict does not carry it). Does not mutate
+        ``d``.
+
+        Args:
+            d: The dict returned by ``perform_kmeans_clustering``.
+            random_state: Seed to stamp into the result for reproducibility.
+
+        Returns:
+            A frozen :class:`KMeansResult` holding only serializable science.
+        """
+        return KMeansResult(
+            algorithm="kmeans",
+            n_clusters=int(d["n_clusters"]),
+            cluster_labels=[int(x) for x in np.asarray(d["cluster_labels"])],
+            cluster_sizes=[int(x) for x in d["cluster_sizes"]],
+            silhouette_score=float(d["silhouette_score"]),
+            davies_bouldin_score=float(d["davies_bouldin_score"]),
+            calinski_harabasz_score=float(d["calinski_harabasz_score"]),
+            feature_names=[str(name) for name in d["feature_names"]],
+            random_state=int(random_state),
+            cluster_centers=np.asarray(d["cluster_centers"]).tolist(),
+            inertia=float(d["inertia"]),
+        )
+
+    @classmethod
+    def from_gmm_dict(cls, d: dict, *, random_state: int) -> "GMMResult":
+        """Build a :class:`GMMResult` from a ``perform_gmm_clustering`` dict.
+
+        Maps ``n_components`` to ``n_clusters`` and the GMM ``means`` to
+        ``cluster_centers``, and stamps ``random_state`` (the dict does not
+        carry it). Does not mutate ``d``.
+
+        Args:
+            d: The dict returned by ``perform_gmm_clustering``.
+            random_state: Seed to stamp into the result for reproducibility.
+
+        Returns:
+            A frozen :class:`GMMResult` holding only serializable science.
+        """
+        return GMMResult(
+            algorithm="gmm",
+            n_clusters=int(d["n_components"]),
+            cluster_labels=[int(x) for x in np.asarray(d["cluster_labels"])],
+            cluster_sizes=[int(x) for x in d["cluster_sizes"]],
+            silhouette_score=float(d["silhouette_score"]),
+            davies_bouldin_score=float(d["davies_bouldin_score"]),
+            calinski_harabasz_score=float(d["calinski_harabasz_score"]),
+            feature_names=[str(name) for name in d["feature_names"]],
+            random_state=int(random_state),
+            cluster_centers=np.asarray(d["means"]).tolist(),
+            weights=[float(w) for w in np.asarray(d["weights"])],
+            bic=float(d["bic"]),
+            aic=float(d["aic"]),
+            converged=bool(d["converged"]),
+            n_iter=int(d["n_iter"]),
+            covariance_type=str(d["covariance_type"]),
+        )
+
+
+@dataclass(frozen=True)
+class KMeansResult(ClusterResult):
+    """JSON-serializable view of a K-Means run.
+
+    Attributes:
+        algorithm: Always ``"kmeans"`` for this type.
+        n_clusters: Number of clusters.
+        cluster_labels: Hard cluster assignment per sample.
+        cluster_sizes: Number of samples assigned to each cluster.
+        silhouette_score: Silhouette quality metric in ``[-1, 1]``.
+        davies_bouldin_score: Davies-Bouldin quality metric (lower is better).
+        calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
+            better).
+        feature_names: Feature (column) names used for clustering.
+        random_state: Random seed stamped for reproducibility.
+        cluster_centers: ``(n_clusters, n_features)`` nested list of centroids.
+        inertia: Within-cluster sum of squares.
+    """
+
+    cluster_centers: list[list[float]] = field(default_factory=list)
+    inertia: float = 0.0
+
+
+@dataclass(frozen=True)
+class GMMResult(ClusterResult):
+    """JSON-serializable view of a Gaussian Mixture Model run.
+
+    Attributes:
+        algorithm: Always ``"gmm"`` for this type.
+        n_clusters: Number of mixture components.
+        cluster_labels: Hard cluster assignment (argmax of probabilities) per
+            sample.
+        cluster_sizes: Number of samples assigned to each component.
+        silhouette_score: Silhouette quality metric in ``[-1, 1]``.
+        davies_bouldin_score: Davies-Bouldin quality metric (lower is better).
+        calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
+            better).
+        feature_names: Feature (column) names used for clustering.
+        random_state: Random seed stamped for reproducibility.
+        cluster_centers: ``(n_clusters, n_features)`` nested list of component
+            means.
+        weights: Mixture weight per component.
+        bic: Bayesian Information Criterion of the selected model.
+        aic: Akaike Information Criterion of the selected model.
+        converged: Whether the EM algorithm converged.
+        n_iter: Number of EM iterations performed.
+        covariance_type: Covariance parameterization used (e.g. ``"full"``).
+    """
+
+    cluster_centers: list[list[float]] = field(default_factory=list)
+    weights: list[float] = field(default_factory=list)
+    bic: float = 0.0
+    aic: float = 0.0
+    converged: bool = False
+    n_iter: int = 0
+    covariance_type: str = "full"
