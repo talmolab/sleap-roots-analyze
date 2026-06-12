@@ -159,6 +159,19 @@ class DataConfig:
         group_by: Column name to group data by for separate pipeline runs per group.
             If None, all data is processed as a single group. Common use: "plant_age_days"
             to analyze each timepoint separately. Optional.
+        validate_input: Input-contract validation mode at the data-load boundary
+            (issue #144). Requires the optional ``sleap-roots-contracts`` dependency;
+            degrades to a logged no-op when it is not installed (never an ImportError).
+            One of:
+
+            - ``"off"``: skip validation entirely.
+            - ``"warn"`` (default): log non-fatal issues; raise only on the universal
+              structural errors (missing ``genotype``, no numeric trait, bad role dtype).
+            - ``"strict"``: raise on any contract violation (e.g. missing ``sample_id``).
+              Use at untrusted/external input boundaries (e.g. a Bloom export).
+
+            Validation runs on a discarded copy of the entry frame and never alters the
+            data fed to the pipeline, so enabling it never changes results.
     """
 
     csv_path: str | None = MISSING
@@ -170,6 +183,7 @@ class DataConfig:
     image_linking_method: str = "rhizovision"
     scan_path_col: str = "scan_path"
     group_by: Optional[str] = None
+    validate_input: str = "warn"
 
 
 @dataclass

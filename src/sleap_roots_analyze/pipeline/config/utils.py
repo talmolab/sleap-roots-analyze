@@ -227,6 +227,14 @@ def validate_qc_config(config: QCPipelineConfig, check_files: bool = True) -> No
     if config.data.csv_path == MISSING:
         raise ValueError("data.csv_path is required")
 
+    # Validate input-contract validation mode (issue #144)
+    valid_validate_input_modes = ["off", "warn", "strict"]
+    if config.data.validate_input not in valid_validate_input_modes:
+        raise ValueError(
+            f"data.validate_input must be one of off | warn | strict, "
+            f"got '{config.data.validate_input}'"
+        )
+
     # Validate outlier detection config
     valid_traditional_methods = ["pca", "isolation_forest", "mahalanobis"]
     valid_clustering_methods = ["kmeans", "gmm", "hierarchical"]

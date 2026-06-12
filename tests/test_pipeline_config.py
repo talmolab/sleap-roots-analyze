@@ -403,6 +403,34 @@ def test_validate_config_valid_logging_levels():
         validate_qc_config(config)  # Should not raise
 
 
+def test_data_config_validate_input_defaults_to_warn():
+    """validate_input defaults to 'warn' on DataConfig (issue #144)."""
+    config = DataConfig(csv_path="data.csv")
+    assert config.validate_input == "warn"
+
+
+def test_validate_config_invalid_validate_input():
+    """Validation fails for an invalid validate_input value (issue #144)."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
+    config.data.validate_input = "lenient"
+
+    with pytest.raises(ValueError, match=r"validate_input.*off \| warn \| strict"):
+        validate_qc_config(config)
+
+
+def test_validate_config_valid_validate_input_modes():
+    """Validation passes for each valid validate_input mode (issue #144)."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.outlier_detection.traditional_methods = ["mahalanobis"]
+
+    for mode in ["off", "warn", "strict"]:
+        config.data.validate_input = mode
+        validate_qc_config(config)  # Should not raise
+
+
 def test_validate_config_with_group_by():
     """Test validation passes when group_by is set."""
     config = QCPipelineConfig(pipeline_name="test")
