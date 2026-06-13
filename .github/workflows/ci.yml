@@ -34,6 +34,32 @@ jobs:
       - name: Run Ruff
         run: uv run ruff check src/sleap_roots_analyze
 
+  reproducibility-gates:
+    name: Reproducibility gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dev dependencies
+        run: uv sync --group dev
+
+      # Determinism is a same-machine comparison and serialization is
+      # OS-independent, so a single OS is sufficient. Runs as its own job so it
+      # can be configured as a required status check in branch protection.
+      - name: Run reproducibility + serialization gates
+        run: |
+          uv run pytest tests/test_reproducibility.py tests/test_result_serialization.py
+
   tests:
     timeout-minutes: 30
     strategy:
