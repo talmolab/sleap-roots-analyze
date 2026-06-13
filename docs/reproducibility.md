@@ -1,16 +1,26 @@
 # Reproducibility & Seeding Policy
 
 This document defines how `sleap-roots-analyze` guarantees reproducible results from
-its stochastic analyses, and the numerical tolerance to expect when comparing outputs
-(e.g. for golden-value tests). It backs issue #118 and is enforced by
-[`tests/test_reproducibility.py`](../tests/test_reproducibility.py).
+its stochastic analyses, the numerical tolerance to expect when comparing outputs
+(e.g. for golden-value tests), and the contract for serializable result objects. It
+backs issues #118 and #133 and is enforced in CI by the **Reproducibility gates** job
+(see [CI enforcement](#ci-enforcement)).
 
 ## Seeding policy
 
-Every public function whose result depends on a random number generator accepts a
+Every function whose result depends on a random number generator accepts a
 `random_state` parameter (default `42`) and forwards it to the underlying
 sklearn / umap estimator. Pass an explicit integer for reproducible output; pass
 `None` to opt into non-deterministic behavior.
+
+The **authoritative inventory** of stochastic functions is the case registry in
+[`tests/reproducibility_cases.py`](../tests/reproducibility_cases.py). A coverage
+guard walks every module in the package and fails CI if any function accepting
+`random_state` is absent from that registry, so the list below cannot silently drift —
+it is an illustrative summary, not a second source of truth. The registry covers the
+top-level entry points *and* lower-level helpers such as `pca.fit_pca`,
+`pca.select_n_components`, `pca.perform_pca_with_variance_threshold`, and
+`clustering.calculate_optimal_k_kmeans`.
 
 | Function | Module | Default `random_state` | Underlying RNG |
 | --- | --- | --- | --- |
@@ -41,9 +51,10 @@ helpers consume a **precomputed** embedding and run no RNG of their own.
 > output.
 
 This is verified on every test run: `tests/test_reproducibility.py` calls each
-function twice with `random_state=42` and asserts the reproducibility-bearing outputs
-match. Within a single machine the outputs are bit-for-bit identical (UMAP embeddings
-included).
+registered function twice with `random_state=42` and asserts the reproducibility-bearing
+outputs match, and the whole-package coverage guard ensures *every* stochastic function
+is in that sweep. Within a single machine the outputs are bit-for-bit identical (UMAP
+embeddings included).
 
 ## Tolerance policy
 
@@ -78,3 +89,46 @@ Therefore:
 - We do **not** pin a BLAS backend. If a future golden test proves sensitive at the
   `1e-6` level, pin the BLAS implementation in that test's environment (e.g. via the
   `threadpoolctl` / `OPENBLAS_*` env) and document it alongside the test.
+
+## Result-object serialization contract
+
+The FAIR interoperability guarantee: every analytical result object must serialize to
+JSON and round-trip without loss. This is enforced by
+[`tests/test_result_serialization.py`](../tests/test_result_serialization.py), which is
+**opt-in by construction** — it asserts only when a function returns a dataclass, and
+skips functions that still return plain dicts.
+
+**To give a new result type automatic round-trip coverage (e.g. #127 `PCAResult`,
+#128 `HeritabilityResult`, #129 `ClusterResult`):**
+
+1. Return a `@dataclass` from the analytical function.
+2. Make every field JSON-projectable via
+   [`convert_to_json_serializable`](../src/sleap_roots_analyze/data_utils.py) — numpy
+   scalars, `ndarray`, `Path`, and nested dict/list of those are handled. Do **not**
+   store raw estimator objects (e.g. a fitted `PCA`) as result fields: the serializer
+   can only stringify them to a `"<PCA>"` placeholder, and the gate fails on such lossy
+   stringification rather than passing vacuously.
+3. Optionally add a `from_dict` classmethod; the gate then also asserts it reconstructs
+   an equal object.
+4. If the function is not already listed, add it to the round-trip case list in
+   `tests/test_result_serialization.py`. No other test edits are needed — coverage
+   activates the moment the function returns a dataclass.
+
+"Lossless" is defined on the JSON-native projection (`convert_to_json_serializable` is
+intentionally asymmetric: `ndarray`→list, unknown objects→`"<TypeName>"`). `NaN`
+survives an in-process round-trip and is compared NaN-aware; note it is non-standard
+JSON, so a stricter external consumer may reject it.
+
+## CI enforcement
+
+Both gates run in the dedicated **Reproducibility gates** job in
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) on every pull request, so a
+non-determinism or serialization regression fails CI. The job runs on a single OS
+(determinism is a same-machine comparison; serialization is OS-independent) and can be
+set as a required status check in branch protection.
+
+Run the gates locally with:
+
+```bash
+uv run pytest tests/test_reproducibility.py tests/test_result_serialization.py
+```

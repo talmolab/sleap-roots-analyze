@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   discarded copy (rather than failing on the structurally-absent role) and otherwise
   enforces the full contract. Rows with a blank/NaN genotype are now dropped during
   alignment, so `off`/`warn`/`strict` stay output-identical. (#154)
+- CI reproducibility gates (#133): a whole-package coverage guard that fails CI if any
+  function accepting `random_state` is missing from the determinism sweep
+  (`tests/reproducibility_cases.py`), and an opt-in result-object JSON round-trip gate
+  (`tests/test_result_serialization.py`) that asserts losslessly when a registered
+  function returns a dataclass (and is guarded so a new registered case can't silently
+  drop). The determinism sweep runs single-OS (same-machine comparison); the
+  serialization round-trip runs on the full OS matrix. See
+  [docs/reproducibility.md](reproducibility.md).
 - Expose the eight `statistics.py` functions through the top-level
   `sleap_roots_analyze` namespace and `__all__`, so they can be imported directly
   (e.g. `from sleap_roots_analyze import calculate_heritability_estimates`) instead
