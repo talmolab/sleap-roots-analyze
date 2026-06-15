@@ -204,11 +204,19 @@ class PCAResult:
 
 @dataclass(frozen=True)
 class TraitHeritability:
-    """A single trait's broad-sense heritability estimate.
+    """A single trait's heritability estimate.
+
+    The source ``calculate_heritability_estimates`` computes
+    ``H² = var_G / (var_G + var_E / mean_n_reps)`` — a genotype-mean
+    (repeatability) heritability, **not** the textbook broad-sense
+    ``var_G / (var_G + var_E)``. Because ``var_E`` is divided by the mean number
+    of replicates, ``h2`` runs higher than broad-sense H² but preserves the
+    genetic-variance ordering across traits.
 
     Attributes:
         trait: Trait (column) name.
-        h2: Broad-sense heritability estimate H² in ``[0, 1]``.
+        h2: Genotype-mean heritability estimate in ``[0, 1]`` (see above — not
+            textbook broad-sense).
         passed_threshold: Whether ``h2`` meets the result's threshold.
         var_genetic: Genetic variance component (σ²_G).
         var_residual: Residual/environmental variance component (σ²_E).
@@ -237,6 +245,11 @@ class HeritabilityResult:
     ``failed_traits`` rather than ``per_trait``; no statsmodels model object is
     retained.
 
+    ``frozen=True`` is shallow: the fields cannot be rebound, but the nested
+    ``per_trait`` / ``failed_traits`` lists are still mutable in place — treat the
+    result as read-only. Float fields must be finite for the JSON boundary; use
+    :meth:`to_json` to enforce it.
+
     Attributes:
         method: Estimation method applied to all traits (e.g.
             ``"mixed_model"``).
@@ -244,12 +257,17 @@ class HeritabilityResult:
         per_trait: Per-trait heritability estimates that succeeded.
         failed_traits: Names of traits whose estimation errored or produced no
             heritability value.
+        error: Run-level error message when the whole calculation short-circuited
+            (e.g. missing required columns) and produced no per-trait results;
+            ``None`` for a normal run. Distinct from ``failed_traits``, which holds
+            individual traits that failed within an otherwise-successful run.
     """
 
     method: str
     threshold: float
     per_trait: list[TraitHeritability] = field(default_factory=list)
     failed_traits: list[str] = field(default_factory=list)
+    error: Optional[str] = None
 
     @property
     def mean_h2(self) -> float:
@@ -267,6 +285,21 @@ class HeritabilityResult:
         """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
         return dataclasses.asdict(self)
 
+    def to_json(self, **kwargs: Any) -> str:
+        """Serialize to a strict-JSON string, enforcing the finite-floats contract.
+
+        Defaults to ``allow_nan=False`` so a non-finite value (e.g. a degenerate
+        ``h2``) raises a ``ValueError`` here rather than emitting the non-standard
+        ``NaN``/``Infinity`` tokens a strict consumer (bloom-mcp) rejects. Extra
+        keyword arguments are forwarded to :func:`json.dumps`.
+
+        Raises:
+            ValueError: If any float field is non-finite (under the default
+                ``allow_nan=False``).
+        """
+        kwargs.setdefault("allow_nan", False)
+        return json.dumps(self.to_dict(), **kwargs)
+
     @classmethod
     def from_heritability_dict(cls, d: dict, threshold: float) -> "HeritabilityResult":
         """Build a :class:`HeritabilityResult` from a heritability dict.
@@ -275,11 +308,21 @@ class HeritabilityResult:
         ``remove_low_h2=False`` form, or the first element of the
         ``remove_low_h2=True`` tuple). Does not mutate ``d``.
 
+        A run-level short-circuit — ``{"error": "..."}`` with no per-trait entries,
+        returned when the calculation aborts before processing any trait (e.g.
+        missing required columns) — is surfaced on ``error``, not mistaken for a
+        trait named ``"error"``. The string value distinguishes it from a per-trait
+        failure (whose value is always a dict).
+
+        Provenance caveat: ``threshold`` is applied *as supplied* — the source dict
+        does not carry it, so it is recorded on trust, not cross-checked. Pass the
+        threshold you intend the ``passed_threshold`` classification to reflect.
+
         Args:
             d: Trait-keyed heritability dict, optionally including the
                 ``__calculation_metadata__`` entry.
             threshold: H² threshold used to set each trait's
-                ``passed_threshold``.
+                ``passed_threshold`` (see provenance caveat above).
 
         Returns:
             A frozen :class:`HeritabilityResult` holding only serializable
@@ -288,6 +331,13 @@ class HeritabilityResult:
         metadata = d.get(_HERITABILITY_METADATA_KEY) or {}
         method = str(metadata.get("method_used_for_all_traits", "unknown"))
         threshold = float(threshold)
+
+        # Run-level short-circuit: a lone {"error": "<str>"} (no metadata, no
+        # per-trait entries). The string value distinguishes it from a per-trait
+        # failure (always a dict), so a trait legitimately named "error" is unaffected.
+        run_error = d.get("error")
+        if isinstance(run_error, str):
+            return cls(method=method, threshold=threshold, error=run_error)
 
         per_trait: list[TraitHeritability] = []
         failed_traits: list[str] = []

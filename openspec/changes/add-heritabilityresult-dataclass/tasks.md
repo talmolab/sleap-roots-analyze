@@ -42,3 +42,19 @@
 ## 4. Pre-merge
 - [x] 4.1 `black` + `ruff` + full `pytest` green; `openspec validate
       add-heritabilityresult-dataclass --strict` passes.
+
+## 5. Review follow-ups (rebased on the updated #127)
+- [x] 5.1 Run-level `{"error": ...}` short-circuit: surface on a distinct `error`
+      field (string-valued top-level key), not as a fake `failed_traits=["error"]`.
+- [x] 5.2 Adapter field-mapping test value-asserts every `TraitHeritability` field
+      (var_genetic/var_residual/n_genotypes/n_observations/model_type), guarding a
+      swapped/wrong-key mapping; plus a per-trait-error-still-fails test.
+- [x] 5.3 Non-vacuous native-type test: assert `type(field) is float` on the
+      pre-serialization dataclass fields (np.float64 is a float subclass, so the
+      JSON round-trip launders leaks).
+- [x] 5.4 `to_json(allow_nan=False)` enforces the finite-floats JSON boundary;
+      finite round-trip + non-finite-h2 rejection tests (inherits #127 pattern).
+- [x] 5.5 Non-mutation guard deep-copies and asserts value equality, not keys only.
+- [x] 5.6 Provenance caveat documented (`threshold` applied as supplied); docstring
+      no longer entrenches "broad-sense" (source H² is genotype-mean/repeatability);
+      frozen-is-shallow note added.

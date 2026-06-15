@@ -29,6 +29,28 @@ def _run(df):
 class TestHeritabilityResultJSON:
     """The clean view must serialize to JSON as native Python types."""
 
+    def test_fields_are_native_types_pre_serialization(
+        self, heritability_data_known_h2
+    ):
+        """Float fields are native ``float`` on the dataclass, not laundered by JSON.
+
+        ``np.float64`` is a subclass of ``float``, so ``json.dumps`` silently casts
+        a leaked ``np.float64`` to native float before any assertion on the parsed
+        output. Assert on the dataclass fields themselves, where a leak survives.
+        """
+        df, _ = heritability_data_known_h2
+        result = HeritabilityResult.from_heritability_dict(_run(df), threshold=0.3)
+
+        assert type(result.threshold) is float
+        assert result.per_trait, "expected at least one successful trait"
+        for t in result.per_trait:
+            assert type(t.h2) is float
+            assert type(t.var_genetic) is float
+            assert type(t.var_residual) is float
+            assert type(t.passed_threshold) is bool
+            assert type(t.n_genotypes) is int
+            assert type(t.n_observations) is int
+
     def test_json_roundtrip_native_types(self, heritability_data_known_h2):
         """json.dumps(asdict(...)) round-trips to native Python types."""
         df, _ = heritability_data_known_h2
@@ -44,6 +66,24 @@ class TestHeritabilityResultJSON:
             assert type(t["passed_threshold"]) is bool
             assert type(t["n_genotypes"]) is int
             assert type(t["n_observations"]) is int
+
+    def test_to_json_roundtrips_finite_data(self, heritability_data_known_h2):
+        """On finite data, to_json emits strict JSON that parses back to to_dict."""
+        df, _ = heritability_data_known_h2
+        result = HeritabilityResult.from_heritability_dict(_run(df), threshold=0.3)
+        assert json.loads(result.to_json()) == json.loads(json.dumps(result.to_dict()))
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_to_json_rejects_non_finite_h2(self, heritability_data_known_h2, bad):
+        """A non-finite h2 raises at to_json instead of emitting invalid JSON."""
+        df, _ = heritability_data_known_h2
+        result = HeritabilityResult.from_heritability_dict(_run(df), threshold=0.3)
+        tainted = dataclasses.replace(
+            result,
+            per_trait=[dataclasses.replace(result.per_trait[0], h2=bad)],
+        )
+        with pytest.raises(ValueError, match="not JSON compliant"):
+            tainted.to_json()
 
     def test_to_dict_matches_asdict(self, heritability_data_known_h2):
         """``to_dict`` is a convenience over ``dataclasses.asdict``."""
@@ -65,6 +105,51 @@ class TestHeritabilityResultAdapter:
         traits = {t.trait for t in result.per_trait}
         assert "__calculation_metadata__" not in traits
         assert traits <= set(TRAIT_COLS)
+
+    def test_maps_all_trait_fields_from_real_entry(self, heritability_data_known_h2):
+        """Every TraitHeritability field is value-asserted against the source entry.
+
+        Guards against a swapped or wrong-key mapping (e.g. var_genetic↔var_residual)
+        that h2/passed_threshold-only checks would miss.
+        """
+        df, _ = heritability_data_known_h2
+        d = _run(df)
+        result = HeritabilityResult.from_heritability_dict(d, threshold=0.3)
+
+        for t in result.per_trait:
+            src = d[t.trait]
+            assert t.h2 == pytest.approx(float(src["heritability"]))
+            assert t.var_genetic == pytest.approx(float(src["var_genetic"]))
+            assert t.var_residual == pytest.approx(float(src["var_residual"]))
+            assert t.n_genotypes == int(src["n_genotypes"])
+            assert t.n_observations == int(src["n_observations"])
+            assert t.model_type == str(src["model_type"])
+            # var_genetic and var_residual are distinct keys, not swapped.
+            assert t.var_genetic != t.var_residual
+
+    def test_run_level_error_surfaced_not_a_fake_trait(self):
+        """A lone {"error": ...} run failure populates `error`, not failed_traits."""
+        msg = "Missing required columns: ['geno', 'rep']"
+        result = HeritabilityResult.from_heritability_dict(
+            {"error": msg}, threshold=0.3
+        )
+
+        assert result.error == msg
+        assert result.per_trait == []
+        assert result.failed_traits == []  # NOT ["error"]
+        assert "error" not in result.failed_traits
+        assert result.method == "unknown"
+
+    def test_per_trait_error_still_a_failed_trait(self, heritability_data_known_h2):
+        """A per-trait {"error": ...} entry remains a failed trait, not run-level."""
+        df, _ = heritability_data_known_h2
+        d = _run(df)
+        d["trait_bad"] = {"error": "Trait column 'trait_bad' not found"}
+
+        result = HeritabilityResult.from_heritability_dict(d, threshold=0.3)
+
+        assert result.error is None  # not a run-level failure
+        assert "trait_bad" in result.failed_traits
 
     def test_threshold_classification(self, heritability_data_known_h2):
         """passed_threshold is consistent and preserves H² ordering."""
@@ -159,11 +244,17 @@ class TestHeritabilityResultNonBreaking:
     """The legacy dict is preserved and not mutated by the adapter."""
 
     def test_dict_unchanged_and_nonmutating(self, heritability_data_known_h2):
-        """Legacy dict keeps its keys (incl. metadata) and is not mutated."""
+        """Legacy dict keeps its keys *and values* — the adapter never mutates it.
+
+        A keys-only check would pass an in-place value edit; deep-copy the dict and
+        assert full value equality after the adapter runs.
+        """
+        import copy
+
         df, _ = heritability_data_known_h2
         d = _run(df)
 
         assert "__calculation_metadata__" in d
-        before = set(d.keys())
+        before = copy.deepcopy(d)
         HeritabilityResult.from_heritability_dict(d, threshold=0.3)
-        assert set(d.keys()) == before
+        assert d == before
