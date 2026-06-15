@@ -81,8 +81,18 @@ def test_enrichment_step_empty_table_does_not_crash(tmp_path):
     assert result.metadata["enrichment_enabled"] is True
     assert result.metadata["enrichment_n_tests"] == 0
     assert "enrichment_skipped_reason" in result.metadata
-    assert (tmp_path / "trait_enrichment.csv").exists()  # empty/skipped CSV written
     assert result.data is prev.data  # data passes through to visualize
+
+    # The skipped CSV must still be a schema-conformant (header-bearing) artifact, not
+    # a zero-column headerless file that makes pd.read_csv raise EmptyDataError.
+    from sleap_roots_analyze.pc_correlations.enrichment import results_to_dataframe
+
+    out = tmp_path / "trait_enrichment.csv"
+    assert out.exists()
+    written = pd.read_csv(out)  # must not raise EmptyDataError
+    assert len(written) == 0
+    assert list(written.columns) == list(results_to_dataframe([]).columns)
+    assert "n_tests" in written.columns and "platform_pair" in written.columns
 
 
 def test_enrichment_representative_count_pinned(
@@ -156,12 +166,19 @@ def test_enrichment_representative_count_pinned(
 
     corr_df = correlated.data["correlation_df"]
     valid = int(corr_df["spearman_p"].notna().sum())
-    # Enrichment counts exactly the representative-only correlation rows that
-    # carry a real p-value — not the full pre-clustering N*M trait grid.
+
+    # Concrete pins (not just "< 50"): on this deterministic fixture clustering selects
+    # exactly 1 representative for exp1 and 3 for exp2, so enrichment tests exactly the
+    # 1 x 3 = 3 representative pairs, all carrying a real p-value. Pinning the integers
+    # makes upstream representative-selection drift (e.g. 1 -> 5 reps) fail loudly,
+    # rather than moving the denominator on both sides of a self-referential equality.
+    assert reduced.metadata["exp1_reduced_traits"] == 1
+    assert reduced.metadata["exp2_reduced_traits"] == 3
+    assert len(corr_df) == 3
+    assert valid == 3
+    assert enriched.metadata["enrichment_n_tests"] == 3
+    # Sanity: the denominator is the representative-pair count, not the full N*M grid.
     assert enriched.metadata["enrichment_n_tests"] == valid
-    assert valid <= len(corr_df)
-    # Clustering actually reduced the trait set (representative-only table).
-    assert reduced.metadata.get("exp1_reduced_traits", 999) < 50
 
 
 def test_enrichment_step_runs_and_counts_representative_rows(tmp_path):

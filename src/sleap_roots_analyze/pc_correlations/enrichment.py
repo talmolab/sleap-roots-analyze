@@ -13,7 +13,7 @@ correlation workflow.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -247,8 +247,13 @@ def results_to_dataframe(results: list[EnrichmentResult]) -> pd.DataFrame:
         results: Enrichment results.
 
     Returns:
-        DataFrame with one row per result.
+        DataFrame with one row per result. When ``results`` is empty, returns a
+        zero-row frame that still carries the full :class:`EnrichmentResult` column
+        schema (header), so the exported CSV stays readable by ``pd.read_csv`` and
+        conforms to the artifact schema instead of being an empty headerless file.
     """
+    if not results:
+        return pd.DataFrame(columns=[f.name for f in fields(EnrichmentResult)])
     return pd.DataFrame([r.to_dict() for r in results])
 
 
