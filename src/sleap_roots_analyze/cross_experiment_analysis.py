@@ -675,6 +675,14 @@ def load_and_align_experiments(
     exp1_df = exp1_df.rename(columns=rep_renames_exp1)
     exp2_df = exp2_df.rename(columns=rep_renames_exp2)
 
+    # Drop rows with a missing genotype label. They cannot participate in any
+    # genotype-aligned comparison — every downstream groupby("genotype") already
+    # excludes the NaN group — so removing them here changes no output, while keeping
+    # the aligned frames free of the NaN-genotype rows that the input-contract
+    # validator (#154) would otherwise hard-fail on even under warn.
+    exp1_df = exp1_df[exp1_df["genotype"].notna()]
+    exp2_df = exp2_df[exp2_df["genotype"].notna()]
+
     # Find common genotypes
     genotypes1 = set(exp1_df["genotype"].unique())
     genotypes2 = set(exp2_df["genotype"].unique())

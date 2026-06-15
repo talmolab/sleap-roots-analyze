@@ -71,7 +71,29 @@ power_analysis_power: 0.80          # Target power for minimum detectable effect
 top_n_correlations: 30
 top_n_joint_plots: 10
 top_n_boxplots: 10
+
+# Input-contract validation (requires the optional `contracts` extra)
+validate_input: "warn"              # Options: "off", "warn", "strict"
 ```
+
+### Input-contract validation (`validate_input`)
+
+When the optional [`sleap-roots-contracts`](https://github.com/talmolab/sleap-roots-contracts)
+extra is installed (`pip install "sleap-roots-analyze[contracts]"`), each loaded and
+aligned experiment frame is validated on a **discarded copy** at the load boundary —
+it never alters the data fed to the analysis, so the mode never changes results. When
+the extra is absent, validation degrades to a logged no-op.
+
+- `off` — skip validation entirely.
+- `warn` (default) — log non-fatal issues; raise only on universal structural errors
+  (missing/blank `genotype`, no numeric trait, bad role dtype). Rows with a blank
+  genotype are dropped during alignment (they cannot participate in any
+  genotype-aligned comparison), so they never trigger a failure.
+- `strict` — escalate recommended-column issues to errors. Aligned frames carry no
+  per-sample id (the source barcode is dropped during alignment), so `strict` injects a
+  synthetic positional `sample_id` into the discarded copy rather than failing on the
+  structurally-absent role; it otherwise enforces the full contract. For routine runs,
+  `warn` is recommended.
 
 ---
 

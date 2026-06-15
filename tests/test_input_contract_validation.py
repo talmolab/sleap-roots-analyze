@@ -346,6 +346,33 @@ def test_cross_platform_good_frame_passes_under_warn(aligned_experiment_frame):
     validate_cross_platform_experiment(aligned_experiment_frame, mode="warn")
 
 
+def test_cross_platform_good_frame_passes_under_strict(aligned_experiment_frame):
+    """Strict is usable on aligned frames: the absent per-sample id is synthesized.
+
+    Aligned frames never carry sample_id, so a naive strict pass would fail on every
+    valid frame. The helper injects a synthetic positional sample_id into the discarded
+    copy, so a clean aligned frame passes strict instead of raising.
+    """
+    validate_cross_platform_experiment(aligned_experiment_frame, mode="strict")
+
+
+def test_cross_platform_strict_does_not_mutate_or_add_sample_id(
+    aligned_experiment_frame,
+):
+    """The synthetic sample_id lives only on the discarded copy, never on the input."""
+    before = aligned_experiment_frame.copy(deep=True)
+    validate_cross_platform_experiment(aligned_experiment_frame, mode="strict")
+    assert "sample_id" not in aligned_experiment_frame.columns
+    assert_frame_equal(aligned_experiment_frame, before)
+
+
+def test_cross_platform_strict_still_catches_structural_error(aligned_experiment_frame):
+    """Synthesizing sample_id does not mask real structural errors under strict."""
+    no_trait = aligned_experiment_frame[["genotype", "replicate"]].copy()
+    with pytest.raises(ValueError, match="trait"):
+        validate_cross_platform_experiment(no_trait, mode="strict")
+
+
 def test_cross_platform_runs_on_a_copy(aligned_experiment_frame):
     """The aligned frame is never mutated by validation."""
     before = aligned_experiment_frame.copy(deep=True)

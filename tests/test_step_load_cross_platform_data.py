@@ -106,6 +106,152 @@ def test_load_cross_platform_validates_each_frame_once(
     assert calls == ["warn", "warn"]  # exp1 and exp2
 
 
+def test_load_cross_platform_passes_exclude_cols_to_validation(
+    exp1_csv, exp2_csv, tmp_path, monkeypatch
+):
+    """The validator receives the same exclude_cols as the real trait selection (#154).
+
+    Otherwise validation sees a different trait set than the pipeline analyzes — a
+    numeric excluded-metadata column would be validated as a trait (or mask a genuine
+    "no numeric trait" error).
+    """
+    import sleap_roots_analyze.pipeline.steps.load_cross_platform_data as xp_mod
+
+    captured = []
+    monkeypatch.setattr(
+        xp_mod,
+        "validate_cross_platform_experiment",
+        lambda df, **kwargs: captured.append(kwargs.get("additional_exclude")),
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path=str(exp1_csv),
+        exp1_name="Cylinder",
+        exp1_genotype_col="Geno",
+        exp2_data_path=str(exp2_csv),
+        exp2_name="Turface",
+        exp2_genotype_col="geno",
+        min_samples_per_genotype=2,
+        exp1_exclude_cols=["Ent", "Sub"],
+        exp2_exclude_cols=["scanner"],
+    )
+    xp_mod.LoadCrossPlatformDataStep().execute(
+        data=None, config=config, run_dir=tmp_path, prev_result=None
+    )
+
+    assert captured == [["Ent", "Sub"], ["scanner"]]  # exp1 then exp2
+
+
+def test_load_cross_platform_strict_equivalent_output(exp1_csv, exp2_csv, tmp_path):
+    """Strict yields identical loaded output to off (strict is usable, #154)."""
+    from pandas.testing import assert_frame_equal
+
+    from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+        LoadCrossPlatformDataStep,
+    )
+
+    off_dir, strict_dir = tmp_path / "off", tmp_path / "strict"
+    off_dir.mkdir()
+    strict_dir.mkdir()
+    step = LoadCrossPlatformDataStep()
+
+    r_off = step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "off"),
+        run_dir=off_dir,
+        prev_result=None,
+    )
+    r_strict = step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "strict"),
+        run_dir=strict_dir,
+        prev_result=None,
+    )
+
+    assert_frame_equal(r_off.data["exp1_df"], r_strict.data["exp1_df"])
+    assert_frame_equal(r_off.data["exp2_df"], r_strict.data["exp2_df"])
+
+
+def test_load_cross_platform_nan_genotype_dropped_equivalence(tmp_path):
+    """A blank genotype cell is dropped in alignment; off/warn stay identical (#154).
+
+    Pre-fix the default warn aborted a run that off produced output for, because the
+    validator hard-fails on a NaN genotype. Dropping the unusable row in alignment keeps
+    the equivalence promise.
+    """
+    from pandas.testing import assert_frame_equal
+
+    from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+        LoadCrossPlatformDataStep,
+    )
+
+    # Both experiments carry a blank genotype cell among otherwise-shared genotypes.
+    exp1 = pd.DataFrame(
+        {
+            "Geno": ["A", "A", "B", "B", None],
+            "Rep": [1, 2, 1, 2, 1],
+            "trait1": [10.5, 11.2, 12.3, 11.9, 9.0],
+        }
+    )
+    exp2 = pd.DataFrame(
+        {
+            "geno": ["A", "A", "B", "B", None],
+            "rep": [1, 2, 1, 2, 1],
+            "trait_a": [20.1, 20.5, 22.0, 21.8, 5.0],
+        }
+    )
+    exp1_csv = tmp_path / "exp1_nan.csv"
+    exp2_csv = tmp_path / "exp2_nan.csv"
+    exp1.to_csv(exp1_csv, index=False)
+    exp2.to_csv(exp2_csv, index=False)
+
+    off_dir, warn_dir = tmp_path / "off", tmp_path / "warn"
+    off_dir.mkdir()
+    warn_dir.mkdir()
+    step = LoadCrossPlatformDataStep()
+
+    r_off = step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "off"),
+        run_dir=off_dir,
+        prev_result=None,
+    )
+    # warn must NOT raise (the NaN-genotype row is gone before validation).
+    r_warn = step.execute(
+        data=None,
+        config=_xp_config(exp1_csv, exp2_csv, "warn"),
+        run_dir=warn_dir,
+        prev_result=None,
+    )
+
+    assert r_warn.data["exp1_df"]["genotype"].notna().all()
+    assert_frame_equal(r_off.data["exp1_df"], r_warn.data["exp1_df"])
+    assert_frame_equal(r_off.data["exp2_df"], r_warn.data["exp2_df"])
+
+
+def test_validation_does_not_preempt_no_common_genotypes(tmp_path):
+    """Under default warn, the existing 'No common genotypes' error still surfaces (#154)."""
+    exp1 = pd.DataFrame({"Geno": ["A", "B"], "Rep": [1, 1], "trait1": [10.5, 12.3]})
+    exp2 = pd.DataFrame({"geno": ["C", "D"], "rep": [1, 1], "trait_a": [20.1, 22.0]})
+    exp1_csv = tmp_path / "exp1_nc.csv"
+    exp2_csv = tmp_path / "exp2_nc.csv"
+    exp1.to_csv(exp1_csv, index=False)
+    exp2.to_csv(exp2_csv, index=False)
+
+    from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+        LoadCrossPlatformDataStep,
+    )
+
+    # validate_input defaults to warn here; the genotype-alignment error must win.
+    with pytest.raises(ValueError, match="No common genotypes found"):
+        LoadCrossPlatformDataStep().execute(
+            data=None,
+            config=_xp_config(exp1_csv, exp2_csv, "warn"),
+            run_dir=tmp_path,
+            prev_result=None,
+        )
+
+
 def test_load_cross_platform_validation_does_not_change_output(
     exp1_csv, exp2_csv, tmp_path
 ):

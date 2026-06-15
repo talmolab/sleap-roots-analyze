@@ -202,6 +202,42 @@ def test_cross_platform_config_valid_validate_input_modes():
         assert config.validate_input == mode
 
 
+def test_load_cross_platform_config_yaml_round_trips_validate_input(tmp_path):
+    """The YAML load path honors validate_input and runs __post_init__ (issue #154)."""
+    from sleap_roots_analyze.pipeline.config.utils import load_cross_platform_config
+
+    yaml_path = tmp_path / "xp.yaml"
+    yaml_path.write_text(
+        "exp1_data_path: e1.csv\n"
+        "exp1_name: Exp1\n"
+        "exp1_genotype_col: geno1\n"
+        "exp2_data_path: e2.csv\n"
+        "exp2_name: Exp2\n"
+        "exp2_genotype_col: geno2\n"
+        "validate_input: strict\n"
+    )
+    config = load_cross_platform_config(yaml_path)
+    assert config.validate_input == "strict"
+
+
+def test_load_cross_platform_config_yaml_rejects_invalid_validate_input(tmp_path):
+    """An invalid validate_input in YAML is rejected at load (via __post_init__) (#154)."""
+    from sleap_roots_analyze.pipeline.config.utils import load_cross_platform_config
+
+    yaml_path = tmp_path / "xp_bad.yaml"
+    yaml_path.write_text(
+        "exp1_data_path: e1.csv\n"
+        "exp1_name: Exp1\n"
+        "exp1_genotype_col: geno1\n"
+        "exp2_data_path: e2.csv\n"
+        "exp2_name: Exp2\n"
+        "exp2_genotype_col: geno2\n"
+        "validate_input: lenient\n"
+    )
+    with pytest.raises(ValueError, match=r"validate_input.*off \| warn \| strict"):
+        load_cross_platform_config(yaml_path)
+
+
 def test_cross_platform_config_pearson_method():
     """Test CrossPlatformConfig with pearson correlation method."""
     from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig

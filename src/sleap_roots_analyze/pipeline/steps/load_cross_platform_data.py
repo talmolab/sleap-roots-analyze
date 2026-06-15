@@ -78,8 +78,19 @@ class LoadCrossPlatformDataStep(BaseStep):
         # experiment frame already carries canonical genotype/replicate columns; the
         # side-check runs on a discarded copy and never alters exp1_df/exp2_df.
         # Degrades to a logged no-op when contracts is absent or validate_input=="off".
-        validate_cross_platform_experiment(exp1_df, mode=config.validate_input)
-        validate_cross_platform_experiment(exp2_df, mode=config.validate_input)
+        # Pass the same exclude_cols used for the real trait selection below, so the
+        # validator sees the identical trait set (a numeric excluded-metadata column
+        # must not be validated as — or mask the absence of — a real trait).
+        validate_cross_platform_experiment(
+            exp1_df,
+            mode=config.validate_input,
+            additional_exclude=config.exp1_exclude_cols,
+        )
+        validate_cross_platform_experiment(
+            exp2_df,
+            mode=config.validate_input,
+            additional_exclude=config.exp2_exclude_cols,
+        )
 
         # Get trait columns for each experiment
         # Note: column names are standardized to "genotype" and "replicate"
