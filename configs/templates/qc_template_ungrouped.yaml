@@ -31,6 +31,14 @@ data:
   # E.g., ["File.me", "region", "set"] for columns that are not traits but also not standard metadata
   additional_exclude_cols: []
 
+  # Optional input-contract validation at the data-load boundary (issue #144).
+  # Requires the optional `sleap-roots-contracts` dependency; a logged no-op if it
+  # isn't installed. See the DataConfig.validate_input docstring for details.
+  #   off    = skip validation
+  #   warn   = log issues; hard-fail only on structural errors (default)
+  #   strict = raise on any contract violation (use at untrusted/external boundaries)
+  validate_input: warn
+
   # Group-by column for multi-group analysis (set to null for ungrouped analysis)
   group_by: null
 

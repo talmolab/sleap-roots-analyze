@@ -15,6 +15,7 @@ from omegaconf import MISSING, OmegaConf
 from sleap_roots_analyze.pipeline.config.qc_config import QCPipelineConfig
 from sleap_roots_analyze.pipeline.config.viz_config import VizPipelineConfig
 from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+from sleap_roots_analyze.validation import VALIDATE_INPUT_MODES
 
 
 # ============================================================================
@@ -226,6 +227,13 @@ def validate_qc_config(config: QCPipelineConfig, check_files: bool = True) -> No
     # Validate data config
     if config.data.csv_path == MISSING:
         raise ValueError("data.csv_path is required")
+
+    # Validate input-contract validation mode (issue #144)
+    if config.data.validate_input not in VALIDATE_INPUT_MODES:
+        raise ValueError(
+            f"data.validate_input must be one of {' | '.join(VALIDATE_INPUT_MODES)}, "
+            f"got '{config.data.validate_input}'"
+        )
 
     # Validate outlier detection config
     valid_traditional_methods = ["pca", "isolation_forest", "mahalanobis"]

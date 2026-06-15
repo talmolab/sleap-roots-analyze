@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   under both lenient and `strict=True` modes, with a purity guard and a reason-checked
   negative control. Adds `sleap-roots-contracts[pandas]>=0.1.0a1` as a dev dependency.
   No `src/` changes; the #146/#120 reproduction goldens stay green (#147).
+- Optional input-contract validation at the QC data-load boundary
+  (`LoadDataStep`). A new `data.validate_input: off | warn | strict` flag
+  (default `warn`) validates the entry input via the optional
+  `sleap-roots-contracts` dependency before any analysis runs. Install with
+  `pip install "sleap-roots-analyze[contracts]"`; when the extra is absent,
+  validation degrades to a logged no-op (never an `ImportError`). Validation runs
+  on a discarded copy of the entry frame, so enabling it never changes results —
+  proven equivalent to the #120/#146 `turface_19` golden across `off`/`warn`/`strict`.
+  Under the default `warn`, a NaN/blank in the `genotype` role is now a structural
+  hard-fail (alongside missing `genotype`, no numeric trait, and bad role dtype), so
+  exports carrying blank genotype cells will error unless `validate_input` is set to
+  `off` or the column is cleaned first. (#144)
 - Expose the eight `statistics.py` functions through the top-level
   `sleap_roots_analyze` namespace and `__all__`, so they can be imported directly
   (e.g. `from sleap_roots_analyze import calculate_heritability_estimates`) instead

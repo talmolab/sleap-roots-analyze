@@ -31,6 +31,14 @@ data:
   # Additional columns to exclude from analysis (besides standard metadata columns)
   additional_exclude_cols: []
 
+  # Optional input-contract validation at the data-load boundary (issue #144).
+  # Requires the optional `sleap-roots-contracts` dependency; a logged no-op if it
+  # isn't installed. See the DataConfig.validate_input docstring for details.
+  #   off    = skip validation
+  #   warn   = log issues; hard-fail only on structural errors (default)
+  #   strict = raise on any contract violation (use at untrusted/external boundaries)
+  validate_input: warn
+
   # CRITICAL: Column to group by. Each unique value becomes an independent analysis.
   # Common use: "plant_age_days" for timepoints, "site" for multi-location experiments.
   # Each group must have ≥ min_samples_per_trait samples or it will be skipped.

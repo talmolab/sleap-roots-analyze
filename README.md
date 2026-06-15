@@ -19,6 +19,18 @@ Or with [uv](https://docs.astral.sh/uv/):
 uv add sleap-roots-analyze
 ```
 
+### Optional: input-contract validation
+
+To validate analysis input against the [`sleap-roots-contracts`](https://github.com/talmolab/sleap-roots-contracts)
+schema at the data-load boundary, install the optional `contracts` extra:
+
+```bash
+pip install "sleap-roots-analyze[contracts]"
+```
+
+This enables the `data.validate_input: off | warn | strict` config flag. When the
+extra is not installed, validation degrades to a logged no-op (never an error).
+
 For development:
 
 ```bash

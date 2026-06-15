@@ -1979,6 +1979,11 @@ dependencies = [
     { name = "umap-learn" },
 ]
 
+[package.optional-dependencies]
+contracts = [
+    { name = "sleap-roots-contracts", extra = ["pandas"] },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "black" },
@@ -2010,9 +2015,11 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.7.1" },
     { name = "scipy", specifier = ">=1.16.1" },
     { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "sleap-roots-contracts", extras = ["pandas"], marker = "extra == 'contracts'", specifier = ">=0.1.0a1" },
     { name = "statsmodels", specifier = ">=0.14.5" },
     { name = "umap-learn", specifier = ">=0.5.9.post2" },
 ]
+provides-extras = ["contracts"]
 
 [package.metadata.requires-dev]
 dev = [
