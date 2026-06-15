@@ -14,6 +14,7 @@ This guide covers the cross-platform correlation analysis pipeline, which compar
 - [Output Files](#output-files)
 - [Interpreting Results](#interpreting-results)
 - [Examples](#examples)
+- [Public PC-Correlation and Trait-Enrichment Workflows](#public-pc-correlation-and-trait-enrichment-workflows)
 - [References](#references)
 
 ---
@@ -835,3 +836,63 @@ sleap-roots-analyze cross-platform configs/cross_platform_example.yaml -o result
 5. Bonett, D.G. & Wright, T.A. (2000). Sample size requirements for estimating Pearson, Kendall and Spearman correlations. *Psychometrika*, 65(1), 23-28.
 
 6. Storey, J. D., & Tibshirani, R. (2003). Statistical significance for genomewide studies. *Proceedings of the National Academy of Sciences*, 100(16), 9440-9445. https://doi.org/10.1073/pnas.1530509100
+
+## Public PC-Correlation and Trait-Enrichment Workflows
+
+Two reusable, DAG-structured workflows expose the wheat-EDPIE cross-platform
+analyses as single public calls (issue #119). They are **independent**: the
+trait-enrichment workflow is *not* downstream of the PC-correlation workflow.
+
+### PC-level cross-platform correlations
+
+`cross_platform_pc_correlations` runs the full PC-level DAG from a pipeline-run
+directory: load per-platform sample PC scores (`pc_scores.csv`) and QC genotype
+labels → aggregate sample PC scores to **genotype means** (sample-level PCA is
+done upstream, so this preserves the sample-PCA → genotype-mean → correlate
+ordering) → align on common genotypes → correlate every PC against every PC per
+platform pair → FDR-correct at `combined` and/or `per_pair` scope → write
+`correlations.csv`, `significant_*.csv`, `genotype_means_*.csv`, figures, and
+`metadata.json`.
+
+```python
+from sleap_roots_analyze import cross_platform_pc_correlations
+from sleap_roots_analyze.pc_correlations.aggregate import WHEAT_EDPIE_PLATFORMS
+
+result = cross_platform_pc_correlations(
+    pipeline_run="/path/to/pipeline_run",
+    platform_config=WHEAT_EDPIE_PLATFORMS,   # example config; supply your own
+    output_dir="./outputs/pc_correlations",
+    primary_fdr_method="fdr_by",
+    fdr_scope="both",
+)
+result.summary  # {"n_tests": 47, "n_genotypes": 19, "n_significant_combined": 0, ...}
+```
+
+CLI reproduction: `uv run scripts/run_pc_correlations.py --pipeline-run <dir> --output-dir <dir>`.
+
+Confidence intervals, achieved power, and the minimum detectable correlation are
+reused from `cross_experiment_analysis` (`calculate_correlation_ci`,
+`achieved_power`, `minimum_detectable_correlation`) — a single source of truth.
+
+### Trait-level correlation enrichment
+
+`trait_correlation_enrichment` tests whether the number of nominally significant
+(`p < alpha`) trait correlations in existing `cross_platform_correlations.csv`
+files deviates from chance, using an exact binomial test per pair and pooled
+(`Combined`). It writes `enrichment_results.csv`, an enrichment figure, and
+`metadata.json`, and returns typed `EnrichmentResult` records.
+
+```python
+from sleap_roots_analyze import trait_correlation_enrichment
+
+result = trait_correlation_enrichment(
+    correlation_files={
+        "Turface vs Cylinder": "/path/.../cross_platform_correlations.csv",
+        "Field vs Cylinder": "/path/.../cross_platform_correlations.csv",
+    },
+    output_dir="./outputs/trait_enrichment",
+)
+result["results"][0]  # Combined EnrichmentResult (fold_enrichment, interpretation, ...)
+```
+
+CLI reproduction: `uv run scripts/run_trait_enrichment.py --pair "Label=<csv>" --output-dir <dir>`.

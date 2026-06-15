@@ -821,6 +821,12 @@ class CrossPlatformConfig:
             - "complete": Maximum distance between all pairs (default, most conservative)
             - "average": Average distance between all pairs
             - "single": Minimum distance between any pair (most aggressive)
+        enrichment_enabled: Whether to run the trait-level enrichment step (a
+            binomial test on the nominal-significance count). Default False so
+            existing runs are unchanged.
+        enrichment_p_value_column: Nominal p-value column the enrichment step
+            counts. Must agree with correlation_method ("spearman" ->
+            "spearman_p", "pearson" -> "pearson_p"). Enrichment uses no FDR.
     """
 
     # Required parameters
@@ -854,6 +860,12 @@ class CrossPlatformConfig:
     trait_reduction_target: Optional[str] = None  # "exp1", "exp2", or "both"
     trait_clustering_threshold: float = 0.8
     trait_clustering_linkage: str = "complete"
+
+    # Trait-level enrichment parameters (binomial test on nominal significance).
+    # Enrichment deliberately uses the NOMINAL p-value and an exact binomial
+    # test (no FDR); it reuses significance_level (alpha) and confidence_level.
+    enrichment_enabled: bool = False
+    enrichment_p_value_column: str = "spearman_p"
 
     def __post_init__(self):
         """Validate configuration parameters."""
@@ -937,3 +949,24 @@ class CrossPlatformConfig:
                 f"trait_clustering_linkage must be one of {valid_linkage_methods}, "
                 f"got '{self.trait_clustering_linkage}'"
             )
+
+        # Validate the enrichment p-value column matches the correlation method,
+        # so enrichment can never silently count the wrong nominal p-column. The
+        # correlation step only emits spearman_p / pearson_p columns.
+        if self.enrichment_enabled:
+            expected_p_col = {
+                "spearman": "spearman_p",
+                "pearson": "pearson_p",
+            }.get(self.correlation_method)
+            if expected_p_col is None:
+                raise ValueError(
+                    f"enrichment_enabled is not supported for correlation_method "
+                    f"'{self.correlation_method}' (no nominal p-value column is "
+                    f"emitted for it)"
+                )
+            if self.enrichment_p_value_column != expected_p_col:
+                raise ValueError(
+                    f"enrichment_p_value_column '{self.enrichment_p_value_column}' "
+                    f"must match correlation_method '{self.correlation_method}' "
+                    f"(expected '{expected_p_col}')"
+                )

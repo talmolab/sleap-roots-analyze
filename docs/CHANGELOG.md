@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Public cross-platform PC-correlation and trait-enrichment workflows (#119).
+  Two new top-level functions wrap the wheat-EDPIE analyses as single calls:
+  `cross_platform_pc_correlations` (PC-level; loads per-platform PCA outputs,
+  aggregates to genotype-mean PC scores, correlates every PC across platform
+  pairs with combined/per-pair FDR; returns a typed `CrossPlatformPCResult`) and
+  `trait_correlation_enrichment` (binomial enrichment over existing
+  `cross_platform_correlations.csv`, returning typed `EnrichmentResult`s). Both
+  exported in `__all__`. A new `pc-correlations` CLI subcommand drives the PC
+  workflow.
+- Optional, config-gated trait-enrichment step in the cross-platform pipeline
+  (`CrossPlatformConfig.enrichment_enabled`, default `False`), with
+  `enrichment_p_value_column` validated against `correlation_method`. When
+  enabled it runs a per-pair exact binomial test (nominal p, no FDR) and writes
+  `trait_enrichment.csv`; existing runs are unchanged.
 - Expose the eight `statistics.py` functions through the top-level
   `sleap_roots_analyze` namespace and `__all__`, so they can be imported directly
   (e.g. `from sleap_roots_analyze import calculate_heritability_estimates`) instead

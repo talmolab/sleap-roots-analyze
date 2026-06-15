@@ -550,7 +550,7 @@ def cross_platform(
 
         if dry_run:
             console.print("\n[yellow]Dry run mode - validation complete[/yellow]")
-            console.print("\nWould execute Cross-Platform pipeline with 3 steps:\n")
+            console.print("\nWould execute Cross-Platform pipeline:\n")
 
             steps = [
                 (
@@ -560,11 +560,21 @@ def cross_platform(
                 ),
                 (
                     "2",
+                    "ReduceTraitRedundancy",
+                    f"Trait reduction ({cfg.trait_reduction_method})",
+                ),
+                (
+                    "3",
                     "CalculateCrossPlatformCorrelations",
                     f"Calculate correlations using {cfg.correlation_method} method",
                 ),
                 (
-                    "3",
+                    "4",
+                    "CalculateTraitEnrichment",
+                    f"Binomial enrichment (enabled={cfg.enrichment_enabled})",
+                ),
+                (
+                    "5",
                     "VisualizeCrossPlatform",
                     f"Generate {cfg.top_n_correlations} top correlation visualizations",
                 ),
@@ -609,6 +619,90 @@ def cross_platform(
     except Exception as e:
         logger.error(f"Pipeline execution failed: {e}", exc_info=True)
         console.print(f"[red]Error: Pipeline failed - {e}[/red]")
+        sys.exit(1)
+
+
+@cli.command(name="pc-correlations")
+@click.argument(
+    "platform_config",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--pipeline-run",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Pipeline-run directory containing per-platform PCA outputs.",
+)
+@click.option(
+    "-o",
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default="./pc_correlation_runs",
+    help="Output directory (default: ./pc_correlation_runs)",
+)
+@click.option("--primary-fdr-method", default="fdr_by", help="Primary FDR method.")
+@click.option(
+    "--fdr-scope",
+    type=click.Choice(["combined", "per_pair", "both"]),
+    default="both",
+    help="FDR scope (default: both).",
+)
+@click.option("--alpha", type=float, default=0.05, help="Significance level.")
+@click.option("--no-figures", is_flag=True, help="Skip figure generation.")
+def pc_correlations(
+    platform_config: Path,
+    pipeline_run: Path,
+    output_dir: Path,
+    primary_fdr_method: str,
+    fdr_scope: str,
+    alpha: float,
+    no_figures: bool,
+):
+    """Run the PC-level cross-platform correlation workflow.
+
+    PLATFORM_CONFIG is a YAML/JSON file mapping each platform name to its
+    ``pca_dir``, ``final_data``, ``genotype_col``, and ``n_pcs`` (relative to
+    ``--pipeline-run``). Unlike the pairwise ``cross-platform`` pipeline, this is
+    an all-platforms synthesis: it correlates every PC against every PC across
+    all platform pairs and pools FDR across them.
+
+    Example:
+        sleap-roots-analyze pc-correlations platforms.yaml --pipeline-run ./run -o ./pc_out
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")  # headless figure rendering before pyplot is imported
+
+    from omegaconf import OmegaConf
+
+    from sleap_roots_analyze import cross_platform_pc_correlations
+
+    try:
+        cfg = OmegaConf.to_object(OmegaConf.load(platform_config))
+        console.print(f"[cyan]Platforms:[/cyan] {', '.join(cfg)}")
+        console.print(f"[cyan]Pipeline run:[/cyan] {pipeline_run}")
+        result = cross_platform_pc_correlations(
+            pipeline_run=pipeline_run,
+            platform_config=cfg,
+            output_dir=output_dir,
+            primary_fdr_method=primary_fdr_method,
+            alpha=alpha,
+            fdr_scope=fdr_scope,
+            make_figures=not no_figures,
+        )
+        s = result.summary
+        console.print(
+            f"[green]PC tests:[/green] {s['n_tests']} | "
+            f"[green]genotypes:[/green] {s['n_genotypes']} | "
+            f"[green]combined-{primary_fdr_method} significant:[/green] "
+            f"{s['n_significant_combined']}"
+        )
+        console.print(f"[green]Artifacts saved to:[/green] {output_dir.absolute()}")
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        sys.exit(1)
+    except Exception as e:  # pragma: no cover - defensive CLI guard
+        console.print(f"[red]Error: PC-correlation workflow failed - {e}[/red]")
         sys.exit(1)
 
 
