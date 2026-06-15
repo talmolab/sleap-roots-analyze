@@ -46,3 +46,21 @@
 ## 4. Pre-merge
 - [x] 4.1 `black` + `ruff` + full `pytest` green; `openspec validate
       add-clusterresult-dataclass --strict` passes.
+
+## 5. Review follow-ups (rebased on the updated #127/#128)
+- [x] 5.1 Retain GMM per-component `covariances` (the fitted cluster shapes) as a
+      nested list; document the deliberate omission of per-sample
+      `probabilities`/`log_likelihoods` and the per-`k` `bic_scores`/`aic_scores`
+      selection sweep. Add covariance-retention + shape tests.
+- [x] 5.2 GMM determinism test (same seed → identical serialized view, the
+      init-sensitive case); value-assert `bic`/`aic`/`converged`/`n_iter`/`weights`
+      against the source (guarding a bic↔aic swap).
+- [x] 5.3 Move the PCAResult golden test out of `test_pipeline_reproduction.py`
+      into `test_pca_result.py` (it validates #127's type, not a cluster type).
+- [x] 5.4 Promote the `algorithm` discriminators to exported module constants
+      `ALGORITHM_KMEANS`/`ALGORITHM_GMM` (no inline literals); document `to_dict()`
+      + `to_json()` in `docs/result-types.md`.
+- [x] 5.5 Cross-cutting (shared module): `to_json(allow_nan=False)` finite-floats
+      contract on `ClusterResult`; non-vacuous `type(field) is float` pre-serialization
+      assertions; non-mutation guards deep-compare values; frozen-is-shallow +
+      provenance (`random_state` as supplied) docstring notes.

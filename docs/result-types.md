@@ -44,6 +44,24 @@ result = PCAResult.from_pca_dict(perform_pca_analysis(df), random_state=42)
 restored = json.loads(json.dumps(dataclasses.asdict(result)))   # round-trips, no encoder
 ```
 
+Each type also provides convenience helpers:
+
+- **`to_dict()`** — the plain `dict` view (`dataclasses.asdict(self)`), for callers that
+  don't want to import `dataclasses`.
+- **`to_json(**kwargs)`** — a strict-JSON string with `allow_nan=False` by default, so a
+  non-finite value (a degenerate `bic`/`aic`/`h2`, an all-zero-loadings PCA `NaN`
+  fractional contribution) raises a `ValueError` at serialization rather than emitting the
+  non-standard `NaN`/`Infinity` tokens a strict consumer (bloom-mcp) rejects. This enforces
+  the **finite-floats contract** of the JSON boundary; extra kwargs forward to `json.dumps`.
+
+```python
+result.to_json(indent=2)   # strict JSON; raises on NaN/Inf instead of emitting invalid JSON
+```
+
+For clustering, the `ClusterResult.algorithm` discriminator a consumer branches on is
+exported as the constants `ALGORITHM_KMEANS` / `ALGORITHM_GMM` (in `result_types`) — use
+those rather than re-spelling the string literals.
+
 ## The types
 
 | Type | Built from | Adapter |

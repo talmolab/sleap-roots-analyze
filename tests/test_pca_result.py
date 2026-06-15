@@ -302,3 +302,49 @@ class TestPCAResultNonBreaking:
         assert list(d["feature_names"]) == before_names
         assert d["n_components_selected"] == before_n
         assert id(d["scaler"]) == scaler_id and id(d["pca"]) == pca_id
+
+
+# Numeric tolerance per docs/reproducibility.md (#118), matching test_pipeline_reproduction.
+_RTOL = 1e-6
+_ATOL = 1e-9
+_REPRO_PLATFORMS = ["turface_19", "turface_150", "cylinder", "root_core"]
+
+
+class TestPCAResultReproductionGolden:
+    """PCAResult carries the #120 golden science (epic #130 acceptance).
+
+    Lives with the PCAResult type (#127) rather than the cluster PR — it validates
+    PCAResult against the #120 reproduction goldens, using the session reproduction
+    fixtures defined in tests/fixtures.py.
+    """
+
+    @pytest.mark.parametrize("platform", _REPRO_PLATFORMS)
+    def test_viz_pca_typed_view_golden(
+        self, final_data_by_platform, viz_pca_by_platform, platform
+    ):
+        """The typed view reproduces the golden explained variance and round-trips."""
+        golden = viz_pca_by_platform[platform]
+        n = golden["n_pca_components"]
+        res = perform_pca_analysis(
+            final_data_by_platform[platform][golden["trait_cols"]],
+            standardize=True,
+            explained_variance_threshold=0.95,
+            random_state=42,
+        )
+        result = PCAResult.from_pca_dict(
+            res, random_state=42, explained_variance_threshold=0.95
+        )
+
+        # Golden explained variance asserted via the typed field. The typed view
+        # retains the 0.95-threshold components (>= the golden count); summing its
+        # first ``n`` ratios reproduces the golden value (matching the legacy-dict test).
+        assert result.n_components >= n
+        reproduced = float(np.sum(result.explained_variance_ratio[:n]))
+        assert np.isclose(
+            reproduced, golden["pca_explained_variance"], rtol=_RTOL, atol=_ATOL
+        )
+
+        # Serializable with no custom encoder — the whole point of the typed view.
+        restored = json.loads(json.dumps(dataclasses.asdict(result)))
+        assert restored["explained_variance_ratio"] == result.explained_variance_ratio
+        assert restored["n_components"] == result.n_components

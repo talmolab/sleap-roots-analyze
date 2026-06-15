@@ -40,10 +40,18 @@ __all__ = [
     "ClusterResult",
     "KMeansResult",
     "GMMResult",
+    "ALGORITHM_KMEANS",
+    "ALGORITHM_GMM",
 ]
 
 # Key the heritability dict reserves for calculation metadata (not a trait).
 _HERITABILITY_METADATA_KEY = "__calculation_metadata__"
+
+# Clustering ``algorithm`` discriminator values — the JSON tag a consumer branches
+# on to pick KMeansResult vs GMMResult. Named constants (not inline literals) so the
+# producer and any consumer share one spelling.
+ALGORITHM_KMEANS = "kmeans"
+ALGORITHM_GMM = "gmm"
 
 
 @dataclass(frozen=True)
@@ -379,11 +387,18 @@ class ClusterResult:
     KMeans and GMM return substantially different results, so the algorithm-
     specific science lives on the :class:`KMeansResult` / :class:`GMMResult`
     subclasses; this base holds only the fields common to both. The
-    ``algorithm`` field discriminates the concrete type for a JSON consumer.
+    ``algorithm`` field discriminates the concrete type for a JSON consumer
+    (compare against :data:`ALGORITHM_KMEANS` / :data:`ALGORITHM_GMM`).
     Build via :meth:`from_kmeans_dict` / :meth:`from_gmm_dict`.
 
+    ``frozen=True`` is shallow: the fields cannot be rebound, but the nested list
+    fields (``cluster_labels``, ``cluster_centers``, ...) are still mutable in
+    place — treat the result as read-only. Float fields must be finite for the JSON
+    boundary; use :meth:`to_json` to enforce it.
+
     Attributes:
-        algorithm: Clustering algorithm, ``"kmeans"`` or ``"gmm"``.
+        algorithm: Clustering algorithm, :data:`ALGORITHM_KMEANS` (``"kmeans"``) or
+            :data:`ALGORITHM_GMM` (``"gmm"``).
         n_clusters: Number of clusters (KMeans ``n_clusters`` / GMM
             ``n_components``).
         cluster_labels: Hard cluster assignment per sample.
@@ -410,22 +425,40 @@ class ClusterResult:
         """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
         return dataclasses.asdict(self)
 
+    def to_json(self, **kwargs: Any) -> str:
+        """Serialize to a strict-JSON string, enforcing the finite-floats contract.
+
+        Defaults to ``allow_nan=False`` so a non-finite value (e.g. a degenerate GMM
+        ``bic``/``aic``) raises a ``ValueError`` here rather than emitting the
+        non-standard ``NaN``/``Infinity`` tokens a strict consumer (bloom-mcp)
+        rejects. Extra keyword arguments are forwarded to :func:`json.dumps`.
+
+        Raises:
+            ValueError: If any float field is non-finite (under the default
+                ``allow_nan=False``).
+        """
+        kwargs.setdefault("allow_nan", False)
+        return json.dumps(self.to_dict(), **kwargs)
+
     @classmethod
     def from_kmeans_dict(cls, d: dict, *, random_state: int) -> "KMeansResult":
         """Build a :class:`KMeansResult` from a ``perform_kmeans_clustering`` dict.
 
-        Stamps ``random_state`` (the dict does not carry it). Does not mutate
-        ``d``.
+        Provenance caveat: ``random_state`` is stamped *as supplied* — the dict does
+        not carry it, so it is recorded on trust, not cross-checked. Pass the same
+        seed handed to ``perform_kmeans_clustering``; a mismatch creates a
+        false-but-authoritative reproducibility record. Does not mutate ``d``.
 
         Args:
             d: The dict returned by ``perform_kmeans_clustering``.
-            random_state: Seed to stamp into the result for reproducibility.
+            random_state: Seed to stamp into the result for reproducibility (must
+                match the seed used to produce ``d``).
 
         Returns:
             A frozen :class:`KMeansResult` holding only serializable science.
         """
         return KMeansResult(
-            algorithm="kmeans",
+            algorithm=ALGORITHM_KMEANS,
             n_clusters=int(d["n_clusters"]),
             cluster_labels=[int(x) for x in np.asarray(d["cluster_labels"])],
             cluster_sizes=[int(x) for x in d["cluster_sizes"]],
@@ -443,18 +476,28 @@ class ClusterResult:
         """Build a :class:`GMMResult` from a ``perform_gmm_clustering`` dict.
 
         Maps ``n_components`` to ``n_clusters`` and the GMM ``means`` to
-        ``cluster_centers``, and stamps ``random_state`` (the dict does not
-        carry it). Does not mutate ``d``.
+        ``cluster_centers``, and retains the per-component ``covariances`` (the
+        fitted cluster shapes). Stamps ``random_state``.
+
+        Provenance caveat: ``random_state`` is stamped *as supplied* — the dict does
+        not carry it, so it is recorded on trust, not cross-checked. Pass the same
+        seed handed to ``perform_gmm_clustering``. Does not mutate ``d``.
+
+        Intentionally omitted (not part of the selected-model science this view
+        captures): per-sample ``probabilities`` and ``log_likelihoods`` (scale with
+        the sample count), and the per-``k`` ``bic_scores``/``aic_scores`` selection
+        sweep (the selected model's ``bic``/``aic`` are kept).
 
         Args:
             d: The dict returned by ``perform_gmm_clustering``.
-            random_state: Seed to stamp into the result for reproducibility.
+            random_state: Seed to stamp into the result for reproducibility (must
+                match the seed used to produce ``d``).
 
         Returns:
             A frozen :class:`GMMResult` holding only serializable science.
         """
         return GMMResult(
-            algorithm="gmm",
+            algorithm=ALGORITHM_GMM,
             n_clusters=int(d["n_components"]),
             cluster_labels=[int(x) for x in np.asarray(d["cluster_labels"])],
             cluster_sizes=[int(x) for x in d["cluster_sizes"]],
@@ -464,6 +507,7 @@ class ClusterResult:
             feature_names=[str(name) for name in d["feature_names"]],
             random_state=int(random_state),
             cluster_centers=np.asarray(d["means"]).tolist(),
+            covariances=np.asarray(d["covariances"]).tolist(),
             weights=[float(w) for w in np.asarray(d["weights"])],
             bic=float(d["bic"]),
             aic=float(d["aic"]),
@@ -478,7 +522,7 @@ class KMeansResult(ClusterResult):
     """JSON-serializable view of a K-Means run.
 
     Attributes:
-        algorithm: Always ``"kmeans"`` for this type.
+        algorithm: Always :data:`ALGORITHM_KMEANS` (``"kmeans"``) for this type.
         n_clusters: Number of clusters.
         cluster_labels: Hard cluster assignment per sample.
         cluster_sizes: Number of samples assigned to each cluster.
@@ -501,7 +545,7 @@ class GMMResult(ClusterResult):
     """JSON-serializable view of a Gaussian Mixture Model run.
 
     Attributes:
-        algorithm: Always ``"gmm"`` for this type.
+        algorithm: Always :data:`ALGORITHM_GMM` (``"gmm"``) for this type.
         n_clusters: Number of mixture components.
         cluster_labels: Hard cluster assignment (argmax of probabilities) per
             sample.
@@ -514,15 +558,26 @@ class GMMResult(ClusterResult):
         random_state: Random seed stamped for reproducibility.
         cluster_centers: ``(n_clusters, n_features)`` nested list of component
             means.
+        covariances: Per-component covariances (the fitted cluster shapes), as a
+            nested list. Shape depends on ``covariance_type``: ``"full"`` →
+            ``(n_clusters, n_features, n_features)``, ``"tied"`` →
+            ``(n_features, n_features)``, ``"diag"`` → ``(n_clusters, n_features)``,
+            ``"spherical"`` → ``(n_clusters,)``.
         weights: Mixture weight per component.
         bic: Bayesian Information Criterion of the selected model.
         aic: Akaike Information Criterion of the selected model.
         converged: Whether the EM algorithm converged.
         n_iter: Number of EM iterations performed.
         covariance_type: Covariance parameterization used (e.g. ``"full"``).
+
+    Note:
+        Per-sample ``probabilities``/``log_likelihoods`` and the per-``k``
+        ``bic_scores``/``aic_scores`` model-selection sweep from the source dict are
+        intentionally omitted — see :meth:`from_gmm_dict`.
     """
 
     cluster_centers: list[list[float]] = field(default_factory=list)
+    covariances: list = field(default_factory=list)
     weights: list[float] = field(default_factory=list)
     bic: float = 0.0
     aic: float = 0.0
