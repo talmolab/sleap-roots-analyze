@@ -41,6 +41,11 @@ from sleap_roots_analyze.pca import (
     run_pca_and_export_artifacts,
 )
 
+from sleap_roots_analyze.result_types import (
+    FeatureContribution,
+    PCAResult,
+)
+
 from sleap_roots_analyze.umap import (
     perform_umap_analysis,
 )
@@ -216,6 +221,9 @@ __all__ = [
     "calculate_pca_metrics",
     "build_feature_metrics_df",
     "run_pca_and_export_artifacts",
+    # Serializable result types (#130)
+    "PCAResult",
+    "FeatureContribution",
     # UMAP functions
     "perform_umap_analysis",
     # Clustering functions
