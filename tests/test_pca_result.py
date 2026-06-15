@@ -13,6 +13,7 @@ import dataclasses
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from sleap_roots_analyze.pca import perform_pca_analysis
@@ -21,6 +22,31 @@ from sleap_roots_analyze.result_types import FeatureContribution, PCAResult
 
 class TestPCAResultJSONRoundTrip:
     """The clean view must serialize to JSON as native Python types."""
+
+    def test_fields_are_native_types_pre_serialization(self, pca_3d_data):
+        """Float fields are native ``float`` on the dataclass, not laundered by JSON.
+
+        ``np.float64`` is a subclass of ``float``, so ``json.dumps`` silently
+        converts a leaked ``np.float64`` into a native float before any assertion on
+        the parsed output — making post-round-trip float checks vacuous. Assert on
+        the dataclass fields themselves, where a leak would survive as ``np.float64``.
+        """
+        df, _ = pca_3d_data
+        result = PCAResult.from_pca_dict(perform_pca_analysis(df, standardize=True))
+
+        assert type(result.n_components) is int
+        assert type(result.standardized) is bool
+        for v in (
+            *result.explained_variance_ratio,
+            *result.eigenvalues,
+            *result.cumulative_variance_ratio,
+            *(v for row in result.loadings for v in row),
+            *(v for row in result.scores for v in row),
+        ):
+            assert type(v) is float
+        for c in result.feature_contributions:
+            assert type(c.total_contribution) is float
+            assert type(c.fractional_contribution) is float
 
     def test_roundtrip_native_types(self, pca_3d_data):
         """json.dumps(asdict(...)) succeeds and round-trips to native types."""
@@ -147,6 +173,44 @@ class TestPCAResultAdapter:
         assert bare.explained_variance_threshold is None
 
 
+class TestPCAResultJSONBoundaryContract:
+    """`to_json` enforces strict, finite-floats-only JSON (the bloom-mcp contract)."""
+
+    def test_to_json_roundtrips_finite_data(self, pca_3d_data):
+        """On finite data, to_json emits strict JSON that parses back to to_dict."""
+        df, _ = pca_3d_data
+        result = PCAResult.from_pca_dict(perform_pca_analysis(df, standardize=True))
+
+        # allow_nan=False is the default; parsing back must equal the dict view.
+        parsed = json.loads(result.to_json())
+        assert parsed == json.loads(json.dumps(result.to_dict()))
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_to_json_rejects_non_finite_floats(self, pca_3d_data, bad):
+        """A non-finite field raises at to_json instead of emitting invalid JSON.
+
+        Reachable in practice via degenerate PCA (e.g. all-zero loadings →
+        ``NaN`` fractional contribution). The plain ``json.dumps`` default would
+        silently emit ``NaN``/``Infinity``, which a strict consumer rejects.
+        """
+        df, _ = pca_3d_data
+        result = PCAResult.from_pca_dict(perform_pca_analysis(df, standardize=True))
+        # frozen dataclass: inject the non-finite value via replace.
+        tainted = dataclasses.replace(result, eigenvalues=[bad])
+
+        with pytest.raises(ValueError, match="not JSON compliant"):
+            tainted.to_json()
+
+        # And the unguarded default would have laundered it into invalid JSON.
+        assert json.dumps(tainted.to_dict()) != ""  # plain dumps does NOT raise
+
+    def test_to_json_forwards_kwargs(self, pca_3d_data):
+        """Extra kwargs reach json.dumps (e.g. indent) without breaking the contract."""
+        df, _ = pca_3d_data
+        result = PCAResult.from_pca_dict(perform_pca_analysis(df, standardize=True))
+        assert "\n" in result.to_json(indent=2)
+
+
 class TestPCAResultProperties:
     """Derived properties."""
 
@@ -192,7 +256,11 @@ class TestPCAResultNonBreaking:
     """The legacy dict return is preserved and not mutated by the adapter."""
 
     def test_dict_keys_unchanged_and_nonmutating(self, pca_3d_data):
-        """Legacy dict keeps its keys and is not mutated by the adapter."""
+        """Legacy dict keeps its keys *and values* — the adapter never mutates it.
+
+        A keys-only check would pass an in-place value/array edit; snapshot the
+        actual values (arrays, frame, scalars) and assert deep equality afterwards.
+        """
         df, _ = pca_3d_data
         d = perform_pca_analysis(df, standardize=True)
 
@@ -210,6 +278,27 @@ class TestPCAResultNonBreaking:
         }
         assert expected_keys.issubset(d.keys())
 
-        before = set(d.keys())
+        # Deep snapshot of every value, using type-appropriate equality afterwards.
+        array_keys = [
+            "loadings",
+            "transformed_data",
+            "explained_variance_ratio",
+            "eigenvalues",
+            "cumulative_variance_ratio",
+        ]
+        before_keys = set(d.keys())
+        before_arrays = {k: np.asarray(d[k]).copy() for k in array_keys}
+        before_fc = d["feature_contributions"].copy(deep=True)
+        before_names = list(d["feature_names"])
+        before_n = d["n_components_selected"]
+        scaler_id, pca_id = id(d["scaler"]), id(d["pca"])
+
         PCAResult.from_pca_dict(d)
-        assert set(d.keys()) == before
+
+        assert set(d.keys()) == before_keys
+        for k in array_keys:
+            np.testing.assert_array_equal(np.asarray(d[k]), before_arrays[k])
+        pd.testing.assert_frame_equal(d["feature_contributions"], before_fc)
+        assert list(d["feature_names"]) == before_names
+        assert d["n_components_selected"] == before_n
+        assert id(d["scaler"]) == scaler_id and id(d["pca"]) == pca_id

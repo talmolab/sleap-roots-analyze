@@ -8,6 +8,15 @@ round-trips with no custom serializer, which is what lets these results cross a
 JSON boundary (bloom-mcp, a cached artifact, an API) and anchor the
 reproducibility CI gate.
 
+**Finite-floats contract.** The JSON boundary is *strict* JSON: floats must be
+finite. ``json.dumps`` will happily emit the non-standard ``NaN``/``Infinity``
+tokens (which a strict consumer such as bloom-mcp rejects), so each result type
+exposes a ``to_json`` method that serializes with ``allow_nan=False`` — a
+degenerate science value (e.g. an all-zero-loadings PCA producing a ``NaN``
+fractional contribution, a non-finite ``h2``/``bic``) raises a ``ValueError`` at
+serialization rather than silently producing invalid JSON. Callers crossing the
+boundary should use ``to_json`` (or pass ``allow_nan=False`` themselves).
+
 The first type is :class:`PCAResult` (issue #127, the detailed exemplar);
 ``HeritabilityResult`` (#128) and ``ClusterResult`` (#129) follow the same
 convention here. This module imports nothing from the analytical modules
@@ -17,6 +26,7 @@ convention here. This module imports nothing from the analytical modules
 from __future__ import annotations
 
 import dataclasses
+import json
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -49,7 +59,15 @@ class PCAResult:
     Built from the legacy ``perform_pca_analysis`` dict via
     :meth:`from_pca_dict`. Component-indexed fields cover only the retained
     components; the fitted ``PCA``/``StandardScaler`` objects are intentionally
-    excluded (still available via the legacy dict for in-process callers).
+    excluded (still available via the legacy dict for in-process callers), as are
+    the secondary per-feature variance breakdowns
+    (``explained_variance_ratio_per_feature``, ``feature_variances``) — this view
+    keeps only the primary component-level science.
+
+    ``frozen=True`` is shallow: the dataclass fields cannot be rebound, but the
+    nested ``list`` fields (``loadings``, ``scores``, ``feature_contributions``)
+    are still mutable in place. Treat the result as read-only. Float fields must be
+    finite to satisfy the JSON boundary — use :meth:`to_json` to enforce it.
 
     Attributes:
         n_components: Number of retained principal components.
@@ -96,6 +114,21 @@ class PCAResult:
         """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
         return dataclasses.asdict(self)
 
+    def to_json(self, **kwargs: Any) -> str:
+        """Serialize to a strict-JSON string, enforcing the finite-floats contract.
+
+        Defaults to ``allow_nan=False`` so a non-finite value (``NaN``/``Infinity``
+        from a degenerate run) raises a ``ValueError`` here rather than emitting the
+        non-standard tokens that a strict JSON consumer (e.g. bloom-mcp) rejects.
+        Extra keyword arguments are forwarded to :func:`json.dumps`.
+
+        Raises:
+            ValueError: If any float field is non-finite (under the default
+                ``allow_nan=False``).
+        """
+        kwargs.setdefault("allow_nan", False)
+        return json.dumps(self.to_dict(), **kwargs)
+
     @classmethod
     def from_pca_dict(
         cls,
@@ -112,11 +145,18 @@ class PCAResult:
         ``cumulative_variance_ratio``, ``transformed_data``, ``scaler``,
         ``feature_contributions``). Does not mutate ``d``.
 
+        Provenance caveat: ``random_state`` and ``explained_variance_threshold``
+        are *stamped as supplied* — the source dict does not carry them, so they
+        are recorded on trust, not cross-checked. Pass the **same** values that
+        produced ``d`` (e.g. the ``random_state`` handed to ``perform_pca_analysis``);
+        a mismatched seed creates a false-but-authoritative reproducibility record.
+
         Args:
             d: The dict returned by ``perform_pca_analysis``.
             random_state: Random state to stamp into the result for provenance.
+                Must match the seed used to produce ``d`` (see caveat above).
             explained_variance_threshold: Threshold to stamp into the result for
-                provenance.
+                provenance. Must match the threshold used to produce ``d``.
 
         Returns:
             A frozen :class:`PCAResult` holding only JSON-serializable science.
