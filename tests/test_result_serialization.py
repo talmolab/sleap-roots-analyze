@@ -2,17 +2,30 @@
 
 The FAIR "interoperability" guarantee: every analytical result object must
 serialize cleanly to JSON and round-trip without loss. This gate is **opt-in by
-construction** — it calls each analytical function once and only asserts when the
-return is a dataclass result object; functions still returning plain dicts are
-skipped. It therefore extends automatically as the #127/#128/#129 result types
-land, with no test edits.
+construction** — it calls each *registered* analytical function once and only
+asserts when the return is a dataclass result object; functions still returning
+plain dicts are skipped, so they begin asserting the moment they adopt a result
+dataclass (with no test edits).
+
+Scope caveat (not fully auto-extending): the registered set is the determinism
+registry's ``CASES`` (covered by that module's whole-package coverage guard) plus a
+hardcoded ``_STATS_RT_CASES`` list. A brand-new result type returned by a function
+in *neither* list is not covered until it is added here — there is no package-walking
+membership guard for "functions that return a dataclass" the way there is for
+``random_state`` functions. Add new result-returning functions to ``RT_CASES``.
 
 "Lossless" is defined on the JSON-native projection produced by
 ``convert_to_json_serializable`` (which is deliberately asymmetric: ``ndarray`` →
 list, unknown objects → ``"<TypeName>"`` string). The gate asserts the projection
-survives a ``json.dumps``/``loads`` round-trip unchanged (NaN-aware) and that no
-field silently degraded to a ``"<TypeName>"`` placeholder — so a result holding an
-unserializable object fails loudly instead of passing vacuously.
+survives a ``json.dumps``/``loads`` round-trip unchanged (NaN-aware), that no field
+silently degraded to a ``"<TypeName>"`` placeholder, and — when the result type
+exposes ``from_dict`` — that it reconstructs an equal object.
+
+NaN/Inf scope: this gate uses default ``json.dumps`` (``allow_nan=True``) because
+several result objects legitimately carry NaN (e.g. heritability ``h2``,
+reconstruction errors). Strict finite-JSON for the boundary (``allow_nan=False``) is
+the individual result type's own contract via its ``to_json`` method, covered by
+``test_pca_result`` / ``test_heritability_result`` / ``test_cluster_result``.
 
 See ``docs/reproducibility.md`` for the serialization contract.
 """
@@ -22,7 +35,6 @@ from __future__ import annotations
 import json
 import math
 import re
-import warnings
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -33,16 +45,9 @@ import pytest
 from sleap_roots_analyze import statistics as st
 from sleap_roots_analyze.data_utils import convert_to_json_serializable
 from sleap_roots_analyze.pipeline.summary import PipelineSummary, StepSummary
-from tests.reproducibility_cases import CASES, make_context
+from tests.reproducibility_cases import CASES, _silence, make_context
 
 _PLACEHOLDER = re.compile(r"^<[A-Za-z_][A-Za-z0-9_]*>$")
-
-
-def _silence(fn):
-    """Run ``fn`` with warnings suppressed."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return fn()
 
 
 def _find_placeholders(obj, path="root"):
@@ -90,6 +95,12 @@ def _json_equal(a, b) -> bool:
 def assert_round_trips(result) -> dict:
     """Assert a dataclass result object round-trips losslessly through JSON.
 
+    Asserts the JSON-native projection (a) survives ``json.dumps``/``loads``
+    unchanged, (b) holds no ``"<TypeName>"`` placeholder (lossy stringification),
+    and (c) — when the result type exposes a ``from_dict`` classmethod — that
+    ``from_dict`` reconstructs an object whose own projection equals the original
+    (the spec's "from_dict reconstructs an equal object" contract).
+
     Args:
         result: A dataclass instance.
 
@@ -100,9 +111,20 @@ def assert_round_trips(result) -> dict:
     loaded = json.loads(json.dumps(projected))  # must not raise
     placeholders = _find_placeholders(loaded)
     assert not placeholders, f"lossy stringification of fields: {placeholders}"
-    assert _json_equal(
-        json.loads(json.dumps(loaded)), loaded
-    ), "projection is not stable across a JSON round-trip"
+    # Meaningful stability check: the projection itself must be unchanged by a JSON
+    # round-trip (catches any non-JSON-native value json would coerce). Comparing
+    # `projected` to `loaded` — not re-encoding `loaded`, which is vacuously equal.
+    assert _json_equal(projected, loaded), "projection is not stable through JSON"
+
+    # When the contract's from_dict is present, assert it reconstructs an equal
+    # object (otherwise the "from_dict reconstructs an equal object" promise ships
+    # dead). Compare on the projection so numpy/Path fields compare cleanly.
+    from_dict = getattr(type(result), "from_dict", None)
+    if callable(from_dict):
+        rebuilt = from_dict(loaded)
+        assert _json_equal(
+            convert_to_json_serializable(asdict(rebuilt)), loaded
+        ), "from_dict did not reconstruct an equal object"
     return loaded
 
 
@@ -189,14 +211,13 @@ def test_pipeline_summary_round_trips():
     )
     loaded = json.loads(summary.to_json())
     assert not _find_placeholders(loaded)
-    assert _json_equal(json.loads(json.dumps(loaded)), loaded)
     # Path and numpy values survived as JSON-native.
     assert loaded["steps"][0]["files_generated"] == ["out/a.csv"]
     assert loaded["steps"][0]["metadata"]["n_rows"] == 10
     assert loaded["config"]["seed"] == 42
 
 
-# --- the auto-extending gate over the analytical surface ----------------------
+# --- the gate over the registered analytical surface --------------------------
 
 
 @dataclass(frozen=True)

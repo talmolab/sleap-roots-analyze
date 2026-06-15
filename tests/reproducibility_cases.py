@@ -29,11 +29,14 @@ ATOL = 1e-9
 SEED = 42
 N_FEATURES = 6
 
-# Stochastic functions intentionally NOT given their own determinism case, each
-# with a reason. Kept empty by design: the approved scope is to cover every
-# in-package stochastic function directly. The coverage guard asserts every name
-# here still exists and does not overlap the registry, so the set cannot rot.
-EXCLUDED: frozenset[str] = frozenset()
+# Stochastic functions intentionally NOT given their own determinism case, mapped
+# to the reason. A dict (not a bare set) so each exclusion documents *why* it is
+# safe to skip. Every key must still be a discoverable ``random_state`` function and
+# must not overlap the registry (enforced by ``test_excluded_set_is_consistent``).
+# Empty today: the approved scope covers every in-package stochastic function
+# directly — including the formerly seed-hardcoded ``calculate_mahalanobis_distances``
+# and ``detect_outliers_pca``, now caller-seedable and swept (#118).
+EXCLUDED: dict[str, str] = {}
 
 
 @dataclass(frozen=True)
@@ -136,6 +139,15 @@ def _compare_int(a, b):
     _exact(a, b, "value")
 
 
+def _compare_mahalanobis(a, b):
+    """Compare ``calculate_mahalanobis_distances``: (distances, mean, covariance)."""
+    (dist_a, mean_a, cov_a) = a
+    (dist_b, mean_b, cov_b) = b
+    _close(dist_a, dist_b, "distances")
+    _close(mean_a, mean_b, "mean")
+    _close(cov_a, cov_b, "covariance")
+
+
 def _silence(fn):
     """Run ``fn`` with warnings suppressed (sklearn/umap chatter)."""
     with warnings.catch_warnings():
@@ -167,6 +179,9 @@ CASES: List[Case] = [
         _compare_fit_pca,
     ),
     Case(
+        # Deterministic by construction: select_n_components reads PCA variance
+        # ratios (full/exact SVD), so its seed is not load-bearing. Swept anyway so
+        # the coverage guard stays complete and a future randomized path is caught.
         pca.select_n_components,
         lambda ctx, seed: _silence(
             lambda: pca.select_n_components(ctx.X, random_state=seed)
@@ -267,6 +282,28 @@ CASES: List[Case] = [
         _dict_compare(
             [("outlier_indices", "exact"), ("mahalanobis_distances", "close")]
         ),
+    ),
+    Case(
+        outlier_detection.detect_outliers_pca,
+        # Seed is forwarded to PCA; not load-bearing under full/exact SVD, but the
+        # function is now caller-seedable (#118) so the sweep exercises it.
+        lambda ctx, seed: _silence(
+            lambda: outlier_detection.detect_outliers_pca(ctx.df, random_state=seed)
+        ),
+        _dict_compare(
+            [("outlier_indices", "exact"), ("reconstruction_errors", "close")]
+        ),
+    ),
+    Case(
+        pca.calculate_mahalanobis_distances,
+        # robust=True makes MinCovDet's seed load-bearing — the path the old
+        # hardcoded random_state=42 left un-exercised (#118).
+        lambda ctx, seed: _silence(
+            lambda: pca.calculate_mahalanobis_distances(
+                ctx.X, robust=True, random_state=seed
+            )
+        ),
+        _compare_mahalanobis,
     ),
 ]
 

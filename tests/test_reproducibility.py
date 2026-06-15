@@ -43,6 +43,8 @@ EXPECTED_QUALNAMES = frozenset(
         "sleap_roots_analyze.outlier_detection.detect_outliers_kmeans",
         "sleap_roots_analyze.outlier_detection.detect_outliers_gmm",
         "sleap_roots_analyze.outlier_detection.detect_outliers_mahalanobis",
+        "sleap_roots_analyze.outlier_detection.detect_outliers_pca",
+        "sleap_roots_analyze.pca.calculate_mahalanobis_distances",
     }
 )
 
@@ -90,7 +92,7 @@ def uncovered_functions(found):
         The subset that has no determinism case and is not in :data:`EXCLUDED`.
     """
     covered = {c.qualname for c in CASES}
-    return set(found) - covered - EXCLUDED
+    return set(found) - covered - set(EXCLUDED)
 
 
 # --- coverage guard -----------------------------------------------------------
@@ -117,8 +119,8 @@ def test_coverage_guard_detects_missing_function():
 
 def test_excluded_set_is_consistent():
     """Excluded names must still exist as stochastic functions and not overlap."""
-    assert EXCLUDED.isdisjoint({c.qualname for c in CASES})
-    assert EXCLUDED <= discover_stochastic_qualnames()
+    assert set(EXCLUDED).isdisjoint({c.qualname for c in CASES})
+    assert set(EXCLUDED) <= discover_stochastic_qualnames()
 
 
 # --- determinism sweep --------------------------------------------------------

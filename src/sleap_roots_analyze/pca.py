@@ -655,13 +655,17 @@ def standardize_data(
 
 
 def calculate_mahalanobis_distances(
-    X_transformed: np.ndarray, robust: bool = False
+    X_transformed: np.ndarray, robust: bool = False, random_state: int = 42
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate Mahalanobis distances in PCA space.
 
     Args:
         X_transformed: PCA-transformed data (n_samples, n_components)
-        robust: If True, use robust covariance estimation
+        robust: If True, use robust covariance estimation (``MinCovDet``), whose
+            subsampling RNG is seeded by ``random_state``.
+        random_state: Seed for the robust-covariance estimator's RNG (issue #118).
+            Load-bearing only when ``robust=True``; the non-robust path is
+            deterministic by construction.
 
     Returns:
         Tuple of:
@@ -681,7 +685,7 @@ def calculate_mahalanobis_distances(
     if robust:
         from sklearn.covariance import MinCovDet
 
-        robust_cov = MinCovDet(random_state=42).fit(X_transformed)
+        robust_cov = MinCovDet(random_state=random_state).fit(X_transformed)
         mean = robust_cov.location_
         covariance = robust_cov.covariance_
     else:

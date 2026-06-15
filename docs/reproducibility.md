@@ -121,11 +121,16 @@ JSON, so a stricter external consumer may reject it.
 
 ## CI enforcement
 
-Both gates run in the dedicated **Reproducibility gates** job in
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) on every pull request, so a
-non-determinism or serialization regression fails CI. The job runs on a single OS
-(determinism is a same-machine comparison; serialization is OS-independent) and can be
-set as a required status check in branch protection.
+The gates run on every pull request and can be set as required status checks in
+branch protection ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)):
+
+- **Reproducibility gates (determinism)** — single OS. Determinism is a same-machine
+  double-run comparison; cross-OS bit-identity is not guaranteed by NumPy/BLAS, so a
+  single OS is the correct, achievable claim.
+- **Serialization round-trip gate** — full OS matrix (Ubuntu, Windows, macOS).
+  Serialization is **not** OS-independent: `Path → str` differs by OS (Windows uses
+  backslashes), exactly the class of bug this gate exists to catch, so it runs
+  cross-OS.
 
 Run the gates locally with:
 
