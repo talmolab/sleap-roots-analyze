@@ -884,8 +884,31 @@ class CrossPlatformConfig:
     enrichment_enabled: bool = False
     enrichment_p_value_column: str = "spearman_p"
 
+    # Input-contract validation at the cross-platform load boundary (issue #154).
+    # off | warn | strict, mirroring DataConfig.validate_input; validates each loaded
+    # experiment frame on a discarded copy. Requires the optional sleap-roots-contracts
+    # dependency; a logged no-op when it is absent.
+    #
+    # Caveat for the cross-platform path: aligned experiment frames have no per-sample
+    # id (the source barcode is dropped during alignment). To keep `strict` usable, the
+    # validator injects a synthetic positional `sample_id` into the discarded copy
+    # instead of failing on the absent recommended role; `strict` then differs from
+    # `warn` only in escalating any *other* recommended-column issue. For routine runs
+    # `warn` is recommended. See validation.input_contract.validate_cross_platform_experiment.
+    validate_input: str = "warn"
+
     def __post_init__(self):
         """Validate configuration parameters."""
+        # Validate input-contract validation mode (issue #154). Shared constant keeps
+        # this in lockstep with the QC path's validate_qc_config / validate_entry_input.
+        from sleap_roots_analyze.validation import VALIDATE_INPUT_MODES
+
+        if self.validate_input not in VALIDATE_INPUT_MODES:
+            raise ValueError(
+                f"validate_input must be one of {' | '.join(VALIDATE_INPUT_MODES)}, "
+                f"got '{self.validate_input}'"
+            )
+
         # Validate correlation method
         valid_methods = ["spearman", "pearson", "kendall"]
         if self.correlation_method not in valid_methods:

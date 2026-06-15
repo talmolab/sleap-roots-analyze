@@ -10,6 +10,7 @@ import pandas as pd
 from sleap_roots_analyze.cross_experiment_analysis import load_and_align_experiments
 from sleap_roots_analyze.data_cleanup import get_trait_columns
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
+from sleap_roots_analyze.validation import validate_cross_platform_experiment
 
 
 class LoadCrossPlatformDataStep(BaseStep):
@@ -71,6 +72,24 @@ class LoadCrossPlatformDataStep(BaseStep):
             exp2_path=config.exp2_data_path,
             genotype_col1=config.exp1_genotype_col,
             genotype_col2=config.exp2_genotype_col,
+        )
+
+        # Input-contract validation at the entry boundary (issue #154). Each aligned
+        # experiment frame already carries canonical genotype/replicate columns; the
+        # side-check runs on a discarded copy and never alters exp1_df/exp2_df.
+        # Degrades to a logged no-op when contracts is absent or validate_input=="off".
+        # Pass the same exclude_cols used for the real trait selection below, so the
+        # validator sees the identical trait set (a numeric excluded-metadata column
+        # must not be validated as — or mask the absence of — a real trait).
+        validate_cross_platform_experiment(
+            exp1_df,
+            mode=config.validate_input,
+            additional_exclude=config.exp1_exclude_cols,
+        )
+        validate_cross_platform_experiment(
+            exp2_df,
+            mode=config.validate_input,
+            additional_exclude=config.exp2_exclude_cols,
         )
 
         # Get trait columns for each experiment

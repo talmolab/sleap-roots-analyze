@@ -319,3 +319,93 @@ def test_runs_without_contracts_identical_output(tmp_path, monkeypatch, caplog):
 
     assert_frame_equal(r_base.data, r_absent.data)
     assert any("skip" in r.message.lower() for r in caplog.records)
+
+
+# --- #154: cross-platform experiment-frame validation helper ---
+
+from sleap_roots_analyze.validation.input_contract import (  # noqa: E402
+    validate_cross_platform_experiment,
+)
+
+
+@pytest.fixture
+def aligned_experiment_frame() -> pd.DataFrame:
+    """An aligned cross-platform experiment frame (canonical genotype/replicate cols)."""
+    return pd.DataFrame(
+        {
+            "genotype": ["g1", "g1", "g2", "g2"],
+            "replicate": [1, 2, 1, 2],
+            "trait_a": [0.1, 0.2, 0.3, 0.4],
+            "trait_b": [1.0, 2.0, 3.0, 4.0],
+        }
+    )
+
+
+def test_cross_platform_good_frame_passes_under_warn(aligned_experiment_frame):
+    """A well-formed aligned frame raises nothing under warn (sample_id only warns)."""
+    validate_cross_platform_experiment(aligned_experiment_frame, mode="warn")
+
+
+def test_cross_platform_good_frame_passes_under_strict(aligned_experiment_frame):
+    """Strict is usable on aligned frames: the absent per-sample id is synthesized.
+
+    Aligned frames never carry sample_id, so a naive strict pass would fail on every
+    valid frame. The helper injects a synthetic positional sample_id into the discarded
+    copy, so a clean aligned frame passes strict instead of raising.
+    """
+    validate_cross_platform_experiment(aligned_experiment_frame, mode="strict")
+
+
+def test_cross_platform_strict_does_not_mutate_or_add_sample_id(
+    aligned_experiment_frame,
+):
+    """The synthetic sample_id lives only on the discarded copy, never on the input."""
+    before = aligned_experiment_frame.copy(deep=True)
+    validate_cross_platform_experiment(aligned_experiment_frame, mode="strict")
+    assert "sample_id" not in aligned_experiment_frame.columns
+    assert_frame_equal(aligned_experiment_frame, before)
+
+
+def test_cross_platform_strict_still_catches_structural_error(aligned_experiment_frame):
+    """Synthesizing sample_id does not mask real structural errors under strict."""
+    no_trait = aligned_experiment_frame[["genotype", "replicate"]].copy()
+    with pytest.raises(ValueError, match="trait"):
+        validate_cross_platform_experiment(no_trait, mode="strict")
+
+
+def test_cross_platform_runs_on_a_copy(aligned_experiment_frame):
+    """The aligned frame is never mutated by validation."""
+    before = aligned_experiment_frame.copy(deep=True)
+    validate_cross_platform_experiment(aligned_experiment_frame, mode="warn")
+    assert_frame_equal(aligned_experiment_frame, before)
+
+
+def test_cross_platform_missing_genotype_raises_under_warn(aligned_experiment_frame):
+    """A structural error (missing genotype) raises even under warn."""
+    bad = aligned_experiment_frame.drop(columns=["genotype"])
+    with pytest.raises(ValueError, match="genotype"):
+        validate_cross_platform_experiment(bad, mode="warn")
+
+
+def test_cross_platform_off_is_noop(aligned_experiment_frame, monkeypatch, caplog):
+    """mode='off' never calls the validator."""
+    calls = []
+    monkeypatch.setattr(
+        input_contract, "validate_analysis_input", lambda *a, **k: calls.append(1)
+    )
+    with caplog.at_level(logging.DEBUG):
+        validate_cross_platform_experiment(aligned_experiment_frame, mode="off")
+    assert calls == []
+    assert caplog.records == []
+
+
+def test_cross_platform_contracts_absent_is_noop(
+    aligned_experiment_frame, monkeypatch, caplog
+):
+    """With contracts unavailable, the helper degrades to a logged no-op."""
+    monkeypatch.setattr(input_contract, "CONTRACTS_AVAILABLE", False)
+    monkeypatch.setattr(input_contract, "validate_analysis_input", None)
+    monkeypatch.setattr(input_contract, "canonicalize_role_dtypes", None)
+    with caplog.at_level(logging.INFO):
+        validate_cross_platform_experiment(aligned_experiment_frame, mode="strict")
+    assert any("skip" in r.message.lower() for r in caplog.records)
