@@ -166,7 +166,10 @@ class DataConfig:
 
             - ``"off"``: skip validation entirely.
             - ``"warn"`` (default): log non-fatal issues; raise only on the universal
-              structural errors (missing ``genotype``, no numeric trait, bad role dtype).
+              structural errors (missing ``genotype``, a NaN/blank in the ``genotype``
+              role, no numeric trait, bad role dtype). Note: real field/Bloom exports
+              that carry blank genotype cells will now hard-fail by default — set the
+              flag to ``"off"`` or clean the genotype column before loading.
             - ``"strict"``: raise on any contract violation (e.g. missing ``sample_id``).
               Use at untrusted/external input boundaries (e.g. a Bloom export).
 

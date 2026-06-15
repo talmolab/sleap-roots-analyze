@@ -9,7 +9,7 @@ module degrades to a logged no-op when ``sleap-roots-contracts`` is not installe
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Optional
+from typing import List, Optional, Protocol
 
 import pandas as pd
 
@@ -27,11 +27,32 @@ except ImportError:
     validate_analysis_input = None
     CONTRACTS_AVAILABLE = False
 
+# Single source of truth for the magic strings shared across input_contract.py,
+# config/utils.py, and config/components.py (issue #144 review). ``VALIDATE_INPUT_MODES``
+# is ordered for stable user-facing messages; ``CANONICAL_ROLES`` is the fixed contract
+# role vocabulary (analyze renames its configured role columns to these names).
+VALIDATE_INPUT_MODES = ("off", "warn", "strict")
+CANONICAL_ROLES = ("genotype", "sample_id", "replicate", "image_path")
+
+
+class ColumnRoles(Protocol):
+    """Duck-typed view of the role-column names the validator needs.
+
+    Matches ``pipeline.config.components.ColumnConfig`` structurally without importing it
+    (keeps validation free of a config dependency) and documents the minimal interface:
+    a required ``genotype`` and ``barcode`` plus an optional ``replicate``. ``image_path``
+    is read via ``getattr`` since not every config declares it.
+    """
+
+    genotype: str
+    barcode: str
+    replicate: Optional[str]
+
 
 def _build_validation_frame(
     df: pd.DataFrame,
     *,
-    columns: Any,
+    columns: ColumnRoles,
     additional_exclude: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """Build the canonical validation copy of an entry frame.
@@ -51,6 +72,15 @@ def _build_validation_frame(
     """
     from sleap_roots_analyze.data_cleanup import get_trait_columns
 
+    # The genotype role is the one structural requirement; surface a misconfigured name
+    # here (naming configured-vs-available) rather than letting the contract emit a bare
+    # "required column 'genotype' is missing" that doesn't point at the config.
+    if columns.genotype not in df.columns:
+        raise ValueError(
+            f"configured genotype column (columns.genotype={columns.genotype!r}) "
+            f"is not present in the input frame. Available columns: {list(df.columns)}"
+        )
+
     # Rename config role names -> canonical, only for roles actually present.
     rename_map = {}
     if columns.genotype in df.columns:
@@ -63,6 +93,17 @@ def _build_validation_frame(
     if image_path and image_path in df.columns:
         rename_map[image_path] = "image_path"
 
+    # A rename target that already exists under its canonical name (as a different column)
+    # would silently collide into duplicate columns; report it instead of letting pandas
+    # raise a bare "duplicate column names".
+    for source, canonical in rename_map.items():
+        if canonical != source and canonical in df.columns:
+            raise ValueError(
+                f"cannot canonicalize role column {source!r} -> {canonical!r}: the input "
+                f"already has a column named {canonical!r}. Rename or drop the conflicting "
+                f"column before validation."
+            )
+
     renamed = df.rename(columns=rename_map)
 
     # Drop non-trait metadata, keeping role columns out of the trait set.
@@ -73,11 +114,7 @@ def _build_validation_frame(
         replicate_col="replicate" if "replicate" in renamed.columns else None,
         additional_exclude=additional_exclude,
     )
-    role_cols = [
-        c
-        for c in ("genotype", "sample_id", "replicate", "image_path")
-        if c in renamed.columns
-    ]
+    role_cols = [c for c in CANONICAL_ROLES if c in renamed.columns]
     check = renamed[role_cols + trait_cols].copy()
     return canonicalize_role_dtypes(check)
 
@@ -85,7 +122,7 @@ def _build_validation_frame(
 def validate_entry_input(
     df: pd.DataFrame,
     *,
-    columns: Any,
+    columns: ColumnRoles,
     mode: str,
     additional_exclude: Optional[List[str]] = None,
     logger: Optional[logging.Logger] = None,
@@ -117,9 +154,18 @@ def validate_entry_input(
         logger: Logger to use; defaults to this module's logger.
 
     Raises:
-        ValueError: If the contract validation fails for the given ``mode``.
+        ValueError: If ``mode`` is not one of ``VALIDATE_INPUT_MODES``, or if the contract
+            validation fails for the given ``mode``.
     """
     log = logger or logging.getLogger(__name__)
+
+    # Guard the documented three-value contract: a programmatic caller bypassing
+    # validate_qc_config must get an explicit error, not silent warn semantics.
+    if mode not in VALIDATE_INPUT_MODES:
+        raise ValueError(
+            f"validate_input mode must be one of "
+            f"{' | '.join(VALIDATE_INPUT_MODES)}; got {mode!r}"
+        )
 
     if mode == "off":
         return

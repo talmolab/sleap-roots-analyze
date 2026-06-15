@@ -35,7 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pip install "sleap-roots-analyze[contracts]"`; when the extra is absent,
   validation degrades to a logged no-op (never an `ImportError`). Validation runs
   on a discarded copy of the entry frame, so enabling it never changes results —
-  proven equivalent to the #120/#146 `turface_19` golden. (#144)
+  proven equivalent to the #120/#146 `turface_19` golden across `off`/`warn`/`strict`.
+  Under the default `warn`, a NaN/blank in the `genotype` role is now a structural
+  hard-fail (alongside missing `genotype`, no numeric trait, and bad role dtype), so
+  exports carrying blank genotype cells will error unless `validate_input` is set to
+  `off` or the column is cleaned first. (#144)
 - Expose the eight `statistics.py` functions through the top-level
   `sleap_roots_analyze` namespace and `__all__`, so they can be imported directly
   (e.g. `from sleap_roots_analyze import calculate_heritability_estimates`) instead

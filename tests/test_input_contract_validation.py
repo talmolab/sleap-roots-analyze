@@ -7,9 +7,7 @@ frame fed to the pipeline, and degrades to a logged no-op when contracts is abse
 
 from __future__ import annotations
 
-import importlib
 import logging
-import sys
 
 import numpy as np
 import pandas as pd
@@ -124,6 +122,48 @@ def test_additional_exclude_dropped_from_validation_copy():
     assert "trait_x" in check.columns
 
 
+# --- input guards + actionable error messages (issue #144 review) ---
+
+
+@pytest.mark.parametrize("mode", ["", "Warn", "foo", "none", "off ", None])
+def test_invalid_mode_raises(good_input, mode):
+    """A mode outside off|warn|strict is an explicit error, never silent warn semantics."""
+    with pytest.raises(ValueError, match=r"off \| warn \| strict"):
+        validate_entry_input(good_input, columns=CANON_COLUMNS, mode=mode)
+
+
+def test_misconfigured_genotype_name_is_actionable():
+    """A wrong columns.genotype names configured-vs-available, not a bare contract error."""
+    df = pd.DataFrame(
+        {
+            "geno": ["a", "a", "b"],  # actual genotype column
+            "sample_id": ["s1", "s2", "s3"],
+            "trait_x": [0.1, 0.2, 0.3],
+        }
+    )
+    cols = ColumnConfig(genotype="WrongName", barcode="sample_id", replicate=None)
+    with pytest.raises(ValueError) as exc:
+        validate_entry_input(df, columns=cols, mode="warn")
+    msg = str(exc.value)
+    assert "WrongName" in msg  # the configured (wrong) name
+    assert "geno" in msg  # an available column, to point the user at the fix
+
+
+def test_rename_collision_is_actionable():
+    """A frame already carrying a canonical role name yields a clear collision error."""
+    df = pd.DataFrame(
+        {
+            "Genotype": ["a", "a", "b"],  # configured genotype role
+            "genotype": ["x", "y", "z"],  # pre-existing canonical-named column
+            "sample_id": ["s1", "s2", "s3"],
+            "trait_x": [0.1, 0.2, 0.3],
+        }
+    )
+    cols = ColumnConfig(genotype="Genotype", barcode="sample_id", replicate=None)
+    with pytest.raises(ValueError, match="already has a column named 'genotype'"):
+        validate_entry_input(df, columns=cols, mode="warn")
+
+
 # --- 3.4: severity behavior + logging ---
 
 
@@ -166,27 +206,23 @@ def test_nan_genotype_raises_even_under_warn(good_input):
         validate_entry_input(bad, columns=CANON_COLUMNS, mode="warn")
 
 
-# --- 3.5: real contracts-absent branch (the genuine except ImportError path) ---
+# --- 3.5: contracts-absent degradation (logged no-op) ---
 
 
-def test_contracts_absent_is_logged_noop(good_input, caplog):
-    """With contracts unimportable, the module loads and the helper no-ops."""
-    saved = sys.modules.get("sleap_roots_contracts")
-    sys.modules["sleap_roots_contracts"] = None  # force ImportError on import
-    try:
-        importlib.reload(input_contract)
-        assert input_contract.CONTRACTS_AVAILABLE is False
-        with caplog.at_level(logging.INFO):
-            input_contract.validate_entry_input(
-                good_input, columns=CANON_COLUMNS, mode="strict"
-            )
-        assert any("skip" in r.message.lower() for r in caplog.records)
-    finally:
-        if saved is not None:
-            sys.modules["sleap_roots_contracts"] = saved
-        else:
-            sys.modules.pop("sleap_roots_contracts", None)
-        importlib.reload(input_contract)
+def test_contracts_absent_is_logged_noop(good_input, monkeypatch, caplog):
+    """With contracts unavailable, the helper degrades to a logged no-op (any mode).
+
+    Monkeypatches the availability flag instead of reloading the module: a reload is
+    fragile under pytest-xdist and leaves importers (e.g. ``load_data``) holding a stale
+    pre-reload function reference. The genuine ``except ImportError`` fallback is covered
+    by module import on environments without the optional dependency.
+    """
+    monkeypatch.setattr(input_contract, "CONTRACTS_AVAILABLE", False)
+    monkeypatch.setattr(input_contract, "validate_analysis_input", None)
+    monkeypatch.setattr(input_contract, "canonicalize_role_dtypes", None)
+    with caplog.at_level(logging.INFO):
+        validate_entry_input(good_input, columns=CANON_COLUMNS, mode="strict")
+    assert any("skip" in r.message.lower() for r in caplog.records)
 
 
 def test_module_exposes_contracts_available_flag():
@@ -228,32 +264,29 @@ def _turface_19_qc_config(mode: str) -> QCPipelineConfig:
 
 
 @pytest.mark.skipif(not _TURFACE_19_RAW.exists(), reason="repro fixture missing")
-def test_equivalence_off_vs_warn_on_golden(tmp_path):
-    """validate_input off vs warn yields an identical loaded entry frame (#144).
+def test_equivalence_across_modes_on_golden(tmp_path):
+    """validate_input off/warn/strict all yield an identical loaded entry frame (#144).
 
     The validator only runs at LoadDataStep; every downstream QC/PCA stage is a pure
-    function of this frame, so identical load output guarantees identical results. We
-    reuse the #120/#146 turface_19 golden input and assert frame equality directly
-    rather than running the heavy (UMAP-flaky) full pipeline twice.
+    function of this frame, so identical load output guarantees identical results. The
+    clean #120/#146 turface_19 golden also passes strict, so all three modes must agree —
+    making "mode never changes r.data" airtight. We assert frame equality directly rather
+    than running the heavy (UMAP-flaky) full pipeline three times.
     """
     step = LoadDataStep()
-    off_dir, warn_dir = tmp_path / "off", tmp_path / "warn"
-    off_dir.mkdir()
-    warn_dir.mkdir()
+    frames = {}
+    for mode in ("off", "warn", "strict"):
+        run_dir = tmp_path / mode
+        run_dir.mkdir()
+        frames[mode] = step.execute(
+            data=None,
+            config=_turface_19_qc_config(mode),
+            run_dir=run_dir,
+            prev_result=None,
+        ).data
 
-    r_off = step.execute(
-        data=None,
-        config=_turface_19_qc_config("off"),
-        run_dir=off_dir,
-        prev_result=None,
-    )
-    r_warn = step.execute(
-        data=None,
-        config=_turface_19_qc_config("warn"),
-        run_dir=warn_dir,
-        prev_result=None,
-    )
-    assert_frame_equal(r_off.data, r_warn.data)
+    assert_frame_equal(frames["off"], frames["warn"])
+    assert_frame_equal(frames["off"], frames["strict"])
 
 
 @pytest.mark.skipif(not _TURFACE_19_RAW.exists(), reason="repro fixture missing")

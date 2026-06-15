@@ -15,6 +15,7 @@ from omegaconf import MISSING, OmegaConf
 from sleap_roots_analyze.pipeline.config.qc_config import QCPipelineConfig
 from sleap_roots_analyze.pipeline.config.viz_config import VizPipelineConfig
 from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+from sleap_roots_analyze.validation import VALIDATE_INPUT_MODES
 
 
 # ============================================================================
@@ -228,10 +229,9 @@ def validate_qc_config(config: QCPipelineConfig, check_files: bool = True) -> No
         raise ValueError("data.csv_path is required")
 
     # Validate input-contract validation mode (issue #144)
-    valid_validate_input_modes = ["off", "warn", "strict"]
-    if config.data.validate_input not in valid_validate_input_modes:
+    if config.data.validate_input not in VALIDATE_INPUT_MODES:
         raise ValueError(
-            f"data.validate_input must be one of off | warn | strict, "
+            f"data.validate_input must be one of {' | '.join(VALIDATE_INPUT_MODES)}, "
             f"got '{config.data.validate_input}'"
         )
 
