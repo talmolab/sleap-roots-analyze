@@ -25,9 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Analysis-input contract conformance tests (`tests/test_contract_conformance.py`):
   validate a canonicalized **copy** of each of the four EDPIE post-QC fixtures and every
   packaged `sleap_roots_contracts` canonical example against `validate_analysis_input`,
-  with a non-mutation guard and a negative control. Adds
-  `sleap-roots-contracts[pandas]>=0.1.0a1` as a dev dependency. No `src/` changes;
-  the #146/#120 reproduction goldens stay green (#147).
+  under both lenient and `strict=True` modes, with a purity guard and a reason-checked
+  negative control. Adds `sleap-roots-contracts[pandas]>=0.1.0a1` as a dev dependency.
+  No `src/` changes; the #146/#120 reproduction goldens stay green (#147).
 - Expose the eight `statistics.py` functions through the top-level
   `sleap_roots_analyze` namespace and `__all__`, so they can be imported directly
   (e.g. `from sleap_roots_analyze import calculate_heritability_estimates`) instead

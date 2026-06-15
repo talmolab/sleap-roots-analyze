@@ -41,6 +41,17 @@ def _build_analysis_input(df: pd.DataFrame) -> pd.DataFrame:
     casts role columns to string via ``canonicalize_role_dtypes``. Operates on copies and
     never mutates ``df``.
 
+    This recipe duplicates, in test code, the canonicalization that #144/#153 wire into
+    ``validation/input_contract.py`` at the QC load boundary. Once #153 merges, this should
+    call that production transform so the two recipes cannot drift; until then it previews
+    the transform without implementing the runtime wiring.
+
+    Note: ``get_trait_columns`` only drops the *role* columns it is told about. The contract
+    treats every remaining numeric non-role column as a trait, so platform-specific numeric
+    metadata (root_core's ``Cid``/``Sid``/``GID``/``Ent``/``Sub``, turface_150's
+    ``Entry``/``GID``) flows into the validated "trait" set. Conformance therefore proves the
+    frame is contract-*shaped*, not that every trait column is a real measured trait.
+
     Args:
         df: A post-QC fixture frame with native Barcode/Genotype/Replicate columns.
 
@@ -58,33 +69,48 @@ def _build_analysis_input(df: pd.DataFrame) -> pd.DataFrame:
     return canonicalize_role_dtypes(renamed[roles + traits].copy())
 
 
+@pytest.mark.parametrize("strict", [False, True], ids=["lenient", "strict"])
 @pytest.mark.parametrize("platform", PLATFORMS)
-def test_post_qc_fixture_conforms(final_data_by_platform, platform):
-    """Each post-QC fixture validates after canonicalization on a copy."""
+def test_post_qc_fixture_conforms(final_data_by_platform, platform, strict):
+    """Each post-QC fixture validates after canonicalization on a copy.
+
+    Run under both ``strict=False`` and ``strict=True``: all four EDPIE platforms carry the
+    recommended ``sample_id`` role, so they satisfy the stronger strict contract too.
+    Parametrizing ``strict`` locks that in — a regression that only breaks strict would
+    otherwise pass silently.
+    """
     check = _build_analysis_input(final_data_by_platform[platform].copy())
 
     # Rename + trait selection are non-vacuous: roles renamed, native names gone, and no
-    # role column leaked back in as a duplicate trait. The uniqueness check is the real
-    # regression guard for the get_trait_columns role kwargs — a wrong call returns the
-    # numeric ``replicate`` as a trait, duplicating it in ``roles + traits``.
+    # role column leaked back in as a duplicate trait.
     assert {"genotype", "sample_id"}.issubset(check.columns)
     assert "Genotype" not in check.columns and "Barcode" not in check.columns
     assert check.columns.is_unique
     trait_cols = [c for c in check.columns if c not in CANONICAL_ROLES]
     assert trait_cols, "expected at least one numeric trait column"
+    # Explicit guard for the get_trait_columns role kwargs (matches the spec wording): a
+    # wrong call returns the numeric ``replicate`` as a trait. is_unique above catches the
+    # resulting duplicate column; this asserts the underlying intent directly.
+    assert "replicate" not in trait_cols
 
-    validate_analysis_input(check).raise_for_status()
+    validate_analysis_input(check, strict=strict).raise_for_status()
 
 
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_canonicalization_does_not_mutate_fixture(final_data_by_platform, platform):
-    """The build runs on a copy; the shared session fixture frame is unmutated."""
-    df = final_data_by_platform[platform].copy(deep=True)
-    before = df.copy(deep=True)
+    """``_build_analysis_input`` is pure — it never mutates its input frame.
 
-    _build_analysis_input(df)
+    Passes the *raw* shared session frame (deliberately no defensive ``.copy()``) and
+    asserts it is byte-identical afterwards. This proves the real protection: the build is
+    safe even for a caller that forgets to copy, so it cannot corrupt the session fixture
+    the QC/viz/cross-platform reproduction tests also read.
+    """
+    raw = final_data_by_platform[platform]
+    before = raw.copy(deep=True)
 
-    pd.testing.assert_frame_equal(df, before)
+    _build_analysis_input(raw)
+
+    pd.testing.assert_frame_equal(raw, before)
 
 
 def test_canonical_examples_conform():
@@ -96,6 +122,34 @@ def test_canonical_examples_conform():
         validate_analysis_input(example).raise_for_status()
 
 
+def test_canonical_examples_conform_strict():
+    """Strict mode is a strictly stronger contract, exercised per example.
+
+    Strict promotes the recommended ``sample_id`` role from warning to error, so any example
+    carrying ``sample_id`` must still validate, while the genotype-aggregated
+    ``genotype_means`` example (no per-sample rows, no ``sample_id``) must fail. Pinning both
+    directions keeps the coverage non-vacuous and documents *why* strict and lenient diverge.
+    """
+    names = analysis_input_example_names()
+    assert names, "contract package exposed no canonical examples"
+    checked_strict_pass = checked_strict_fail = False
+    for name in names:
+        example = load_analysis_input_example(name)
+        result = validate_analysis_input(example, strict=True)
+        if "sample_id" in example.columns:
+            result.raise_for_status()
+            checked_strict_pass = True
+        else:
+            assert not result.ok, f"{name} unexpectedly passed strict without sample_id"
+            checked_strict_fail = True
+
+    # Both branches must have run, or the test silently checked only one side.
+    assert (
+        checked_strict_pass
+    ), "no sample_id-bearing example exercised the strict-pass path"
+    assert checked_strict_fail, "no aggregated example exercised the strict-fail path"
+
+
 def test_negative_control_validation_can_fail(final_data_by_platform):
     """A frame missing the genotype role fails validation (asserts are non-vacuous)."""
     check = _build_analysis_input(final_data_by_platform["turface_19"].copy())
@@ -104,7 +158,9 @@ def test_negative_control_validation_can_fail(final_data_by_platform):
     result = validate_analysis_input(bad)
 
     assert not result.ok
-    with pytest.raises(ValueError):
+    # Assert the failure is *for the reason we removed* — not some incidental future
+    # validation change — so this stays a real negative control.
+    with pytest.raises(ValueError, match="genotype"):
         result.raise_for_status()
 
 
