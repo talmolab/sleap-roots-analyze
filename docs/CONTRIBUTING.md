@@ -96,7 +96,30 @@ uv run ruff check src/sleap_roots_analyze tests
 uv run ruff check --fix src/sleap_roots_analyze tests
 ```
 
-### 5. Update Documentation
+### 5. Type Checking (mypy ratchet)
+
+CI runs `mypy` on `src/sleap_roots_analyze` and compares it against a **frozen baseline**
+(`.mypy-baseline.txt`) that records every pre-existing type error. This is a deliberate
+"improve-on-touch" ratchet (see [issue #132](https://github.com/talmolab/sleap-roots-analyze/issues/132)):
+existing debt does **not** block your PR, but **new** type errors do — in particular, every new
+public function must be typed (`disallow_untyped_defs`). Reproduce the CI gate locally with:
+
+```bash
+# Passes iff you introduced no errors outside the baseline:
+uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter --baseline-path .mypy-baseline.txt
+```
+
+If the gate flags you, add the missing annotations — **do not** add your error to the baseline.
+The baseline only ever shrinks: when you *fix* a pre-existing error, regenerate and commit the
+smaller baseline so the ratchet tightens:
+
+```bash
+uv run mypy src/sleap_roots_analyze | uv run mypy-baseline sync --baseline-path .mypy-baseline.txt
+```
+
+Strictness starts lenient (one knob today) and is tightened over time in small follow-up PRs.
+
+### 6. Update Documentation
 
 - Add docstrings to all functions
 - Update relevant `.md` files
@@ -200,8 +223,9 @@ def test_heritability_with_perfect_genetic_determination(heritability_perfect_da
 2. **Check coverage**: `uv run pytest --cov --cov-branch`
 3. **Format code**: `uv run black src tests`
 4. **Lint code**: `uv run ruff check src tests`
-5. **Update documentation**: Especially if adding new features
-6. **Update CHANGELOG.md**: Add entry under "Unreleased"
+5. **Type check**: `uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter --baseline-path .mypy-baseline.txt`
+6. **Update documentation**: Especially if adding new features
+7. **Update CHANGELOG.md**: Add entry under "Unreleased"
 
 > **Reproducibility gates.** Adding a stochastic function (one taking `random_state`)
 > or a serializable result dataclass is enforced in CI. Run the gates locally with

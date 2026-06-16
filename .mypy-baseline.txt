@@ -1,0 +1,447 @@
+src/sleap_roots_analyze/pipeline/steps/validate_clean.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/validate_clean.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/validate_clean.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/validate_clean.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/validate_clean.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/validate_clean.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/transform_depth_data.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/transform_depth_data.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/transform_depth_data.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/transform_depth_data.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/transform_depth_data.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/transform_depth_data.py:0: error: Incompatible return value type (got "None", expected "float")  [return-value]
+src/sleap_roots_analyze/pipeline/steps/reshape_for_trait_qc.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/reshape_for_trait_qc.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/reshape_for_trait_qc.py:0: error: Need type annotation for "metadata"  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/reshape_for_trait_qc.py:0: error: Incompatible types in assignment (expression has type "dict[Any, Any]", target has type "list[Any]")  [assignment]
+src/sleap_roots_analyze/pipeline/steps/reshape_for_trait_qc.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/reshape_for_trait_qc.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/reshape_for_trait_qc.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/remove_outliers.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/load_root_core_data.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/load_root_core_data.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/load_root_core_data.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/pipeline/steps/load_root_core_data.py:0: error: Unsupported operand types for + ("object" and "int")  [operator]
+src/sleap_roots_analyze/pipeline/steps/load_root_core_data.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/load_root_core_data.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/load_root_core_data.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/aggregate_cores.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/aggregate_cores.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/aggregate_cores.py:0: error: Need type annotation for "metadata"  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/aggregate_cores.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/aggregate_cores.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/aggregate_cores.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/summary/cross_platform_summary.py:0: error: Need type annotation for "table_rows" (hint: "table_rows: list[<type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/identify_interesting_genotypes.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/identify_interesting_genotypes.py:0: error: Signature of "execute" incompatible with supertype "sleap_roots_analyze.pipeline.core.BaseStep"  [override]
+src/sleap_roots_analyze/pipeline/steps/identify_interesting_genotypes.py:0: note: Superclass:
+src/sleap_roots_analyze/pipeline/steps/identify_interesting_genotypes.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult | None = ...) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/identify_interesting_genotypes.py:0: note: Subclass:
+src/sleap_roots_analyze/pipeline/steps/identify_interesting_genotypes.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/genotype_aggregation.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/genotype_aggregation.py:0: error: Signature of "execute" incompatible with supertype "sleap_roots_analyze.pipeline.core.BaseStep"  [override]
+src/sleap_roots_analyze/pipeline/steps/genotype_aggregation.py:0: note: Superclass:
+src/sleap_roots_analyze/pipeline/steps/genotype_aggregation.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult | None = ...) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/genotype_aggregation.py:0: note: Subclass:
+src/sleap_roots_analyze/pipeline/steps/genotype_aggregation.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Signature of "execute" incompatible with supertype "sleap_roots_analyze.pipeline.core.BaseStep"  [override]
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: note: Superclass:
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult | None = ...) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: note: Subclass:
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Incompatible default for parameter "metadata" (default has type "None", parameter has type "dict[Any, Any]")  [assignment]
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_summary_viz.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_dashboards.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_dashboards.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/generate_dashboards.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/cluster_analysis.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/cluster_analysis.py:0: error: Signature of "execute" incompatible with supertype "sleap_roots_analyze.pipeline.core.BaseStep"  [override]
+src/sleap_roots_analyze/pipeline/steps/cluster_analysis.py:0: note: Superclass:
+src/sleap_roots_analyze/pipeline/steps/cluster_analysis.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult | None = ...) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/cluster_analysis.py:0: note: Subclass:
+src/sleap_roots_analyze/pipeline/steps/cluster_analysis.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult) -> StepResult
+src/sleap_roots_analyze/pipeline_runner.py:0: error: Incompatible types in assignment (expression has type "None", variable has type "str")  [assignment]
+src/sleap_roots_analyze/pipeline_runner.py:0: error: Incompatible types in assignment (expression has type "None", variable has type "str")  [assignment]
+src/sleap_roots_analyze/pipeline_runner.py:0: error: Argument 1 to "append" of "list" has incompatible type "tuple[Any, None]"; expected "tuple[Any, float]"  [arg-type]
+src/sleap_roots_analyze/pipeline_runner.py:0: error: Argument 1 to "_format_removed_traits_section" of "PipelineRunner" has incompatible type "list[tuple[str, list[tuple[Any, float]]]]"; expected "list[tuple[str, list[tuple[str, float | None]]]]"  [arg-type]
+src/sleap_roots_analyze/pipeline_runner.py:0: error: Need type annotation for "lines" (hint: "lines: list[<type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pca.py:0: error: Incompatible types in assignment (expression has type "signedinteger[_32Bit | _64Bit]", variable has type "int | None")  [assignment]
+src/sleap_roots_analyze/data_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/data_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/data_utils.py:0: error: Need type annotation for "image_links" (hint: "image_links: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/data_utils.py:0: error: Need type annotation for "image_links" (hint: "image_links: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/qc_core_level.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/qc_core_level.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/qc_core_level.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/pipeline/steps/qc_core_level.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/qc_core_level.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/qc_core_level.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: error: Signature of "execute" incompatible with supertype "sleap_roots_analyze.pipeline.core.BaseStep"  [override]
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: note: Superclass:
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult | None = ...) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: note: Subclass:
+src/sleap_roots_analyze/pipeline/steps/umap_analysis.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/pca_analysis.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/pca_analysis.py:0: error: Signature of "execute" incompatible with supertype "sleap_roots_analyze.pipeline.core.BaseStep"  [override]
+src/sleap_roots_analyze/pipeline/steps/pca_analysis.py:0: note: Superclass:
+src/sleap_roots_analyze/pipeline/steps/pca_analysis.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult | None = ...) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/pca_analysis.py:0: note: Subclass:
+src/sleap_roots_analyze/pipeline/steps/pca_analysis.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/pca_analysis.py:0: error: Argument "explained_variance_threshold" to "perform_pca_analysis" has incompatible type "Any | None"; expected "float"  [arg-type]
+src/sleap_roots_analyze/data_cleanup.py:0: error: Unsupported operand types for + ("object" and "int")  [operator]
+src/sleap_roots_analyze/data_cleanup.py:0: error: Name "get_numeric_traits_only" already defined on line 0  [no-redef]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not iterable)  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: "object" has no attribute "append"  [attr-defined]
+src/sleap_roots_analyze/data_cleanup.py:0: error: Unsupported operand types for / ("int" and "object")  [operator]
+src/sleap_roots_analyze/data_cleanup.py:0: error: Unsupported operand types for < ("int" and "object")  [operator]
+src/sleap_roots_analyze/data_cleanup.py:0: error: Unsupported operand types for / ("int" and "object")  [operator]
+src/sleap_roots_analyze/data_cleanup.py:0: error: Unsupported operand types for < ("int" and "object")  [operator]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Incompatible return value type (got "dict[str, object]", expected "dict[str, str | float | bool | int]")  [return-value]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Argument 2 to "search" has incompatible type "str | float | int"; expected "str"  [arg-type]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Incompatible types in assignment (expression has type "str", variable has type "int | None")  [assignment]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Item "float" of "str | float | int" has no attribute "title"  [union-attr]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Item "int" of "str | float | int" has no attribute "title"  [union-attr]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Unsupported operand types for < ("str" and "float")  [operator]
+src/sleap_roots_analyze/outlier_detection.py:0: note: Left operand is of type "str | float | int"
+src/sleap_roots_analyze/outlier_detection.py:0: error: Unsupported operand types for < ("str" and "float")  [operator]
+src/sleap_roots_analyze/outlier_detection.py:0: note: Left operand is of type "str | float | int"
+src/sleap_roots_analyze/outlier_detection.py:0: error: Item "float" of "str | float | int" has no attribute "upper"  [union-attr]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Item "int" of "str | float | int" has no attribute "upper"  [union-attr]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Argument 1 to "wrap" has incompatible type "str | float | int"; expected "str"  [arg-type]
+src/sleap_roots_analyze/outlier_detection.py:0: error: Unsupported operand types for < ("str" and "float")  [operator]
+src/sleap_roots_analyze/outlier_detection.py:0: note: Left operand is of type "str | float | int"
+src/sleap_roots_analyze/outlier_detection.py:0: error: Name "textwrap" is used before definition  [used-before-def]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 0 has incompatible type "str": "int"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 1 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 2 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 3 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 4 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 5 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 6 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 7 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 8 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 9 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 10 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 0 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 1 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 2 has incompatible type "str": "float"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 3 has incompatible type "str": "bool"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 4 has incompatible type "str": "int"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 5 has incompatible type "str": "int"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 6 has incompatible type "str": "dict[Any, dict[str, float]]"; expected "str": "str"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Incompatible types in assignment (expression has type "ndarray[tuple[Any, ...], dtype[Any]]", variable has type "list[Any]")  [assignment]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 4 has incompatible type "str": "int"; expected "str": "ndarray[tuple[Any, ...], dtype[Any]]"  [dict-item]
+src/sleap_roots_analyze/statistics.py:0: error: Dict entry 5 has incompatible type "str": "list[Any]"; expected "str": "ndarray[tuple[Any, ...], dtype[Any]]"  [dict-item]
+src/sleap_roots_analyze/validation/input_contract.py:0: error: Argument "columns" to "validate_entry_input" has incompatible type "_AlignedRoles"; expected "ColumnRoles"  [arg-type]
+src/sleap_roots_analyze/validation/input_contract.py:0: note: Following member(s) of "_AlignedRoles" have conflicts:
+src/sleap_roots_analyze/validation/input_contract.py:0: note: replicate: expected "str | None", got "str"
+src/sleap_roots_analyze/validation/input_contract.py:0: note: Protocol member ColumnRoles.barcode expected settable variable, got read-only attribute
+src/sleap_roots_analyze/validation/input_contract.py:0: note: Protocol member ColumnRoles.genotype expected settable variable, got read-only attribute
+src/sleap_roots_analyze/validation/input_contract.py:0: note: <1 more conflict(s) not shown>
+src/sleap_roots_analyze/pipeline/steps/load_data_images.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/load_data_images.py:0: error: Signature of "execute" incompatible with supertype "sleap_roots_analyze.pipeline.core.BaseStep"  [override]
+src/sleap_roots_analyze/pipeline/steps/load_data_images.py:0: note: Superclass:
+src/sleap_roots_analyze/pipeline/steps/load_data_images.py:0: note: def execute(self, data: Any, config: Any, run_dir: Path, prev_result: StepResult | None = ...) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/load_data_images.py:0: note: Subclass:
+src/sleap_roots_analyze/pipeline/steps/load_data_images.py:0: note: def execute(self, data: Any | None, config: Any, run_dir: Path, prev_result: StepResult | None) -> StepResult
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/cleanup_traits.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/detect_outliers.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/detect_outliers.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/detect_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/detect_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/detect_outliers.py:0: error: Unexpected keyword argument "explained_variance" for "detect_outliers_pca"; did you mean "explained_variance_threshold"?  [call-arg]
+src/sleap_roots_analyze/pipeline/steps/detect_outliers.py:0: note: "detect_outliers_pca" defined in "sleap_roots_analyze.outlier_detection"
+src/sleap_roots_analyze/pipeline/steps/detect_outliers.py:0: error: Unexpected keyword argument "threshold" for "detect_outliers_pca"  [call-arg]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: error: Item "tuple[dict[Any, Any] | Any | list[str], ...]" of "dict[Any, Any] | tuple[dict[Any, Any], Any, list[str], dict[Any, Any]]" has no attribute "items"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: error: Item "tuple[dict[Any, Any] | Any | list[str], ...]" of "dict[Any, Any] | tuple[dict[Any, Any], Any, list[str], dict[Any, Any]]" has no attribute "items"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/statistical_analysis.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: error: Argument "image_links" to "create_interactive_scatter_with_images" has incompatible type "dict[Any, dict[Any, Path | None]]"; expected "dict[str, dict[str, str]]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: error: Argument "image_links" to "create_html_with_image_viewer" has incompatible type "dict[Any, dict[Any, Path | None]]"; expected "dict[str, dict[str, Path]]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/generate_interactive.py:0: error: Argument "image_links" to "create_interactive_image_gallery" has incompatible type "dict[Any, dict[Any, Path | None]]"; expected "dict[str, dict[str, Path]]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/load_data.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/load_data.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/load_data.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/load_data.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/load_data.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/config/components.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/config/components.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/config/components.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/config/components.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/config/utils.py:0: error: Incompatible return value type (got "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None", expected "QCPipelineConfig")  [return-value]
+src/sleap_roots_analyze/pipeline/config/utils.py:0: error: Need type annotation for "errors" (hint: "errors: list[<type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pipeline/config/utils.py:0: error: Incompatible return value type (got "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None", expected "QCPipelineConfig")  [return-value]
+src/sleap_roots_analyze/pipeline/config/utils.py:0: error: Incompatible return value type (got "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None", expected "VizPipelineConfig")  [return-value]
+src/sleap_roots_analyze/pipeline/config/utils.py:0: error: Incompatible return value type (got "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None", expected "CrossPlatformConfig")  [return-value]
+src/sleap_roots_analyze/depth_profile_plots.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/depth_profile_plots.py:0: error: Incompatible return value type (got "None", expected "Figure")  [return-value]
+src/sleap_roots_analyze/depth_profile_plots.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/depth_profile_plots.py:0: error: Incompatible return value type (got "None", expected "Figure")  [return-value]
+src/sleap_roots_analyze/depth_profile_plots.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/cluster_visualization.py:0: error: Module has no attribute "tab10"  [attr-defined]
+src/sleap_roots_analyze/cluster_visualization.py:0: error: Module has no attribute "tab10"  [attr-defined]
+src/sleap_roots_analyze/cluster_visualization.py:0: error: Module has no attribute "tab10"  [attr-defined]
+src/sleap_roots_analyze/cluster_visualization.py:0: error: Argument 1 to "set_xlim" of "_AxesBase" has incompatible type "list[float]"; expected "float | tuple[float, float] | None"  [arg-type]
+src/sleap_roots_analyze/pipeline/dag.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/visualize_depth_profiles.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/visualize_depth_profiles.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/visualize_depth_profiles.py:0: error: Need type annotation for "metadata"  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/visualize_depth_profiles.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/visualize_depth_profiles.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/visualize_depth_profiles.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/visualize_cross_platform.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/visualize_cross_platform.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/visualize_cross_platform.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[str]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/visualize_cross_platform.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/visualize_cross_platform.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Need type annotation for "files_generated" (hint: "files_generated: list[<type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[str]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: "Text" has no attribute "set_weight"; maybe "set_fontweight"?  [attr-defined]
+src/sleap_roots_analyze/pipeline/steps/reduce_trait_redundancy.py:0: error: "Text" has no attribute "set_weight"; maybe "set_fontweight"?  [attr-defined]
+src/sleap_roots_analyze/pipeline/steps/load_cross_platform_data.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/load_cross_platform_data.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/load_cross_platform_data.py:0: error: Argument "barcode_col" to "get_trait_columns" has incompatible type "None"; expected "str"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/load_cross_platform_data.py:0: error: Argument "barcode_col" to "get_trait_columns" has incompatible type "None"; expected "str"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/calculate_cross_platform_correlations.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/calculate_cross_platform_correlations.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Need type annotation for "figures" (hint: "figures: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Need type annotation for "figures" (hint: "figures: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Incompatible types in assignment (expression has type "float", variable has type "floating[Any]")  [assignment]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Argument "x" to "axvline" of "Axes" has incompatible type "floating[Any]"; expected "float"  [arg-type]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Argument 1 to "text" of "Axes" has incompatible type "floating[Any]"; expected "float"  [arg-type]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Argument 1 to "set_xlim" of "_AxesBase" has incompatible type "list[float]"; expected "float | tuple[float, float] | None"  [arg-type]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Need type annotation for "figures" (hint: "figures: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Need type annotation for "figures" (hint: "figures: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/outlier_visualization.py:0: error: Need type annotation for "figures" (hint: "figures: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pipeline/pipelines/base_pipeline.py:0: error: Incompatible return value type (got "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None", expected "dict[str, Any]")  [return-value]
+src/sleap_roots_analyze/pipeline/pipelines/base_pipeline.py:0: error: Incompatible return value type (got "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None", expected "dict[str, Any]")  [return-value]
+src/sleap_roots_analyze/pipeline/pipelines/base_pipeline.py:0: error: Incompatible types in assignment (expression has type "None", variable has type "FileHandler")  [assignment]
+src/sleap_roots_analyze/pipeline/steps/calculate_trait_enrichment.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/calculate_trait_enrichment.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "RootCoreConfig | None" has no attribute "merge_traits"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "join_keys"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "duplicate_strategy"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "duplicate_strategy"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "duplicate_strategy"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "join_type"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "join_type"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "duplicate_strategy"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/merge_all_traits.py:0: error: Item "None" of "MergeTraitsConfig | Any | None" has no attribute "output_path"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/pipelines/cross_platform_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/cross_platform_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/cross_platform_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/cross_platform_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/cross_platform_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "tuple[int, Any | float]", variable has type "tuple[int, int]")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "tuple[Any | float, int]", variable has type "tuple[int, int]")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "figsize" to "create_trait_histograms" has incompatible type "tuple[int, float]"; expected "tuple[int, int]"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "figsize" to "create_trait_boxplots_by_genotype" has incompatible type "tuple[float, float]"; expected "tuple[int, int]"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "rect" to "tight_layout" of "Figure" has incompatible type "list[float]"; expected "tuple[float, float, float, float] | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Need type annotation for "eda_metrics"  [var-annotated]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "int", variable has type "ndarray[tuple[Any, ...], dtype[float64]]")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "rect" to "tight_layout" has incompatible type "list[float]"; expected "tuple[float, float, float, float] | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "x" to "axvline" of "Axes" has incompatible type "signedinteger[_32Bit | _64Bit]"; expected "float"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "text" of "Axes" has incompatible type "signedinteger[_32Bit | _64Bit]"; expected "float"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "set_ylim" of "_AxesBase" has incompatible type "list[int]"; expected "float | tuple[float, float] | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "signedinteger[_32Bit | _64Bit]", variable has type "int | None")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Item "None" of "Any | None" has no attribute "columns"  [union-attr]
+src/sleap_roots_analyze/visualization.py:0: error: Value of type variable "SupportsRichComparisonT" of "min" cannot be "int | None"  [type-var]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "range" has incompatible type "int | None"; expected "SupportsIndex"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Item "None" of "Any | None" has no attribute "head"  [union-attr]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "len" has incompatible type "Any | None"; expected "Sized"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Item "None" of "Any | None" has no attribute "head"  [union-attr]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "len" has incompatible type "Any | None"; expected "Sized"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "signedinteger[_32Bit | _64Bit]", variable has type "int | None")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "ndarray[tuple[Any, ...], dtype[signedinteger[_32Bit | _64Bit]]]", variable has type "list[Any]")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Module has no attribute "tab20"  [attr-defined]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 3 to "linspace" has incompatible type "int | None"; expected "SupportsIndex"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "range" has incompatible type "int | None"; expected "SupportsIndex"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Value of type variable "SupportsRichComparisonT" of "min" cannot be "int | None"  [type-var]
+src/sleap_roots_analyze/visualization.py:0: error: Module has no attribute "tab10"  [attr-defined]
+src/sleap_roots_analyze/visualization.py:0: error: Module has no attribute "tab10"  [attr-defined]
+src/sleap_roots_analyze/visualization.py:0: error: Module has no attribute "tab10"  [attr-defined]
+src/sleap_roots_analyze/visualization.py:0: error: Module has no attribute "tab10"  [attr-defined]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "signedinteger[_32Bit | _64Bit]", variable has type "int | None")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "signedinteger[_32Bit | _64Bit]", variable has type "int | None")  [assignment]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "rect" to "tight_layout" has incompatible type "list[float]"; expected "tuple[float, float, float, float] | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/visualization.py:0: error: Need type annotation for "extreme_phenotypes" (hint: "extreme_phenotypes: dict[<type>, <type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "rect" to "tight_layout" has incompatible type "list[float]"; expected "tuple[float, float, float, float] | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument "rect" to "tight_layout" has incompatible type "list[float]"; expected "tuple[float, float, float, float] | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 4 to "scatter" of "Axes" has incompatible type "**dict[str, float]"; expected "str | Path | MarkerStyle | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 4 to "scatter" of "Axes" has incompatible type "**dict[str, float]"; expected "str | Colormap | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 4 to "scatter" of "Axes" has incompatible type "**dict[str, float]"; expected "str | Normalize | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 4 to "scatter" of "Axes" has incompatible type "**dict[str, float]"; expected "Literal['face', 'none'] | tuple[float, float, float] | str | str | tuple[float, float, float, float] | tuple[tuple[float, float, float] | str, float] | tuple[tuple[float, float, float, float], float] | Sequence[tuple[float, float, float] | str | str | tuple[float, float, float, float] | tuple[tuple[float, float, float] | str, float] | tuple[tuple[float, float, float, float], float]] | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 4 to "scatter" of "Axes" has incompatible type "**dict[str, float]"; expected "Colorizer | None"  [arg-type]
+src/sleap_roots_analyze/visualization.py:0: error: Argument 4 to "scatter" of "Axes" has incompatible type "**dict[str, float]"; expected "bool"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: error: "Figure" object is not iterable  [misc]
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: error: Need type annotation for "files" (hint: "files: list[<type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: error: Need type annotation for "files" (hint: "files: list[<type>] = ...")  [var-annotated]
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: error: Argument "image_links" to "create_genotype_image_grid" has incompatible type "dict[Any, dict[Any, Path | None]]"; expected "dict[str, dict[str, Path]]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/generate_static_figures.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Argument 1 to "save_json" of "BaseStep" has incompatible type "list[Never]"; expected "dict[Any, Any]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Argument 1 to "save_json" of "BaseStep" has incompatible type "list[Never]"; expected "dict[Any, Any]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Argument 1 to "save_json" of "BaseStep" has incompatible type "list[dict[str, Any]]"; expected "dict[Any, Any]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/filter_heritability.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: error: Argument "figsize" to "create_correlation_heatmap" has incompatible type "tuple[float, float]"; expected "tuple[int, int]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/exploratory_analysis.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/utils.py:0: error: Function "builtins.any" is not valid as a type  [valid-type]
+src/sleap_roots_analyze/pipeline/utils.py:0: note: Perhaps you meant "typing.Any" instead of "any"?
+src/sleap_roots_analyze/pipeline/utils.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_summary.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/steps/generate_summary.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/pipeline/steps/generate_summary.py:0: error: Item "None" of "StepResult | None" has no attribute "metadata"  [union-attr]
+src/sleap_roots_analyze/pipeline/steps/generate_summary.py:0: error: Argument "files_generated" to "StepResult" has incompatible type "list[Path]"; expected "list[str | Path]"  [arg-type]
+src/sleap_roots_analyze/pipeline/steps/generate_summary.py:0: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sleap_roots_analyze/pipeline/steps/generate_summary.py:0: note: Consider using "Sequence" instead, which is covariant
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/qc_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/pipeline/pipelines/viz_pipeline.py:0: error: Function is missing a type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Argument 1 to "append" of "list" has incompatible type "FileHandler"; expected "StreamHandler[TextIO]"  [arg-type]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Argument 1 to "join" of "str" has incompatible type "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None"; expected "Iterable[str]"  [arg-type]
+src/sleap_roots_analyze/cli.py:0: error: Argument "platform_config" to "cross_platform_pc_correlations" has incompatible type "dict[str | bytes | int | Enum | float | bool, Any] | list[Any] | str | Any | None"; expected "dict[str, dict[str, Any]]"  [arg-type]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: note: Use "-> None" if function does not return a value
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Incompatible types in assignment (expression has type "VizPipelineConfig", variable has type "QCPipelineConfig")  [assignment]
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: error: Incompatible types in assignment (expression has type "VizPipelineConfig", variable has type "QCPipelineConfig")  [assignment]
+src/sleap_roots_analyze/cli.py:0: error: No overload variant of "create" of "OmegaConf" matches argument type "QCPipelineConfig"  [call-overload]
+src/sleap_roots_analyze/cli.py:0: note: Possible overload variants:
+src/sleap_roots_analyze/cli.py:0: note: def create(obj: str, parent: BaseContainer | None = ..., flags: dict[str, bool] | None = ...) -> DictConfig | ListConfig
+src/sleap_roots_analyze/cli.py:0: note: def create(obj: list[Any] | tuple[Any, ...], parent: BaseContainer | None = ..., flags: dict[str, bool] | None = ...) -> ListConfig
+src/sleap_roots_analyze/cli.py:0: note: def create(obj: DictConfig, parent: BaseContainer | None = ..., flags: dict[str, bool] | None = ...) -> DictConfig
+src/sleap_roots_analyze/cli.py:0: note: def create(obj: ListConfig, parent: BaseContainer | None = ..., flags: dict[str, bool] | None = ...) -> ListConfig
+src/sleap_roots_analyze/cli.py:0: note: def create(obj: dict[Any, Any] | None = ..., parent: BaseContainer | None = ..., flags: dict[str, bool] | None = ...) -> DictConfig
+src/sleap_roots_analyze/cli.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+src/sleap_roots_analyze/cli.py:0: note: Use "-> None" if function does not return a value

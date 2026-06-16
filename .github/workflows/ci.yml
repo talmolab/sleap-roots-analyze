@@ -34,6 +34,38 @@ jobs:
       - name: Run Ruff
         run: uv run ruff check src/sleap_roots_analyze
 
+  type-check:
+    name: Type check (mypy baseline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dev dependencies
+        run: uv sync --group dev
+
+      # Type checking is OS-independent, so one OS is sufficient. Own job so it can be a
+      # required status check in branch protection. Pre-existing errors are frozen in
+      # .mypy-baseline.txt; `filter` exits non-zero only on NEW errors (or a stale baseline
+      # whose recorded errors no longer reproduce). See issue #132 + docs/CONTRIBUTING.md.
+      - name: Run mypy against frozen baseline
+        shell: bash
+        # pipefail is ON by default in Actions; mypy always exits non-zero while the
+        # baseline holds errors, so disable it and let `filter`'s exit code (non-zero only
+        # on NEW errors) decide pass/fail.
+        run: |
+          set +o pipefail
+          uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter --baseline-path .mypy-baseline.txt
+
   reproducibility-gates:
     name: Reproducibility gates (determinism)
     runs-on: ubuntu-latest
