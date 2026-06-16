@@ -25,9 +25,10 @@ use **standard, documented** tooling (no bespoke scripts) so it survives maintai
   mypy has no native baseline. `mypy-baseline` (PyPI, actively maintained) reads mypy output,
   stores known errors in `.mypy-baseline.txt`, and in CI filters them out so only new errors
   surface. Workflow:
-  - Generate/refresh: `uv run mypy src/sleap_roots_analyze | uv run mypy-baseline sync`
-  - CI gate: `uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter`
-    (`filter` exits non-zero on any unmatched/new error).
+  - Generate/refresh: `uv run mypy src/sleap_roots_analyze | uv run mypy-baseline sync --baseline-path .mypy-baseline.txt`
+  - CI gate: `uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter --baseline-path .mypy-baseline.txt`
+    (`filter` exits non-zero on any unmatched/new error; `--baseline-path` targets the
+    dot-prefixed file rather than mypy-baseline's no-dot default).
   - Alternatives considered:
     - *Per-module `[[tool.mypy.overrides]]` ignores* — pure-mypy, but freezing is coarse
       (whole modules go silent, so new errors inside an ignored module are missed; defeats the
@@ -65,6 +66,11 @@ use **standard, documented** tooling (no bespoke scripts) so it survives maintai
   follow-up can enable stubs (`pandas-stubs`, `types-*`) per library and ratchet this off.
 - **Contributor confusion when CI flags a baseline mismatch** → mitigated by the CONTRIBUTING
   note and the exact local command to reproduce.
+- **Crash-safety becomes a hole at zero debt** → today a mypy crash that emits nothing makes the
+  329/447 baselined errors vanish, which `filter` counts as new/unresolved and fails CI (verified).
+  That safety relies on the baseline being non-empty; once it is paid down to zero, a silent crash
+  yields `new: 0` → exit 0 → false green. **Tracked follow-up** (not this change): capture mypy's
+  own exit code and fail on a fatal/internal-error (2) before piping to `filter`.
 
 ## Migration Plan
 

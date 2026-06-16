@@ -18,9 +18,9 @@ third-party imports, with `disallow_untyped_defs` as the single initial ratchet 
   `mypy-baseline filter`
 - **AND** the job passes because every reported error matches the baseline
 
-#### Scenario: A new untyped public def fails the gate
+#### Scenario: A new untyped def fails the gate
 
-- **GIVEN** a PR adds a public function without type annotations in `src/sleap_roots_analyze`
+- **GIVEN** a PR adds a function (public or private) without type annotations in `src/sleap_roots_analyze`
 - **WHEN** the `type-check` CI job runs
 - **THEN** mypy reports a `disallow_untyped_defs` error that is absent from the baseline
 - **AND** `mypy-baseline filter` exits non-zero, failing CI
@@ -37,14 +37,15 @@ third-party imports, with `disallow_untyped_defs` as the single initial ratchet 
 ### Requirement: Type-Check Ratchet Documentation
 
 `docs/CONTRIBUTING.md` SHALL document the mypy ratchet in at least one paragraph, covering: the
-command to run mypy locally, what the frozen baseline means, the expectation that new public
-definitions are typed, and how to regenerate the baseline when existing debt is resolved.
+command to run mypy locally, what the frozen baseline means, the expectation that new
+definitions (public or private) are typed, and how to regenerate the baseline when existing debt
+is resolved.
 
 #### Scenario: Contributor learns the ratchet from CONTRIBUTING
 
 - **WHEN** a contributor reads `docs/CONTRIBUTING.md`
 - **THEN** they find the local mypy command and an explanation that pre-existing errors are
   frozen in `.mypy-baseline.txt`
-- **AND** they learn that new public defs must be typed or CI fails
+- **AND** they learn that new defs (public or private) must be typed or CI fails
 - **AND** they learn to regenerate the baseline with `mypy-baseline sync` when they fix
   existing debt

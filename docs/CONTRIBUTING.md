@@ -102,20 +102,31 @@ CI runs `mypy` on `src/sleap_roots_analyze` and compares it against a **frozen b
 (`.mypy-baseline.txt`) that records every pre-existing type error. This is a deliberate
 "improve-on-touch" ratchet (see [issue #132](https://github.com/talmolab/sleap-roots-analyze/issues/132)):
 existing debt does **not** block your PR, but **new** type errors do — in particular, every new
-public function must be typed (`disallow_untyped_defs`). Reproduce the CI gate locally with:
+function, **public or private**, must carry a signature annotation (`disallow_untyped_defs` applies
+to all defs). Note the launch gate checks that a signature is *annotated*, not that the annotations
+are meaningful: with `ignore_missing_imports = true`, a `def f(x: str) -> int` whose body returns an
+untyped library result (e.g. `pd.read_csv(...).shape[0]`, typed `Any`) still passes — `Any`-freedom
+is a future ratchet (`disallow_any_*`). Reproduce the CI gate locally with:
 
 ```bash
 # Passes iff you introduced no errors outside the baseline:
 uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter --baseline-path .mypy-baseline.txt
 ```
 
-If the gate flags you, add the missing annotations — **do not** add your error to the baseline.
-The baseline only ever shrinks: when you *fix* a pre-existing error, regenerate and commit the
-smaller baseline so the ratchet tightens:
+If the gate flags **new** errors, add the missing annotations — **do not** add your error to the
+baseline. If instead CI fails with only `fixed: N / new: 0`, that means you *resolved* baselined
+errors: regenerate and commit the smaller baseline so the ratchet tightens (`mypy-baseline sync`):
 
 ```bash
 uv run mypy src/sleap_roots_analyze | uv run mypy-baseline sync --baseline-path .mypy-baseline.txt
 ```
+
+The baseline is valid only against the **locked toolchain** — the `mypy` and inline-typed deps
+(`numpy`/`pandas`/…) pinned in `uv.lock`; CI installs it with `uv sync --frozen` so it cannot drift.
+Under normal work the baseline only shrinks, but bumping `mypy` or a typed dependency can legitimately
+**grow** it, so do the bump and `mypy-baseline sync` in the **same** PR. (On Windows, the colored
+summary glyph can raise `UnicodeEncodeError` locally — prefix the command with `NO_COLOR=1` or set
+`PYTHONIOENCODING=utf-8`; CI is unaffected, Ubuntu-only.)
 
 Strictness starts lenient (one knob today) and is tightened over time in small follow-up PRs.
 

@@ -8,6 +8,8 @@ on:
       - "tests/**"
       - ".github/workflows/ci.yml"
       - "pyproject.toml"
+      # so a debt-paydown PR that only edits the baseline still runs the gate
+      - ".mypy-baseline.txt"
 
 jobs:
   lint:
@@ -50,8 +52,10 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
+      # --frozen: install exactly the locked toolchain so the baseline (generated
+      # against locked mypy + inline-typed numpy/pandas) can't drift off the lock.
       - name: Install dev dependencies
-        run: uv sync --group dev
+        run: uv sync --frozen --group dev
 
       # Type checking is OS-independent, so one OS is sufficient. Own job so it can be a
       # required status check in branch protection. Pre-existing errors are frozen in
