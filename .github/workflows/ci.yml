@@ -34,6 +34,60 @@ jobs:
       - name: Run Ruff
         run: uv run ruff check src/sleap_roots_analyze
 
+  reproducibility-gates:
+    name: Reproducibility gates (determinism)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dev dependencies
+        run: uv sync --group dev
+
+      # Determinism is a same-machine double-run comparison, so a single OS is the
+      # correct, achievable claim (cross-OS bit-identity is not guaranteed by NumPy
+      # /BLAS). Own job so it can be a required status check in branch protection.
+      - name: Run determinism sweep
+        run: uv run pytest tests/test_reproducibility.py
+
+  serialization-gate:
+    name: Serialization round-trip gate
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dev dependencies
+        run: uv sync --group dev
+
+      # Serialization is NOT OS-independent — Path -> str differs by OS
+      # (WindowsPath uses backslashes), exactly the class of bug this gate exists to
+      # catch — so the round-trip runs on the full OS matrix.
+      - name: Run result-object serialization round-trip
+        run: uv run pytest tests/test_result_serialization.py -rs
+
   tests:
     timeout-minutes: 30
     strategy:

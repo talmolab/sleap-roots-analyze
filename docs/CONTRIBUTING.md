@@ -203,6 +203,13 @@ def test_heritability_with_perfect_genetic_determination(heritability_perfect_da
 5. **Update documentation**: Especially if adding new features
 6. **Update CHANGELOG.md**: Add entry under "Unreleased"
 
+> **Reproducibility gates.** Adding a stochastic function (one taking `random_state`)
+> or a serializable result dataclass is enforced in CI. Run the gates locally with
+> `uv run pytest tests/test_reproducibility.py tests/test_result_serialization.py`. A
+> new stochastic function must be added to `tests/reproducibility_cases.py`; result
+> types get JSON round-trip coverage automatically — see
+> [docs/reproducibility.md](reproducibility.md) for the contract.
+
 ### PR Template
 
 ```markdown

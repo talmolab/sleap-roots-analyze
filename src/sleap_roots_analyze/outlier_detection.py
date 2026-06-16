@@ -81,9 +81,10 @@ def detect_outliers_mahalanobis(
         X_pca = pca_result["transformed_data"]
         n_components = pca_result["n_components_selected"]
 
-        # Calculate Mahalanobis distances
+        # Calculate Mahalanobis distances. Forward random_state so the robust
+        # (MinCovDet) path's RNG is caller-controllable, not silently fixed (#118).
         distances, mean_pca, cov_matrix = calculate_mahalanobis_distances(
-            X_pca, robust=robust_covariance
+            X_pca, robust=robust_covariance, random_state=random_state
         )
 
         # Calculate threshold
@@ -622,6 +623,7 @@ def detect_outliers_pca(
     n_components: Optional[int] = None,
     explained_variance_threshold: float = 0.95,
     outlier_threshold: float = 2.5,
+    random_state: int = 42,
 ) -> Dict:
     """Detect outliers using PCA reconstruction error.
 
@@ -636,6 +638,9 @@ def detect_outliers_pca(
         n_components: Number of PCA components (auto-determined if None)
         explained_variance_threshold: Cumulative variance threshold for auto-selection (0-1)
         outlier_threshold: Threshold for outlier detection (standard deviations)
+        random_state: Seed forwarded to the underlying PCA for reproducibility
+            (issue #118). Load-bearing only when PCA falls back to the randomized
+            SVD solver; full/exact SVD is deterministic regardless.
 
     Returns:
         Dictionary with outlier detection results including:
@@ -667,7 +672,7 @@ def detect_outliers_pca(
             standardize=True,  # Always standardize for outlier detection
             explained_variance_threshold=explained_variance_threshold,
             n_components=n_components,
-            random_state=42,
+            random_state=random_state,
         )
 
         # Get processed data for reconstruction error calculation

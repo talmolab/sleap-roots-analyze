@@ -85,17 +85,11 @@ class PipelineSummary:
         Returns:
             JSON string representation of the summary.
         """
-        # Convert Path objects to strings and numpy types to native Python
-        data = self.to_dict()
-        data["steps"] = [
-            {
-                **step,
-                "files_generated": [str(f) for f in step["files_generated"]],
-            }
-            for step in data["steps"]
-        ]
-        # Use convert_to_json_serializable to handle numpy types in metadata
-        data = convert_to_json_serializable(data)
+        # Let convert_to_json_serializable normalize everything, including Path ->
+        # obj.as_posix(). A prior str(f) pre-pass over files_generated defeated that
+        # branch on Windows (str(WindowsPath("out/a.csv")) -> "out\\a.csv"), producing
+        # backslash paths in the JSON; the serializer must own Path normalization.
+        data = convert_to_json_serializable(self.to_dict())
         return json.dumps(data, indent=indent)
 
     def save(self, path: Path | str) -> None:
