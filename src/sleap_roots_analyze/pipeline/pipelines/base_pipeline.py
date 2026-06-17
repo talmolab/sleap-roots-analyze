@@ -95,7 +95,7 @@ class BasePipeline(ABC):
         self.summary = PipelineSummary(
             pipeline_name=pipeline_name,
             version=version,
-            output_directory=str(self.run_dir),
+            output_directory=self.run_dir,
         )
 
     def _setup_logger(self) -> logging.Logger:

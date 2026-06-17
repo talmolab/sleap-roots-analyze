@@ -53,6 +53,24 @@ def _convert_dict_key(key):
         return str(key)
 
 
+def path_to_posix(obj):
+    """Normalize a path to a POSIX string for a ``json.dump`` ``default`` hook.
+
+    Returns ``obj.as_posix()`` for any :class:`~pathlib.PurePath` (forward-slash
+    separators on every OS) and falls back to ``str(obj)`` for anything else, so the
+    only behavior change versus a bare ``default=str`` is OS-independent paths. Shared
+    by ``convert_to_json_serializable`` and ``BaseStep.save_json`` so both sinks use
+    one path predicate (#157).
+
+    Args:
+        obj: The object json could not natively serialize.
+
+    Returns:
+        The POSIX string for paths, otherwise ``str(obj)``.
+    """
+    return obj.as_posix() if isinstance(obj, PurePath) else str(obj)
+
+
 def convert_to_json_serializable(obj):
     """Convert numpy types, Path objects, and other types to JSON serializable types.
 

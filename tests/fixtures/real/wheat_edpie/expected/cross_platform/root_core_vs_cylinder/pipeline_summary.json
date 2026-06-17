@@ -1349,6 +1349,6 @@
     "trait_clustering_linkage": "complete"
   },
   "environment": {},
-  "output_directory": "pipeline_runs\\2026-02-12_191823\\cross_platform\\cross_platform_Root_Core_EDPIE_vs_Cylinder_EDPIE_20260212_194356",
+  "output_directory": "pipeline_runs/2026-02-12_191823/cross_platform/cross_platform_Root_Core_EDPIE_vs_Cylinder_EDPIE_20260212_194356",
   "data_source": ""
 }

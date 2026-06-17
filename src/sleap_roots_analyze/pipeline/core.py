@@ -119,18 +119,15 @@ class BaseStep(ABC):
         """
         import json
 
+        from sleap_roots_analyze.data_utils import path_to_posix
+
         output_path = run_dir / filename
-        with open(output_path, "w") as f:
-            # Normalize Path values to POSIX (forward-slash on every OS) in the
-            # default hook so producers can store bare Path; everything else keeps
-            # the prior str() fallback, so the only behavior change is that paths
-            # no longer carry backslashes on Windows.
-            json.dump(
-                data,
-                f,
-                indent=2,
-                default=lambda o: o.as_posix() if isinstance(o, Path) else str(o),
-            )
+        with open(output_path, "w", encoding="utf-8") as f:
+            # path_to_posix normalizes any PurePath to forward-slash on every OS so
+            # producers can store bare Path; everything else keeps the prior str()
+            # fallback. Shared with convert_to_json_serializable so both serializer
+            # sinks use one path predicate (#157).
+            json.dump(data, f, indent=2, default=path_to_posix)
         return output_path
 
     def reorder_dataframe_columns(

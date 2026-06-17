@@ -43,6 +43,13 @@ The pipeline provenance manifest (`pipeline_summary.json`) SHALL record every fi
 - **THEN** the serialized value SHALL be JSON `null`
 - **AND** dropping the producer-side `str(path)` SHALL NOT change a `None` value into the string `"None"`
 
+#### Scenario: Top-level and standalone-manifest paths normalize to POSIX
+
+- **GIVEN** the pipeline writes `output_directory` into `pipeline_summary.json` and per-step `*_manifest.json` / `summary.json` files containing `Path` values
+- **WHEN** those files are written on any OS
+- **THEN** every serialized path SHALL use forward-slash (`/`) separators
+- **AND** all serializer sinks (`convert_to_json_serializable`, the `save_json` default hook, and the viz `summary.json` writer) SHALL normalize paths via the same `PurePath.as_posix()` predicate
+
 #### Scenario: Producers do not pre-stringify paths
 
 - **GIVEN** any pipeline step that contributes a path to `files_generated` or `metadata`

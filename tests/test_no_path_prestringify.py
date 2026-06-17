@@ -8,6 +8,11 @@ Producers store ``Path`` objects in ``files_generated`` and path-valued
 Windows. This AST guard fails if the anti-pattern is reintroduced, so the fix
 can't silently regress in a future step. It is multi-line aware (unlike a
 line-oriented grep), so it catches ``files_generated=[\n    str(x),\n]`` too.
+
+It is a best-effort tripwire for accidental reintroduction, not a proof: it can
+be evaded by aliasing ``str``, f-strings, ``os.fspath``, or ``"%s" %``. It is
+also intentionally strict inside ``files_generated`` (any ``str(...)`` there is
+flagged, including ``str(count)``), since that list should only hold paths.
 """
 
 from __future__ import annotations
@@ -55,13 +60,21 @@ def _looks_like_path_key(key: ast.AST) -> bool:
 
 
 def _step_files() -> list[Path]:
-    return sorted(p for p in STEPS_DIR.glob("*.py") if p.name != "__init__.py")
+    # rglob so a future steps/<subdir>/*.py is not silently un-guarded.
+    return sorted(p for p in STEPS_DIR.rglob("*.py") if p.name != "__init__.py")
+
+
+def test_step_files_discovered() -> None:
+    """Guard against a vacuous pass if discovery ever finds nothing."""
+    assert len(_step_files()) >= 13
 
 
 @pytest.mark.parametrize("path", _step_files(), ids=lambda p: p.name)
 def test_no_str_prestringify_of_paths(path: Path) -> None:
     """No ``str(...)`` feeds ``files_generated`` or a path-valued ``metadata`` key."""
-    tree = ast.parse(path.read_text(), filename=str(path))
+    # Explicit UTF-8: source files contain non-ASCII (emoji, ρ), and Path.read_text
+    # defaults to the locale codec (cp1252 on Windows) which raises on them (#157).
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     violations: list[str] = []
 
     for node in ast.walk(tree):

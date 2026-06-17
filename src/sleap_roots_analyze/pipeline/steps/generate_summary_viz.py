@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Optional
 
 import pandas as pd
@@ -324,7 +324,8 @@ class GenerateSummaryStep(BaseStep):
             return [self._make_json_serializable(item) for item in obj]
         elif isinstance(obj, (pd.DataFrame, pd.Series)):
             return str(type(obj))  # Just note the type for complex objects
-        elif isinstance(obj, Path):
-            return str(obj)
+        elif isinstance(obj, PurePath):
+            # POSIX (forward-slash) on every OS, matching the central serializer (#157).
+            return obj.as_posix()
         else:
             return obj

@@ -236,11 +236,17 @@ def test_windows_paths_normalize_to_posix_on_any_os():
         files_generated=[win],
         metadata={"dashboard_path": win, "reps_plot": None},
     )
-    summary = PipelineSummary(pipeline_name="viz", steps=[step])
+    summary = PipelineSummary(
+        pipeline_name="viz",
+        steps=[step],
+        output_directory=PureWindowsPath("pipeline_runs", "viz_01"),
+    )
     loaded = json.loads(summary.to_json())
 
     assert loaded["steps"][0]["files_generated"] == ["out/sub/a.csv"]
     assert loaded["steps"][0]["metadata"]["dashboard_path"] == "out/sub/a.csv"
+    # output_directory normalizes too (regression for #157 review item 2).
+    assert loaded["output_directory"] == "pipeline_runs/viz_01"
     # An optional path that was None survives as JSON null, not "None".
     assert loaded["steps"][0]["metadata"]["reps_plot"] is None
     # No backslash leaked anywhere in the serialized manifest.

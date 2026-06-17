@@ -65,7 +65,7 @@ class PipelineSummary:
     steps: List[StepSummary] = field(default_factory=list)
     config: Dict[str, Any] = field(default_factory=dict)
     environment: Dict[str, Any] = field(default_factory=dict)
-    output_directory: str = ""
+    output_directory: str | Path = ""
     data_source: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -114,10 +114,15 @@ class PipelineSummary:
             PipelineSummary object loaded from the file.
         """
         path = Path(path)
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
 
-        # Convert step dictionaries back to StepSummary objects
-        steps = [StepSummary(**step) for step in data.pop("steps", [])]
+        # Convert step dictionaries back to StepSummary objects, rehydrating the
+        # serialized POSIX path strings in files_generated back to Path so the
+        # loaded object matches the List[Path] annotation.
+        steps = []
+        for step in data.pop("steps", []):
+            step["files_generated"] = [Path(p) for p in step.get("files_generated", [])]
+            steps.append(StepSummary(**step))
 
         return cls(steps=steps, **data)
 

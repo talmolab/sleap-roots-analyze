@@ -37,6 +37,16 @@
 - [x] 4.3 Add a regression test for the `None`-path branch (`visualize_depth_profiles` `reps_plot`): when no replicate plot is produced, `metadata[...]["reps_plot"]` SHALL serialize to JSON `null`, not `"None"`
 - [x] 4.4 Add a CI-enforced source guard (e.g. `tests/test_no_path_prestringify.py`) that scans `pipeline/steps/` and fails if `str(...)` co-occurs with a `files_generated`/`metadata` path assignment (AST- or multi-line-aware, so it catches `files_generated=[\n str(x)\n]`)
 
+## 4b. Review follow-ups (PR #159 subagent review)
+
+- [x] 4b.1 Fix Windows CI: `tests/test_no_path_prestringify.py` reads source with `encoding="utf-8"` (locale codec raised on emoji/`ρ`); also `rglob` + non-vacuous `>=13` assert + softened guard docstring
+- [x] 4b.2 `output_directory` no longer pre-stringified: `base_pipeline.py` stores bare `Path`; `PipelineSummary.output_directory` typed `str | Path`
+- [x] 4b.3 Third sink fixed: `generate_summary_viz._make_json_serializable` normalizes `PurePath` via `as_posix()` (was `str(obj)`) so the viz `summary.json` `run_directory` is POSIX
+- [x] 4b.4 Unify the two serializer predicates: shared `data_utils.path_to_posix` (PurePath) used by `save_json`; add a `save_json` Path-normalization test
+- [x] 4b.5 `PipelineSummary.load()` rehydrates `files_generated` to `List[Path]`; both readers use `encoding="utf-8"`
+- [x] 4b.6 Regenerate the two committed goldens whose path fields were backslashed (`viz/cylinder/summary.json`, `cross_platform/root_core_vs_cylinder/pipeline_summary.json`)
+- [x] 4b.7 Extend the cross-OS gate test to assert `output_directory` normalizes
+
 ## 5. Verify
 
 - [x] 5.1 `grep -rn "str(" src/sleap_roots_analyze/pipeline/steps/ | grep -iE "files_generated|metadata|relative_to"` returns no path-stringification sites

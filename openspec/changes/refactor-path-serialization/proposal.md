@@ -17,8 +17,9 @@ The same `str(path)` anti-pattern is repeated across ~20 sites in the pipeline s
 ## Impact
 
 - Affected specs: `cli-pipeline` (MODIFY config-serialization scenario; ADD provenance path serialization requirement)
-- Affected code: `src/sleap_roots_analyze/pipeline/{core,summary,task}.py` (type tightening) and ~13 step files under `src/sleap_roots_analyze/pipeline/steps/`
-- Affected tests: 4 existing membership assertions updated, plus new regression/guard tests (`tests/test_result_serialization.py`, a `None`-path test, `tests/test_no_path_prestringify.py`)
+- Affected code: `src/sleap_roots_analyze/pipeline/{core,summary,task}.py` (type tightening) and ~13 step files under `src/sleap_roots_analyze/pipeline/steps/`; plus, per PR #159 review: `pipelines/base_pipeline.py` (`output_directory` stores bare `Path`), `data_utils.py` (shared `path_to_posix` helper unifying the two serializer predicates), and `steps/generate_summary_viz.py` (third sink — its local viz-`summary.json` writer)
+- Affected tests: 4 existing membership assertions updated, plus new regression/guard tests (`tests/test_result_serialization.py` incl. `output_directory`, a `save_json` POSIX test in `tests/test_pipeline_core.py`, `tests/test_no_path_prestringify.py`)
+- Affected fixtures: two committed goldens whose path fields were Windows-backslashed (`viz/cylinder/summary.json` `run_directory`, `cross_platform/root_core_vs_cylinder/pipeline_summary.json` `output_directory`) regenerated to POSIX
 - Affected docs: `docs/CHANGELOG.md` (Fixed entry — user-observable: Windows manifests flip `\`→`/`), `docs/reproducibility.md` (state the producer-side "store `Path`" rule once, as the gate's named source of truth), `openspec/project.md` (one-line pointer), and the now-understated comment at `pipeline/summary.py:88-91`
 - Merge-order coupling: the mypy baseline gate is on the still-open PR #158, not `main`. Land this refactor before #158 if possible; otherwise resync `.mypy-baseline.txt` in this PR's single commit.
 - Risk: low-to-medium. Producer edits are mechanical, but the type change requires the coordinated test updates above. No committed golden fixture asserts on serialized paths or carries backslash paths (to be verified, not just asserted — task 5.3), so the #146 reproduction fixtures are undisturbed. The cross-OS gate is the regression backstop.
