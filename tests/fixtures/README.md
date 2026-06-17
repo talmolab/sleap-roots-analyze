@@ -33,11 +33,23 @@ tests/fixtures/
         │                          heritability filter + diagnostics, trait_statistics, config
         ├── viz/<platform>/        summary.json, heritability filter, config, and the compact
         │                          viz_pca_metadata.json (+ viz_umap_embedding.csv where UMAP ran)
-        └── cross_platform/        per-pairing correlations + alignment (4 pairings)
+        ├── cross_platform/        per-pairing correlations + alignment (4 pairings)
+        └── numerical_stability/   turface_19-only golden drift gate (NOT per-platform):
+                                   golden_umap_embedding.csv, golden_cluster_labels.csv,
+                                   golden_trait_summary.csv, golden_provenance.json
 ```
 
 `<platform>` ∈ {`turface_19`, `turface_150`, `cylinder`, `root_core`}. `root_core` has
 no UMAP embedding (its viz run disabled UMAP), so it has no `viz_umap_embedding.csv`.
+
+Unlike the `<platform>`-parametrized siblings, `expected/numerical_stability/` is a
+single-dataset (`turface_19`) golden for the **numerical-stability drift gate**
+(`tests/test_numerical_stability.py`): a self-contained UMAP / KMeans / pandas-trait
+recomputation pinned against committed golden artifacts to catch library-upgrade drift.
+It is generated from `inputs/post_qc/turface_19_final_data.csv` by
+`scripts/regenerate_numerical_stability_golden.py` (**not** the harness), and it carries
+its own `golden_provenance.json` recording the OS / Python / dependency versions the
+golden was generated under. See [`docs/reproducibility.md`](../../docs/reproducibility.md).
 
 > Analysis-input contract conformance — synthetic examples and validating the post-QC
 > table against `sleap_roots_contracts.validate_analysis_input()` — is **not** part of
@@ -102,12 +114,22 @@ re-derived; the golden component count indexes the reproduced spectrum).
 **Golden values do not change as a quiet bugfix drift.** To regenerate any golden
 artifact:
 
-1. Re-run the relevant `harness/` config(s) (the `run_manifest.yaml` recipe).
+1. Re-run the relevant `harness/` config(s) (the `run_manifest.yaml` recipe). The
+   **numerical-stability** golden is the exception — it is not harness-driven; regenerate
+   it with `uv run --python 3.11 python scripts/regenerate_numerical_stability_golden.py`
+   **on the gate's canonical OS** (macOS; UMAP is not bit-reproducible across operating
+   systems). It re-stamps `golden_provenance.json`.
 2. If the only differences are within the tolerance above, no update is needed.
 3. If a **method change** moved the numbers, the regeneration requires **reviewer
    approval** and a corresponding **paper-supplementary update** — it must not be folded
    silently into an unrelated change. Record the reason (method change + reviewer) in the
    PR that updates the golden.
+4. For the numerical-stability golden specifically: regenerate on **major**
+   `numba` / `numpy` / `umap-learn` / `pandas` bumps that move numbers past the gate
+   tolerances (with reviewer approval); do **not** regenerate on patch bumps that stay
+   within tolerance — a quiet regen there would defeat the drift gate. The committed
+   `golden_provenance.json` records the stack the current golden was generated under, so
+   staleness is a diff.
 
 ## Tests
 
