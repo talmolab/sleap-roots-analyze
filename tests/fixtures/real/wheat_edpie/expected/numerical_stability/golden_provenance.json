@@ -1,0 +1,22 @@
+{
+  "generated_on": "2026-06-17",
+  "os": "Darwin",
+  "platform": "darwin",
+  "machine": "arm64",
+  "python": "3.11.15",
+  "packages": {
+    "numpy": "2.3.4",
+    "pandas": "2.3.3",
+    "umap-learn": "0.5.9.post2",
+    "numba": "0.62.1",
+    "scipy": "1.16.2",
+    "scikit-learn": "1.7.2"
+  },
+  "seed": 42,
+  "n_clusters": 3,
+  "tolerances": {
+    "procrustes_atol": 1e-06,
+    "ari_floor": 0.95,
+    "trait_summary_rtol": 1e-10
+  }
+}
