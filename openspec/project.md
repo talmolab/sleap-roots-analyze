@@ -113,6 +113,7 @@ src/sleap_roots_analyze/
 - Always return both cleaned data AND removed samples for transparency
 - Export artifacts as CSV for reproducibility and inspection
 - Support both programmatic API and future CLI usage
+- Store `Path` objects through to serialization — never `str(path)`; the JSON serializers own POSIX normalization (see [docs/reproducibility.md](../docs/reproducibility.md))
 
 ### Testing Strategy
 

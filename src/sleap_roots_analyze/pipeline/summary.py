@@ -33,7 +33,7 @@ class StepSummary:
     description: str = ""
     status: str = "pending"
     elapsed_time: float = 0.0
-    files_generated: List[str | Path] = field(default_factory=list)
+    files_generated: List[Path] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
 
@@ -85,10 +85,11 @@ class PipelineSummary:
         Returns:
             JSON string representation of the summary.
         """
-        # Let convert_to_json_serializable normalize everything, including Path ->
-        # obj.as_posix(). A prior str(f) pre-pass over files_generated defeated that
-        # branch on Windows (str(WindowsPath("out/a.csv")) -> "out\\a.csv"), producing
-        # backslash paths in the JSON; the serializer must own Path normalization.
+        # The serializer owns Path normalization: convert_to_json_serializable maps
+        # Path -> obj.as_posix() so manifests are POSIX on every OS. Producers store
+        # Path (files_generated is List[Path]) and never pre-str() it -- str(
+        # WindowsPath("out/a.csv")) -> "out\\a.csv" would defeat this branch. See the
+        # serialization contract in docs/reproducibility.md (#156, #157).
         data = convert_to_json_serializable(self.to_dict())
         return json.dumps(data, indent=indent)
 
@@ -124,7 +125,7 @@ class PipelineSummary:
         self,
         step_name: str,
         elapsed_time: float,
-        files_generated: List[str | Path],
+        files_generated: List[Path],
         metadata: Dict[str, Any],
     ) -> None:
         """Mark a step as successfully completed.

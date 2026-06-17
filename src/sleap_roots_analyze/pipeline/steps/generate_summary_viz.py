@@ -53,7 +53,7 @@ class GenerateSummaryStep(BaseStep):
         summary_data = {
             "pipeline_name": config.pipeline_name,
             "version": config.version,
-            "run_directory": str(run_dir),
+            "run_directory": run_dir,
             "data_file": config.data.csv_path,
             "n_samples": metadata.get("n_samples", len(data)),
             "n_traits_initial": metadata.get("n_traits", 0),

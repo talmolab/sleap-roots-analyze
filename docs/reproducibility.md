@@ -119,6 +119,17 @@ intentionally asymmetric: `ndarray`→list, unknown objects→`"<TypeName>"`). `
 survives an in-process round-trip and is compared NaN-aware; note it is non-standard
 JSON, so a stricter external consumer may reject it.
 
+**Path normalization is centralized — store `Path`, never `str(path)`.** Producers
+(pipeline steps, result objects) hand a `Path` object to the serializer and let it
+normalize to a POSIX string (`Path.as_posix()`) exactly once. Pre-stringifying with
+`str(path)` defeats this and bakes in OS-specific separators (backslashes on Windows),
+producing `out\a.csv` instead of `out/a.csv` in `pipeline_summary.json` and the
+standalone `*_manifest.json` files (#157). Both serialization sinks own this:
+`convert_to_json_serializable` (for the summary) and the `BaseStep.save_json` `default`
+hook (for standalone manifests). The `StepSummary.files_generated` field is typed
+`List[Path]` so the rule can't silently regress; [`tests/test_no_path_prestringify.py`](../tests/test_no_path_prestringify.py)
+is an AST guard that fails if a `str(path)` is reintroduced into a step.
+
 ## CI enforcement
 
 The gates run on every pull request and can be set as required status checks in

@@ -179,8 +179,8 @@ class LoadCrossPlatformDataStep(BaseStep):
             data=result_data,
             metadata=metadata,
             files_generated=[
-                str(exp1_output),
-                str(exp2_output),
-                str(alignment_output),
+                exp1_output,
+                exp2_output,
+                alignment_output,
             ],
         )

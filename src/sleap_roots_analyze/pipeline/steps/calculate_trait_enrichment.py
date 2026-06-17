@@ -118,7 +118,7 @@ class CalculateTraitEnrichmentStep(BaseStep):
                     "enrichment_n_tests": 0,
                     "enrichment_skipped_reason": "no testable correlations",
                 },
-                files_generated=[str(output_file)],
+                files_generated=[output_file],
             )
 
         result = calculate_enrichment_test(
@@ -151,5 +151,5 @@ class CalculateTraitEnrichmentStep(BaseStep):
                 "enrichment_fold": result.fold_enrichment,
                 "enrichment_interpretation": result.interpretation,
             },
-            files_generated=[str(output_file)],
+            files_generated=[output_file],
         )

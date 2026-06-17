@@ -104,10 +104,10 @@ class GenerateDashboardsStep(BaseStep):
 
         # Save manifest
         manifest = {
-            "dashboard_path": str(dashboard_path.relative_to(run_dir)),
+            "dashboard_path": dashboard_path.relative_to(run_dir),
             "total_static_figures": len(static_figures),
             "total_interactive_figures": len(interactive_figures),
-            "run_directory": str(run_dir),
+            "run_directory": run_dir,
         }
         manifest_file = self.save_json(manifest, "11_dashboard_manifest.json", run_dir)
 

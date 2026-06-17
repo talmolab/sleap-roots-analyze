@@ -139,7 +139,7 @@ class MergeAllTraitsStep:
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
-        metadata["output_csv"] = str(output_path)
-        metadata["metadata_json"] = str(metadata_path)
+        metadata["output_csv"] = output_path
+        metadata["metadata_json"] = metadata_path
 
         return StepResult(data=merged, metadata=metadata)

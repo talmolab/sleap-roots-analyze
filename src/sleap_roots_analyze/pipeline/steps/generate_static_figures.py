@@ -281,7 +281,7 @@ class GenerateStaticFiguresStep(BaseStep):
                 "total_figures": len(generated_files),
                 "formats": formats,
                 "dpi": dpi,
-                "files": [str(f.relative_to(run_dir)) for f in generated_files],
+                "files": [f.relative_to(run_dir) for f in generated_files],
             }
             manifest_file = self.save_json(
                 manifest, "09_static_figures_manifest.json", run_dir

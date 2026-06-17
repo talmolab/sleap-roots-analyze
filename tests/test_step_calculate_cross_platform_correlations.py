@@ -255,7 +255,7 @@ def test_calculate_cross_platform_correlations_step_files_generated(
     # Check that correlation CSV was created
     corr_csv = tmp_path / "cross_platform_correlations.csv"
     assert corr_csv.exists()
-    assert str(corr_csv) in result.files_generated
+    assert corr_csv in result.files_generated
 
     # Verify CSV contents
     saved_df = pd.read_csv(corr_csv)

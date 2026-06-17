@@ -48,7 +48,7 @@ class StepResult:
 
     data: Any
     metadata: Dict[str, Any] = field(default_factory=dict)
-    files_generated: List[str | Path] = field(default_factory=list)
+    files_generated: List[Path] = field(default_factory=list)
 
 
 class BaseStep(ABC):
@@ -121,7 +121,16 @@ class BaseStep(ABC):
 
         output_path = run_dir / filename
         with open(output_path, "w") as f:
-            json.dump(data, f, indent=2, default=str)
+            # Normalize Path values to POSIX (forward-slash on every OS) in the
+            # default hook so producers can store bare Path; everything else keeps
+            # the prior str() fallback, so the only behavior change is that paths
+            # no longer carry backslashes on Windows.
+            json.dump(
+                data,
+                f,
+                indent=2,
+                default=lambda o: o.as_posix() if isinstance(o, Path) else str(o),
+            )
         return output_path
 
     def reorder_dataframe_columns(

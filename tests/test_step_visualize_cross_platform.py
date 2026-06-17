@@ -162,7 +162,7 @@ def test_visualize_cross_platform_step_summary_plot(
     # Check for summary plot
     summary_plot = tmp_path / "cross_platform_correlation_summary.png"
     assert summary_plot.exists()
-    assert str(summary_plot) in result.files_generated
+    assert summary_plot in result.files_generated
 
 
 def test_visualize_cross_platform_step_joint_plots(
@@ -589,7 +589,7 @@ def test_representative_heatmap_generated_when_clustering_enabled(tmp_path):
     assert (
         heatmap_file.exists()
     ), "Representative heatmap should be created when clustering is enabled"
-    assert str(heatmap_file) in result.files_generated
+    assert heatmap_file in result.files_generated
 
 
 def test_representative_heatmap_not_generated_when_clustering_disabled(tmp_path):

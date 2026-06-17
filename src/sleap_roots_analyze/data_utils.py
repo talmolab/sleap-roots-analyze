@@ -2,7 +2,7 @@
 
 import numpy as np
 import pandas as pd
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Dict, List, Optional, Tuple, Union, Any
 from datetime import datetime
 import json
@@ -71,7 +71,7 @@ def convert_to_json_serializable(obj):
         return [convert_to_json_serializable(item) for item in obj]
     elif isinstance(obj, tuple):
         return tuple(convert_to_json_serializable(item) for item in obj)
-    elif isinstance(obj, Path):
+    elif isinstance(obj, PurePath):
         return obj.as_posix()
     elif isinstance(obj, (np.integer, np.int64, np.int32)):
         return int(obj)

@@ -26,7 +26,7 @@ class TaskResult:
 
     data: Any
     metadata: Dict[str, Any] = field(default_factory=dict)
-    files_generated: List[str | Path] = field(default_factory=list)
+    files_generated: List[Path] = field(default_factory=list)
 
 
 class Task:

@@ -98,7 +98,7 @@ class LoadAboveGroundTraitsStep:
 
         # Create metadata
         metadata = {
-            "csv_path": str(csv_path),
+            "csv_path": csv_path,
             "num_samples": len(df),
             "num_traits": len(trait_cols),
             "trait_columns": trait_cols,
