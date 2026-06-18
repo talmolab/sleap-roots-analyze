@@ -95,6 +95,35 @@ jobs:
       - name: Run determinism sweep
         run: uv run pytest tests/test_reproducibility.py
 
+  numerical-stability:
+    name: Numerical-stability gate (golden drift)
+    # macOS because the golden is generated on macOS (arm64) and UMAP is not
+    # bit-reproducible across operating systems / BLAS backends; the gate's tolerances
+    # (Procrustes atol=1e-6, frame rtol=1e-10) are tighter than the cross-OS float floor.
+    # This is a DRIFT detector (golden vs committed), NOT a determinism double-run — its
+    # single-OS rationale differs from the determinism gate above, so it is its own job
+    # (mirroring the serialization-gate precedent) and can be a required status check.
+    # The test self-skips on non-macOS, so the cross-OS `tests` matrix stays green.
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dev dependencies
+        run: uv sync --group dev
+
+      - name: Run numerical-stability gate
+        run: uv run pytest tests/test_numerical_stability.py -rs
+
   serialization-gate:
     name: Serialization round-trip gate
     timeout-minutes: 15

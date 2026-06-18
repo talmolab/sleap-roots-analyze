@@ -90,6 +90,49 @@ Therefore:
   `1e-6` level, pin the BLAS implementation in that test's environment (e.g. via the
   `threadpoolctl` / `OPENBLAS_*` env) and document it alongside the test.
 
+## Numerical-stability golden gate
+
+The determinism guarantee above is a **same-machine double-run**: it proves a function is
+deterministic given a fixed environment, but it is structurally blind to *drift*. When a
+`numba` / `numpy` / `umap-learn` / `pandas` upgrade silently changes a result, both halves
+of the double-run move together and still agree. To catch that, the **numerical-stability
+gate** (`tests/test_numerical_stability.py`) recomputes the UMAP, clustering, and pandas
+trait-aggregation paths on the `turface_19` reference slice and compares them to
+**committed golden artifacts** under `tests/fixtures/real/wheat_edpie/expected/numerical_stability/`.
+A library upgrade that moves the numbers fails here.
+
+Assertions are tolerance-based, with thresholds grounded in the dataset's measured
+same-stack spread (recorded in `tests/numerical_stability_recompute.py`):
+
+- **UMAP embedding** — `scipy.spatial.procrustes` superimposition (invariant to
+  translation, scale, rotation, reflection), then `np.allclose` on the **aligned
+  coordinate matrices** with `atol=1e-6`. The aligned matrices, not the disparity scalar,
+  are compared: same-stack aligned spread is ≈ `3e-17`, yet a real `1e-3` coordinate nudge
+  yields ≈ `2.6e-5`, so `1e-6` is far above noise yet below the drift it must catch.
+- **Cluster labels** — Adjusted Rand Index `> 0.95`. ARI is permutation-invariant, the
+  "compare up to a label permutation" rule from the [Tolerance policy](#tolerance-policy).
+  The pinned cluster count (`n_clusters = 3`) is also asserted, guarding the clusterer's
+  internal `len // 10` clamp.
+- **Trait summary** — `pd.testing.assert_frame_equal(rtol=1e-10)` on a per-genotype
+  `groupby().agg(["mean", "std"])` — the Copy-on-Write-sensitive path.
+
+**Why `rtol=1e-10` here when the Tolerance policy says `rtol=1e-6`?** The `1e-6` figure is
+the **cross-OS / BLAS-reorder** tolerance (see the [BLAS caveat](#cross-platform--blas-caveat)).
+The trait-summary comparison is **same-stack, single-OS, pure-float groupby on a fixed
+committed input** with no RNG and tiny per-genotype reductions, so it can — and should — be
+much tighter to actually catch a CoW/groupby path change; a loose `1e-6` would let real
+drift through. Conversely the UMAP `atol=1e-6` *is* the policy number, applied to a
+manifold that rides the numba/BLAS JIT stack.
+
+**Single-OS by design.** Because UMAP is not bit-reproducible across operating systems and
+these tolerances are below the cross-OS float floor, the golden is generated on one OS
+(macOS) and the gate **skips on other operating systems** (keeping the cross-platform
+`tests` matrix green). The committed `golden_provenance.json` records the OS / Python /
+dependency versions the golden was generated under, so staleness is a diff. To regenerate,
+see the [Regenerate policy](../tests/fixtures/README.md#regenerate-policy) — major
+numba/numpy/umap-learn/pandas bumps past tolerance only, with reviewer approval; never on
+patch bumps within tolerance.
+
 ## Result-object serialization contract
 
 The FAIR interoperability guarantee: every analytical result object must serialize to
@@ -142,9 +185,15 @@ branch protection ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)):
   Serialization is **not** OS-independent: `Path → str` differs by OS (Windows uses
   backslashes), exactly the class of bug this gate exists to catch, so it runs
   cross-OS.
+- **Numerical-stability gate (golden drift)** — single OS (macOS). A drift detector, not
+  a determinism check: it compares recomputed UMAP/cluster/trait outputs to committed
+  golden artifacts. Single-OS because the golden is generated on one machine and its
+  tolerances are tighter than the cross-OS float floor; the test self-skips elsewhere.
+  See the [Numerical-stability golden gate](#numerical-stability-golden-gate) section.
 
 Run the gates locally with:
 
 ```bash
-uv run pytest tests/test_reproducibility.py tests/test_result_serialization.py
+uv run pytest tests/test_reproducibility.py tests/test_result_serialization.py \
+  tests/test_numerical_stability.py
 ```

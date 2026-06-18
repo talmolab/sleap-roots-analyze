@@ -3993,3 +3993,26 @@ def viz_umap_by_platform(edpie_real_dir):
 def crossplatform_dir(edpie_real_dir):
     """Return the directory holding the cross-platform golden pairings."""
     return edpie_real_dir / "expected" / "cross_platform"
+
+
+@pytest.fixture(scope="session")
+def numerical_stability_golden():
+    """Load the committed numerical-stability golden artifacts + provenance.
+
+    Mirrors the ``*_by_platform`` reproduction loaders. Returns a dict with the golden
+    UMAP embedding, cluster labels, per-genotype trait summary, and the provenance
+    record the golden was generated under. See ``tests/test_numerical_stability.py``.
+    """
+    from tests.numerical_stability_recompute import (
+        GOLDEN_EMBEDDING,
+        GOLDEN_LABELS,
+        GOLDEN_PROVENANCE,
+        GOLDEN_TRAIT_SUMMARY,
+    )
+
+    return {
+        "embedding": pd.read_csv(GOLDEN_EMBEDDING),
+        "labels": pd.read_csv(GOLDEN_LABELS),
+        "trait_summary": pd.read_csv(GOLDEN_TRAIT_SUMMARY, index_col=0),
+        "provenance": json.loads(GOLDEN_PROVENANCE.read_text()),
+    }
