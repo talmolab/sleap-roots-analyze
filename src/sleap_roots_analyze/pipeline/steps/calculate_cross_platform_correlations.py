@@ -390,5 +390,5 @@ class CalculateCrossPlatformCorrelationsStep(BaseStep):
         return StepResult(
             data=result_data,
             metadata=metadata,
-            files_generated=[str(corr_output)],
+            files_generated=[corr_output],
         )

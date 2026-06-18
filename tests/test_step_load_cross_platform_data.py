@@ -510,7 +510,7 @@ def test_load_cross_platform_data_step_files_generated(cross_platform_config, tm
     for expected_file in expected_files:
         file_path = tmp_path / expected_file
         assert file_path.exists(), f"Expected file {expected_file} not found"
-        assert str(file_path) in result.files_generated
+        assert file_path in result.files_generated
 
 
 def test_load_cross_platform_data_step_alignment_summary(

@@ -48,7 +48,7 @@ class StepResult:
 
     data: Any
     metadata: Dict[str, Any] = field(default_factory=dict)
-    files_generated: List[str | Path] = field(default_factory=list)
+    files_generated: List[Path] = field(default_factory=list)
 
 
 class BaseStep(ABC):
@@ -119,9 +119,15 @@ class BaseStep(ABC):
         """
         import json
 
+        from sleap_roots_analyze.data_utils import path_to_posix
+
         output_path = run_dir / filename
-        with open(output_path, "w") as f:
-            json.dump(data, f, indent=2, default=str)
+        with open(output_path, "w", encoding="utf-8") as f:
+            # path_to_posix normalizes any PurePath to forward-slash on every OS so
+            # producers can store bare Path; everything else keeps the prior str()
+            # fallback. Shared with convert_to_json_serializable so both serializer
+            # sinks use one path predicate (#157).
+            json.dump(data, f, indent=2, default=path_to_posix)
         return output_path
 
     def reorder_dataframe_columns(

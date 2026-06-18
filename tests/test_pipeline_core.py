@@ -1,5 +1,6 @@
 """Tests for pipeline core abstractions (BaseStep, StepResult)."""
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -107,6 +108,29 @@ def test_base_step_save_json(tmp_path):
     assert loaded["key1"] == "value1"
     assert loaded["key2"] == 42
     assert loaded["key3"] == [1, 2, 3]
+
+
+def test_base_step_save_json_normalizes_paths_to_posix(tmp_path):
+    r"""save_json writes Path values as POSIX (forward-slash) on every OS (#157).
+
+    Uses PureWindowsPath so the Windows-separator path is exercised on any host:
+    ``str(...)`` would bake in ``a\b.png`` while the default hook must emit ``a/b.png``.
+    """
+    from pathlib import PureWindowsPath
+
+    step = ConcreteStep()
+    data = {
+        "files": [PureWindowsPath("figs", "a.png")],
+        "run_directory": PureWindowsPath("out", "run_01"),
+    }
+
+    output_path = step.save_json(data, "manifest.json", tmp_path)
+    text = output_path.read_text(encoding="utf-8")
+
+    assert "\\" not in text
+    loaded = json.loads(text)
+    assert loaded["files"] == ["figs/a.png"]
+    assert loaded["run_directory"] == "out/run_01"
 
 
 def test_base_step_must_implement_execute():

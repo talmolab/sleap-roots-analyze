@@ -127,7 +127,7 @@ class VisualizeCrossPlatformStep(BaseStep):
         summary_output = run_dir / "cross_platform_correlation_summary.png"
         fig.savefig(summary_output, dpi=300, bbox_inches="tight")
         plt.close(fig)
-        files_generated.append(str(summary_output))
+        files_generated.append(summary_output)
 
         # Calculate genotype means for joint plots and boxplots
         exp1_traits = prev_result.metadata.get("exp1_trait_names", [])
@@ -182,7 +182,7 @@ class VisualizeCrossPlatformStep(BaseStep):
             )
             fig.savefig(joint_output, dpi=300, bbox_inches="tight")
             plt.close(fig)
-            files_generated.append(str(joint_output))
+            files_generated.append(joint_output)
 
         # 3. Create genotype boxplots for top N correlations
         n_boxplots = min(config.top_n_boxplots, len(correlation_df))
@@ -212,7 +212,7 @@ class VisualizeCrossPlatformStep(BaseStep):
             )
             fig.savefig(boxplot_output, dpi=300, bbox_inches="tight")
             plt.close(fig)
-            files_generated.append(str(boxplot_output))
+            files_generated.append(boxplot_output)
 
         # 4. Create representative heatmap when clustering is enabled
         # Check config directly since metadata may not be passed through all steps
@@ -228,7 +228,7 @@ class VisualizeCrossPlatformStep(BaseStep):
                 run_dir,
             )
             if heatmap_file:
-                files_generated.append(str(heatmap_file))
+                files_generated.append(heatmap_file)
                 representative_heatmap_generated = True
 
         # Prepare metadata

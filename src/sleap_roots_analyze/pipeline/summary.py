@@ -33,7 +33,7 @@ class StepSummary:
     description: str = ""
     status: str = "pending"
     elapsed_time: float = 0.0
-    files_generated: List[str | Path] = field(default_factory=list)
+    files_generated: List[Path] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
 
@@ -65,7 +65,7 @@ class PipelineSummary:
     steps: List[StepSummary] = field(default_factory=list)
     config: Dict[str, Any] = field(default_factory=dict)
     environment: Dict[str, Any] = field(default_factory=dict)
-    output_directory: str = ""
+    output_directory: str | Path = ""
     data_source: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -85,10 +85,11 @@ class PipelineSummary:
         Returns:
             JSON string representation of the summary.
         """
-        # Let convert_to_json_serializable normalize everything, including Path ->
-        # obj.as_posix(). A prior str(f) pre-pass over files_generated defeated that
-        # branch on Windows (str(WindowsPath("out/a.csv")) -> "out\\a.csv"), producing
-        # backslash paths in the JSON; the serializer must own Path normalization.
+        # The serializer owns Path normalization: convert_to_json_serializable maps
+        # Path -> obj.as_posix() so manifests are POSIX on every OS. Producers store
+        # Path (files_generated is List[Path]) and never pre-str() it -- str(
+        # WindowsPath("out/a.csv")) -> "out\\a.csv" would defeat this branch. See the
+        # serialization contract in docs/reproducibility.md (#156, #157).
         data = convert_to_json_serializable(self.to_dict())
         return json.dumps(data, indent=indent)
 
@@ -113,10 +114,15 @@ class PipelineSummary:
             PipelineSummary object loaded from the file.
         """
         path = Path(path)
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
 
-        # Convert step dictionaries back to StepSummary objects
-        steps = [StepSummary(**step) for step in data.pop("steps", [])]
+        # Convert step dictionaries back to StepSummary objects, rehydrating the
+        # serialized POSIX path strings in files_generated back to Path so the
+        # loaded object matches the List[Path] annotation.
+        steps = []
+        for step in data.pop("steps", []):
+            step["files_generated"] = [Path(p) for p in step.get("files_generated", [])]
+            steps.append(StepSummary(**step))
 
         return cls(steps=steps, **data)
 
@@ -124,7 +130,7 @@ class PipelineSummary:
         self,
         step_name: str,
         elapsed_time: float,
-        files_generated: List[str | Path],
+        files_generated: List[Path],
         metadata: Dict[str, Any],
     ) -> None:
         """Mark a step as successfully completed.

@@ -324,9 +324,9 @@ class FilterHeritabilityStep(BaseStep):
                 # Store diagnostic results for metadata
                 diagnostic_results = {
                     "comparison_df": comparison_df.to_dict("records"),
-                    "diagnostic_csv": str(diag_csv_path),
-                    "variance_plot": str(var_plot_path),
-                    "boxplot": str(box_plot_path),
+                    "diagnostic_csv": diag_csv_path,
+                    "variance_plot": var_plot_path,
+                    "boxplot": box_plot_path,
                     "traits_analyzed": len(trait_cols),
                     "traits_removed_plotted": len(traits_to_plot),
                 }

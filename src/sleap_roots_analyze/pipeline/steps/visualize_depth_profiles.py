@@ -198,11 +198,11 @@ class VisualizeDepthProfilesStep(BaseStep):
                     "value_column": value_col,
                     "n_genotypes": n_genotypes,
                     "n_depths": n_depths,
-                    "mean_plot": str(mean_plot_path),
-                    "reps_plot": str(reps_plot_path) if reps_plot_path else None,
+                    "mean_plot": mean_plot_path,
+                    "reps_plot": reps_plot_path if reps_plot_path else None,
                 }
                 if barplot_path:
-                    source_metadata["barplot"] = str(barplot_path)
+                    source_metadata["barplot"] = barplot_path
                 metadata["sources"].append(source_metadata)
 
             except Exception as e:

@@ -36,7 +36,7 @@ import json
 import math
 import re
 from dataclasses import asdict, dataclass, field, is_dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Callable, Dict, List
 
 import numpy as np
@@ -215,6 +215,42 @@ def test_pipeline_summary_round_trips():
     assert loaded["steps"][0]["files_generated"] == ["out/a.csv"]
     assert loaded["steps"][0]["metadata"]["n_rows"] == 10
     assert loaded["config"]["seed"] == 42
+
+
+def test_windows_paths_normalize_to_posix_on_any_os():
+    r"""Path normalization is OS-independent: a Windows-style path serializes to POSIX.
+
+    Regression for #157. On Linux/macOS a producer's old ``str(Path("out/a.csv"))``
+    already yields ``"out/a.csv"``, so the manifest looks fine and only Windows CI
+    catches the backslash bug. ``PureWindowsPath`` lets us exercise the Windows
+    separator on any host: ``str(...)`` would bake in ``out\\a.csv``, while the
+    serializer must emit ``out/a.csv`` via ``as_posix()``. The producer-side fix is
+    to store the path object (here a ``PureWindowsPath``) and never ``str()`` it.
+    """
+    win = PureWindowsPath("out", "sub", "a.csv")
+    assert str(win) == "out\\sub\\a.csv"  # the bug, if a producer pre-stringifies
+
+    step = StepSummary(
+        name="viz",
+        status="success",
+        files_generated=[win],
+        metadata={"dashboard_path": win, "reps_plot": None},
+    )
+    summary = PipelineSummary(
+        pipeline_name="viz",
+        steps=[step],
+        output_directory=PureWindowsPath("pipeline_runs", "viz_01"),
+    )
+    loaded = json.loads(summary.to_json())
+
+    assert loaded["steps"][0]["files_generated"] == ["out/sub/a.csv"]
+    assert loaded["steps"][0]["metadata"]["dashboard_path"] == "out/sub/a.csv"
+    # output_directory normalizes too (regression for #157 review item 2).
+    assert loaded["output_directory"] == "pipeline_runs/viz_01"
+    # An optional path that was None survives as JSON null, not "None".
+    assert loaded["steps"][0]["metadata"]["reps_plot"] is None
+    # No backslash leaked anywhere in the serialized manifest.
+    assert "\\" not in summary.to_json()
 
 
 # --- the gate over the registered analytical surface --------------------------

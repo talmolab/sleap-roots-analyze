@@ -66,6 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `diagnose_heritability_issues`, and `compare_trait_heritabilities` (Part of #116).
 
 ### Fixed
+- Pipeline provenance manifests now emit forward-slash (POSIX) paths on every OS.
+  Steps previously hand-stringified paths with `str(path)` before serialization,
+  which baked in backslashes on Windows (e.g. `out\a.csv` instead of `out/a.csv`)
+  in the `files_generated` and `metadata` fields of `pipeline_summary.json` and in
+  the standalone `*_manifest.json` files. Producers now store `Path` and let the
+  central serializers normalize once via `Path.as_posix()` (`convert_to_json_serializable`
+  and the `save_json` default hook); the `files_generated` field type was tightened
+  to `List[Path]` so the divergence can't recur. Completes the single-site fix from
+  #156. (#157)
 - Add the missing `from typing import Any` import in `statistics.py` so
   `typing.get_type_hints()` no longer raises `NameError` on the three functions that
   annotate `Dict[str, Any]`, unblocking downstream tool-schema generation.

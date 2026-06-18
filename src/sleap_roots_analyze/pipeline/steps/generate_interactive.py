@@ -166,7 +166,7 @@ class GenerateInteractiveStep(BaseStep):
             # Save manifest
             manifest = {
                 "total_figures": len(generated_files),
-                "files": [str(f.relative_to(run_dir)) for f in generated_files],
+                "files": [f.relative_to(run_dir) for f in generated_files],
             }
             manifest_file = self.save_json(
                 manifest, "10_interactive_figures_manifest.json", run_dir

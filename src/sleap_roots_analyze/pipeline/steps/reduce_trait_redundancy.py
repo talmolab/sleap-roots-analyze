@@ -241,7 +241,7 @@ class ReduceTraitRedundancyStep(BaseStep):
         # Save cluster membership file
         cluster_file = run_dir / f"{exp_name}_trait_clusters.csv"
         cluster_df.to_csv(cluster_file, index=False)
-        files_generated.append(str(cluster_file))
+        files_generated.append(cluster_file)
 
         logger.info(
             "Saved %s cluster membership to %s (%d traits -> %d clusters -> %d representatives)",
@@ -263,7 +263,7 @@ class ReduceTraitRedundancyStep(BaseStep):
             exp_name,
             exp_display_name,
         )
-        files_generated.append(str(dendrogram_file))
+        files_generated.append(dendrogram_file)
 
         # Generate cluster heatmap visualization
         heatmap_file = self._create_cluster_heatmap(
@@ -274,7 +274,7 @@ class ReduceTraitRedundancyStep(BaseStep):
             exp_name,
             exp_display_name,
         )
-        files_generated.append(str(heatmap_file))
+        files_generated.append(heatmap_file)
 
         # Filter df to only include representative columns (plus genotype)
         keep_cols = ["genotype"] + representatives
