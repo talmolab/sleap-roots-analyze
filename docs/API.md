@@ -83,6 +83,122 @@ print(f"Found {len(trait_cols)} trait columns")
 
 ---
 
+#### `apply_data_cleanup_filters`
+
+```python
+apply_data_cleanup_filters(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    max_zeros_per_trait: float = 0.5,
+    max_nans_per_trait: float = 0.3,
+    max_nans_per_sample: float = 0.2,
+    min_samples_per_trait: int = 10,
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: Optional[str] = "rep",
+) -> Tuple[pd.DataFrame, Dict]
+```
+
+Canonical smart cleanup used by QC step 02 (`CleanupTraitsStep`). Drops bad
+**traits** first (zero-inflated, too-many-NaN, low-sample) and *then* the
+remaining NaN rows, to minimize sample loss.
+
+**Returns:**
+- `Tuple[pd.DataFrame, Dict]`: `(cleaned_df, cleanup_log)`; the log records
+  removed traits/samples and per-step counts.
+
+**Example:**
+```python
+clean_df, log = apply_data_cleanup_filters(df, trait_cols)
+```
+
+---
+
+#### `build_clean_validation_report`
+
+```python
+build_clean_validation_report(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+) -> Dict
+```
+
+Build the no-NaN validation report for a cleaned trait table (the report QC
+step 03 emits). Pure — no I/O, no raising.
+
+**Returns:**
+- `Dict`: report with `validation_passed`, `total_samples`,
+  `nan_values_in_traits`, `trait_nan_counts`, etc.
+
+---
+
+#### `validate_clean_traits`
+
+```python
+validate_clean_traits(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+) -> Dict
+```
+
+Validate that a cleaned table has no NaNs in its trait columns (the importable
+form of QC step 03's check, shared by `ValidateCleanStep` and
+`clean_traits_for_analysis`).
+
+**Returns:**
+- `Dict`: the validation report (on success).
+
+**Raises:**
+- `ValueError`: If any NaN values remain in `trait_cols` (message names the
+  affected traits).
+
+---
+
+#### `clean_traits_for_analysis`
+
+```python
+clean_traits_for_analysis(
+    df: pd.DataFrame,
+    trait_cols: Optional[List[str]] = None,
+    *,
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: Optional[str] = "rep",
+    **cleanup_kwargs,
+) -> Tuple[pd.DataFrame, List[str], Dict]
+```
+
+Public minimal-QC entry point. Composes `apply_data_cleanup_filters` (step 02)
+with `validate_clean_traits` (step 03) and adds analysis-readiness gates so the
+result is safe for PCA / UMAP / clustering without silently dropping rows.
+Validation runs in order: (1) empty input, (2) no NaN in surviving traits,
+(3) ≥2 surviving samples, (4) ≥1 non-constant numeric trait (`var(ddof=0) > 0`).
+
+> **Note:** default thresholds are `apply_data_cleanup_filters`' own
+> (`max_zeros_per_trait=0.5`, `max_nans_per_trait=0.3`, `max_nans_per_sample=0.2`,
+> `min_samples_per_trait=10`), which differ from the QC pipeline's config
+> defaults; identical output to the pipeline requires matched thresholds. Two
+> samples is the runnability floor only.
+
+**Returns:**
+- `Tuple[pd.DataFrame, List[str], Dict]`: `(clean_df, trait_cols, cleanup_log)`,
+  where `trait_cols` are the surviving traits and `cleanup_log` is enriched with
+  `effective_thresholds` and `validation_summary`.
+
+**Raises:**
+- `ValueError`: On empty input, residual NaN, fewer than 2 surviving samples, or
+  no non-constant numeric trait remaining.
+
+**Example:**
+```python
+from sleap_roots_analyze import clean_traits_for_analysis, perform_pca_analysis
+
+clean_df, trait_cols, log = clean_traits_for_analysis(df)
+pca = perform_pca_analysis(clean_df[trait_cols])  # no rows silently dropped
+```
+
+---
+
 #### `remove_nan_samples`
 
 ```python

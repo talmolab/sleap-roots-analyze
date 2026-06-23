@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Public minimal-QC entry point `clean_traits_for_analysis` (#164): turns a raw
+  wide trait table into a clean, analysis-ready frame by composing the QC step-02
+  cleanup with the step-03 validation, then gating on no-NaN, ≥2 samples, and ≥1
+  non-constant trait — so `perform_pca_analysis` no longer silently drops rows.
+  Returns `(clean_df, trait_cols, cleanup_log)`. As part of the same change, the
+  step-02/step-03 functions are now importable from `sleap_roots_analyze`:
+  `apply_data_cleanup_filters`, `validate_clean_traits`, and
+  `build_clean_validation_report` (the latter two extracted from
+  `ValidateCleanStep`'s inline check, which now calls them — no pipeline behavior
+  change). All four are in `__all__`.
 - Numerical-stability golden gate (`tests/test_numerical_stability.py`): a
   golden-vs-committed drift detector that pins the UMAP (Procrustes on aligned
   coordinates, `atol=1e-6`), clustering (ARI `>0.95` + pinned `n_clusters`), and pandas

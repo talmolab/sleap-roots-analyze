@@ -150,7 +150,8 @@ def get_trait_columns(
     # Remove duplicates and filter to columns that actually exist
     exclude_cols = list(set(col for col in exclude_cols if col in df.columns))
 
-    # Get all columns not in exclude list
+    # Get all columns not in exclude list. Ordering is taken from df.columns
+    # (stable), NOT from the set() above, so trait order is deterministic.
     trait_cols = [col for col in df.columns if col not in exclude_cols]
 
     # Only return numeric columns
@@ -789,6 +790,221 @@ def apply_data_cleanup_filters(
     )
 
     return df_clean, cleanup_log
+
+
+def build_clean_validation_report(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+) -> Dict:
+    """Build the no-NaN validation report for a cleaned trait table.
+
+    This is the single source of truth for the validation report that QC step 03
+    (``ValidateCleanStep``) emits and that :func:`clean_traits_for_analysis`
+    consumes. It is pure (no I/O, no raising) so callers can save the report
+    before deciding whether to raise.
+
+    Args:
+        df: Cleaned trait dataframe to inspect.
+        trait_cols: Trait column names to check for NaNs. Remaining columns are
+            treated as metadata and reported separately.
+
+    Returns:
+        Dict with keys: ``validation_passed`` (bool), ``total_samples`` (int),
+        ``total_trait_columns`` (int), ``total_metadata_columns`` (int),
+        ``nan_values_in_traits`` (int), ``nan_values_in_metadata`` (int),
+        ``trait_nan_counts`` (dict of trait -> count, only > 0), and
+        ``metadata_nan_counts`` (dict of column -> count, only > 0).
+    """
+    nan_counts = df[trait_cols].isna().sum()
+    total_nans = nan_counts.sum()
+
+    metadata_cols = [col for col in df.columns if col not in trait_cols]
+    metadata_nan_counts = df[metadata_cols].isna().sum()
+    total_metadata_nans = metadata_nan_counts.sum()
+
+    return {
+        "validation_passed": total_nans == 0,
+        "total_samples": len(df),
+        "total_trait_columns": len(trait_cols),
+        "total_metadata_columns": len(metadata_cols),
+        "nan_values_in_traits": int(total_nans),
+        "nan_values_in_metadata": int(total_metadata_nans),
+        "trait_nan_counts": {
+            trait: int(count) for trait, count in nan_counts.items() if count > 0
+        },
+        "metadata_nan_counts": {
+            col: int(count) for col, count in metadata_nan_counts.items() if count > 0
+        },
+    }
+
+
+def _format_nan_validation_error(report: Dict) -> str:
+    """Format the canonical no-NaN validation error message.
+
+    Single source of truth for the message raised by both ``ValidateCleanStep``
+    and :func:`validate_clean_traits` so they cannot drift.
+
+    Args:
+        report: Report dict from :func:`build_clean_validation_report`.
+
+    Returns:
+        The error message string.
+    """
+    return (
+        f"Validation failed: {report['nan_values_in_traits']} NaN values found "
+        f"in trait columns!\n"
+        f"Affected traits: {list(report['trait_nan_counts'].keys())}"
+    )
+
+
+def validate_clean_traits(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+) -> Dict:
+    """Validate that a cleaned trait table has no NaNs in its trait columns.
+
+    Builds the validation report and raises if any NaN remains in ``trait_cols``.
+    This is the importable form of QC step 03's check, shared by
+    ``ValidateCleanStep`` and :func:`clean_traits_for_analysis`.
+
+    Args:
+        df: Cleaned trait dataframe to validate.
+        trait_cols: Trait column names that must be NaN-free.
+
+    Returns:
+        The validation report dict from :func:`build_clean_validation_report`.
+
+    Raises:
+        ValueError: If any NaN values remain in ``trait_cols``. The message names
+            the affected traits.
+    """
+    report = build_clean_validation_report(df, trait_cols)
+    if not report["validation_passed"]:
+        raise ValueError(_format_nan_validation_error(report))
+    return report
+
+
+def clean_traits_for_analysis(
+    df: pd.DataFrame,
+    trait_cols: Optional[List[str]] = None,
+    *,
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: Optional[str] = "rep",
+    **cleanup_kwargs,
+) -> Tuple[pd.DataFrame, List[str], Dict]:
+    """Turn a raw wide trait table into a clean, analysis-ready table.
+
+    Minimal-QC public entry point: composes the canonical smart cleanup
+    (:func:`apply_data_cleanup_filters`, QC step 02) with the no-NaN validation
+    (:func:`validate_clean_traits`, QC step 03), then adds analysis-readiness
+    gates so the result is safe to hand to ``perform_pca_analysis`` / UMAP /
+    clustering without silently dropping rows or raising on zero variance.
+
+    Validation runs in a fixed order, each raising a distinct, actionable error:
+    (1) empty input, (2) no NaN in surviving traits, (3) at least 2 surviving
+    samples, (4) at least one non-constant numeric trait (``var(ddof=0) > 0``,
+    matching ``standardize_data``).
+
+    Note: the default thresholds are :func:`apply_data_cleanup_filters`'s own
+    defaults, which differ from the QC pipeline's config defaults. Producing the
+    same output as the pipeline requires passing matched thresholds and column
+    names. Two surviving samples is the runnability floor only — meaningful
+    multivariate analysis needs many more samples than traits.
+
+    Args:
+        df: Raw wide trait dataframe.
+        trait_cols: Trait column names. If ``None``, resolved via
+            :func:`get_trait_columns`.
+        barcode_col: Barcode/plant ID column to exclude when inferring traits.
+        genotype_col: Genotype column to exclude when inferring traits.
+        replicate_col: Replicate column to exclude if present (``None`` if absent).
+        **cleanup_kwargs: Forwarded to :func:`apply_data_cleanup_filters`
+            (``max_zeros_per_trait``, ``max_nans_per_trait``,
+            ``max_nans_per_sample``, ``min_samples_per_trait``).
+
+    Returns:
+        Tuple of ``(clean_df, trait_cols, cleanup_log)`` where ``trait_cols`` is
+        the surviving trait columns and ``cleanup_log`` is the
+        :func:`apply_data_cleanup_filters` log enriched with
+        ``effective_thresholds`` and ``validation_summary``.
+
+    Raises:
+        ValueError: On empty input, residual NaN, fewer than 2 surviving samples,
+            or no non-constant numeric trait remaining.
+    """
+    # Check (1): empty input — raise our own message before delegating.
+    if df is None or df.shape[0] == 0:
+        raise ValueError(
+            "clean_traits_for_analysis: input table has no rows; nothing to clean."
+        )
+
+    if trait_cols is None:
+        trait_cols = get_trait_columns(
+            df,
+            barcode_col=barcode_col,
+            genotype_col=genotype_col,
+            replicate_col=replicate_col,
+        )
+    if not trait_cols:
+        raise ValueError(
+            "clean_traits_for_analysis: no trait columns found to clean. Pass "
+            "trait_cols explicitly or check the metadata column names."
+        )
+
+    # Resolve effective thresholds (apply_data_cleanup_filters' own defaults) so
+    # they can be recorded for auditability/reproducibility.
+    thresholds = {
+        "max_zeros_per_trait": cleanup_kwargs.pop("max_zeros_per_trait", 0.5),
+        "max_nans_per_trait": cleanup_kwargs.pop("max_nans_per_trait", 0.3),
+        "max_nans_per_sample": cleanup_kwargs.pop("max_nans_per_sample", 0.2),
+        "min_samples_per_trait": cleanup_kwargs.pop("min_samples_per_trait", 10),
+    }
+
+    clean_df, cleanup_log = apply_data_cleanup_filters(
+        df,
+        trait_cols,
+        barcode_col=barcode_col,
+        genotype_col=genotype_col,
+        replicate_col=replicate_col,
+        **thresholds,
+        **cleanup_kwargs,
+    )
+
+    # Surviving traits: removed traits are dropped from the frame by the cleanup
+    # helpers, so column membership is the robust derivation.
+    surviving = [col for col in trait_cols if col in clean_df.columns]
+
+    # Check (2): no NaN in surviving traits (shared step-03 validation).
+    validate_clean_traits(clean_df, surviving)
+
+    # Check (3): at least 2 surviving samples.
+    n_samples = len(clean_df)
+    if n_samples < 2:
+        raise ValueError(
+            f"clean_traits_for_analysis: only {n_samples} sample(s) remain after "
+            "cleanup; need at least 2 for analysis. Meaningful multivariate "
+            "analysis needs many more samples than traits."
+        )
+
+    # Check (4): at least one non-constant numeric trait (var(ddof=0) > 0),
+    # matching standardize_data's zero-variance drop test.
+    numeric = clean_df[surviving].select_dtypes(include=[np.number])
+    n_nonconstant = int((numeric.var(ddof=0) > 0).sum()) if not numeric.empty else 0
+    if n_nonconstant < 1:
+        raise ValueError(
+            "clean_traits_for_analysis: no non-constant numeric trait remains "
+            "after cleanup; PCA/UMAP/clustering require at least one varying trait."
+        )
+
+    cleanup_log["effective_thresholds"] = thresholds
+    cleanup_log["validation_summary"] = {
+        "n_samples": n_samples,
+        "n_surviving_traits": len(surviving),
+        "n_nonconstant_traits": n_nonconstant,
+    }
+
+    return clean_df, surviving, cleanup_log
 
 
 def inspect_nan_samples(

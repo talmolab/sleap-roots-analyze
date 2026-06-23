@@ -26,6 +26,10 @@ from sleap_roots_analyze.data_cleanup import (
     remove_nan_samples,
     remove_low_heritability_traits,
     inspect_nan_samples,
+    apply_data_cleanup_filters,
+    build_clean_validation_report,
+    validate_clean_traits,
+    clean_traits_for_analysis,
 )
 
 from sleap_roots_analyze.data_utils import (
@@ -220,6 +224,10 @@ __all__ = [
     "link_rhizovision_images_to_samples",
     "link_cylinder_images_from_scan_path",
     "inspect_nan_samples",
+    "apply_data_cleanup_filters",
+    "build_clean_validation_report",
+    "validate_clean_traits",
+    "clean_traits_for_analysis",
     # PCA functions
     "perform_pca_analysis",
     "calculate_mahalanobis_distances",
