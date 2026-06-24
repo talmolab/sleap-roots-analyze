@@ -132,9 +132,17 @@ class TestDocsInSync:
         assert snippet in api_md, f"docs/API.md missing documented default: {snippet!r}"
 
     def test_changelog_records_public_api(self):
-        """docs/CHANGELOG.md [Unreleased] notes the newly-importable functions."""
+        """docs/CHANGELOG.md records the newly-importable functions in the
+        current release notes.
+
+        Release-safe: entries live under [Unreleased] until a release moves
+        them into the top-most version section, so check both — otherwise this
+        guard breaks on every release that empties [Unreleased].
+        """
         changelog = (REPO_ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
-        unreleased = changelog.split("## [Unreleased]", 1)[1].split("## [", 1)[0]
-        assert "sleap_roots_analyze" in unreleased
+        after_unreleased = changelog.split("## [Unreleased]", 1)[1]
+        sections = after_unreleased.split("## [")
+        recent = sections[0] + (sections[1] if len(sections) > 1 else "")
+        assert "sleap_roots_analyze" in recent
         for name in STATISTICS_FUNCTIONS:
-            assert name in unreleased, f"{name} not noted in CHANGELOG [Unreleased]"
+            assert name in recent, f"{name} not noted in recent CHANGELOG section"
