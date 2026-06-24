@@ -36,7 +36,7 @@ def nan_heavy_data():
     """
     np.random.seed(42)
     nan_heavy = np.arange(20, dtype=float)
-    nan_heavy[:10] = np.nan  # 50% NaN -> dropped at max_nans_per_trait=0.3
+    nan_heavy[:10] = np.nan  # 50% NaN -> exceeds the default max_nans_per_trait (0.2)
     return pd.DataFrame(
         {
             "Barcode": [f"BC{i:03d}" for i in range(20)],
@@ -51,7 +51,7 @@ def nan_heavy_data():
 
 @pytest.fixture
 def quarter_nan_data():
-    """A trait at 25% NaN: survives default (0.3) but dropped at 0.1."""
+    """A trait at 25% NaN: dropped at the QC-canonical default (0.2); kept if loosened to 0.3."""
     np.random.seed(7)
     quarter = np.random.randn(20) + 3
     quarter[:5] = np.nan  # 25% NaN
@@ -114,19 +114,20 @@ def test_cleanup_kwargs_pass_through_and_effective_thresholds_recorded(
     quarter_nan_data,
 ):
     """Threshold kwargs reach the cleanup function and are recorded in the log."""
-    # Default (0.3): the 25%-NaN trait survives.
+    # QC-canonical default (0.2): the 25%-NaN trait is dropped.
     _, traits_default, log_default = clean_traits_for_analysis(
         quarter_nan_data, min_samples_per_trait=2
     )
-    assert "trait_quarter_nan" in traits_default
-    assert log_default["effective_thresholds"]["max_nans_per_trait"] == 0.3
+    assert "trait_quarter_nan" not in traits_default
+    assert log_default["effective_thresholds"]["max_nans_per_trait"] == 0.2
+    assert log_default["effective_thresholds"]["max_nans_per_sample"] == 0.0
 
-    # Tightened (0.1): it is dropped.
-    _, traits_tight, log_tight = clean_traits_for_analysis(
-        quarter_nan_data, min_samples_per_trait=2, max_nans_per_trait=0.1
+    # Loosened (0.3): the trait survives -> caller kwargs override the default.
+    _, traits_loose, log_loose = clean_traits_for_analysis(
+        quarter_nan_data, min_samples_per_trait=2, max_nans_per_trait=0.3
     )
-    assert "trait_quarter_nan" not in traits_tight
-    assert log_tight["effective_thresholds"]["max_nans_per_trait"] == 0.1
+    assert "trait_quarter_nan" in traits_loose
+    assert log_loose["effective_thresholds"]["max_nans_per_trait"] == 0.3
 
 
 def test_default_column_names_and_optional_replicate():
@@ -308,9 +309,8 @@ def test_build_report_keys_match_step_contract():
 def test_default_thresholds_deliver_clean_frame_on_sparse_data():
     """Ordinary sparse-missing data returns a clean frame (no raise) on defaults.
 
-    Regression for the default-behavior defect: a benign 12x5 frame with a single
-    NaN (per-sample fraction = 0.2, the retain boundary) used to raise instead of
-    returning an analysis-ready frame.
+    A benign 12x5 frame with a single residual NaN cleans to a NaN-free frame
+    instead of raising; only the one offending row is lost.
     """
     np.random.seed(11)
     df = pd.DataFrame(
@@ -321,8 +321,8 @@ def test_default_thresholds_deliver_clean_frame_on_sparse_data():
             **{f"trait_{j}": np.random.randn(12) + j for j in range(5)},
         }
     )
-    # One residual NaN: per-sample NaN fraction = 1/5 = 0.2 (the retain boundary),
-    # so cleanup keeps the row; the new residual-row drop removes just that row.
+    # One NaN in trait_0 (8% of its column, kept as a trait). Its row has a NaN in a
+    # surviving trait, so the QC-canonical max_nans_per_sample=0.0 drops just that row.
     df.loc[0, "trait_0"] = np.nan
     clean_df, trait_cols, _ = clean_traits_for_analysis(df)  # all defaults
     assert clean_df[trait_cols].isna().sum().sum() == 0

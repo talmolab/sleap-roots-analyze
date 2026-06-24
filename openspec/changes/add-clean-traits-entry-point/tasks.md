@@ -65,8 +65,8 @@
 - [x] 3.1 Implement `clean_traits_for_analysis(df, trait_cols=None, *, barcode_col="Barcode",
       genotype_col="geno", replicate_col="rep", **cleanup_kwargs)`:
       empty-input guard → duplicate-column + explicit-trait_cols (missing/non-numeric) guards →
-      resolve trait cols (`get_trait_columns` if None) → thresholds defaulted from
-      `inspect.signature(apply_data_cleanup_filters)` (no hardcoded copies) →
+      resolve trait cols (`get_trait_columns` if None) → thresholds default to QC-canonical
+      (`max_nans_per_trait=0.2`, `max_nans_per_sample=0.0` pinned; rest from the signature) →
       `apply_data_cleanup_filters` → derive surviving cols → **drop residual NaN rows in
       surviving traits** → `validate_clean_traits` (defensive) → assert
       ≥`MIN_SAMPLES_FOR_ANALYSIS` samples → assert ≥1 `var(ddof=0)>0` trait → INFO-log

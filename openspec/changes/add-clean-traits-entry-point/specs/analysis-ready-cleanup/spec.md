@@ -68,19 +68,21 @@ validation summary.
 
 ### Requirement: Default Thresholds and Column Names
 
-`clean_traits_for_analysis` SHALL default its cleanup thresholds to the documented defaults
-of `apply_data_cleanup_filters` (`max_zeros_per_trait=0.5`, `max_nans_per_trait=0.3`,
-`max_nans_per_sample=0.2`, `min_samples_per_trait=10`) and its metadata-column names to
+`clean_traits_for_analysis` SHALL default its cleanup thresholds to the QC pipeline's
+canonical values (`max_zeros_per_trait=0.5`, `max_nans_per_trait=0.2`,
+`max_nans_per_sample=0.0`, `min_samples_per_trait=10`) and its metadata-column names to
 `barcode_col="Barcode"`, `genotype_col="geno"`, `replicate_col="rep"`, and SHALL record the
-effective thresholds in the returned `cleanup_log`. These defaults are the cleanup
-function's own, which differ from the QC pipeline's config defaults; identical output to the
-pipeline requires passing matched thresholds and column names.
+effective thresholds in the returned `cleanup_log`. Two of these defaults differ from
+`apply_data_cleanup_filters`' own (looser) signature defaults (`max_nans_per_trait=0.3`,
+`max_nans_per_sample=0.2`) and are pinned in the entry point so its output matches the QC
+pipeline's cleaning, not a looser clean; caller kwargs override. (Aligning the shared
+function's own defaults is tracked separately in #167.)
 
 #### Scenario: Effective thresholds are recorded for auditability
 
 - **WHEN** `clean_traits_for_analysis(df)` is called without threshold overrides
 - **THEN** `cleanup_log["effective_thresholds"]` SHALL contain
-  `max_zeros_per_trait=0.5`, `max_nans_per_trait=0.3`, `max_nans_per_sample=0.2`,
+  `max_zeros_per_trait=0.5`, `max_nans_per_trait=0.2`, `max_nans_per_sample=0.0`,
   `min_samples_per_trait=10`
 
 #### Scenario: Replicate column may be absent

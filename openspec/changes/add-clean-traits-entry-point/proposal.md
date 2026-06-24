@@ -59,8 +59,9 @@ Following the #116 (`expose-statistics-functions`) pattern — extract & expose,
       and explicit `trait_cols` that are missing from `df` or non-numeric;
    2. resolves trait columns via `get_trait_columns` when `trait_cols` is not passed;
    3. runs `apply_data_cleanup_filters(df, trait_cols, …)` — the exposed step-02 cleanup —
-      with thresholds defaulted from that function's **own signature** (no hardcoded copies
-      to drift), caller kwargs overriding;
+      with thresholds defaulting to the **QC pipeline's canonical** values
+      (`max_nans_per_trait=0.2`, `max_nans_per_sample=0.0` pinned; the rest inherited from
+      the function signature), caller kwargs overriding;
    4. derives the **surviving** trait columns as `[c for c in trait_cols if c in clean_df.columns]`
       (removed traits are dropped from the frame by the cleanup helpers);
    5. **drops any rows that still carry NaN in the surviving traits** (residual NaNs below
@@ -92,15 +93,18 @@ semantics* cannot drift. They do **not** guarantee identical *output*, because:
 - the pipeline **sanitizes/abbreviates trait names** (`sanitize_trait_names`, step 02) and
   passes its **config-driven thresholds** + sanitized column names (`"Genotype"`,
   `"Replicate"`) before calling the cleanup function;
-- the entry point operates on the **raw** caller-supplied table, with the cleanup
-  function's **own documented defaults** (`max_zeros_per_trait=0.5`, `max_nans_per_trait=0.3`,
-  `max_nans_per_sample=0.2`, `min_samples_per_trait=10`) and column-name kwargs
+- the entry point operates on the **raw** caller-supplied table, with column-name kwargs
   (`barcode_col="Barcode"`, `genotype_col="geno"`, `replicate_col="rep"`).
 
-These defaults are the **function's**, not the pipeline's config defaults
-(`max_nans_per_trait=0.2`, `max_nan_fraction=0.0`); identical results require passing
-matched thresholds. The spec pins the default values, the entry point records the effective
-thresholds into `cleanup_log`, and the docstring states this explicitly.
+The entry point defaults to the **QC pipeline's canonical thresholds**
+(`max_zeros_per_trait=0.5`, `max_nans_per_trait=0.2`, `max_nans_per_sample=0.0`,
+`min_samples_per_trait=10`) so its cleaning matches the pipeline's rather than a looser
+clean. Two of these are pinned in the entry point because they differ from
+`apply_data_cleanup_filters`' own looser signature defaults (`max_nans_per_trait=0.3`,
+`max_nans_per_sample=0.2`); aligning the shared function's defaults is tracked separately in
+#167. Caller kwargs override; the entry point records the effective thresholds into
+`cleanup_log`, and the docstring states this. (Trait-name sanitization is still not applied,
+so byte-equivalence with the pipeline's CSV remains a non-goal.)
 
 ### Out of scope (explicitly)
 

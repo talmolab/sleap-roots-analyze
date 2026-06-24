@@ -907,10 +907,13 @@ def clean_traits_for_analysis(
     gates so the result is safe to hand to ``perform_pca_analysis`` / UMAP /
     clustering without silently dropping rows or raising on zero variance.
 
-    Cleanup order (minimizing sample loss): drop bad **traits** first
-    (zero-inflated / too-many-NaN / low-sample), then drop any remaining **rows**
-    that still carry NaN in the surviving traits. The returned frame is therefore
-    guaranteed NaN-free in its trait columns.
+    Cleanup order (matching the QC pipeline's stricter cleaning): drop bad
+    **traits** first (zero-inflated / too-many-NaN / low-sample), then drop any
+    remaining **rows** that still carry NaN in the surviving traits. Dropping bad
+    traits first still loses fewer samples than a naive ``df.dropna()``, but with
+    the QC-canonical ``max_nans_per_sample=0.0`` default, any sample carrying a NaN
+    in a surviving trait is dropped. The returned frame is guaranteed NaN-free in
+    its trait columns.
 
     Validation runs in a fixed order, each raising a distinct, actionable error:
     (1) empty input, (2) no NaN in surviving traits, (3) at least
@@ -918,10 +921,15 @@ def clean_traits_for_analysis(
     non-constant numeric trait (``var(ddof=0) > 0``, matching ``standardize_data``).
 
     Notes:
-        - Default thresholds are :func:`apply_data_cleanup_filters`'s own signature
-          defaults, which **differ** from the QC pipeline's config defaults. The
-          effective thresholds are recorded in ``cleanup_log["effective_thresholds"]``
-          and logged at INFO.
+        - Default thresholds are the **QC pipeline's canonical** values
+          (``max_zeros_per_trait=0.5``, ``max_nans_per_trait=0.2``,
+          ``max_nans_per_sample=0.0``, ``min_samples_per_trait=10``), so the
+          analysis-ready frame matches what the QC pipeline produces rather than a
+          looser clean. (``apply_data_cleanup_filters``'s own signature defaults are
+          looser for two of these — ``max_nans_per_trait=0.3``,
+          ``max_nans_per_sample=0.2``; aligning them is tracked in #167.) Caller
+          kwargs override; the effective thresholds are recorded in
+          ``cleanup_log["effective_thresholds"]`` and logged at INFO.
         - This entry point does **NOT** apply trait-name sanitization
           (``sanitize_trait_names``) or column reordering that
           ``CleanupTraitsStep`` performs, so its output is **not** byte-equivalent
@@ -1000,9 +1008,14 @@ def clean_traits_for_analysis(
             "trait_cols explicitly or check the metadata column names."
         )
 
-    # Resolve effective thresholds from apply_data_cleanup_filters' own signature
-    # defaults — single source of truth, no hardcoded copies to drift — letting
-    # caller kwargs override.
+    # Resolve effective thresholds. The entry point defaults to the QC pipeline's
+    # canonical cleaning (DataConfig in pipeline/config/components.py) so the
+    # analysis-ready frame it hands to PCA/UMAP equals what the QC pipeline would
+    # produce, not a looser clean. Two values differ from apply_data_cleanup_filters'
+    # own (looser) signature defaults and are pinned here; the rest are inherited
+    # from the signature. Aligning the shared function's own defaults is a broader,
+    # separate change (tracked in #167). Caller-passed kwargs still override.
+    _QC_DEFAULTS = {"max_nans_per_trait": 0.2, "max_nans_per_sample": 0.0}
     sig = inspect.signature(apply_data_cleanup_filters)
     threshold_names = (
         "max_zeros_per_trait",
@@ -1011,7 +1024,9 @@ def clean_traits_for_analysis(
         "min_samples_per_trait",
     )
     thresholds = {
-        name: cleanup_kwargs.pop(name, sig.parameters[name].default)
+        name: cleanup_kwargs.pop(
+            name, _QC_DEFAULTS.get(name, sig.parameters[name].default)
+        )
         for name in threshold_names
     }
 
@@ -1080,13 +1095,12 @@ def clean_traits_for_analysis(
     }
 
     # Surface the effective thresholds for programmatic consumers (e.g. bloom-mcp),
-    # which never see the docstring's note that these defaults differ from the QC
-    # pipeline's config defaults and that name-sanitization is not applied.
+    # which never see the docstring's note about the QC-canonical defaults and that
+    # name-sanitization is not applied.
     logger.info(
         "clean_traits_for_analysis: kept %d samples x %d traits using thresholds "
-        "%s (apply_data_cleanup_filters defaults, which differ from the QC "
-        "pipeline config; trait-name sanitization NOT applied, so output is not "
-        "byte-equivalent to the pipeline).",
+        "%s (QC-canonical defaults unless overridden; trait-name sanitization NOT "
+        "applied, so output is not byte-equivalent to the pipeline).",
         n_samples,
         len(surviving),
         thresholds,

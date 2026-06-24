@@ -48,12 +48,17 @@ parallel re-implementation.
     `StepResult.metadata` keys downstream steps read (`valid_trait_names`, `trait_names` —
     consumed by `exploratory_analysis.py:73`, `pca_analysis.py:54`, `detect_outliers.py:71`).
 
-- **D3 — Entry-point signature + threshold defaults from signature.**
+- **D3 — Entry-point signature + QC-canonical threshold defaults.**
   `clean_traits_for_analysis(df, trait_cols=None, *, barcode_col="Barcode", genotype_col="geno", replicate_col="rep", **cleanup_kwargs) -> tuple[pd.DataFrame, list[str], dict]`.
-  Cleanup threshold kwargs (`max_zeros_per_trait`, `max_nans_per_trait`,
-  `max_nans_per_sample`, `min_samples_per_trait`) are defaulted by reading
-  `inspect.signature(apply_data_cleanup_filters)` — **not** hardcoded copies (which would be
-  a drift seam in a PR whose purpose is preventing drift) — with caller kwargs overriding.
+  Cleanup threshold kwargs default to the **QC pipeline's canonical** values
+  (`max_zeros_per_trait=0.5`, `max_nans_per_trait=0.2`, `max_nans_per_sample=0.0`,
+  `min_samples_per_trait=10`) so the entry point cleans like the pipeline. Two of these
+  (`max_nans_per_trait`, `max_nans_per_sample`) differ from `apply_data_cleanup_filters`'
+  own looser signature defaults and are pinned in a small `_QC_DEFAULTS` consulted before
+  the signature default; the other two are inherited from
+  `inspect.signature(apply_data_cleanup_filters)` (no hardcoded copy where it already
+  matches). Caller kwargs override. (Aligning the shared function's own defaults — used by
+  `visualization.py` and `test_data_cleanup.py` — is a broader change tracked in #167.)
   Column-name defaults match the cleanup/`get_trait_columns` defaults
   (`"Barcode"`/`"geno"`/`"rep"`); `replicate_col=None` is honored (issue #142). Up-front
   misuse guards: duplicate column names, and explicit `trait_cols` that are missing from
@@ -68,12 +73,14 @@ parallel re-implementation.
 
 - **D5 — Residual-NaN-row drop, then fixed-order validation.**
   `apply_data_cleanup_filters` removes NaN-heavy *traits* and NaN-heavy *samples* per the
-  thresholds, but can leave residual NaNs *below* those thresholds (e.g. with the function's
-  default `max_nans_per_sample=0.2`, a sample at exactly 20% NaN is retained). So the entry
-  point next **drops any rows still carrying NaN in the surviving traits**
+  thresholds, but can leave residual NaNs *below* those thresholds when a caller **loosens**
+  `max_nans_per_sample` above the QC-canonical default of `0.0` (at `0.0` the function
+  already drops any sample with a NaN in a surviving trait). So the entry point next
+  **drops any rows still carrying NaN in the surviving traits**
   (`clean_df.dropna(subset=surviving)`) — the documented "drop bad traits, then NaN rows"
-  step. This delivers a clean frame on ordinary sparse data instead of raising, and loses
-  far fewer samples than a naive `df.dropna()` because the bad traits are already gone.
+  step, and a defensive guard that the returned frame is NaN-free for any thresholds. It
+  still loses fewer samples than a naive `df.dropna()` because the bad traits are dropped
+  first, but with the QC-canonical default it matches the pipeline's stricter cleaning.
   Then validation runs in fixed order, each error distinct/actionable:
   1. **empty input** (no rows, or no resolvable trait columns) → entry point's own message,
      raised *before* any delegation so it never surfaces PCA's generic `"Empty DataFrame
@@ -106,10 +113,13 @@ parallel re-implementation.
 
 ## Risks / Trade-offs
 
-- **Entry-point defaults ≠ pipeline config defaults** (cleanup function: 0.3/0.2; pipeline
-  config: 0.2/0.0). → Mitigation: spec pins the default values, D6 records effective
-  thresholds, docstring states the difference and that matched thresholds are required for
-  parity. SSOT claim is scoped to *functions/semantics*, not *identical output*.
+- **Entry-point defaults vs the shared function's looser signature defaults.** The entry
+  point pins the QC-canonical `max_nans_per_trait=0.2` / `max_nans_per_sample=0.0` so its
+  cleaning matches the pipeline; `apply_data_cleanup_filters`' own defaults stay looser
+  (0.3 / 0.2) because they are also used by `visualization.py` and `test_data_cleanup.py`
+  (broader alignment tracked in #167). → Mitigation: spec pins the entry-point defaults, D6
+  records the effective thresholds, the docstring states them. Output still differs from the
+  pipeline's CSV only by trait-name sanitization (a documented non-goal), not thresholds.
 - **Near-constant (not exactly constant) surviving traits** — `var(ddof=0) > 0` is the
   correct gate: it matches `standardize_data` exactly and is divide-by-zero-safe via
   sklearn's `_handle_zeros_in_scale` (a trait with `var≈3e-31` passes and standardizes
