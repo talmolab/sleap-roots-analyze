@@ -132,9 +132,18 @@ class TestDocsInSync:
         assert snippet in api_md, f"docs/API.md missing documented default: {snippet!r}"
 
     def test_changelog_records_public_api(self):
-        """docs/CHANGELOG.md [Unreleased] notes the newly-importable functions."""
+        """docs/CHANGELOG.md documents the public statistics API permanently.
+
+        Each statistics function must be recorded *somewhere* in the changelog.
+        They were documented once, in the release that exposed them (#116), and
+        a Keep-a-Changelog roll moves that entry from ``[Unreleased]`` into a
+        dated version section every release. A windowed check (``[Unreleased]``
+        + the top-most version section) therefore breaks on the next release,
+        when the entry scrolls out of the window — that only *defers* the
+        failure. Documentation is permanent, so the invariant is too: scan the
+        whole file.
+        """
         changelog = (REPO_ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
-        unreleased = changelog.split("## [Unreleased]", 1)[1].split("## [", 1)[0]
-        assert "sleap_roots_analyze" in unreleased
+        assert "sleap_roots_analyze" in changelog
         for name in STATISTICS_FUNCTIONS:
-            assert name in unreleased, f"{name} not noted in CHANGELOG [Unreleased]"
+            assert name in changelog, f"{name} not documented anywhere in CHANGELOG"

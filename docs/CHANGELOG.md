@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a3] - 2026-06-24 (Pre-release)
+
 ### Added
+- Serializable analysis result types in the public API: `PCAResult`
+  (#127/#149), `HeritabilityResult` (#128/#150), and `ClusterResult` with its
+  `KMeansResult` / `GMMResult` subclasses (#129/#151). Each is a `frozen`
+  dataclass exported from the top-level `sleap_roots_analyze` namespace and
+  `__all__`, with `to_dict()` / `to_json()` adapters for lossless
+  serialization, so downstream consumers (e.g. bloom-mcp) can import and
+  round-trip typed results instead of parsing untyped `perform_*` dict returns.
 - Public minimal-QC entry point `clean_traits_for_analysis` (#164): turns a raw
   wide trait table into a clean, analysis-ready frame by composing the QC step-02
   cleanup with the step-03 validation, then gating on no-NaN, ≥2 samples, and ≥1
