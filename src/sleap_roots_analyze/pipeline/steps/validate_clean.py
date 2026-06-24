@@ -5,6 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+from sleap_roots_analyze.data_cleanup import (
+    build_clean_validation_report,
+    _format_nan_validation_error,
+)
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
 
@@ -51,32 +55,11 @@ class ValidateCleanStep(BaseStep):
         # Get valid trait columns from previous step
         trait_cols = prev_result.metadata["valid_trait_names"]
 
-        # Check for NaNs in trait columns
-        nan_counts = df[trait_cols].isna().sum()
-        total_nans = nan_counts.sum()
-
-        # Check for NaNs in metadata columns too (just for reporting)
-        metadata_cols = [col for col in df.columns if col not in trait_cols]
-        metadata_nan_counts = df[metadata_cols].isna().sum()
-        total_metadata_nans = metadata_nan_counts.sum()
-
-        # Create validation report
-        validation_report = {
-            "validation_passed": total_nans == 0,
-            "total_samples": len(df),
-            "total_trait_columns": len(trait_cols),
-            "total_metadata_columns": len(metadata_cols),
-            "nan_values_in_traits": int(total_nans),
-            "nan_values_in_metadata": int(total_metadata_nans),
-            "trait_nan_counts": {
-                trait: int(count) for trait, count in nan_counts.items() if count > 0
-            },
-            "metadata_nan_counts": {
-                col: int(count)
-                for col, count in metadata_nan_counts.items()
-                if count > 0
-            },
-        }
+        # Build the validation report (single source of truth, shared with the
+        # public clean_traits_for_analysis entry point).
+        validation_report = build_clean_validation_report(df, trait_cols)
+        total_nans = validation_report["nan_values_in_traits"]
+        total_metadata_nans = validation_report["nan_values_in_metadata"]
 
         # Save validation report
         files = []
@@ -86,10 +69,7 @@ class ValidateCleanStep(BaseStep):
 
         # Raise error if validation fails
         if total_nans > 0:
-            raise ValueError(
-                f"Validation failed: {total_nans} NaN values found in trait columns!\n"
-                f"Affected traits: {list(validation_report['trait_nan_counts'].keys())}"
-            )
+            raise ValueError(_format_nan_validation_error(validation_report))
 
         # Create metadata
         metadata = {
