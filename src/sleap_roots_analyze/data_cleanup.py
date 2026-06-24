@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import pandas as pd
 import numpy as np
+import inspect
 import json
 import logging
+import warnings
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
 from .data_utils import convert_to_json_serializable, create_run_directory
 
 # Set up module logger
 logger = logging.getLogger(__name__)
+
+# Minimum surviving samples for the entry point to return an analysis-ready frame.
+# This is the mathematical runnability floor for PCA, NOT a sufficiency guarantee.
+MIN_SAMPLES_FOR_ANALYSIS = 2
 
 
 def load_trait_data(
@@ -795,7 +801,7 @@ def apply_data_cleanup_filters(
 def build_clean_validation_report(
     df: pd.DataFrame,
     trait_cols: List[str],
-) -> Dict:
+) -> Dict[str, Any]:
     """Build the no-NaN validation report for a cleaned trait table.
 
     This is the single source of truth for the validation report that QC step 03
@@ -838,7 +844,7 @@ def build_clean_validation_report(
     }
 
 
-def _format_nan_validation_error(report: Dict) -> str:
+def _format_nan_validation_error(report: Dict[str, Any]) -> str:
     """Format the canonical no-NaN validation error message.
 
     Single source of truth for the message raised by both ``ValidateCleanStep``
@@ -860,7 +866,7 @@ def _format_nan_validation_error(report: Dict) -> str:
 def validate_clean_traits(
     df: pd.DataFrame,
     trait_cols: List[str],
-) -> Dict:
+) -> Dict[str, Any]:
     """Validate that a cleaned trait table has no NaNs in its trait columns.
 
     Builds the validation report and raises if any NaN remains in ``trait_cols``.
@@ -891,8 +897,8 @@ def clean_traits_for_analysis(
     barcode_col: str = "Barcode",
     genotype_col: str = "geno",
     replicate_col: Optional[str] = "rep",
-    **cleanup_kwargs,
-) -> Tuple[pd.DataFrame, List[str], Dict]:
+    **cleanup_kwargs: Any,
+) -> Tuple[pd.DataFrame, List[str], Dict[str, Any]]:
     """Turn a raw wide trait table into a clean, analysis-ready table.
 
     Minimal-QC public entry point: composes the canonical smart cleanup
@@ -901,16 +907,29 @@ def clean_traits_for_analysis(
     gates so the result is safe to hand to ``perform_pca_analysis`` / UMAP /
     clustering without silently dropping rows or raising on zero variance.
 
-    Validation runs in a fixed order, each raising a distinct, actionable error:
-    (1) empty input, (2) no NaN in surviving traits, (3) at least 2 surviving
-    samples, (4) at least one non-constant numeric trait (``var(ddof=0) > 0``,
-    matching ``standardize_data``).
+    Cleanup order (minimizing sample loss): drop bad **traits** first
+    (zero-inflated / too-many-NaN / low-sample), then drop any remaining **rows**
+    that still carry NaN in the surviving traits. The returned frame is therefore
+    guaranteed NaN-free in its trait columns.
 
-    Note: the default thresholds are :func:`apply_data_cleanup_filters`'s own
-    defaults, which differ from the QC pipeline's config defaults. Producing the
-    same output as the pipeline requires passing matched thresholds and column
-    names. Two surviving samples is the runnability floor only — meaningful
-    multivariate analysis needs many more samples than traits.
+    Validation runs in a fixed order, each raising a distinct, actionable error:
+    (1) empty input, (2) no NaN in surviving traits, (3) at least
+    ``MIN_SAMPLES_FOR_ANALYSIS`` (2) surviving samples, (4) at least one
+    non-constant numeric trait (``var(ddof=0) > 0``, matching ``standardize_data``).
+
+    Notes:
+        - Default thresholds are :func:`apply_data_cleanup_filters`'s own signature
+          defaults, which **differ** from the QC pipeline's config defaults. The
+          effective thresholds are recorded in ``cleanup_log["effective_thresholds"]``
+          and logged at INFO.
+        - This entry point does **NOT** apply trait-name sanitization
+          (``sanitize_trait_names``) or column reordering that
+          ``CleanupTraitsStep`` performs, so its output is **not** byte-equivalent
+          to the pipeline's ``02_data_samples_cleaned.csv`` (trait names, identities,
+          and order can differ) — byte-equivalence with the pipeline is not a goal.
+        - ``MIN_SAMPLES_FOR_ANALYSIS`` is the runnability floor only; a
+          ``UserWarning`` is emitted in the p > n regime (more traits than samples),
+          where multivariate analysis is statistically unreliable.
 
     Args:
         df: Raw wide trait dataframe.
@@ -930,13 +949,25 @@ def clean_traits_for_analysis(
         ``effective_thresholds`` and ``validation_summary``.
 
     Raises:
-        ValueError: On empty input, residual NaN, fewer than 2 surviving samples,
-            or no non-constant numeric trait remaining.
+        ValueError: On empty input; duplicate column names; explicit ``trait_cols``
+            that are missing from ``df`` or non-numeric; fewer than
+            ``MIN_SAMPLES_FOR_ANALYSIS`` surviving samples; or no non-constant
+            numeric trait remaining. (Residual NaN is dropped, not raised; the
+            shared validation remains as a defensive guard.)
     """
     # Check (1): empty input — raise our own message before delegating.
     if df is None or df.shape[0] == 0:
         raise ValueError(
             "clean_traits_for_analysis: input table has no rows; nothing to clean."
+        )
+
+    # Reject duplicate column names up front: they make trait selection ambiguous
+    # and otherwise degrade into a misleading "no trait columns found" error.
+    if df.columns.duplicated().any():
+        dups = sorted(set(df.columns[df.columns.duplicated()]))
+        raise ValueError(
+            f"clean_traits_for_analysis: duplicate column names in input: {dups}. "
+            "Deduplicate columns before cleaning."
         )
 
     if trait_cols is None:
@@ -946,19 +977,42 @@ def clean_traits_for_analysis(
             genotype_col=genotype_col,
             replicate_col=replicate_col,
         )
+    else:
+        # Validate explicit trait_cols up front so misuse yields an actionable
+        # error instead of a bare pandas KeyError or a later PCA failure.
+        missing = [c for c in trait_cols if c not in df.columns]
+        if missing:
+            raise ValueError(
+                f"clean_traits_for_analysis: trait_cols not found in dataframe: "
+                f"{missing}."
+            )
+        non_numeric = [
+            c for c in trait_cols if not pd.api.types.is_numeric_dtype(df[c])
+        ]
+        if non_numeric:
+            raise ValueError(
+                "clean_traits_for_analysis: trait_cols must be numeric; non-numeric "
+                f"columns passed: {non_numeric}."
+            )
     if not trait_cols:
         raise ValueError(
             "clean_traits_for_analysis: no trait columns found to clean. Pass "
             "trait_cols explicitly or check the metadata column names."
         )
 
-    # Resolve effective thresholds (apply_data_cleanup_filters' own defaults) so
-    # they can be recorded for auditability/reproducibility.
+    # Resolve effective thresholds from apply_data_cleanup_filters' own signature
+    # defaults — single source of truth, no hardcoded copies to drift — letting
+    # caller kwargs override.
+    sig = inspect.signature(apply_data_cleanup_filters)
+    threshold_names = (
+        "max_zeros_per_trait",
+        "max_nans_per_trait",
+        "max_nans_per_sample",
+        "min_samples_per_trait",
+    )
     thresholds = {
-        "max_zeros_per_trait": cleanup_kwargs.pop("max_zeros_per_trait", 0.5),
-        "max_nans_per_trait": cleanup_kwargs.pop("max_nans_per_trait", 0.3),
-        "max_nans_per_sample": cleanup_kwargs.pop("max_nans_per_sample", 0.2),
-        "min_samples_per_trait": cleanup_kwargs.pop("min_samples_per_trait", 10),
+        name: cleanup_kwargs.pop(name, sig.parameters[name].default)
+        for name in threshold_names
     }
 
     clean_df, cleanup_log = apply_data_cleanup_filters(
@@ -975,16 +1029,27 @@ def clean_traits_for_analysis(
     # helpers, so column membership is the robust derivation.
     surviving = [col for col in trait_cols if col in clean_df.columns]
 
-    # Check (2): no NaN in surviving traits (shared step-03 validation).
+    # Drop any rows that still carry NaN in the surviving traits.
+    # apply_data_cleanup_filters removes NaN-heavy *traits* and NaN-heavy *samples*
+    # (per the thresholds) but can leave residual NaNs below those thresholds.
+    # Dropping them here delivers the promised clean frame ("drop bad traits, then
+    # the remaining NaN rows") while keeping sample loss minimal — the bad traits
+    # were already removed first, so far fewer rows are lost than a naive dropna().
+    if surviving:
+        clean_df = clean_df.dropna(subset=surviving)
+
+    # Check (2): no NaN in surviving traits. After the row drop above this holds by
+    # construction; keep the shared step-03 assertion as a defensive guard against
+    # silent corruption.
     validate_clean_traits(clean_df, surviving)
 
-    # Check (3): at least 2 surviving samples.
+    # Check (3): at least MIN_SAMPLES_FOR_ANALYSIS surviving samples.
     n_samples = len(clean_df)
-    if n_samples < 2:
+    if n_samples < MIN_SAMPLES_FOR_ANALYSIS:
         raise ValueError(
             f"clean_traits_for_analysis: only {n_samples} sample(s) remain after "
-            "cleanup; need at least 2 for analysis. Meaningful multivariate "
-            "analysis needs many more samples than traits."
+            f"cleanup; need at least {MIN_SAMPLES_FOR_ANALYSIS} for analysis. "
+            "Meaningful multivariate analysis needs many more samples than traits."
         )
 
     # Check (4): at least one non-constant numeric trait (var(ddof=0) > 0),
@@ -997,12 +1062,35 @@ def clean_traits_for_analysis(
             "after cleanup; PCA/UMAP/clustering require at least one varying trait."
         )
 
+    # Warn in the p > n regime: PCA/UMAP/clustering on more traits than samples is
+    # statistically fragile even though it runs.
+    if n_samples < len(surviving):
+        warnings.warn(
+            f"clean_traits_for_analysis: {n_samples} samples < {len(surviving)} "
+            "traits (p > n); multivariate analysis results will be statistically "
+            "unreliable. Consider more samples or fewer traits.",
+            stacklevel=2,
+        )
+
     cleanup_log["effective_thresholds"] = thresholds
     cleanup_log["validation_summary"] = {
         "n_samples": n_samples,
         "n_surviving_traits": len(surviving),
         "n_nonconstant_traits": n_nonconstant,
     }
+
+    # Surface the effective thresholds for programmatic consumers (e.g. bloom-mcp),
+    # which never see the docstring's note that these defaults differ from the QC
+    # pipeline's config defaults and that name-sanitization is not applied.
+    logger.info(
+        "clean_traits_for_analysis: kept %d samples x %d traits using thresholds "
+        "%s (apply_data_cleanup_filters defaults, which differ from the QC "
+        "pipeline config; trait-name sanitization NOT applied, so output is not "
+        "byte-equivalent to the pipeline).",
+        n_samples,
+        len(surviving),
+        thresholds,
+    )
 
     return clean_df, surviving, cleanup_log
 

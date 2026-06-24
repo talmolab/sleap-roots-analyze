@@ -55,18 +55,30 @@ Following the #116 (`expose-statistics-functions`) pattern — extract & expose,
 ### B. Add the entry point that composes the exposed functions
 
 5. Add public **`clean_traits_for_analysis`** in `data_cleanup.py` that:
-   1. resolves trait columns via `get_trait_columns` when `trait_cols` is not passed;
-   2. runs `apply_data_cleanup_filters(df, trait_cols, …)` — the exposed step-02 cleanup;
-   3. derives the **surviving** trait columns as `[c for c in trait_cols if c in clean_df.columns]`
+   1. rejects malformed input up front with actionable errors — duplicate column names,
+      and explicit `trait_cols` that are missing from `df` or non-numeric;
+   2. resolves trait columns via `get_trait_columns` when `trait_cols` is not passed;
+   3. runs `apply_data_cleanup_filters(df, trait_cols, …)` — the exposed step-02 cleanup —
+      with thresholds defaulted from that function's **own signature** (no hardcoded copies
+      to drift), caller kwargs overriding;
+   4. derives the **surviving** trait columns as `[c for c in trait_cols if c in clean_df.columns]`
       (removed traits are dropped from the frame by the cleanup helpers);
-   4. **validates** in a pinned order, each with a distinct, actionable `ValueError`:
+   5. **drops any rows that still carry NaN in the surviving traits** (residual NaNs below
+      the cleanup thresholds) — this is the "then drop NaN rows" step that delivers the
+      clean frame instead of raising on ordinary sparse data; sample loss stays minimal
+      because bad traits were dropped first;
+   6. **validates** in a pinned order, each with a distinct, actionable `ValueError`:
       **(a)** empty input → its own message *before* delegating;
-      **(b)** no NaN in surviving traits, via the exposed `validate_clean_traits`;
-      **(c)** ≥2 surviving samples (message names the surviving count);
+      **(b)** no NaN in surviving traits, via the exposed `validate_clean_traits` —
+      a defensive guard after step 5 (does not raise under normal flow);
+      **(c)** ≥`MIN_SAMPLES_FOR_ANALYSIS` (2) surviving samples (message names the count);
       **(d)** ≥1 non-constant numeric trait, *non-constant* defined as
       `var(ddof=0) > 0` — the **same** basis `perform_pca_analysis`/`standardize_data`
       uses (`pca.py:643-645`) so the gate and downstream agree;
-   5. returns `(clean_df, trait_cols, cleanup_log)`, where `cleanup_log` is the
+   7. **logs** (INFO) the effective thresholds + the note that they differ from the pipeline
+      config and that name-sanitization is not applied, and emits a `UserWarning` in the
+      **p > n** regime (more surviving traits than samples);
+   8. returns `(clean_df, trait_cols, cleanup_log)`, where `cleanup_log` is the
       `apply_data_cleanup_filters` log **enriched** with the *effective thresholds used* and
       a *validation summary*, so the result is auditable and reproducible.
 6. **Export `clean_traits_for_analysis`** in `__all__`; add it to `docs/API.md` + CHANGELOG.

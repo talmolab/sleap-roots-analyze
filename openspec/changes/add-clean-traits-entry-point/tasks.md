@@ -45,24 +45,49 @@
 - [x] 2.11 Test: `validate_clean_traits` on residual-NaN input raises the **byte-exact**
       canonical message (`"Validation failed: {n} NaN values found in trait columns!\n
       Affected traits: [...]"`).
-- [x] 2.12 Regression test for "no behavior change to steps 01–03": reuse/extend
-      `TestQCPipelineIntegration` (`tests/test_qc_pipeline.py`, the 187→158 sample / 38-trait
-      / `validation_passed` baseline). Assert cleaned-data frame equality, saved
-      `03_validation_report.json` contents, and `StepResult.metadata` unchanged. Capture the
-      pre-refactor baseline from `git stash`/pre-refactor `HEAD` if a frozen snapshot is used
-      — do not hand-author it.
+- [x] 2.12 "No behavior change to steps 01–03" coverage. The transparent refactor is guarded
+      by: (a) the **existing** `tests/test_step_validate_clean.py` (drives `ValidateCleanStep`
+      directly; passes unchanged), (b) the **existing** `TestQCPipelineIntegration`
+      (`tests/test_qc_pipeline.py`, steps 01→03; passes unchanged), and (c) a **new** focused
+      `test_step02_to_step03_uses_shared_functions_and_passes` in
+      `tests/test_clean_traits_entry_point.py` that runs `CleanupTraitsStep` → `ValidateCleanStep`
+      through the extracted functions and asserts `validation_passed` / no trait NaNs.
+      (Corrected: no new test was added to `test_qc_pipeline.py`; the existing one is the
+      integration guard.)
+- [x] 2.13 Behavior tests added with §3 changes: default thresholds deliver a clean frame on
+      ordinary sparse data (no raise); residual NaN rows dropped while clean rows kept;
+      cleanup-path (not pre-shrunk input) trips the <2-samples gate; explicit `trait_cols`
+      missing / non-numeric and duplicate column names raise actionable errors; `UserWarning`
+      in the p > n regime.
 
 ## 3. Implement the entry point (green)
 
 - [x] 3.1 Implement `clean_traits_for_analysis(df, trait_cols=None, *, barcode_col="Barcode",
       genotype_col="geno", replicate_col="rep", **cleanup_kwargs)`:
-      empty-input guard → resolve trait cols (`get_trait_columns` if None) →
-      `apply_data_cleanup_filters` → derive surviving cols → `validate_clean_traits` →
-      assert ≥2 samples → assert ≥1 `var(ddof=0)>0` trait → enrich `cleanup_log` with
-      `effective_thresholds` + `validation_summary` → return `(clean_df, trait_cols, cleanup_log)`.
-- [x] 3.2 Google-style docstring: document the 4 ordered checks, that defaults are the
-      cleanup function's (not the pipeline config's), the parity caveat, and that ≥2 samples
-      is a runnability floor.
+      empty-input guard → duplicate-column + explicit-trait_cols (missing/non-numeric) guards →
+      resolve trait cols (`get_trait_columns` if None) → thresholds defaulted from
+      `inspect.signature(apply_data_cleanup_filters)` (no hardcoded copies) →
+      `apply_data_cleanup_filters` → derive surviving cols → **drop residual NaN rows in
+      surviving traits** → `validate_clean_traits` (defensive) → assert
+      ≥`MIN_SAMPLES_FOR_ANALYSIS` samples → assert ≥1 `var(ddof=0)>0` trait → INFO-log
+      effective thresholds + pipeline-divergence note → `UserWarning` if p > n → enrich
+      `cleanup_log` with `effective_thresholds` + `validation_summary` → return tuple.
+- [x] 3.2 Google-style docstring: document the cleanup order (drop bad traits, then residual
+      NaN rows), the 4 ordered checks, that defaults are the cleanup function's signature
+      defaults (not the pipeline config's), that name-sanitization is NOT applied so output is
+      not byte-equivalent to the pipeline, and that ≥2 samples is a runnability floor.
+
+## 5. mypy baseline gate (repo-health, required for green CI)
+
+- [x] 5.1 Annotate `**cleanup_kwargs: Any` + add `Any` to the typing import in
+      `data_cleanup.py` (fixes the one new error this PR introduced).
+- [x] 5.2 `mypy-baseline sync` `.mypy-baseline.txt`: the baseline was already stale on `main`
+      (63 entries no longer reproduce, from #159/#162 merging without a sync) and `main` is
+      mypy-red, so the gate fails regardless of #166. Sync regenerates it; verify
+      `mypy … | mypy-baseline filter` exits 0 (new:0, fixed:0).
+- [ ] 5.3 Follow-up issue: fix the inherited #159 type-lies frozen in the baseline
+      (`data_utils.py` `convert_to_json_serializable` untyped; `reduce_trait_redundancy.py`
+      `files_generated` `list[str]` vs `list[Path]`). Out of scope for #166.
 
 ## 4. Docs + verify
 

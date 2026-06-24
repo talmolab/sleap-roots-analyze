@@ -48,13 +48,17 @@ parallel re-implementation.
     `StepResult.metadata` keys downstream steps read (`valid_trait_names`, `trait_names` —
     consumed by `exploratory_analysis.py:73`, `pca_analysis.py:54`, `detect_outliers.py:71`).
 
-- **D3 — Entry-point signature.**
+- **D3 — Entry-point signature + threshold defaults from signature.**
   `clean_traits_for_analysis(df, trait_cols=None, *, barcode_col="Barcode", genotype_col="geno", replicate_col="rep", **cleanup_kwargs) -> tuple[pd.DataFrame, list[str], dict]`.
   Cleanup threshold kwargs (`max_zeros_per_trait`, `max_nans_per_trait`,
-  `max_nans_per_sample`, `min_samples_per_trait`) pass through to
-  `apply_data_cleanup_filters` with **its** documented defaults (0.5 / 0.3 / 0.2 / 10) — no
-  new defaults invented here. Column-name defaults match the cleanup/`get_trait_columns`
-  defaults (`"Barcode"`/`"geno"`/`"rep"`); `replicate_col=None` is honored (issue #142).
+  `max_nans_per_sample`, `min_samples_per_trait`) are defaulted by reading
+  `inspect.signature(apply_data_cleanup_filters)` — **not** hardcoded copies (which would be
+  a drift seam in a PR whose purpose is preventing drift) — with caller kwargs overriding.
+  Column-name defaults match the cleanup/`get_trait_columns` defaults
+  (`"Barcode"`/`"geno"`/`"rep"`); `replicate_col=None` is honored (issue #142). Up-front
+  misuse guards: duplicate column names, and explicit `trait_cols` that are missing from
+  `df` or non-numeric, each raise an actionable `ValueError` (not a bare `KeyError` or a
+  later PCA failure).
 
 - **D4 — Surviving trait derivation.** `trait_cols` returned =
   `[c for c in trait_cols if c in clean_df.columns]`. Removed traits are dropped from the
@@ -62,16 +66,31 @@ parallel re-implementation.
   robust, single-line derivation (equivalent to `CleanupTraitsStep`'s
   `removed_traits`-based reconstruction, without re-parsing the log). Pinned by test.
 
-- **D5 — Validation order is fixed and each error is distinct/actionable:**
-  1. **empty input** (no rows, or no resolvable trait columns) → entry point's own message
-     (e.g. `"clean_traits_for_analysis: input has no trait columns / no rows"`), raised
-     *before* any delegation so it never surfaces PCA's generic `"Empty DataFrame provided"`.
-  2. **no NaN** in surviving traits → via `validate_clean_traits` (canonical message).
-  3. **≥2 surviving samples** → `ValueError` naming the surviving count.
-  4. **≥1 non-constant numeric trait** → `var(ddof=0) > 0`. Ordered *after* the no-NaN gate
+- **D5 — Residual-NaN-row drop, then fixed-order validation.**
+  `apply_data_cleanup_filters` removes NaN-heavy *traits* and NaN-heavy *samples* per the
+  thresholds, but can leave residual NaNs *below* those thresholds (e.g. with the function's
+  default `max_nans_per_sample=0.2`, a sample at exactly 20% NaN is retained). So the entry
+  point next **drops any rows still carrying NaN in the surviving traits**
+  (`clean_df.dropna(subset=surviving)`) — the documented "drop bad traits, then NaN rows"
+  step. This delivers a clean frame on ordinary sparse data instead of raising, and loses
+  far fewer samples than a naive `df.dropna()` because the bad traits are already gone.
+  Then validation runs in fixed order, each error distinct/actionable:
+  1. **empty input** (no rows, or no resolvable trait columns) → entry point's own message,
+     raised *before* any delegation so it never surfaces PCA's generic `"Empty DataFrame
+     provided"`.
+  2. **no NaN** in surviving traits → via `validate_clean_traits` (canonical message). After
+     the row drop this holds by construction; kept as a defensive guard against silent
+     corruption (it no longer raises under normal flow).
+  3. **≥`MIN_SAMPLES_FOR_ANALYSIS` (2) surviving samples** → `ValueError` naming the count.
+  4. **≥1 non-constant numeric trait** → `var(ddof=0) > 0`. Ordered *after* the no-NaN step
      so `var` is computed on NaN-free data and agrees with `standardize_data`'s
      `variances > 0` test (`pca.py:643-645`). A single constant (zero-variance) trait →
      `ValueError("...no non-constant trait remains...")`.
+
+  After validation, the entry point **logs** (INFO) the effective thresholds + the
+  pipeline-divergence note (so programmatic consumers like bloom-mcp see it, not just the
+  docstring) and emits a `UserWarning` in the **p > n** regime
+  (`n_samples < n_surviving_traits`), where multivariate analysis is statistically fragile.
 
 - **D6 — `cleanup_log` is enriched, not verbatim** (closes the prior open question; addresses
   reproducibility review B1/I2). The returned log is the `apply_data_cleanup_filters` log
@@ -91,10 +110,13 @@ parallel re-implementation.
   config: 0.2/0.0). → Mitigation: spec pins the default values, D6 records effective
   thresholds, docstring states the difference and that matched thresholds are required for
   parity. SSOT claim is scoped to *functions/semantics*, not *identical output*.
-- **Near-constant (not exactly constant) surviving traits** can still break
-  `StandardScaler` downstream; the ≥1-non-constant gate is a *runnability* floor, not a
-  per-trait safety guarantee. → Documented as out of scope (quality follow-up); definition
-  pinned to `var(ddof=0)` to at least agree with the downstream drop test.
+- **Near-constant (not exactly constant) surviving traits** — `var(ddof=0) > 0` is the
+  correct gate: it matches `standardize_data` exactly and is divide-by-zero-safe via
+  sklearn's `_handle_zeros_in_scale` (a trait with `var≈3e-31` passes and standardizes
+  without inf/NaN), so a tolerance would be wrong here. The ≥1-non-constant gate is a
+  *runnability* floor (≥1 trait varies), not a per-trait guarantee; `standardize_data` may
+  still drop additional zero-variance trait *columns* downstream — surfacing that
+  column-level drop is a quality follow-up, out of scope.
 - **Extracting `ValidateCleanStep`'s check could reword the error** → single shared
   `_format_nan_validation_error`; regression test pins the byte-exact message **and** the
   saved `03_validation_report.json` **and** `StepResult.metadata`.

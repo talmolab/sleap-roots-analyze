@@ -302,16 +302,36 @@ def test_build_report_keys_match_step_contract():
     assert report["trait_nan_counts"] == {"t1": 1}
 
 
-def test_entry_point_and_validate_share_nan_message():
-    """clean_traits_for_analysis surfaces the canonical validate message verbatim.
+# ---------------------------------------------------------------------------
+# Default-threshold behavior: residual NaN rows are dropped, not raised
+# ---------------------------------------------------------------------------
+def test_default_thresholds_deliver_clean_frame_on_sparse_data():
+    """Ordinary sparse-missing data returns a clean frame (no raise) on defaults.
 
-    Force a residual NaN by declaring a metadata-NaN column as a trait so cleanup
-    keeps it, proving the entry point delegates to validate_clean_traits.
+    Regression for the default-behavior defect: a benign 12x5 frame with a single
+    NaN (per-sample fraction = 0.2, the retain boundary) used to raise instead of
+    returning an analysis-ready frame.
     """
-    # Build a frame where the "trait" has a single NaN that cleanup will not
-    # remove because the sample is otherwise fine and the trait is below the NaN
-    # threshold -- handled by remove_nan_samples only if it exceeds per-sample
-    # fraction; here we keep it via a high max_nans_per_sample so a NaN remains.
+    np.random.seed(11)
+    df = pd.DataFrame(
+        {
+            "Barcode": [f"BC{i:02d}" for i in range(12)],
+            "geno": ["A"] * 6 + ["B"] * 6,
+            "rep": list(range(6)) * 2,
+            **{f"trait_{j}": np.random.randn(12) + j for j in range(5)},
+        }
+    )
+    # One residual NaN: per-sample NaN fraction = 1/5 = 0.2 (the retain boundary),
+    # so cleanup keeps the row; the new residual-row drop removes just that row.
+    df.loc[0, "trait_0"] = np.nan
+    clean_df, trait_cols, _ = clean_traits_for_analysis(df)  # all defaults
+    assert clean_df[trait_cols].isna().sum().sum() == 0
+    # Only the single offending row is dropped; everything else is retained.
+    assert len(clean_df) == 11
+
+
+def test_residual_nan_rows_dropped_keeps_other_rows():
+    """Residual NaN rows in surviving traits are dropped; clean rows are kept."""
     df = pd.DataFrame(
         {
             "Barcode": [f"BC{i}" for i in range(10)],
@@ -321,12 +341,133 @@ def test_entry_point_and_validate_share_nan_message():
             "trait_b": [float(i) for i in range(10)],
         }
     )
-    # Keep the NaN row (max_nans_per_sample=1.0) and the trait
-    # (max_nans_per_trait=1.0) so a residual NaN reaches validation.
-    with pytest.raises(ValueError, match="Validation failed:"):
+    clean_df, trait_cols, _ = clean_traits_for_analysis(
+        df, min_samples_per_trait=2, max_nans_per_trait=1.0, max_nans_per_sample=1.0
+    )
+    assert clean_df[trait_cols].isna().sum().sum() == 0
+    assert len(clean_df) == 9  # only the single NaN row dropped
+
+
+def test_cleanup_path_reduces_to_below_two_samples():
+    """The cleanup path itself (not a pre-shrunk input) can trip the >=2 gate.
+
+    All but one row carry a NaN in the trait; dropping residual NaN rows leaves a
+    single sample, so the >=2-samples gate fires.
+    """
+    df = pd.DataFrame(
+        {
+            "Barcode": [f"BC{i}" for i in range(6)],
+            "geno": ["A"] * 3 + ["B"] * 3,
+            "rep": [1, 2, 3, 1, 2, 3],
+            "trait_a": [1.0] + [np.nan] * 5,
+            "trait_b": [2.0] + [np.nan] * 5,
+        }
+    )
+    with pytest.raises(ValueError, match=r"only 1 sample"):
         clean_traits_for_analysis(
-            df,
-            min_samples_per_trait=2,
-            max_nans_per_trait=1.0,
-            max_nans_per_sample=1.0,
+            df, min_samples_per_trait=1, max_nans_per_trait=1.0, max_nans_per_sample=1.0
         )
+
+
+# ---------------------------------------------------------------------------
+# Misuse -> actionable errors
+# ---------------------------------------------------------------------------
+def test_explicit_missing_trait_col_raises_actionable_error():
+    """An explicit trait_cols name absent from df raises an actionable error."""
+    df = pd.DataFrame({"Barcode": ["a", "b"], "trait_a": [1.0, 2.0]})
+    with pytest.raises(ValueError, match="not found in dataframe"):
+        clean_traits_for_analysis(df, trait_cols=["trait_a", "does_not_exist"])
+
+
+def test_explicit_non_numeric_trait_col_raises():
+    """A non-numeric explicit trait column raises before PCA would break."""
+    df = pd.DataFrame(
+        {
+            "Barcode": ["a", "b", "c"],
+            "trait_a": [1.0, 2.0, 3.0],
+            "label": ["x", "y", "z"],
+        }
+    )
+    with pytest.raises(ValueError, match="must be numeric"):
+        clean_traits_for_analysis(df, trait_cols=["trait_a", "label"])
+
+
+def test_duplicate_column_names_raise():
+    """Duplicate column names raise a clear error, not 'no trait columns found'."""
+    df = pd.DataFrame(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], columns=["trait_a", "trait_a", "geno"]
+    )
+    with pytest.raises(ValueError, match="duplicate column names"):
+        clean_traits_for_analysis(df)
+
+
+# ---------------------------------------------------------------------------
+# p > n warning
+# ---------------------------------------------------------------------------
+def test_warns_in_p_greater_than_n_regime():
+    """A UserWarning is emitted when surviving traits outnumber samples."""
+    np.random.seed(5)
+    df = pd.DataFrame(
+        {
+            "Barcode": ["BC0", "BC1"],
+            "geno": ["A", "B"],
+            "rep": [1, 1],
+            **{f"trait_{j}": [float(j), float(j) + 1] for j in range(5)},
+        }
+    )
+    with pytest.warns(UserWarning, match="p > n"):
+        clean_traits_for_analysis(df, min_samples_per_trait=2)
+
+
+# ---------------------------------------------------------------------------
+# Step 02 -> 03 pipeline regression (the extracted functions in the real steps)
+# ---------------------------------------------------------------------------
+def test_step02_to_step03_uses_shared_functions_and_passes():
+    """CleanupTraitsStep -> ValidateCleanStep run on the extracted functions.
+
+    Exercises the transparent refactor through the real step objects (not just the
+    unit-level helpers): step 03 must report validation_passed with no trait NaNs.
+    """
+    import numpy as _np
+    from sleap_roots_analyze.pipeline import ColumnConfig, DataConfig, QCPipelineConfig
+    from sleap_roots_analyze.pipeline.core import StepResult
+    from sleap_roots_analyze.pipeline.steps import CleanupTraitsStep, ValidateCleanStep
+
+    _np.random.seed(0)
+    df = pd.DataFrame(
+        {
+            "Barcode": [f"plant{i}" for i in range(12)],
+            "geno": ["A"] * 6 + ["B"] * 6,
+            "rep": [1, 2, 3, 4, 5, 6] * 2,
+            "trait1": _np.random.randn(12) * 10 + 50,
+            "trait2": _np.random.randn(12) * 5 + 25,
+            "trait3": _np.random.randn(12) * 3 + 15,
+        }
+    )
+    config = QCPipelineConfig(
+        pipeline_name="test_qc",
+        columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+        data=DataConfig(csv_path="dummy.csv"),
+    )
+    trait_cols = ["trait1", "trait2", "trait3"]
+    load_result = StepResult(
+        data=df,
+        metadata={
+            "trait_column_names": trait_cols,
+            "metadata_column_names": ["Barcode", "geno", "rep"],
+        },
+    )
+
+    def _run(step, data, prev, tmp):
+        return step.execute(data=data, config=config, run_dir=tmp, prev_result=prev)
+
+    import tempfile
+    from pathlib import Path as _Path
+
+    with tempfile.TemporaryDirectory() as d:
+        tmp = _Path(d)
+        cleaned = _run(CleanupTraitsStep(), df, load_result, tmp)
+        validated = _run(ValidateCleanStep(), cleaned.data, cleaned, tmp)
+
+    assert validated.metadata["validation_passed"] is True
+    assert validated.metadata["total_nans_in_traits"] == 0
