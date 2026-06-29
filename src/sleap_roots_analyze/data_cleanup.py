@@ -650,8 +650,8 @@ def apply_data_cleanup_filters(
     df: pd.DataFrame,
     trait_cols: List[str],
     max_zeros_per_trait: float = 0.5,
-    max_nans_per_trait: float = 0.3,
-    max_nans_per_sample: float = 0.2,
+    max_nans_per_trait: float = 0.2,
+    max_nans_per_sample: float = 0.0,
     min_samples_per_trait: int = 10,
     barcode_col: str = "Barcode",
     genotype_col: str = "geno",
@@ -665,13 +665,25 @@ def apply_data_cleanup_filters(
     3. Remove samples with many NaNs
     4. Remove traits with insufficient samples
 
+    The signature defaults are the **QC pipeline's canonical** cleanup thresholds:
+    they equal ``CleanupConfig()``'s defaults (with ``max_nans_per_sample`` mapping
+    to ``CleanupConfig.max_nan_fraction``), so every default-using caller cleans the
+    same way the pipeline does. A drift guard
+    (``tests/test_data_cleanup.py::TestCanonicalDefaultDriftGuard``) asserts this
+    equality so the two cannot silently diverge (#167).
+
     Args:
         df: Original dataframe
         trait_cols: List of trait column names
-        max_zeros_per_trait: Maximum fraction of zeros allowed per trait (0-1)
-        max_nans_per_trait: Maximum fraction of NaNs allowed per trait (0-1)
-        max_nans_per_sample: Maximum fraction of NaNs allowed per sample (0-1)
-        min_samples_per_trait: Minimum number of valid samples required per trait
+        max_zeros_per_trait: Maximum fraction of zeros allowed per trait (0-1).
+            Default ``0.5`` (canonical QC).
+        max_nans_per_trait: Maximum fraction of NaNs allowed per trait (0-1).
+            Default ``0.2`` (canonical QC; drops NaN-heavier traits sooner).
+        max_nans_per_sample: Maximum fraction of NaNs allowed per sample (0-1).
+            Default ``0.0`` (canonical QC; drops any sample that still has *any*
+            NaN in a surviving trait).
+        min_samples_per_trait: Minimum number of valid samples required per trait.
+            Default ``10`` (canonical QC).
         barcode_col: Name of the barcode/plant ID column (default: "Barcode")
         genotype_col: Name of the genotype column (default: "geno")
         replicate_col: Name of the replicate column if present (default: "rep")
@@ -925,10 +937,10 @@ def clean_traits_for_analysis(
           (``max_zeros_per_trait=0.5``, ``max_nans_per_trait=0.2``,
           ``max_nans_per_sample=0.0``, ``min_samples_per_trait=10``), so the
           analysis-ready frame matches what the QC pipeline produces rather than a
-          looser clean. (``apply_data_cleanup_filters``'s own signature defaults are
-          looser for two of these — ``max_nans_per_trait=0.3``,
-          ``max_nans_per_sample=0.2``; aligning them is tracked in #167.) Caller
-          kwargs override; the effective thresholds are recorded in
+          looser clean. These are inherited directly from
+          ``apply_data_cleanup_filters``'s signature defaults, which were aligned to
+          the canonical QC values in #167 (so there is no separate copy to drift).
+          Caller kwargs override; the effective thresholds are recorded in
           ``cleanup_log["effective_thresholds"]`` and logged at INFO.
         - This entry point does **NOT** apply trait-name sanitization
           (``sanitize_trait_names``) or column reordering that
@@ -1008,14 +1020,12 @@ def clean_traits_for_analysis(
             "trait_cols explicitly or check the metadata column names."
         )
 
-    # Resolve effective thresholds. The entry point defaults to the QC pipeline's
-    # canonical cleaning (DataConfig in pipeline/config/components.py) so the
-    # analysis-ready frame it hands to PCA/UMAP equals what the QC pipeline would
-    # produce, not a looser clean. Two values differ from apply_data_cleanup_filters'
-    # own (looser) signature defaults and are pinned here; the rest are inherited
-    # from the signature. Aligning the shared function's own defaults is a broader,
-    # separate change (tracked in #167). Caller-passed kwargs still override.
-    _QC_DEFAULTS = {"max_nans_per_trait": 0.2, "max_nans_per_sample": 0.0}
+    # Resolve effective thresholds. The entry point inherits its defaults directly
+    # from apply_data_cleanup_filters' signature, which now *is* the QC pipeline's
+    # canonical cleaning (its defaults equal CleanupConfig()'s; aligned in #167). So
+    # the analysis-ready frame it hands to PCA/UMAP equals what the QC pipeline would
+    # produce, not a looser clean — with no separate hardcoded copy to drift. Caller-
+    # passed kwargs still override.
     sig = inspect.signature(apply_data_cleanup_filters)
     threshold_names = (
         "max_zeros_per_trait",
@@ -1024,9 +1034,7 @@ def clean_traits_for_analysis(
         "min_samples_per_trait",
     )
     thresholds = {
-        name: cleanup_kwargs.pop(
-            name, _QC_DEFAULTS.get(name, sig.parameters[name].default)
-        )
+        name: cleanup_kwargs.pop(name, sig.parameters[name].default)
         for name in threshold_names
     }
 
