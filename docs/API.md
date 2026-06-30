@@ -90,8 +90,8 @@ apply_data_cleanup_filters(
     df: pd.DataFrame,
     trait_cols: List[str],
     max_zeros_per_trait: float = 0.5,
-    max_nans_per_trait: float = 0.3,
-    max_nans_per_sample: float = 0.2,
+    max_nans_per_trait: float = 0.2,
+    max_nans_per_sample: float = 0.0,
     min_samples_per_trait: int = 10,
     barcode_col: str = "Barcode",
     genotype_col: str = "geno",
@@ -178,8 +178,8 @@ Validation runs in order: (1) empty input, (2) no NaN in surviving traits,
 > (`max_zeros_per_trait=0.5`, `max_nans_per_trait=0.2`, `max_nans_per_sample=0.0`,
 > `min_samples_per_trait=10`), so the analysis-ready frame matches what the QC
 > pipeline produces rather than a looser clean. (`apply_data_cleanup_filters`' own
-> signature defaults are looser — `max_nans_per_trait=0.3`, `max_nans_per_sample=0.2`;
-> aligning them is tracked in #167.) Caller kwargs override. With
+> signature defaults now equal these canonical values — `max_nans_per_trait=0.2`,
+> `max_nans_per_sample=0.0` — aligned in #167.) Caller kwargs override. With
 > `max_nans_per_sample=0.0`, any sample carrying a NaN in a surviving trait is
 > dropped. Two samples is the runnability floor only.
 
