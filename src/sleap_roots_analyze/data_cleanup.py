@@ -258,7 +258,11 @@ def remove_nan_samples(
     Args:
         df: Original dataframe
         trait_cols: List of trait columns to check for NaN
-        max_nan_fraction: Maximum fraction of NaN allowed per sample (0-1)
+        max_nan_fraction: Maximum fraction of NaN allowed per sample (0-1). This
+            standalone default (0.2) is intentionally looser than the canonical QC
+            per-sample budget (0.0, ``CleanupConfig.max_nan_fraction``); the
+            orchestrator ``apply_data_cleanup_filters`` always passes an explicit
+            value down, so this default only affects direct callers of this helper.
         barcode_col: Name of the barcode/plant ID column (default: "Barcode")
         genotype_col: Name of the genotype column (default: "geno")
         replicate_col: Name of the replicate column if present (default: "rep")
@@ -1032,6 +1036,13 @@ def clean_traits_for_analysis(
         "max_nans_per_trait",
         "max_nans_per_sample",
         "min_samples_per_trait",
+    )
+    # Guard against a renamed signature parameter: surface the drift here with a
+    # clear message instead of as an opaque KeyError in the comprehension below.
+    missing = set(threshold_names) - set(sig.parameters)
+    assert not missing, (
+        "threshold_names out of sync with apply_data_cleanup_filters signature: "
+        f"{sorted(missing)}"
     )
     thresholds = {
         name: cleanup_kwargs.pop(name, sig.parameters[name].default)

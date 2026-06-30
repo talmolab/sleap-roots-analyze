@@ -1937,8 +1937,12 @@ class TestCanonicalDefaultDriftGuard:
     def test_clean_traits_entry_point_defaults_match_cleanup_config(self):
         """clean_traits_for_analysis (no overrides) records the canonical thresholds.
 
-        Proves the public entry point inherits the corrected defaults rather than a
-        separate hardcoded copy.
+        This is a recorded-thresholds proxy, not a cleaned-frame parity check: it
+        asserts the entry point's ``effective_thresholds`` inherit the canonical
+        values from the helper signature (no separate hardcoded copy). Frame-level
+        parity with the pipeline is intentionally not asserted — ``CleanupTraitsStep``
+        also runs trait-name sanitization and the entry point adds an extra
+        ``dropna``, so the frames are deliberately not byte-equivalent.
         """
         from sleap_roots_analyze.data_cleanup import clean_traits_for_analysis
 
