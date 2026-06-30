@@ -20,6 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Enforces NaN-free + unique-index preconditions, re-applies the readiness gates,
   and warns on over-removal (> 50%) and the `p > n` regime.
 
+### Changed
+- `apply_data_cleanup_filters` bare-default thresholds tightened to the canonical
+  QC values — `max_nans_per_trait` `0.3 → 0.2` and `max_nans_per_sample`
+  `0.2 → 0.0` — so they equal `CleanupConfig()`'s defaults (with `max_nan_fraction`
+  ↔ `max_nans_per_sample` name mapping). The function signature is now the single
+  source of truth for canonical cleanup, and `clean_traits_for_analysis` inherits
+  it instead of carrying a hardcoded copy (#167). **Behavior note:** code calling
+  `apply_data_cleanup_filters` with the *bare* defaults now cleans more strictly —
+  `max_nans_per_sample=0.0` drops every sample that still has any NaN in a surviving
+  trait, which can remove more plants than before. The QC pipeline
+  (`CleanupTraitsStep` passes explicit `config.cleanup.*`) and the
+  `clean_traits_for_analysis` entry point (already pinned to `0.2`/`0.0` since #164)
+  are reproducibility-neutral — their effective thresholds are unchanged.
+
 ## [0.1.0a3] - 2026-06-24 (Pre-release)
 
 ### Added
