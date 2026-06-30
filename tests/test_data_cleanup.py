@@ -1810,8 +1810,10 @@ class TestModularCleanupFunctions:
         """Edge case: max_nans_per_sample=0.0 removes any sample with at least one NaN."""
         from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
 
-        # Use enough samples so the trait with 1 NaN is below the trait-level threshold
-        # (1/4 = 0.25 < default max_nans_per_trait=0.3), so the trait is kept.
+        # trait1 has 1 NaN out of 4 samples (1/4 = 0.25). Pass max_nans_per_trait=0.3
+        # explicitly so the trait is kept (0.25 < 0.3) and the sample-level filter is
+        # what we exercise; the canonical default (0.2) would drop the trait first,
+        # leaving no NaN sample to remove and defeating the test's intent.
         df = pd.DataFrame(
             {
                 "Barcode": ["b1", "b2", "b3", "b4"],
@@ -1824,6 +1826,7 @@ class TestModularCleanupFunctions:
         df_clean, cleanup_log = apply_data_cleanup_filters(
             df,
             trait_cols=["trait1", "trait2"],
+            max_nans_per_trait=0.3,  # keep trait1 (0.25 NaN); isolate sample-level filter
             max_nans_per_sample=0.0,
             min_samples_per_trait=1,  # Low threshold
         )
@@ -1883,6 +1886,86 @@ class TestModularCleanupFunctions:
             "rep" in msg.lower() or "replicate" in msg.lower()
             for msg in caplog.messages
         ), f"Expected warning about missing replicate column, got: {caplog.messages}"
+
+
+class TestCanonicalDefaultDriftGuard:
+    """Guard the canonical QC cleanup defaults against silent drift (#167).
+
+    ``apply_data_cleanup_filters``'s signature defaults are the single source of
+    truth for "canonical QC cleanup". ``clean_traits_for_analysis`` inherits them,
+    and ``CleanupConfig()`` must encode the same values (with the
+    ``max_nan_fraction`` <-> ``max_nans_per_sample`` name mapping). If any of these
+    drift apart, a default-using caller would silently clean differently from the
+    pipeline.
+    """
+
+    def _canonical_from_config(self):
+        from sleap_roots_analyze.pipeline.config import CleanupConfig
+
+        cfg = CleanupConfig()
+        # CleanupConfig.max_nan_fraction is the per-sample NaN budget; the function
+        # exposes the same knob as max_nans_per_sample.
+        return {
+            "max_zeros_per_trait": cfg.max_zeros_per_trait,
+            "max_nans_per_trait": cfg.max_nans_per_trait,
+            "max_nans_per_sample": cfg.max_nan_fraction,
+            "min_samples_per_trait": cfg.min_samples_per_trait,
+        }
+
+    def test_apply_filters_defaults_match_cleanup_config(self):
+        """apply_data_cleanup_filters' signature defaults == CleanupConfig() defaults."""
+        import inspect
+
+        from sleap_roots_analyze.data_cleanup import apply_data_cleanup_filters
+
+        canonical = self._canonical_from_config()
+        sig = inspect.signature(apply_data_cleanup_filters)
+        actual = {name: sig.parameters[name].default for name in canonical}
+        assert actual == canonical, (
+            "apply_data_cleanup_filters signature defaults drifted from "
+            f"CleanupConfig (#167): {actual} != {canonical}"
+        )
+        # Pin the literal canonical values so an in-tandem edit to *both* layers
+        # (which would keep them equal to each other) still trips this guard.
+        assert canonical == {
+            "max_zeros_per_trait": 0.5,
+            "max_nans_per_trait": 0.2,
+            "max_nans_per_sample": 0.0,
+            "min_samples_per_trait": 10,
+        }
+
+    def test_clean_traits_entry_point_defaults_match_cleanup_config(self):
+        """clean_traits_for_analysis (no overrides) records the canonical thresholds.
+
+        This is a recorded-thresholds proxy, not a cleaned-frame parity check: it
+        asserts the entry point's ``effective_thresholds`` inherit the canonical
+        values from the helper signature (no separate hardcoded copy). Frame-level
+        parity with the pipeline is intentionally not asserted — ``CleanupTraitsStep``
+        also runs trait-name sanitization and the entry point adds an extra
+        ``dropna``, so the frames are deliberately not byte-equivalent.
+        """
+        from sleap_roots_analyze.data_cleanup import clean_traits_for_analysis
+
+        canonical = self._canonical_from_config()
+        # Clean fixture: 12 samples, 2 non-constant traits, no NaN/zeros, so nothing
+        # is filtered and the recorded effective thresholds reflect the defaults.
+        n = 12
+        df = pd.DataFrame(
+            {
+                "Barcode": [f"b{i}" for i in range(n)],
+                "geno": ["A", "B"] * (n // 2),
+                "rep": list(range(n)),
+                "trait1": [float(i + 1) for i in range(n)],
+                "trait2": [float(2 * i + 1) for i in range(n)],
+            }
+        )
+        _, _, cleanup_log = clean_traits_for_analysis(
+            df, trait_cols=["trait1", "trait2"]
+        )
+        assert cleanup_log["effective_thresholds"] == canonical, (
+            "clean_traits_for_analysis default thresholds drifted from CleanupConfig "
+            f"(#167): {cleanup_log['effective_thresholds']} != {canonical}"
+        )
 
 
 class TestInspectNanSamples:

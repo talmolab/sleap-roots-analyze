@@ -1722,7 +1722,7 @@ def viz_eda_thresholds():
         dict: Thresholds for NaN, zero, and outlier fractions
     """
     return {
-        "nan": 0.3,  # 30% maximum NaN
+        "nan": 0.2,  # 20% maximum NaN (canonical QC default)
         "zero": 0.5,  # 50% maximum zeros
         "outlier": 0.1,  # 10% maximum outliers (though not used for trait removal)
     }

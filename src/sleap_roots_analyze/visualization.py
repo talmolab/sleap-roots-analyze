@@ -642,7 +642,11 @@ def create_trait_eda_plots(
     Args:
         df: DataFrame with trait data
         trait_cols: List of trait column names
-        thresholds: Dictionary with nan and zero thresholds (outlier ignored as it's not used for trait removal)
+        thresholds: Dictionary of cleanup thresholds. Recognized keys: ``"nan"``
+            (max NaN fraction per trait), ``"zero"`` (max zero fraction per trait),
+            ``"sample"`` (max NaN fraction per sample), and ``"outlier"`` (plotted
+            reference line only; not used for trait removal). Missing keys fall back
+            to the canonical QC defaults (``nan=0.2``, ``zero=0.5``, ``sample=0.0``).
         cleanup_log: Optional cleanup log from apply_data_cleanup_filters with actual removed traits
         min_samples_per_trait: Minimum number of valid samples required per trait
 
@@ -721,11 +725,11 @@ def create_trait_eda_plots(
     # NaN fraction
     sns.barplot(x="Trait", y="Fraction_NaNs", hue="Prefix", data=eda_df, ax=axes[0])
     axes[0].axhline(
-        y=thresholds.get("nan", 0.3),
+        y=thresholds.get("nan", 0.2),
         color="red",
         linestyle="--",
         alpha=0.7,
-        label=f"Threshold ({thresholds.get('nan', 0.3)})",
+        label=f"Threshold ({thresholds.get('nan', 0.2)})",
     )
     axes[0].set_title("Fraction of NaN Values per Trait")
     axes[0].tick_params(labelbottom=False)
@@ -826,12 +830,17 @@ def create_trait_eda_plots(
     # If no cleanup_log provided, use apply_data_cleanup_filters to determine what WOULD be removed
     # This ensures consistency with the actual pipeline behavior
     if not cleanup_log:
-        # Run apply_data_cleanup_filters to see what would be removed
+        # Run apply_data_cleanup_filters to see what would be removed. Fallbacks are
+        # the canonical QC defaults (#167) so a standalone caller that omits a
+        # threshold previews the same cleaning the pipeline performs. max_nans_per_sample
+        # is passed explicitly (canonical 0.0) rather than left to the function default,
+        # since sample removal feeds the subsequent low-sample trait removal.
         _, simulated_log = apply_data_cleanup_filters(
             df.copy(),
             trait_cols,
             max_zeros_per_trait=thresholds.get("zero", 0.5),
-            max_nans_per_trait=thresholds.get("nan", 0.3),
+            max_nans_per_trait=thresholds.get("nan", 0.2),
+            max_nans_per_sample=thresholds.get("sample", 0.0),
             min_samples_per_trait=min_samples_per_trait,
         )
 

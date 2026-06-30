@@ -956,6 +956,49 @@ class TestCreateTraitEDAPlots:
         for fig in figures.values():
             plt.close(fig)
 
+    def test_fallback_thresholds_are_canonical_when_keys_omitted(
+        self, viz_eda_sample_data
+    ):
+        """Key-less thresholds + cleanup_log=None hit the canonical fallbacks (#167).
+
+        When the thresholds dict omits "nan"/"sample" and no cleanup_log is given,
+        create_trait_eda_plots falls back to the canonical QC defaults: the NaN
+        reference line and the simulate-branch cleanup use max_nans_per_trait=0.2
+        (not the retired 0.3) and max_nans_per_sample=0.0. This guards the fallback
+        paths the rest of the suite skips (viz_eda_thresholds always passes "nan").
+        """
+        trait_cols = ["trait_good", "trait_high_nan", "trait_high_zero"]
+        # Deliberately omit "nan" and "sample" so the internal fallbacks are used.
+        thresholds = {"zero": 0.5, "outlier": 0.1}
+
+        figures = create_trait_eda_plots(
+            viz_eda_sample_data,
+            trait_cols,
+            thresholds,
+            cleanup_log=None,  # force the simulate branch
+        )
+
+        assert isinstance(figures, dict)
+        assert "trait_eda_overview" in figures
+
+        # The NaN-fraction subplot (axes[0]) draws a horizontal reference line at the
+        # canonical 0.2 fallback, never the retired 0.3.
+        nan_axis = figures["trait_eda_overview"].axes[0]
+        horizontal_ys = [
+            float(line.get_ydata()[0])
+            for line in nan_axis.lines
+            if len(line.get_ydata()) and len(set(line.get_ydata())) == 1
+        ]
+        assert any(
+            abs(y - 0.2) < 1e-9 for y in horizontal_ys
+        ), f"expected canonical 0.2 NaN threshold line; got {horizontal_ys}"
+        assert all(
+            abs(y - 0.3) > 1e-9 for y in horizontal_ys
+        ), f"retired 0.3 fallback still present: {horizontal_ys}"
+
+        for fig in figures.values():
+            plt.close(fig)
+
     def test_with_extreme_data(self, viz_eda_data_with_extremes, viz_eda_thresholds):
         """Test EDA plots with extreme data patterns."""
         trait_cols = [

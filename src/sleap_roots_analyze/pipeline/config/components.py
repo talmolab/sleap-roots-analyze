@@ -57,13 +57,14 @@ class CleanupConfig:
 
     Attributes:
         max_nan_fraction: Max fraction of NaN values per sample (0.0-1.0).
-            Samples exceeding this will be removed. Recommended: 0.25
+            Samples exceeding this will be removed. Canonical QC default: 0.0
+            (drops any sample that still has a NaN in a surviving trait).
         max_zeros_per_trait: Max fraction of zero values per trait (0.0-1.0).
-            Traits exceeding this will be removed. Recommended: 0.5
+            Traits exceeding this will be removed. Canonical QC default: 0.5.
         max_nans_per_trait: Max fraction of NaN values per trait (0.0-1.0).
-            Traits exceeding this will be removed. Recommended: 0.2-0.3
+            Traits exceeding this will be removed. Canonical QC default: 0.2.
         min_samples_per_trait: Minimum number of valid samples required per trait.
-            Traits with fewer samples will be removed. Recommended: 10
+            Traits with fewer samples will be removed. Canonical QC default: 10.
         custom_replacements: Optional dict mapping old terms to new terms for
             domain-specific trait name terminology (e.g., {"crown": "seminal"} to
             replace "crown" with "seminal" in wheat trait names). Applied during
