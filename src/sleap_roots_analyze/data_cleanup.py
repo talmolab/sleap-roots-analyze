@@ -1039,10 +1039,10 @@ def clean_traits_for_analysis(
     )
     # Guard against a renamed signature parameter: surface the drift here with a
     # clear message instead of as an opaque KeyError in the comprehension below.
-    missing = set(threshold_names) - set(sig.parameters)
-    assert not missing, (
+    missing_params = set(threshold_names) - set(sig.parameters)
+    assert not missing_params, (
         "threshold_names out of sync with apply_data_cleanup_filters signature: "
-        f"{sorted(missing)}"
+        f"{sorted(missing_params)}"
     )
     thresholds = {
         name: cleanup_kwargs.pop(name, sig.parameters[name].default)

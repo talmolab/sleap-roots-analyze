@@ -989,12 +989,12 @@ class TestCreateTraitEDAPlots:
             for line in nan_axis.lines
             if len(line.get_ydata()) and len(set(line.get_ydata())) == 1
         ]
-        assert any(abs(y - 0.2) < 1e-9 for y in horizontal_ys), (
-            f"expected canonical 0.2 NaN threshold line; got {horizontal_ys}"
-        )
-        assert all(abs(y - 0.3) > 1e-9 for y in horizontal_ys), (
-            f"retired 0.3 fallback still present: {horizontal_ys}"
-        )
+        assert any(
+            abs(y - 0.2) < 1e-9 for y in horizontal_ys
+        ), f"expected canonical 0.2 NaN threshold line; got {horizontal_ys}"
+        assert all(
+            abs(y - 0.3) > 1e-9 for y in horizontal_ys
+        ), f"retired 0.3 fallback still present: {horizontal_ys}"
 
         for fig in figures.values():
             plt.close(fig)
