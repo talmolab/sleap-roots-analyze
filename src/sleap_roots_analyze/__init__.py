@@ -81,6 +81,10 @@ from sleap_roots_analyze.outlier_detection import (
     combine_outlier_methods,
 )
 
+from sleap_roots_analyze.outlier_removal import (
+    remove_outlier_samples,
+)
+
 from sleap_roots_analyze.visualization import (
     create_trait_histograms,
     create_trait_boxplots_by_genotype,
@@ -262,6 +266,8 @@ __all__ = [
     "identify_outliers_from_distances",
     "remove_outliers_from_data",
     "combine_outlier_methods",
+    # Outlier-removal entry point (#165)
+    "remove_outlier_samples",
     # Visualization functions
     "create_trait_histograms",
     "create_trait_boxplots_by_genotype",

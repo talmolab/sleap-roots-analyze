@@ -979,6 +979,93 @@ Outlier detection using Mahalanobis distance on PCA-transformed data.
 
 ### Functions
 
+#### `remove_outlier_samples`
+
+```python
+remove_outlier_samples(
+    clean_df: pd.DataFrame,
+    trait_cols: Optional[List[str]] = None,
+    *,
+    method: str = "mahalanobis",
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: Optional[str] = "rep",
+    random_state: int = 42,
+    **detect_kwargs,
+) -> Tuple[pd.DataFrame, Dict]
+```
+
+Public outlier-removal entry point — the **quality**-step follow-up to
+[`clean_traits_for_analysis`](#clean_traits_for_analysis) (#164). Takes a clean
+(NaN-free) trait table and detects + removes outlier **samples** so PCA / UMAP /
+clustering can optionally run on outlier-trimmed data. Composes the existing
+public primitives — [`detect_outliers_mahalanobis`](#detect_outliers_mahalanobis)
+/ [`detect_outliers_isolation_forest`](#detect_outliers_isolation_forest) for
+detection and [`remove_outliers_from_data`](#remove_outliers_from_data) for row
+removal — and defines no detection/removal logic of its own, so its semantics
+cannot drift from the QC pipeline's outlier steps. Intended chain:
+`clean_traits_for_analysis` → (optional) `remove_outlier_samples` →
+`perform_pca_analysis` / UMAP / clustering.
+
+Enforces, before any detector runs, a **NaN-free** and **unique-index** input
+(both correctness guards for one-to-one index alignment — the detectors run PCA
+which silently drops NaN rows, and removal is label-based). After removal it
+re-applies the #164 readiness gates (≥2 surviving samples, ≥1 non-constant trait)
+so the trimmed frame stays analysis-ready.
+
+> **Note:** the default `method="mahalanobis"` with `chi2_percentile=97.5` trims
+> roughly the top 2.5% of samples *by construction* on a well-fit chi-squared tail
+> — i.e. it removes ~2.5% even on clean data. Tighten `chi2_percentile` or switch
+> to `method="isolation_forest"` with an explicit `contamination` to control this.
+
+**Parameters:**
+- `clean_df`: A clean (NaN-free in trait columns), unique-indexed wide trait table
+  (e.g. the first element returned by `clean_traits_for_analysis`)
+- `trait_cols`: Trait columns to score; inferred via `get_trait_columns` if `None`
+- `method`: `"mahalanobis"` (default) or `"isolation_forest"`; unknown raises
+- `barcode_col` / `genotype_col` / `replicate_col`: metadata columns excluded from
+  inferred traits (`barcode_col` is also read to populate `outlier_barcodes`)
+- `random_state`: Seed forwarded to the detector for reproducibility (default: 42)
+- `**detect_kwargs`: Per-method parameters forwarded to the chosen detector
+  (`contamination` for isolation forest; `chi2_percentile`, `variance_threshold`,
+  `use_chi_squared`, `distance_threshold`, `robust_covariance` for Mahalanobis)
+
+**Returns:**
+- `Tuple[pd.DataFrame, Dict]`: `(trimmed_df, outlier_report)`. `trimmed_df` is
+  `clean_df` with the flagged rows removed (all columns preserved). `outlier_report`
+  is an auditable, JSON-serializable dict: `method`, `method_params`, `random_state`,
+  `n_input_samples`, `n_outliers`, `n_output_samples`, `removal_fraction`,
+  `outlier_indices`, `outlier_barcodes`, `threshold_type`, `threshold_value`,
+  `n_components`, `variance_threshold`, `goodness_of_fit` (the last four are
+  populated for Mahalanobis and `None` for isolation forest).
+
+**Warns:**
+- `UserWarning`: when the removed fraction exceeds 0.5 (likely mis-set
+  `contamination`/threshold), and in the `p > n` regime after trimming.
+
+**Raises:**
+- `ValueError`: empty input; duplicate columns; explicit `trait_cols`
+  missing/non-numeric; unknown `method`; non-unique index; NaN in trait columns
+  (message points to `clean_traits_for_analysis`); or a detector failure.
+- `OutlierRemovalError` (a `ValueError`): when trimming leaves <2 samples or no
+  non-constant trait; carries `outlier_report` as an attribute.
+
+**Example:**
+```python
+from sleap_roots_analyze import (
+    clean_traits_for_analysis,
+    remove_outlier_samples,
+    perform_pca_analysis,
+)
+
+clean_df, trait_cols, _ = clean_traits_for_analysis(df)
+trimmed_df, report = remove_outlier_samples(clean_df, trait_cols)
+print(f"Removed {report['n_outliers']} outliers: {report['outlier_barcodes']}")
+pca = perform_pca_analysis(trimmed_df[trait_cols])  # outlier-trimmed PCA
+```
+
+---
+
 #### `detect_outliers_mahalanobis`
 
 ```python
@@ -1125,6 +1212,81 @@ outliers = identify_outliers_from_distances(
 )
 
 print(f"Found {outliers['n_outliers']} outliers")
+```
+
+---
+
+#### `detect_outliers_isolation_forest`
+
+```python
+detect_outliers_isolation_forest(
+    data: Union[pd.DataFrame, np.ndarray],
+    contamination: float = 0.1,
+    random_state: int = 42
+) -> Dict
+```
+
+Detect outliers using an Isolation Forest. Anomalies require fewer random splits
+to isolate, so they receive more negative anomaly scores. `contamination` is the
+expected outlier proportion (a quota), so it may flag exactly that fraction even on
+clean data. One of the detectors composed by
+[`remove_outlier_samples`](#remove_outlier_samples).
+
+**Parameters:**
+- `data`: DataFrame with numeric trait data or numpy array
+- `contamination`: Expected proportion of outliers, 0–0.5 (default: 0.1)
+- `random_state`: Random seed for reproducibility (default: 42)
+
+**Returns:**
+Dictionary containing:
+- `outlier_indices`: List of row indices identified as outliers
+- `anomaly_scores`: Per-sample anomaly scores (more negative = more anomalous)
+- `contamination`: Contamination parameter used
+- `outlier_labels`: `-1` for outliers, `1` for inliers
+- `data_indices`: Original indices of the data
+- `error`: Error message if detection failed (only if error occurred)
+
+**Example:**
+```python
+result = detect_outliers_isolation_forest(df_traits, contamination=0.2)
+print(f"Found {result['n_outliers']} outliers")
+```
+
+---
+
+#### `remove_outliers_from_data`
+
+```python
+remove_outliers_from_data(
+    df: pd.DataFrame,
+    outlier_indices: Union[List, np.ndarray, pd.Index],
+    keep_metadata: bool = True,
+    return_outliers: bool = True,
+    reset_index: bool = False
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame]]
+```
+
+Remove outlier samples (by index label) from a dataset and optionally return them.
+Handles integer/string/custom indices and preserves them. The row-dropping helper
+composed by [`remove_outlier_samples`](#remove_outlier_samples).
+
+**Parameters:**
+- `df`: Original DataFrame with data
+- `outlier_indices`: Indices of outliers to remove (from a detection function)
+- `keep_metadata`: Preserve all columns (`True`) or keep only numeric (`False`)
+- `return_outliers`: Also return the removed-rows DataFrame (default: True)
+- `reset_index`: Reset the index of the cleaned frame after removal (default: False)
+
+**Returns:**
+- If `return_outliers=False`: the cleaned DataFrame
+- If `return_outliers=True`: a tuple `(cleaned_df, outliers_df)`
+
+**Example:**
+```python
+result = detect_outliers_mahalanobis(df_traits)
+cleaned_df, outlier_df = remove_outliers_from_data(
+    df_traits, result["outlier_indices"]
+)
 ```
 
 ---

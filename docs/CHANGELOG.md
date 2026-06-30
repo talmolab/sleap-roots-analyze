@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Public outlier-removal entry point `remove_outlier_samples` (#165): the
+  **quality**-step follow-up to `clean_traits_for_analysis`. Takes a clean
+  (NaN-free) trait table and detects + removes outlier samples so PCA/UMAP/
+  clustering can optionally run on outlier-trimmed data, composing the existing
+  public `detect_outliers_mahalanobis` / `detect_outliers_isolation_forest` and
+  `remove_outliers_from_data` primitives (no new detection/removal algorithm).
+  Importable from `sleap_roots_analyze`, it returns `(trimmed_df, outlier_report)`
+  — an auditable, JSON-serializable report — and composes after
+  `clean_traits_for_analysis`, before `perform_pca_analysis` / UMAP / clustering.
+  Enforces NaN-free + unique-index preconditions, re-applies the readiness gates,
+  and warns on over-removal (> 50%) and the `p > n` regime.
+
 ## [0.1.0a3] - 2026-06-24 (Pre-release)
 
 ### Added
