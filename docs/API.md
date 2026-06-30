@@ -1041,12 +1041,17 @@ so the trimmed frame stays analysis-ready.
 
 **Warns:**
 - `UserWarning`: when the removed fraction exceeds 0.5 (likely mis-set
-  `contamination`/threshold), and in the `p > n` regime after trimming.
+  `contamination`/threshold), and in the `p > n` regime after trimming. On the
+  Mahalanobis path it also warns on a small sample (`n < 30` — fragile chi-squared
+  tail / covariance) and when the detector's chi-squared goodness-of-fit reports the
+  distributional assumption is violated (so the `chi2_percentile` threshold's meaning
+  is questionable).
 
 **Raises:**
 - `ValueError`: empty input; duplicate columns; explicit `trait_cols`
-  missing/non-numeric; unknown `method`; non-unique index; NaN in trait columns
-  (message points to `clean_traits_for_analysis`); or a detector failure.
+  missing/non-numeric; unknown `method`; unknown / cross-method `**detect_kwargs`
+  for the chosen detector (names the keys + supported set); non-unique index; NaN in
+  trait columns (message points to `clean_traits_for_analysis`); or a detector failure.
 - `OutlierRemovalError` (a `ValueError`): when trimming leaves <2 samples or no
   non-constant trait; carries `outlier_report` as an attribute.
 

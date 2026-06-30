@@ -17,8 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Importable from `sleap_roots_analyze`, it returns `(trimmed_df, outlier_report)`
   — an auditable, JSON-serializable report — and composes after
   `clean_traits_for_analysis`, before `perform_pca_analysis` / UMAP / clustering.
-  Enforces NaN-free + unique-index preconditions, re-applies the readiness gates,
-  and warns on over-removal (> 50%) and the `p > n` regime.
+  Enforces NaN-free + unique-index preconditions, rejects unknown / cross-method
+  `detect_kwargs` with an actionable error, re-applies the readiness gates, and warns
+  on over-removal (> 50%), the `p > n` regime, and — on the Mahalanobis path — a small
+  sample (`n < 30`) or a violated chi-squared goodness-of-fit.
 
 ### Changed
 - `apply_data_cleanup_filters` bare-default thresholds tightened to the canonical

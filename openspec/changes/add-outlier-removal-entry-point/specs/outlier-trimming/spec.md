@@ -71,6 +71,15 @@ the chosen detector unchanged, and SHALL reject an unknown `method` with an acti
 - **THEN** a `ValueError` naming the supported methods (`"mahalanobis"`, `"isolation_forest"`)
   SHALL be raised before any detection runs
 
+#### Scenario: Unknown or cross-method detect_kwargs are rejected
+
+- **WHEN** a `**detect_kwargs` key is not a parameter of the chosen detector (a typo, or a
+  cross-method knob such as `contamination` with `method="mahalanobis"` or `chi2_percentile`
+  with `method="isolation_forest"`)
+- **THEN** a `ValueError` naming the unrecognized key(s) and the supported parameter set for that
+  method SHALL be raised before any detection runs (not a bare `TypeError` leaking the internal
+  detector name, and not silently dropped from `method_params`)
+
 ### Requirement: Single Source of Truth With Detection and Removal Primitives
 
 `remove_outlier_samples` and the QC pipeline's outlier steps SHALL share the same underlying
@@ -204,6 +213,36 @@ readiness gate.
 - **WHEN** the selected method flags so many samples that fewer than 2 survive
 - **THEN** the over-removal `UserWarning` SHALL be emitted before the readiness `ValueError` is
   raised
+
+### Requirement: Mahalanobis Quality Signals
+
+On the Mahalanobis path the default `chi2_percentile=97.5` trims roughly the top 2.5% of samples
+by construction — even on outlier-free data — and that threshold's meaning rests on the squared
+distances following a chi-squared distribution. So that a routine default trim of genuinely-clean
+data does not pass with no signal, `remove_outlier_samples` SHALL emit a `UserWarning` when the
+sample count is small (`n < 30` — fragile chi-squared tail / covariance estimate) and SHALL emit a
+`UserWarning` when the detector's chi-squared goodness-of-fit reports
+`distributional_assumption_valid` is `False`. Both SHALL be emitted before the output-readiness
+gates (so they are observable even when an aggressive trim then fails a gate), and SHALL NOT fire
+on the isolation-forest path (which has no chi-squared assumption).
+
+#### Scenario: Warns on a small Mahalanobis sample
+
+- **WHEN** `remove_outlier_samples(clean_df)` runs the Mahalanobis path on fewer than 30 samples
+- **THEN** a `UserWarning` noting the small-sample fragility SHALL be emitted and the function
+  SHALL still return `(trimmed_df, outlier_report)`
+
+#### Scenario: Warns when the chi-squared assumption is violated
+
+- **WHEN** the detector's `goodness_of_fit` reports `distributional_assumption_valid == False`
+- **THEN** a `UserWarning` noting the chi-squared assumption is violated SHALL be emitted and the
+  function SHALL still return `(trimmed_df, outlier_report)`
+
+#### Scenario: No quality warnings on a clean, large Mahalanobis sample
+
+- **WHEN** `remove_outlier_samples(clean_df)` runs the Mahalanobis path on a clean frame with
+  `n ≥ 30` and a well-fit chi-squared tail
+- **THEN** neither the small-sample nor the goodness-of-fit `UserWarning` SHALL be emitted
 
 ### Requirement: Auditable Outlier Report
 

@@ -54,6 +54,10 @@ _DETECTORS: Dict[str, Callable[..., Dict[str, Any]]] = {
 # contamination/threshold rather than that many real outliers -> UserWarning.
 _OVER_REMOVAL_GUARD = 0.5
 
+# Below this sample count the Mahalanobis path's chi-squared tail / covariance
+# estimate is statistically fragile, so the default trim deserves a UserWarning.
+_SMALL_N_MAHALANOBIS = 30
+
 
 class OutlierRemovalError(ValueError):
     """Raised when the outlier-trimmed frame is not analysis-ready.
@@ -173,7 +177,10 @@ def remove_outlier_samples(
     ``UserWarning`` when the removed fraction is large (> 0.5, before the readiness
     gates — the signature of a mis-set ``contamination``/threshold) and another in
     the ``p > n`` regime (surviving traits outnumber samples), matching
-    ``clean_traits_for_analysis``.
+    ``clean_traits_for_analysis``. On the Mahalanobis path it additionally warns when
+    the sample count is small (< 30 — fragile chi-squared tail / covariance) and when
+    the detector's chi-squared goodness-of-fit reports the distributional assumption
+    is violated (so the percentile threshold's meaning is questionable).
 
     Determinism: ``random_state`` is threaded into the detector and recorded in the
     report; the same ``clean_df`` + ``method`` + ``random_state`` + per-method
@@ -225,8 +232,10 @@ def remove_outlier_samples(
 
     Raises:
         ValueError: On empty input; duplicate column names; explicit ``trait_cols``
-            missing from ``clean_df`` or non-numeric; an unknown ``method``; a
-            non-unique index; NaN in the trait columns (the message points to
+            missing from ``clean_df`` or non-numeric; an unknown ``method``; unknown
+            or cross-method ``**detect_kwargs`` for the chosen detector (the message
+            names the unrecognized keys and the supported set); a non-unique index;
+            NaN in the trait columns (the message points to
             ``clean_traits_for_analysis``); or a detector failure (rather than
             silently reporting zero outliers).
         OutlierRemovalError: A ``ValueError`` subclass, raised when trimming leaves
@@ -316,6 +325,18 @@ def remove_outlier_samples(
         and param.kind
         not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
     }
+    # Reject unknown / cross-method detect_kwargs up front with an actionable error,
+    # mirroring the unknown-method guard. The detectors take fixed signatures (no
+    # **kwargs), so an unrecognized key (a typo, or an isolation-forest knob passed
+    # to the default Mahalanobis method) would otherwise be silently absent from
+    # method_params and then raise a bare TypeError leaking the detector's name.
+    unknown_kwargs = set(detect_kwargs) - set(method_params)
+    if unknown_kwargs:
+        raise ValueError(
+            f"remove_outlier_samples: unknown detect_kwargs for method {method!r}: "
+            f"{sorted(unknown_kwargs)}. Supported for this method: "
+            f"{sorted(method_params)}."
+        )
     if method == "mahalanobis":
         detect_result = detect_outliers_mahalanobis(
             clean_df[trait_cols], random_state=random_state, **detect_kwargs
@@ -342,7 +363,15 @@ def remove_outlier_samples(
     # isolation-forest detector dict, so ``.get`` yields ``None`` for it.
     n_input = len(clean_df)
     n_output = len(trimmed_df)
+    # Derive the count from the trimmed-frame delta (what remove_outliers_from_data
+    # actually dropped after its own valid-index filter) rather than trusting
+    # len(outlier_indices). The NaN-free + unique-index preconditions guarantee the
+    # two agree, so assert it to keep the invariant self-checking.
     n_outliers = n_input - n_output
+    assert n_outliers == len(outlier_indices), (
+        f"outlier count mismatch: trimmed {n_outliers} rows but detector flagged "
+        f"{len(outlier_indices)} labels (precondition violated?)"
+    )
     outlier_barcodes = (
         outlier_df[barcode_col].tolist() if barcode_col in clean_df.columns else None
     )
@@ -377,6 +406,34 @@ def remove_outlier_samples(
             "real outliers. Check the detection parameters.",
             stacklevel=2,
         )
+
+    # (11b) Mahalanobis quality signals (also before the readiness gates, so they
+    # are observable even when an aggressive trim then fails a gate). The percentile
+    # threshold's meaning rests on the chi-squared fit, which degrades on small n and
+    # when the squared-distance distribution does not match chi-squared; the default
+    # ~2.5% trim of genuinely-clean data otherwise passes with no signal.
+    if method == "mahalanobis":
+        if n_input < _SMALL_N_MAHALANOBIS:
+            warnings.warn(
+                f"remove_outlier_samples: only {n_input} samples on the Mahalanobis "
+                f"path (< {_SMALL_N_MAHALANOBIS}); the chi-squared tail and covariance "
+                "estimate are statistically fragile at this size, so the flagged "
+                "outliers may be unreliable. Inspect the result or use a larger sample.",
+                stacklevel=2,
+            )
+        gof = outlier_report.get("goodness_of_fit")
+        if (
+            isinstance(gof, dict)
+            and gof.get("distributional_assumption_valid") is False
+        ):
+            warnings.warn(
+                "remove_outlier_samples: the squared Mahalanobis distances do not "
+                f"fit the chi-squared assumption (goodness-of-fit: "
+                f"{gof.get('fit_quality')!r}), so the chi2_percentile threshold's "
+                "meaning is questionable; treat the flagged outliers with caution or "
+                "use method='isolation_forest' with an explicit contamination.",
+                stacklevel=2,
+            )
 
     # (12) Output readiness gates (raise OutlierRemovalError carrying the report).
     _assert_output_analysis_ready(trimmed_df, trait_cols, outlier_report)

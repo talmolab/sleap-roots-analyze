@@ -153,6 +153,25 @@ def test_unknown_method_rejected_before_detection(clean_frame, no_detect):
         remove_outlier_samples(clean_frame, method="not_a_method")
 
 
+def test_unknown_detect_kwarg_rejected_before_detection(clean_frame, no_detect):
+    """An unknown / cross-method detect_kwarg raises a prefixed ValueError.
+
+    Not a bare TypeError — the message names the unrecognized key and the supported
+    set, and ``no_detect`` proves the guard fires before any detector runs.
+    """
+    # isolation-forest-only knob passed to the default Mahalanobis method
+    with pytest.raises(ValueError, match=r"unknown detect_kwargs.*contamination"):
+        remove_outlier_samples(clean_frame, contamination=0.2)
+    # Mahalanobis knob passed to isolation forest
+    with pytest.raises(ValueError, match=r"unknown detect_kwargs.*chi2_percentile"):
+        remove_outlier_samples(
+            clean_frame, method="isolation_forest", chi2_percentile=99.0
+        )
+    # a plain typo is caught too (and the supported set is named)
+    with pytest.raises(ValueError, match=r"unknown detect_kwargs.*chi2_percentil\b"):
+        remove_outlier_samples(clean_frame, chi2_percentil=99.0)
+
+
 # ---------------------------------------------------------------------------
 # 1.6 — clean-input precondition (NaN-free, wrapped message)
 # ---------------------------------------------------------------------------
@@ -231,17 +250,20 @@ def test_constant_trait_alongside_varying_passes(clean_frame):
 # ---------------------------------------------------------------------------
 # 1.9 — p > n warning
 # ---------------------------------------------------------------------------
-def test_p_greater_than_n_warns_and_returns():
-    """Trimming into the p > n regime warns and still returns."""
-    frame = _build_outlier_frame(n=8, inject=(), sd=0.0)
-    with pytest.warns(UserWarning, match=r"p > n"):
-        trimmed, _ = remove_outlier_samples(
-            frame,
-            method="mahalanobis",
-            use_chi_squared=False,
-            distance_threshold=2.0,
-        )
-    assert len(trimmed) < len(TRAITS)  # survivors fewer than traits
+def test_p_greater_than_n_warns_without_over_removal():
+    """Trimming into p > n warns specifically about p > n, not via over-removal.
+
+    The input is already p > n (6 samples, 8 traits) and clean, so the default trim
+    removes ~0 rows — the p > n warning fires while the over-removal rail does not, so
+    the assertion cannot pass on the wrong warning.
+    """
+    frame = _build_outlier_frame(n=6, n_traits=8, inject=())
+    with pytest.warns(UserWarning) as record:
+        trimmed, _ = remove_outlier_samples(frame)
+    msgs = [str(w.message) for w in record]
+    assert any("p > n" in m for m in msgs)
+    assert not any("large removal fraction" in m for m in msgs)
+    assert len(trimmed) < 8  # survivors fewer than traits
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +293,43 @@ def test_over_removal_warning_precedes_readiness_failure(clean_frame):
                 use_chi_squared=False,
                 distance_threshold=0.0,
             )
+
+
+# ---------------------------------------------------------------------------
+# Mahalanobis scientific-quality signals (small-n, goodness-of-fit)
+# ---------------------------------------------------------------------------
+def test_small_n_mahalanobis_warns():
+    """The Mahalanobis path warns when the sample count is small (< 30)."""
+    frame = _build_outlier_frame(n=20, inject=())  # clean, 5 traits, n < 30
+    with pytest.warns(UserWarning, match=r"statistically fragile at this size"):
+        trimmed, _ = remove_outlier_samples(frame)
+    assert len(trimmed) >= 2
+
+
+def test_goodness_of_fit_violation_warns():
+    """A poor chi-squared fit (heavy-tailed data) warns about the assumption.
+
+    n=50 keeps it off the small-n path, isolating the goodness-of-fit signal: the
+    squared Mahalanobis distances of exp^2 data do not match a chi-squared tail, so
+    the detector reports ``distributional_assumption_valid=False`` and the entry
+    point surfaces it rather than trimming ~2.5% silently.
+    """
+    rng = np.random.RandomState(1)
+    df = pd.DataFrame({f"trait_{j}": rng.exponential(2.0, 50) ** 2 for j in range(4)})
+    df.insert(0, "Barcode", [f"BC{i:03d}" for i in range(50)])
+    with pytest.warns(UserWarning, match=r"chi-squared assumption"):
+        trimmed, _ = remove_outlier_samples(df, replicate_col=None)
+    assert len(trimmed) >= 2
+
+
+def test_no_quality_warnings_on_clean_large_sample(clean_frame):
+    """A clean n=40 frame trims without any small-n / goodness-of-fit warning."""
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        remove_outlier_samples(clean_frame)
+    msgs = [str(w.message) for w in record]
+    assert not any("statistically fragile" in m for m in msgs)
+    assert not any("chi-squared assumption" in m for m in msgs)
 
 
 # ---------------------------------------------------------------------------
@@ -442,6 +501,34 @@ def test_composes_detect_and_remove_primitives(clean_frame, monkeypatch):
     remove_outlier_samples(clean_frame)
     assert calls["detect"] == 1
     assert calls["remove"] == 1
+
+
+def test_detector_receives_trait_subframe_and_forwarded_kwargs(
+    clean_frame, monkeypatch
+):
+    """The detector is invoked on exactly clean_df[trait_cols] with forwarded kwargs.
+
+    A spy on the call args (not just the echoed method_params, which would look right
+    even if the kwarg were dropped before the call) confirms the trait subframe and
+    the threaded random_state actually reach the detector.
+    """
+    captured: dict = {}
+    real = outlier_removal.detect_outliers_mahalanobis
+
+    def spy(data, **kwargs):
+        captured["columns"] = list(data.columns)
+        captured["index"] = data.index
+        captured["kwargs"] = dict(kwargs)
+        return real(data, **kwargs)
+
+    monkeypatch.setattr(outlier_removal, "detect_outliers_mahalanobis", spy)
+    remove_outlier_samples(clean_frame, chi2_percentile=99.0, random_state=7)
+    # Detection operates over exactly the trait columns (no metadata), same index.
+    assert captured["columns"] == TRAITS
+    assert captured["index"].equals(clean_frame.index)
+    # The forwarded kwarg and the threaded seed reach the detector unchanged.
+    assert captured["kwargs"]["chi2_percentile"] == 99.0
+    assert captured["kwargs"]["random_state"] == 7
 
 
 def test_source_has_no_independent_thresholding_logic():
