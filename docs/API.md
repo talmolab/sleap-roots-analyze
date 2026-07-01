@@ -9,6 +9,7 @@ Complete API documentation for `sleap-roots-analyze`.
 - [data_utils](#data_utils-module)
 - [pca](#pca-module)
 - [outlier_detection](#outlier_detection-module)
+- [outlier_visualization](#outlier_visualization-module)
 - [visualization](#visualization-module)
 
 ---
@@ -1378,6 +1379,91 @@ ax2.legend()
 plt.tight_layout()
 plt.show()
 ```
+
+---
+
+## `outlier_visualization` Module
+
+Outlier-detection figure composition. The `create_*_outlier` functions each render an
+individual figure; `plot_outlier_analysis` composes the method-appropriate set for a
+consumer (e.g. the bloom-mcp `remove_outliers` tool's optional plots).
+
+### Functions
+
+#### `plot_outlier_analysis`
+
+```python
+plot_outlier_analysis(
+    clean_df: pd.DataFrame,
+    trait_cols: Optional[List[str]] = None,
+    *,
+    method: str = "mahalanobis",
+    random_state: Optional[int] = 42,
+    which: Optional[Union[str, List[str]]] = None,
+    **detect_kwargs,
+) -> Dict[str, plt.Figure]
+```
+
+The plotting sibling of [`remove_outlier_samples`](#remove_outlier_samples) (#173).
+**Re-detects** outliers with the same detector, seed, and per-method parameters — so,
+under the shared NaN-free + unique-index preconditions, it flags the same samples
+`remove_outlier_samples` removes — then composes the existing public `create_*_outlier`
+figure functions and returns the figures. **IO-free**: returns open `matplotlib`
+`Figure` objects; the caller saves/persists them. Covers the two `remove_outlier_samples`
+methods (`"mahalanobis"`, `"isolation_forest"`); the `detect_outliers_pca`/`_kmeans`/
+`_gmm`/`_hierarchical` plots stay pipeline-only.
+
+**Parameters:**
+- `clean_df`: Clean (NaN-free in trait columns), unique-indexed wide trait table.
+- `trait_cols`: Trait columns to score; inferred via `get_trait_columns` if `None`.
+- `method`: `"mahalanobis"` (default) or `"isolation_forest"`; unknown raises.
+- `random_state`: Seed forwarded to the detector (default 42; accepts `None`).
+- `which`: Figure-key string or list of keys to return; `None` returns the full set. An
+  unavailable key raises.
+- `**detect_kwargs`: Per-method detector parameters; unknown/cross-method keys raise.
+
+**Returns:**
+- `Dict[str, plt.Figure]`: stable figure key → figure. For `"mahalanobis"`, the
+  [`create_mahalanobis_outlier_plots`](#create_mahalanobis_outlier_plots) figures; for
+  `"isolation_forest"`,
+  [`create_isolation_forest_plots`](#create_isolation_forest_plots); plus
+  [`create_outliers_per_genotype_plot`](#create_outliers_per_genotype_plot) (key
+  `outliers_per_genotype`) when a `geno` column is present.
+
+**Raises:**
+- `ValueError`: on empty input; duplicate columns; invalid `trait_cols`; unknown
+  `method`; a non-unique index; NaN traits (points to `clean_traits_for_analysis`);
+  unknown `detect_kwargs`; an unavailable `which` key; or a detector failure.
+
+#### `create_mahalanobis_outlier_plots`
+
+```python
+create_mahalanobis_outlier_plots(df: pd.DataFrame, mahal_results: Dict) -> Dict[str, plt.Figure]
+```
+
+Render the Mahalanobis outlier figures (`mahalanobis_outlier_detection`,
+`mahalanobis_pc_analysis`, `mahalanobis_threshold_analysis`) from a
+`detect_outliers_mahalanobis` result. Returns `{}` on an `error` result.
+
+#### `create_isolation_forest_plots`
+
+```python
+create_isolation_forest_plots(df: pd.DataFrame, iso_results: Dict) -> Dict[str, plt.Figure]
+```
+
+Render the isolation-forest outlier figure (`isolation_forest_analysis`) from a
+`detect_outliers_isolation_forest` result. Returns `{}` on an `error` result.
+
+#### `create_outliers_per_genotype_plot`
+
+```python
+create_outliers_per_genotype_plot(
+    df: pd.DataFrame, all_outlier_results: Dict, genotype_col: str = "geno"
+) -> plt.Figure
+```
+
+Render a per-genotype outlier bar chart (absolute counts and proportions) across the
+methods present in `all_outlier_results`.
 
 ---
 

@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Public outlier-plotting entry point `plot_outlier_analysis` (#173): the
+  **plotting** sibling of `remove_outlier_samples`. Importable from
+  `sleap_roots_analyze`, it **re-detects** outliers with the same detector, seed, and
+  per-method parameters (so, under the shared NaN-free + unique-index preconditions,
+  it flags the same samples `remove_outlier_samples` removes), then composes the
+  existing public `create_*_outlier` figure functions and returns a
+  `Dict[str, plt.Figure]` — **IO-free** (the caller saves/persists). Covers the two
+  `remove_outlier_samples` methods (`mahalanobis`, `isolation_forest`); the
+  `detect_outliers_pca`/`_kmeans`/`_gmm`/`_hierarchical` plots stay pipeline-only. A
+  `which` selector narrows the returned figures. The pipeline's `VisualizeOutliersStep`
+  now shares the same private figure-selection helper on its own pre-computed results
+  (no behavior change).
 - Public outlier-removal entry point `remove_outlier_samples` (#165): the
   **quality**-step follow-up to `clean_traits_for_analysis`. Takes a clean
   (NaN-free) trait table and detects + removes outlier samples so PCA/UMAP/

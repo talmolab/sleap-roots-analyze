@@ -39,10 +39,17 @@ N_FEATURES = 6
 # to the reason. A dict (not a bare set) so each exclusion documents *why* it is
 # safe to skip. Every key must still be a discoverable ``random_state`` function and
 # must not overlap the registry (enforced by ``test_excluded_set_is_consistent``).
-# Empty today: the approved scope covers every in-package stochastic function
-# directly — including the formerly seed-hardcoded ``calculate_mahalanobis_distances``
-# and ``detect_outliers_pca``, now caller-seedable and swept (#118).
-EXCLUDED: dict[str, str] = {}
+EXCLUDED: dict[str, str] = {
+    # Plotting composition over the already-swept ``detect_outliers_*`` detectors
+    # (#173). It exposes ``random_state`` only to thread it into those detectors and
+    # returns matplotlib Figures (not comparable by the determinism sweep); it runs
+    # no new stochastic step — figure selection/rendering is deterministic given the
+    # detected set — so its determinism is fully covered by the detector cases above.
+    "sleap_roots_analyze.outlier_visualization.plot_outlier_analysis": (
+        "Composes figures over the already-swept detect_outliers_* detectors; adds no "
+        "new stochastic step and returns Figures (not sweep-comparable)."
+    ),
+}
 
 
 @dataclass(frozen=True)

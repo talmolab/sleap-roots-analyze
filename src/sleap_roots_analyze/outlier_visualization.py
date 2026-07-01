@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import chi2
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 from pathlib import Path
 from datetime import datetime
+
+# Imported as module-level names (not called via the ``outlier_detection`` /
+# ``data_cleanup`` module objects) so a test can monkeypatch
+# ``outlier_visualization.detect_outliers_*`` / ``create_*`` to assert the entry
+# point composes them / to exercise the detector-failure path.
+from sleap_roots_analyze.data_cleanup import get_trait_columns, validate_clean_traits
+from sleap_roots_analyze.outlier_detection import (
+    detect_outliers_isolation_forest,
+    detect_outliers_mahalanobis,
+)
 
 
 def create_isolation_forest_plots(
@@ -1774,3 +1786,234 @@ def create_outlier_method_comparison_plot(
 
     plt.tight_layout()
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Public outlier-plotting entry point (#173) — composes the create_* figures.
+# ---------------------------------------------------------------------------
+
+# The two detection methods the public entry point (and remove_outlier_samples)
+# support. The standalone pca/kmeans/gmm/hierarchical plots stay pipeline-only.
+_ENTRY_METHODS = ("mahalanobis", "isolation_forest")
+
+
+def _select_outlier_figures(
+    df: pd.DataFrame,
+    results: Dict[str, Dict[str, Any]],
+    method: str,
+    which: Optional[Union[str, List[str]]] = None,
+    genotype_col: Optional[str] = None,
+) -> Dict[str, plt.Figure]:
+    """Select the method-appropriate outlier figures from pre-computed results.
+
+    The single source of truth for "which ``create_*`` figures belong to which
+    method", shared by :func:`plot_outlier_analysis` (which re-detects) and the
+    pipeline's ``VisualizeOutliersStep`` (which passes its own pre-computed
+    ``outlier_results``). It runs **no detection** — it only dispatches an existing
+    detector result to the existing figure functions.
+
+    Args:
+        df: The trait frame the figures are drawn over.
+        results: Mapping of method name to that method's detector result dict (e.g.
+            ``{"mahalanobis": <result>}`` for the entry point, or the pipeline's
+            full multi-method ``outlier_results``). ``results[method]`` is drawn.
+        method: ``"mahalanobis"`` or ``"isolation_forest"``.
+        which: Optional figure-key string or list of keys to return; ``None``
+            returns the method's full available set.
+        genotype_col: When given and present in ``df``, add the per-genotype figure
+            (``create_outliers_per_genotype_plot`` over the full ``results`` dict)
+            under the key ``"outliers_per_genotype"``. ``None`` (default) omits it —
+            the pipeline step draws its own cross-method per-genotype figure.
+
+    Returns:
+        Ordered mapping of stable figure key to :class:`matplotlib.figure.Figure`.
+
+    Raises:
+        ValueError: On an unknown ``method``, or a ``which`` key not available for
+            the given method and frame (the message names the available keys).
+    """
+    if method == "mahalanobis":
+        figures: Dict[str, plt.Figure] = dict(
+            create_mahalanobis_outlier_plots(df=df, mahal_results=results[method])
+        )
+    elif method == "isolation_forest":
+        figures = dict(
+            create_isolation_forest_plots(df=df, iso_results=results[method])
+        )
+    else:
+        raise ValueError(
+            f"_select_outlier_figures: unknown method {method!r}. Supported: "
+            f"{list(_ENTRY_METHODS)}."
+        )
+
+    if genotype_col is not None and genotype_col in df.columns:
+        figures["outliers_per_genotype"] = create_outliers_per_genotype_plot(
+            df=df, all_outlier_results=results, genotype_col=genotype_col
+        )
+
+    if which is not None:
+        requested = [which] if isinstance(which, str) else list(which)
+        missing = [key for key in requested if key not in figures]
+        if missing:
+            raise ValueError(
+                f"plot_outlier_analysis: requested figure(s) {missing} not available "
+                f"for method {method!r}; available: {sorted(figures)}."
+            )
+        figures = {key: figures[key] for key in requested}
+
+    return figures
+
+
+def plot_outlier_analysis(
+    clean_df: pd.DataFrame,
+    trait_cols: Optional[List[str]] = None,
+    *,
+    method: str = "mahalanobis",
+    random_state: int = 42,
+    which: Optional[Union[str, List[str]]] = None,
+    **detect_kwargs: Any,
+) -> Dict[str, plt.Figure]:
+    """Return the method-appropriate outlier-detection figures for a clean frame.
+
+    The plotting sibling of
+    :func:`~sleap_roots_analyze.outlier_removal.remove_outlier_samples` (#173): it
+    **re-detects** outliers with the same public detector, seed, and per-method
+    parameters — so, under the shared preconditions, it flags the same samples
+    ``remove_outlier_samples`` removes — then **composes the existing public
+    ``create_*_outlier`` figure functions** (introducing no new plotting) and returns
+    the figures. It performs **no file IO**: it returns open
+    :class:`matplotlib.figure.Figure` objects and the caller decides whether to save,
+    display, or persist them. The intended chain is ``clean_traits_for_analysis`` ->
+    (optional) ``remove_outlier_samples`` -> (optional) ``plot_outlier_analysis``.
+
+    It covers the two methods ``remove_outlier_samples`` supports — ``"mahalanobis"``
+    (default) and ``"isolation_forest"``. The standalone
+    ``detect_outliers_pca``/``_kmeans``/``_gmm``/``_hierarchical`` plots stay
+    pipeline-only. For ``"mahalanobis"`` the figures are those of
+    ``create_mahalanobis_outlier_plots`` (whose PC-projection view already covers the
+    Mahalanobis PCA space); for ``"isolation_forest"``,
+    ``create_isolation_forest_plots``. For either, when a ``geno`` column is present,
+    the per-genotype figure (``create_outliers_per_genotype_plot``) is added.
+
+    Preconditions (both enforced before detection, matching
+    ``remove_outlier_samples``): the trait columns must be **NaN-free** and the index
+    must be **unique**. The detectors run PCA that silently drops NaN rows and reports
+    indices against the post-``dropna`` frame, and the per-sample figures index the
+    frame by detected label — so a NaN-carrying or duplicate-indexed input would
+    misalign the figures and diverge from the set ``remove_outlier_samples`` (which
+    rejects such input) would remove.
+
+    Args:
+        clean_df: A clean (NaN-free in the trait columns), unique-indexed wide trait
+            table, e.g. the first element returned by ``clean_traits_for_analysis``.
+        trait_cols: Trait column names to score. If ``None``, resolved via
+            :func:`~sleap_roots_analyze.data_cleanup.get_trait_columns`.
+        method: ``"mahalanobis"`` (default) or ``"isolation_forest"``. An unknown
+            value raises ``ValueError``.
+        random_state: Seed forwarded to the detector for reproducibility (default
+            ``42``).
+        which: Optional figure-key string or list of keys to return; ``None``
+            (default) returns the method's full available set. An unavailable key
+            raises ``ValueError``.
+        **detect_kwargs: Per-method parameters forwarded to the chosen detector
+            unchanged (e.g. ``contamination`` for isolation forest;
+            ``chi2_percentile`` for Mahalanobis). Unknown or cross-method keys raise
+            ``ValueError``.
+
+    Returns:
+        Ordered mapping of stable figure key to :class:`matplotlib.figure.Figure`.
+
+    Raises:
+        ValueError: On empty input; duplicate column names; explicit ``trait_cols``
+            missing or non-numeric; an unknown ``method``; a non-unique index; NaN in
+            the trait columns (the message points to ``clean_traits_for_analysis``);
+            unknown/cross-method ``**detect_kwargs``; a ``which`` key not available for
+            the method/frame; or a detector failure (rather than an empty figure set).
+    """
+    # (1) Empty input.
+    if clean_df is None or clean_df.shape[0] == 0:
+        raise ValueError(
+            "plot_outlier_analysis: input table has no rows; nothing to plot."
+        )
+    # (2) Duplicate column names make trait selection ambiguous.
+    if clean_df.columns.duplicated().any():
+        dups = sorted(set(clean_df.columns[clean_df.columns.duplicated()]))
+        raise ValueError(
+            f"plot_outlier_analysis: duplicate column names in input: {dups}."
+        )
+    # (3) Validate explicit trait_cols up front (actionable, not a bare KeyError).
+    if trait_cols is not None:
+        missing = [c for c in trait_cols if c not in clean_df.columns]
+        if missing:
+            raise ValueError(
+                f"plot_outlier_analysis: trait_cols not found in dataframe: {missing}."
+            )
+        non_numeric = [
+            c for c in trait_cols if not pd.api.types.is_numeric_dtype(clean_df[c])
+        ]
+        if non_numeric:
+            raise ValueError(
+                "plot_outlier_analysis: trait_cols must be numeric; non-numeric "
+                f"columns passed: {non_numeric}."
+            )
+    # (4) Unknown method -> fail fast, naming the supported set.
+    if method not in _ENTRY_METHODS:
+        raise ValueError(
+            f"plot_outlier_analysis: unknown method {method!r}. Supported methods: "
+            f"{list(_ENTRY_METHODS)}."
+        )
+    # (5) Unique index -> per-sample figures index the frame by detected label.
+    if not clean_df.index.is_unique:
+        raise ValueError(
+            "plot_outlier_analysis: input index must be unique (per-sample figures "
+            "index the frame by detected label). Reset the index before plotting."
+        )
+    # (6) Resolve trait columns if not supplied.
+    if trait_cols is None:
+        trait_cols = get_trait_columns(clean_df)
+    if not trait_cols:
+        raise ValueError(
+            "plot_outlier_analysis: no trait columns found. Pass trait_cols "
+            "explicitly or check the metadata column names."
+        )
+    # (7) Clean-input precondition: trait columns must be NaN-free. Wrap the shared
+    # validator's message to add the pointer to clean_traits_for_analysis.
+    try:
+        validate_clean_traits(clean_df, trait_cols)
+    except ValueError as exc:
+        raise ValueError(
+            f"{exc} Run clean_traits_for_analysis first to produce a NaN-free, "
+            "analysis-ready frame before plot_outlier_analysis."
+        ) from exc
+    # (8) Validate detect_kwargs against the chosen detector's signature.
+    detector = (
+        detect_outliers_mahalanobis
+        if method == "mahalanobis"
+        else detect_outliers_isolation_forest
+    )
+    allowed = {
+        name
+        for name, param in inspect.signature(detector).parameters.items()
+        if name not in ("data", "random_state")
+        and param.kind
+        not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
+    }
+    unknown_kwargs = set(detect_kwargs) - allowed
+    if unknown_kwargs:
+        raise ValueError(
+            f"plot_outlier_analysis: unknown detect_kwargs for method {method!r}: "
+            f"{sorted(unknown_kwargs)}. Supported for this method: {sorted(allowed)}."
+        )
+    # (9) Re-detect with the same detector + seed remove_outlier_samples uses.
+    result = detector(clean_df[trait_cols], random_state=random_state, **detect_kwargs)
+    # (10) Surface a detector failure before delegating: the create_* functions
+    # silently return {} on an error result, which would mask the failure.
+    if "error" in result or "outlier_indices" not in result:
+        raise ValueError(
+            "plot_outlier_analysis: outlier detection failed: "
+            f"{result.get('error', 'detector returned no outlier_indices')}"
+        )
+    # (11) Compose the method-appropriate figures (single-method per-genotype).
+    return _select_outlier_figures(
+        clean_df, {method: result}, method, which=which, genotype_col="geno"
+    )
