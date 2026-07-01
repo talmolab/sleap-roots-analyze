@@ -45,6 +45,7 @@ EXPECTED_QUALNAMES = frozenset(
         "sleap_roots_analyze.outlier_detection.detect_outliers_mahalanobis",
         "sleap_roots_analyze.outlier_detection.detect_outliers_pca",
         "sleap_roots_analyze.pca.calculate_mahalanobis_distances",
+        "sleap_roots_analyze.outlier_removal.remove_outlier_samples",
     }
 )
 

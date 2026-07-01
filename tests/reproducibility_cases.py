@@ -18,7 +18,13 @@ from typing import Callable, List
 import numpy as np
 import pandas as pd
 
-from sleap_roots_analyze import clustering, outlier_detection, pca, umap
+from sleap_roots_analyze import (
+    clustering,
+    outlier_detection,
+    outlier_removal,
+    pca,
+    umap,
+)
 
 # Tolerance for floating-point arrays. Within a single machine the outputs are
 # bit-identical; rtol=1e-6 leaves headroom for cross-platform BLAS differences
@@ -146,6 +152,14 @@ def _compare_mahalanobis(a, b):
     _close(dist_a, dist_b, "distances")
     _close(mean_a, mean_b, "mean")
     _close(cov_a, cov_b, "covariance")
+
+
+def _compare_remove_outlier_samples(a, b):
+    """Compare ``remove_outlier_samples``: (trimmed_df, outlier_report)."""
+    (df_a, report_a) = a
+    (df_b, report_b) = b
+    _exact(report_a["outlier_indices"], report_b["outlier_indices"], "outlier_indices")
+    pd.testing.assert_frame_equal(df_a, df_b)
 
 
 def _silence(fn):
@@ -304,6 +318,17 @@ CASES: List[Case] = [
             )
         ),
         _compare_mahalanobis,
+    ),
+    Case(
+        # Public outlier-removal entry point (#165). Seeds the detector and returns
+        # the trimmed frame + report; the default Mahalanobis path is deterministic
+        # under exact SVD, but the function is caller-seedable (and isolation_forest
+        # makes the seed load-bearing), so the sweep keeps it covered.
+        outlier_removal.remove_outlier_samples,
+        lambda ctx, seed: _silence(
+            lambda: outlier_removal.remove_outlier_samples(ctx.df, random_state=seed)
+        ),
+        _compare_remove_outlier_samples,
     ),
 ]
 
