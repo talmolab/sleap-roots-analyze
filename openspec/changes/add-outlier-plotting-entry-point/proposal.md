@@ -33,7 +33,7 @@ Tracked by [talmolab/sleap-roots-analyze#173](https://github.com/talmolab/sleap-
 > #173 (2026-07-01):** (1) **B1** — `create_pca_outlier_plot` and the pca/kmeans/gmm/hierarchical
 > plots stay pipeline-only; the public entry point covers only `mahalanobis` + `isolation_forest`
 > (the original mapping was not buildable against the real code — see design.md "Decision B1");
-> (2) **D3** — the pipeline step delegates to a *shared selection helper* (`_select_outlier_figures`)
+> (2) **D3** — the pipeline step delegates to a *shared selection helper* (`select_outlier_figures`)
 > with its own pre-computed results rather than calling `plot_outlier_analysis` (see design.md
 > "Decision D3"). The updated #173 states both explicitly.
 
@@ -91,11 +91,12 @@ Add public **`plot_outlier_analysis`** in `src/sleap_roots_analyze/outlier_visua
 
 ### Refactor `VisualizeOutliersStep` to the single source of truth (B3 → `visualization-pipeline`)
 
-Extract the per-method **figure-selection** into a shared private helper
-`_select_outlier_figures(df, results, method, which=None, genotype_col=None)` that dispatches the
-pre-computed `results[method]` to that method's `create_*` figure function(s) and, when
-`genotype_col` is present in `df`, adds the per-genotype figure over the full `results` dict. Both
-the new entry point and the pipeline step call it:
+Extract the per-method **figure-selection** into a shared **public** helper (PR #175 review)
+`select_outlier_figures(df, results, method, which=None, genotype_col=None)` (in `__all__`) that
+dispatches the pre-computed `results[method]` to that method's `create_*` figure function(s) and,
+when `genotype_col` is present in `df`, adds the per-genotype figure over the full `results` dict.
+Public so a consumer holding a detector result can select figures without a redundant re-detection.
+Both the new entry point and the pipeline step call it:
 
 - `plot_outlier_analysis` re-detects, then calls the helper with `results={method: <result>}` and
   `genotype_col="geno"` (so the per-genotype figure, when drawn, is single-method).
@@ -115,7 +116,21 @@ its `Outlier Method Comparison Summary` requirement), the step-refactor requirem
 
 Note: `plot_outlier_analysis` is therefore exercised only by its own unit tests, not by the
 pipeline path (the step shares only the helper). This is the accepted cost of preserving the
-pipeline's configured detector params. *(D3 — PENDING RATIFICATION.)*
+pipeline's configured detector params. *(D3 — ratified in updated #173.)*
+
+### PR #175 review follow-ups (single-detection reuse, correctness, lifecycle)
+
+Landed in response to Elizabeth's PR #175 review, before the a4 public API locks (see design.md D6):
+
+- **Public `select_outlier_figures`** (in `__all__`) + **`remove_outlier_samples(return_detector_result=True)`**
+  (additive; default keeps the compact 2-tuple) so the #378 `remove_outliers` consumer detects **once**
+  and feeds the raw result to both the trim and the plots — no redundant second detection.
+- **Metadata-column params** on `plot_outlier_analysis` (`barcode_col`/`genotype_col`/`replicate_col`)
+  matching `remove_outlier_samples`, so the plotted trait/outlier set cannot silently diverge from the
+  trimmed one (a correctness fix; also removes the hardcoded `"geno"`).
+- **Figure lifecycle**: a `which`-narrowed call closes the figures it excluded (and skips the
+  per-genotype render when not requested) — no figure leak in a long-running server.
+  `random_state` is `Optional[int]` (matches docs/tests).
 
 ### Public API + docs
 
@@ -158,7 +173,8 @@ optional `include_plots` delegates to this function so removal and plots come fr
 
 ### Out of scope (explicitly)
 
-- **Any change to `remove_outlier_samples`** — it stays plot-free.
+- **Plotting logic inside `remove_outlier_samples`** — it stays plot-free (the only change is the
+  additive, opt-in `return_detector_result` flag; the default return is unchanged).
 - **New plot types / restyling** the existing `create_*` figures. This composes them as-is.
 - **`create_pca_outlier_plot`** (a `detect_outliers_pca`-fed figure) — excluded per B1.
 - **File / format / saving** — returns `Figure` objects; the caller writes files.
@@ -180,22 +196,24 @@ optional `include_plots` delegates to this function so removal and plots come fr
     function must be registered (no new requirement, satisfied by registration).
   - **public-api-introspection** — existing gate; new `__all__` entry + docstring audit.
 - Affected code:
-  - `src/sleap_roots_analyze/outlier_visualization.py` — new public `plot_outlier_analysis` +
-    the extracted `_select_outlier_figures` helper (both fully type-annotated).
+  - `src/sleap_roots_analyze/outlier_visualization.py` — new public `plot_outlier_analysis` + public
+    `select_outlier_figures` helper (both fully type-annotated).
+  - `src/sleap_roots_analyze/outlier_removal.py` — additive `return_detector_result` flag on
+    `remove_outlier_samples` (default 2-tuple unchanged; PR #175 review).
   - `src/sleap_roots_analyze/pipeline/steps/visualize_outliers.py` — the two shared methods' blocks
     delegate to the helper (behavior unchanged; pca/clustering/comparison/cross-method-genotype
     retained).
-  - `src/sleap_roots_analyze/__init__.py` — import + `__all__` entry for `plot_outlier_analysis`.
-  - `docs/API.md` — `plot_outlier_analysis` + backfill of the composed `create_*` figure functions;
-    `docs/CHANGELOG.md` — `[Unreleased]` entry; `docs/public_api_audit_2026.md` — count update.
-  - `tests/test_plot_outlier_analysis.py` (new) — TDD coverage.
-  - `tests/test_step_visualize_outliers.py` — pinned pre-refactor filename/count baseline for the
-    two methods (built fresh; the current step tests use placeholder dicts that draw no mahal/IF
-    figures).
-  - `tests/reproducibility_cases.py` + `tests/test_reproducibility.py` — register the new
-    `random_state` function and update the pinned anchors (same commit as the implementation).
-- **No behavior change** to `remove_outlier_samples`, the detectors, or `VisualizeOutliersStep`'s
-  output. The step refactor is transparent; the rest is additive.
+  - `src/sleap_roots_analyze/__init__.py` — import + `__all__` entries for `plot_outlier_analysis`
+    and `select_outlier_figures`.
+  - `docs/API.md` — `plot_outlier_analysis`, `select_outlier_figures`, `return_detector_result`, +
+    backfill of the composed `create_*` figure functions; `docs/CHANGELOG.md` — `[Unreleased]` entry.
+  - `tests/test_plot_outlier_analysis.py` (new) — TDD coverage (incl. figure-leak + metadata-col +
+    single-detection-reuse follow-ups).
+  - `tests/test_step_visualize_outliers.py` — pinned filename/count baseline for the two methods.
+  - `tests/test_remove_outlier_samples.py` — `return_detector_result` 3-tuple coverage.
+  - `tests/reproducibility_cases.py` — register the new `random_state` function (`EXCLUDED`).
+- **No behavior change** to `remove_outlier_samples`'s default return, the detectors, or
+  `VisualizeOutliersStep`'s output. The step refactor is transparent; the rest is additive.
 - **Depends on #165** (`remove_outlier_samples`, the detectors, the `create_*` exports) — on
   `main` via #172, **not yet on PyPI**.
 - **Release coupling:** rides the same next `analyze` pre-release as #165 (`0.1.0a4`); `[Unreleased]`

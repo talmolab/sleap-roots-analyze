@@ -17,9 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Dict[str, plt.Figure]` — **IO-free** (the caller saves/persists). Covers the two
   `remove_outlier_samples` methods (`mahalanobis`, `isolation_forest`); the
   `detect_outliers_pca`/`_kmeans`/`_gmm`/`_hierarchical` plots stay pipeline-only. A
-  `which` selector narrows the returned figures. The pipeline's `VisualizeOutliersStep`
-  now shares the same private figure-selection helper on its own pre-computed results
-  (no behavior change).
+  `which` selector narrows the returned figures, and metadata-column args
+  (`barcode_col`/`genotype_col`/`replicate_col`) mirror `remove_outlier_samples` so the
+  plotted set matches the trimmed one. The pipeline's `VisualizeOutliersStep` shares the
+  selection via the public `select_outlier_figures(df, results, method, ...)` helper on
+  its own pre-computed results (no behavior change).
+- `select_outlier_figures` (#173): public no-detection figure-selection layer (used by
+  both `plot_outlier_analysis` and the pipeline), so a consumer holding a detector
+  result can plot without re-detecting.
+- `remove_outlier_samples` gains an additive `return_detector_result=False` flag (#173):
+  when `True` it also returns the raw detector dict, so a consumer (the bloom-mcp
+  `remove_outliers` tool) detects once and feeds both the trim and the plots. Default
+  preserves the compact-report 2-tuple contract.
 - Public outlier-removal entry point `remove_outlier_samples` (#165): the
   **quality**-step follow-up to `clean_traits_for_analysis`. Takes a clean
   (NaN-free) trait table and detects + removes outlier samples so PCA/UMAP/

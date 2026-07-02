@@ -29,10 +29,10 @@ Two facts constrain the design (both verified against the real code during revie
 
 ### D1 — Re-detect inside the entry point, under the sibling's preconditions
 
-`plot_outlier_analysis(clean_df, trait_cols=None, *, method="mahalanobis", random_state=42,
-which=None, **detect_kwargs)` (no `genotype_col` param — it uses `"geno"` internally, matching the
-#173 signature) re-runs the selected detector internally, and
-**enforces the same NaN-free + unique-index preconditions as `remove_outlier_samples`**
+`plot_outlier_analysis(clean_df, trait_cols=None, *, method="mahalanobis", barcode_col="Barcode",
+genotype_col="geno", replicate_col="rep", random_state=42, which=None, **detect_kwargs)` re-runs the
+selected detector internally, and **enforces the same NaN-free + unique-index preconditions as
+`remove_outlier_samples`**
 (`validate_clean_traits` + `index.is_unique`), plus the same input-misuse guards (empty frame,
 duplicate columns, non-numeric explicit `trait_cols`).
 
@@ -63,13 +63,13 @@ pipeline's already-computed `outlier_results[method]` (built from `config.outlie
 risking drift and a redundant in-pipeline detector run. `CleanupTraitsStep → clean_traits_for_analysis`
 is not a perfect mirror because cleanup has no upstream pre-computed detector state to preserve.
 
-**Decision:** extract `_select_outlier_figures(df, results, method, which=None, genotype_col=None)
--> dict[str, plt.Figure]` (private) as the one place mapping a method + its pre-computed
+**Decision:** extract `select_outlier_figures(df, results, method, which=None, genotype_col=None)
+-> dict[str, plt.Figure]` (**public** — see D6) as the one place mapping a method + its pre-computed
 detector-result dict to the method's `create_*` figures (and, when `genotype_col` is present in
 `df`, the per-genotype figure over the full `results` dict):
-- `plot_outlier_analysis` = validate + preconditions → re-detect → `_select_outlier_figures(clean_df,
+- `plot_outlier_analysis` = validate + preconditions → re-detect → `select_outlier_figures(clean_df,
   {method: result}, method, which=which, genotype_col="geno")` (per-genotype single-method).
-- `VisualizeOutliersStep` calls `_select_outlier_figures(df, outlier_results, method)` (default
+- `VisualizeOutliersStep` calls `select_outlier_figures(df, outlier_results, method)` (default
   `genotype_col=None` → core figures only) with its **pre-computed** results for `mahalanobis` /
   `isolation_forest`, then `savefig`s under its existing filenames. It does **not** call
   `plot_outlier_analysis`, does **not** re-detect, and keeps its own cross-method per-genotype block.
@@ -88,7 +88,7 @@ this design (shared helper on the step's own pre-computed results).
 | `isolation_forest` (+ genotype) | `outliers_per_genotype` | `create_outliers_per_genotype_plot` (**bare Figure** — composer-assigned key) |
 
 The dict-returning functions contribute their own keys unprefixed; the bare-`Figure` per-genotype
-function gets a composer-assigned key (`outliers_per_genotype`). `_select_outlier_figures` adds the
+function gets a composer-assigned key (`outliers_per_genotype`). `select_outlier_figures` adds the
 per-genotype figure only when `genotype_col` is present in `df` — the entry point passes
 `genotype_col="geno"`, the step passes `genotype_col=None`. So for the step the helper is a pure
 extraction of its per-method `create_*` calls (no per-genotype) → byte-identical step output, and
@@ -125,6 +125,28 @@ Figures the sweep can't compare). Because the entry point is `EXCLUDED` (not add
 `EXPECTED_QUALNAMES` / `len(CASES)` anchors are unchanged; `test_excluded_set_is_consistent` verifies
 the excluded name is a discoverable `random_state` function disjoint from `CASES`.
 
+### D6 — PR #175 review follow-ups (single-detection reuse, figure lifecycle, metadata cols)
+
+Elizabeth's PR #175 review surfaced that the #173 shape sets up a redundant computation for the #378
+`remove_outliers` consumer (which detects via `remove_outlier_samples` first — discarding the raw
+result — then would re-detect to plot). Resolved here, before the a4 public API locks:
+
+- **Public `select_outlier_figures`** (was private): a consumer holding a detector result selects
+  figures with no second detection. (D3's helper, promoted + in `__all__`.)
+- **`remove_outlier_samples(return_detector_result=True)`**: additive flag returning the raw detector
+  dict as a 3rd tuple element (default preserves the compact 2-tuple). #378 detects once and feeds the
+  result to both the trim and `select_outlier_figures`. Rejected a `results=` param on
+  `plot_outlier_analysis` (would make `random_state`/`detect_kwargs` silently ignored, and does not
+  fix #378 since the result is discarded before plotting).
+- **Metadata-column params** on `plot_outlier_analysis` (`barcode_col`/`genotype_col`/`replicate_col`)
+  matching `remove_outlier_samples` — a caller passing non-default metadata columns to removal but not
+  here would otherwise score a different trait set and plot a diverging outlier set (correctness).
+- **Figure lifecycle**: `select_outlier_figures` closes figures excluded by `which` (and skips the
+  per-genotype render when not requested), so a narrowed call leaks no figures in a long-running
+  server. `random_state: Optional[int]` (matches docs/tests); the seed reaches the detector via a
+  `Dict[str, Any]` splat so the detectors' narrower `int` annotation is not tripped — widening the pca
+  chain was out of scope.
+
 ## Risks / Trade-offs
 
 - **B1 overrules the original #173 figure list** → mitigated by the `mahalanobis_pc_analysis` figure
@@ -155,7 +177,7 @@ commit (the step's pre-refactor per-method blocks restored; no data/format chang
 
 - **Q1 — B1 ratified:** `create_pca_outlier_plot` (and pca/kmeans/gmm/hierarchical plots) stay
   pipeline-only; the entry point covers `mahalanobis` + `isolation_forest`.
-- **Q2 — D3 ratified:** the step delegates to `_select_outlier_figures` with its own pre-computed
+- **Q2 — D3 ratified:** the step delegates to `select_outlier_figures` with its own pre-computed
   results; it does not call `plot_outlier_analysis`.
 - **Q3 — reproducibility registry:** implemented as `EXCLUDED`-with-reason (the function returns
   Figures and adds no new stochastic step over the already-swept detectors).

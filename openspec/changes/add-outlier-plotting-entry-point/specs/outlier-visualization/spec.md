@@ -193,15 +193,25 @@ missing from the dataframe or non-numeric.
 ### Requirement: IO-Free Figure Return
 
 `plot_outlier_analysis` SHALL return `matplotlib` `Figure` objects and SHALL NOT write files, choose
-a file format or DPI, or close the figures. All persistence SHALL be the caller's responsibility (the
-pipeline step `savefig`s with its `config`; an MCP consumer persists via its own store). The returned
-dict keys SHALL be stable identifiers suitable for use as filename stems or artifact names.
+a file format or DPI, or close the **returned** figures. All persistence SHALL be the caller's
+responsibility (the pipeline step `savefig`s with its `config`; an MCP consumer persists via its own
+store). The returned dict keys SHALL be stable identifiers suitable for use as filename stems or
+artifact names. When a `which` selection narrows the result, any figure that was built but excluded
+SHALL be closed so a narrowed call leaves no orphaned figures in matplotlib's global registry (no
+unbounded figure growth in a long-running process).
 
 #### Scenario: No files are written
 
 - **WHEN** `plot_outlier_analysis(clean_df)` is called
 - **THEN** no image files SHALL be created by the call
 - **AND** every returned value SHALL be an open `matplotlib.figure.Figure`
+
+#### Scenario: A which-narrowed call leaves no orphaned figures
+
+- **WHEN** `plot_outlier_analysis(clean_df, method="mahalanobis", which="mahalanobis_outlier_detection")`
+  returns one figure
+- **THEN** the number of open figures in matplotlib's registry SHALL equal the number returned
+  (the figures built but excluded by `which` SHALL have been closed)
 
 ### Requirement: Detector-Failure Surfacing
 
@@ -217,6 +227,51 @@ an empty figure dict on such input, masking the failure.
   `outlier_indices`
 - **THEN** `plot_outlier_analysis` SHALL raise a `ValueError` surfacing that error before any
   `create_*` figure function is called
+
+### Requirement: Metadata-Column Parameters Match Removal
+
+`plot_outlier_analysis` SHALL accept the same metadata-column parameters as `remove_outlier_samples`
+— `barcode_col` (default `"Barcode"`), `genotype_col` (default `"geno"`), and `replicate_col`
+(default `"rep"`) — and SHALL forward them to `get_trait_columns` when inferring traits and use
+`genotype_col` for the per-genotype figure. This keeps the re-detected trait set (and therefore the
+plotted outlier set) aligned with a `remove_outlier_samples` call made with the same metadata columns,
+rather than silently diverging on a hardcoded default.
+
+#### Scenario: Metadata columns are forwarded to trait resolution
+
+- **WHEN** `plot_outlier_analysis` is called with explicit `barcode_col` / `genotype_col` /
+  `replicate_col` and no `trait_cols`
+- **THEN** those column names SHALL be passed to `get_trait_columns` for the trait inference
+
+#### Scenario: Per-genotype figure follows genotype_col
+
+- **WHEN** `plot_outlier_analysis(clean_df, genotype_col="Genotype")` is called on a frame whose
+  genotype column is named `"Genotype"` (not the default `"geno"`)
+- **THEN** the per-genotype figure SHALL be produced using the `"Genotype"` column
+
+### Requirement: Public Figure-Selection Layer and Single-Detection Reuse
+
+The no-detection figure-selection layer SHALL be public as `select_outlier_figures(df, results,
+method, which=None, genotype_col=None)` and listed in `__all__`, so a consumer that already holds a
+detector result can select figures without a redundant re-detection. To supply that result without
+re-stitching, `remove_outlier_samples` SHALL accept an additive `return_detector_result: bool = False`
+parameter that, when `True`, additionally returns the raw detector result dict (a third tuple
+element); the default `False` SHALL preserve the existing compact-report 2-tuple return contract.
+
+#### Scenario: Selection layer is public and detection-free
+
+- **WHEN** `select_outlier_figures(df, {method: detector_result}, method)` is called with a
+  pre-computed detector result
+- **THEN** it SHALL return the method-appropriate figures without running any detector
+
+#### Scenario: Removal can return the raw detector result for reuse
+
+- **WHEN** `remove_outlier_samples(clean_df, return_detector_result=True)` is called
+- **THEN** it SHALL return a 3-tuple `(trimmed_df, outlier_report, detector_result)` whose
+  `detector_result` feeds `select_outlier_figures` (via `{method: detector_result}`) to plot the
+  same outliers without a second detection
+- **WHEN** `return_detector_result` is `False` (default)
+- **THEN** it SHALL return the 2-tuple `(trimmed_df, outlier_report)` unchanged
 
 ### Requirement: Reproducibility-Gate Registration
 
@@ -239,12 +294,12 @@ anchors in `tests/test_reproducibility.py` SHALL be updated in lockstep.
 
 ### Requirement: Public API Surface
 
-The package SHALL export `plot_outlier_analysis` from the top-level `sleap_roots_analyze` namespace
-and list it in `__all__`, with a Google-style docstring (Args/Returns/Raises) and type hints
-resolvable by `typing.get_type_hints()`. If `**detect_kwargs` is annotated, the annotation SHALL be
-importable (e.g. `Any` imported) so `get_type_hints()` does not raise under
-`from __future__ import annotations`. The `create_*_outlier` figure functions it composes are already
-exported and SHALL remain exported.
+The package SHALL export both `plot_outlier_analysis` and `select_outlier_figures` from the top-level
+`sleap_roots_analyze` namespace and list them in `__all__`, with Google-style docstrings
+(Args/Returns/Raises) and type hints resolvable by `typing.get_type_hints()`. If `**detect_kwargs` is
+annotated, the annotation SHALL be importable (e.g. `Any` imported) so `get_type_hints()` does not
+raise under `from __future__ import annotations`. The `create_*_outlier` figure functions they compose
+are already exported and SHALL remain exported.
 
 #### Scenario: Entry point is importable from the package root
 
@@ -253,10 +308,10 @@ exported and SHALL remain exported.
 - **AND** the imported object SHALL be identity-equal (`is`) to the function defined in
   `sleap_roots_analyze.outlier_visualization`
 
-#### Scenario: Entry point is listed in `__all__` without duplicates
+#### Scenario: Entry point and selection layer are listed in `__all__` without duplicates
 
 - **WHEN** `sleap_roots_analyze.__all__` is inspected
-- **THEN** it SHALL contain `plot_outlier_analysis`
+- **THEN** it SHALL contain `plot_outlier_analysis` and `select_outlier_figures`
 - **AND** SHALL contain no duplicate entries
 
 #### Scenario: Public function satisfies the package API-docs audit

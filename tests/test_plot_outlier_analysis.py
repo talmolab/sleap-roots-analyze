@@ -28,7 +28,7 @@ import sleap_roots_analyze as sra  # noqa: E402
 from sleap_roots_analyze import outlier_visualization  # noqa: E402
 from sleap_roots_analyze.outlier_removal import remove_outlier_samples  # noqa: E402
 from sleap_roots_analyze.outlier_visualization import (  # noqa: E402
-    _select_outlier_figures,
+    select_outlier_figures,
     plot_outlier_analysis,
 )
 
@@ -300,7 +300,7 @@ def test_select_helper_core_only_without_genotype(clean_frame):
     from sleap_roots_analyze.outlier_detection import detect_outliers_mahalanobis
 
     result = detect_outliers_mahalanobis(clean_frame[[f"trait_{j}" for j in range(5)]])
-    figs = _select_outlier_figures(clean_frame, {"mahalanobis": result}, "mahalanobis")
+    figs = select_outlier_figures(clean_frame, {"mahalanobis": result}, "mahalanobis")
     assert MAHAL_KEYS <= set(figs)
     assert "outliers_per_genotype" not in figs
 
@@ -324,3 +324,107 @@ def test_docstring_has_google_sections():
     """Docstring has Args/Returns/Raises sections (API-docs audit bar)."""
     doc = inspect.getdoc(plot_outlier_analysis) or ""
     assert "Args:" in doc and "Returns:" in doc and "Raises:" in doc
+
+
+# ---------------------------------------------------------------------------
+# Figure lifecycle (no leaks) — pins the which-narrow close-dropped fix
+# ---------------------------------------------------------------------------
+def test_which_narrow_does_not_leak_figures(clean_frame):
+    """A which-narrowed call leaves no orphaned figures in matplotlib's registry."""
+    plt.close("all")
+    figs = plot_outlier_analysis(
+        clean_frame, method="mahalanobis", which="mahalanobis_outlier_detection"
+    )
+    assert len(figs) == 1
+    assert len(plt.get_fignums()) == len(figs)
+
+
+def test_which_missing_key_leaves_no_open_figures(clean_frame):
+    """An unavailable which key raises and closes everything it built."""
+    plt.close("all")
+    with pytest.raises(ValueError):
+        plot_outlier_analysis(clean_frame, method="mahalanobis", which=["not_a_figure"])
+    assert plt.get_fignums() == []
+
+
+# ---------------------------------------------------------------------------
+# Additional precondition/misuse edge cases
+# ---------------------------------------------------------------------------
+def test_duplicate_columns_rejected(clean_frame):
+    """Duplicate column names raise ValueError before detection."""
+    dup = clean_frame.copy()
+    cols = list(dup.columns)
+    cols[cols.index("trait_1")] = "trait_0"  # two 'trait_0' columns
+    dup.columns = cols
+    with pytest.raises(ValueError, match="duplicate"):
+        plot_outlier_analysis(dup)
+
+
+def test_non_numeric_explicit_trait_cols_rejected(clean_frame):
+    """Explicit non-numeric trait_cols raise ValueError (not a later opaque error)."""
+    with pytest.raises(ValueError, match="numeric"):
+        plot_outlier_analysis(clean_frame, trait_cols=["trait_0", "Barcode"])
+
+
+def test_all_nan_column_rejected(clean_frame):
+    """An all-NaN trait column trips the clean-input precondition."""
+    dirty = clean_frame.copy()
+    dirty["trait_0"] = np.nan
+    with pytest.raises(ValueError, match="clean_traits_for_analysis"):
+        plot_outlier_analysis(dirty)
+
+
+# ---------------------------------------------------------------------------
+# Metadata-column params (match remove_outlier_samples so the plotted set aligns)
+# ---------------------------------------------------------------------------
+def test_metadata_columns_forwarded_to_trait_resolution(clean_frame, monkeypatch):
+    """barcode/genotype/replicate cols are forwarded to get_trait_columns."""
+    captured = {}
+    real = outlier_visualization.get_trait_columns
+
+    def _spy(df, **kwargs):
+        captured.update(kwargs)
+        return real(df, **kwargs)
+
+    monkeypatch.setattr(outlier_visualization, "get_trait_columns", _spy)
+    plot_outlier_analysis(
+        clean_frame,
+        method="mahalanobis",
+        barcode_col="Barcode",
+        genotype_col="geno",
+        replicate_col="rep",
+    )
+    assert captured == {
+        "barcode_col": "Barcode",
+        "genotype_col": "geno",
+        "replicate_col": "rep",
+    }
+
+
+def test_custom_genotype_col_drives_per_genotype_figure(clean_frame):
+    """The per-genotype figure follows genotype_col, not a hardcoded 'geno'."""
+    renamed = clean_frame.rename(columns={"geno": "Genotype"})
+    with_col = plot_outlier_analysis(
+        renamed, method="mahalanobis", genotype_col="Genotype"
+    )
+    assert "outliers_per_genotype" in with_col
+    # Default genotype_col='geno' is now absent -> no per-genotype figure.
+    without_col = plot_outlier_analysis(renamed, method="mahalanobis")
+    assert "outliers_per_genotype" not in without_col
+
+
+# ---------------------------------------------------------------------------
+# Single-detection reuse: remove_outlier_samples(return_detector_result=True)
+# ---------------------------------------------------------------------------
+def test_detector_result_from_removal_feeds_selection(clean_frame):
+    """The raw detector dict from removal drives select_outlier_figures — no re-detect."""
+    trimmed, report, det = remove_outlier_samples(
+        clean_frame, method="mahalanobis", return_detector_result=True
+    )
+    assert isinstance(det, dict)
+    assert set(det["outlier_indices"]) == set(report["outlier_indices"])
+    figs = select_outlier_figures(
+        clean_frame, {"mahalanobis": det}, "mahalanobis", genotype_col="geno"
+    )
+    assert MAHAL_KEYS <= set(figs)
+    assert "outliers_per_genotype" in figs

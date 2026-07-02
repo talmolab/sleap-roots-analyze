@@ -9,7 +9,6 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 
 from sleap_roots_analyze.outlier_visualization import (
-    _select_outlier_figures,
     create_comprehensive_outlier_comparison,
     create_gmm_outlier_plots,
     create_hierarchical_outlier_plots,
@@ -18,6 +17,7 @@ from sleap_roots_analyze.outlier_visualization import (
     create_outlier_overlap_heatmap,
     create_outliers_per_genotype_plot,
     create_pca_outlier_plot,
+    select_outlier_figures,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
@@ -121,8 +121,9 @@ class VisualizeOutliersStep(BaseStep):
 
             elif method == "isolation_forest":
                 # Delegate figure selection to the shared helper (#173) using the
-                # step's own pre-computed results — no re-detection, byte-identical.
-                figs = _select_outlier_figures(df, outlier_results, method)
+                # step's own pre-computed results — no re-detection; same figure
+                # keys/filenames as before.
+                figs = select_outlier_figures(df, outlier_results, method)
                 for fig_name, fig in figs.items():
                     fig_path = (
                         figures_dir
@@ -141,8 +142,9 @@ class VisualizeOutliersStep(BaseStep):
 
             elif method == "mahalanobis":
                 # Delegate figure selection to the shared helper (#173) using the
-                # step's own pre-computed results — no re-detection, byte-identical.
-                figs = _select_outlier_figures(df, outlier_results, method)
+                # step's own pre-computed results — no re-detection; same figure
+                # keys/filenames as before.
+                figs = select_outlier_figures(df, outlier_results, method)
                 for fig_name, fig in figs.items():
                     fig_path = (
                         figures_dir

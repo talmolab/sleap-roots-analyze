@@ -992,8 +992,9 @@ remove_outlier_samples(
     genotype_col: str = "geno",
     replicate_col: Optional[str] = "rep",
     random_state: int = 42,
+    return_detector_result: bool = False,
     **detect_kwargs,
-) -> Tuple[pd.DataFrame, Dict]
+) -> Union[Tuple[pd.DataFrame, Dict], Tuple[pd.DataFrame, Dict, Dict]]
 ```
 
 Public outlier-removal entry point — the **quality**-step follow-up to
@@ -1027,18 +1028,25 @@ so the trimmed frame stays analysis-ready.
 - `barcode_col` / `genotype_col` / `replicate_col`: metadata columns excluded from
   inferred traits (`barcode_col` is also read to populate `outlier_barcodes`)
 - `random_state`: Seed forwarded to the detector for reproducibility (default: 42)
+- `return_detector_result`: When `True`, additionally return the **raw** detector result
+  dict (a third tuple element — the per-sample arrays the compact report omits) so a
+  consumer can detect once and feed it to
+  [`select_outlier_figures`](#select_outlier_figures) without a redundant second
+  detection. Default `False` preserves the 2-tuple compact-report contract.
 - `**detect_kwargs`: Per-method parameters forwarded to the chosen detector
   (`contamination` for isolation forest; `chi2_percentile`, `variance_threshold`,
   `use_chi_squared`, `distance_threshold`, `robust_covariance` for Mahalanobis)
 
 **Returns:**
-- `Tuple[pd.DataFrame, Dict]`: `(trimmed_df, outlier_report)`. `trimmed_df` is
-  `clean_df` with the flagged rows removed (all columns preserved). `outlier_report`
-  is an auditable, JSON-serializable dict: `method`, `method_params`, `random_state`,
-  `n_input_samples`, `n_outliers`, `n_output_samples`, `removal_fraction`,
-  `outlier_indices`, `outlier_barcodes`, `threshold_type`, `threshold_value`,
-  `n_components`, `variance_threshold`, `goodness_of_fit` (the last four are
-  populated for Mahalanobis and `None` for isolation forest).
+- `(trimmed_df, outlier_report)` — or `(trimmed_df, outlier_report, detector_result)`
+  when `return_detector_result=True`. `trimmed_df` is `clean_df` with the flagged rows
+  removed (all columns preserved). `outlier_report` is an auditable, JSON-serializable
+  dict: `method`, `method_params`, `random_state`, `n_input_samples`, `n_outliers`,
+  `n_output_samples`, `removal_fraction`, `outlier_indices`, `outlier_barcodes`,
+  `threshold_type`, `threshold_value`, `n_components`, `variance_threshold`,
+  `goodness_of_fit` (the last four are populated for Mahalanobis and `None` for
+  isolation forest). `detector_result` (when returned) is the unmodified
+  `detect_outliers_*` dict.
 
 **Warns:**
 - `UserWarning`: when the removed fraction exceeds 0.5 (likely mis-set
@@ -1385,8 +1393,9 @@ plt.show()
 ## `outlier_visualization` Module
 
 Outlier-detection figure composition. The `create_*_outlier` functions each render an
-individual figure; `plot_outlier_analysis` composes the method-appropriate set for a
-consumer (e.g. the bloom-mcp `remove_outliers` tool's optional plots).
+individual figure; `select_outlier_figures` selects the method-appropriate set from a
+pre-computed detector result, and `plot_outlier_analysis` re-detects and composes them
+for a consumer (e.g. the bloom-mcp `remove_outliers` tool's optional plots).
 
 ### Functions
 
@@ -1398,6 +1407,9 @@ plot_outlier_analysis(
     trait_cols: Optional[List[str]] = None,
     *,
     method: str = "mahalanobis",
+    barcode_col: str = "Barcode",
+    genotype_col: str = "geno",
+    replicate_col: Optional[str] = "rep",
     random_state: Optional[int] = 42,
     which: Optional[Union[str, List[str]]] = None,
     **detect_kwargs,
@@ -1411,13 +1423,18 @@ under the shared NaN-free + unique-index preconditions, it flags the same sample
 figure functions and returns the figures. **IO-free**: returns open `matplotlib`
 `Figure` objects; the caller saves/persists them. Covers the two `remove_outlier_samples`
 methods (`"mahalanobis"`, `"isolation_forest"`); the `detect_outliers_pca`/`_kmeans`/
-`_gmm`/`_hierarchical` plots stay pipeline-only.
+`_gmm`/`_hierarchical` plots stay pipeline-only. Pass the **same** metadata-column
+arguments used with `remove_outlier_samples` so the plotted outlier set matches the
+trimmed one.
 
 **Parameters:**
 - `clean_df`: Clean (NaN-free in trait columns), unique-indexed wide trait table.
 - `trait_cols`: Trait columns to score; inferred via `get_trait_columns` if `None`.
 - `method`: `"mahalanobis"` (default) or `"isolation_forest"`; unknown raises.
-- `random_state`: Seed forwarded to the detector (default 42; accepts `None`).
+- `barcode_col` / `genotype_col` / `replicate_col`: metadata columns excluded from
+  inferred traits (defaults `"Barcode"` / `"geno"` / `"rep"`); `genotype_col` also
+  drives the per-genotype figure when present.
+- `random_state`: Seed forwarded to the detector (default 42; `None` = no fixed seed).
 - `which`: Figure-key string or list of keys to return; `None` returns the full set. An
   unavailable key raises.
 - `**detect_kwargs`: Per-method detector parameters; unknown/cross-method keys raise.
@@ -1428,12 +1445,51 @@ methods (`"mahalanobis"`, `"isolation_forest"`); the `detect_outliers_pca`/`_kme
   `"isolation_forest"`,
   [`create_isolation_forest_plots`](#create_isolation_forest_plots); plus
   [`create_outliers_per_genotype_plot`](#create_outliers_per_genotype_plot) (key
-  `outliers_per_genotype`) when a `geno` column is present.
+  `outliers_per_genotype`) when the `genotype_col` column is present. The figures are
+  open and **owned by the caller** — `plt.close(fig)` the ones you do not retain to
+  avoid memory growth / `max_open_warning` in a long-running process.
 
 **Raises:**
 - `ValueError`: on empty input; duplicate columns; invalid `trait_cols`; unknown
   `method`; a non-unique index; NaN traits (points to `clean_traits_for_analysis`);
   unknown `detect_kwargs`; an unavailable `which` key; or a detector failure.
+
+#### `select_outlier_figures`
+
+```python
+select_outlier_figures(
+    df: pd.DataFrame,
+    results: Dict[str, Dict],
+    method: str,
+    which: Optional[Union[str, List[str]]] = None,
+    genotype_col: Optional[str] = None,
+) -> Dict[str, plt.Figure]
+```
+
+The lower-level, **no-detection** figure-selection layer shared by
+[`plot_outlier_analysis`](#plot_outlier_analysis) and the pipeline's
+`VisualizeOutliersStep`. Dispatches a **pre-computed** detector result
+(`results[method]`) to the method-appropriate `create_*` figures. Public so a consumer
+that already holds a detector result — e.g. from
+[`remove_outlier_samples(..., return_detector_result=True)`](#remove_outlier_samples) —
+can plot **without a redundant second detection**. Figures excluded by `which` are
+closed (no leak); the returned figures are owned by the caller.
+
+**Parameters:**
+- `df`: The trait frame the figures are drawn over.
+- `results`: Mapping of method name → that method's detector result dict; `results[method]`
+  is drawn (e.g. `{"mahalanobis": det}`).
+- `method`: `"mahalanobis"` or `"isolation_forest"`.
+- `which`: Figure-key string or list to return; `None` returns the method's full set.
+- `genotype_col`: When present in `df`, add the per-genotype figure over the full
+  `results` dict; `None` (default) omits it.
+
+**Returns:**
+- `Dict[str, plt.Figure]`: stable figure key → figure.
+
+**Raises:**
+- `ValueError`: on an unknown `method`, or a `which` key not available for the
+  method/frame.
 
 #### `create_mahalanobis_outlier_plots`
 

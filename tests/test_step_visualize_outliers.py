@@ -231,10 +231,10 @@ class TestOutlierMethodComparisonBarChart:
 
 class TestSharedSelectionRefactorUnchanged:
     """Guard the #173 single-source refactor: the step's mahalanobis /
-    isolation_forest figures (now selected via the shared ``_select_outlier_figures``
-    helper on the step's own pre-computed results) are byte-identical to calling the
-    ``create_*`` functions directly, and the cross-method comparison + per-genotype
-    figures are unchanged.
+    isolation_forest figures (now selected via the shared ``select_outlier_figures``
+    helper on the step's own pre-computed results) have the same figure keys /
+    filenames as calling the ``create_*`` functions directly, and the cross-method
+    comparison + per-genotype figures are unchanged.
     """
 
     TRAITS = [f"trait_{j}" for j in range(5)]

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import inspect
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -139,8 +139,12 @@ def remove_outlier_samples(
     genotype_col: str = "geno",
     replicate_col: Optional[str] = "rep",
     random_state: int = 42,
+    return_detector_result: bool = False,
     **detect_kwargs: Any,
-) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+) -> Union[
+    Tuple[pd.DataFrame, Dict[str, Any]],
+    Tuple[pd.DataFrame, Dict[str, Any], Dict[str, Any]],
+]:
     """Detect and remove outlier samples from a clean, analysis-ready trait table.
 
     Quality-step follow-up to
@@ -211,6 +215,13 @@ def remove_outlier_samples(
         genotype_col: Genotype column to exclude when inferring traits.
         replicate_col: Replicate column to exclude if present (``None`` if absent).
         random_state: Seed forwarded to the detector for reproducibility.
+        return_detector_result: When ``True``, additionally return the **raw** detector
+            result dict (a third tuple element) — the full per-sample arrays the compact
+            ``outlier_report`` deliberately omits. Lets a consumer detect once and feed
+            the result to ``plot_outlier_analysis``'s selection layer
+            (:func:`~sleap_roots_analyze.outlier_visualization.select_outlier_figures`)
+            without a redundant second detection. Default ``False`` preserves the
+            compact-report, 2-tuple contract.
         **detect_kwargs: Per-method parameters forwarded to the chosen detector
             unchanged — ``contamination`` for ``"isolation_forest"``;
             ``chi2_percentile``, ``variance_threshold``, ``use_chi_squared``,
@@ -218,10 +229,11 @@ def remove_outlier_samples(
             Detector defaults apply for any not passed.
 
     Returns:
-        Tuple ``(trimmed_df, outlier_report)`` where ``trimmed_df`` is ``clean_df``
-        with the flagged outlier rows removed (all columns preserved — outlier
-        removal drops rows, never columns) and ``outlier_report`` is an auditable,
-        JSON-serializable dict with keys: ``method``, ``method_params``,
+        Tuple ``(trimmed_df, outlier_report)`` — or, when ``return_detector_result`` is
+        ``True``, ``(trimmed_df, outlier_report, detector_result)``. ``trimmed_df`` is
+        ``clean_df`` with the flagged outlier rows removed (all columns preserved —
+        outlier removal drops rows, never columns) and ``outlier_report`` is an
+        auditable, JSON-serializable dict with keys: ``method``, ``method_params``,
         ``random_state``, ``n_input_samples``, ``n_outliers``, ``n_output_samples``,
         ``removal_fraction``, ``outlier_indices``, ``outlier_barcodes``,
         ``threshold_type``, ``threshold_value``, ``n_components``,
@@ -229,6 +241,8 @@ def remove_outlier_samples(
         keys (``threshold_type``, ``threshold_value``, ``n_components``,
         ``goodness_of_fit``) are populated for Mahalanobis and ``None`` for
         isolation forest (whose control is ``contamination``, in ``method_params``).
+        ``detector_result`` (when returned) is the unmodified dict from the chosen
+        ``detect_outliers_*`` function.
 
     Raises:
         ValueError: On empty input; duplicate column names; explicit ``trait_cols``
@@ -447,4 +461,9 @@ def remove_outlier_samples(
             stacklevel=2,
         )
 
+    # Optionally hand back the raw detector result (with the per-sample arrays the
+    # compact report omits) so a consumer — e.g. the bloom-mcp remove_outliers tool —
+    # can feed it to plot_outlier_analysis's selection layer without a second detection.
+    if return_detector_result:
+        return trimmed_df, outlier_report, detect_result
     return trimmed_df, outlier_report
