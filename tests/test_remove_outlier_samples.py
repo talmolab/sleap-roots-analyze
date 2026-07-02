@@ -109,6 +109,22 @@ def test_default_mahalanobis_flags_exact_injected(clean_frame):
     assert not set(INJECTED) & set(trimmed.index)
 
 
+def test_return_detector_result_flag(clean_frame):
+    """return_detector_result=True adds the raw detector dict as a 3rd element."""
+    # Default contract: a 2-tuple with a compact report (no per-sample arrays).
+    two = remove_outlier_samples(clean_frame)
+    assert len(two) == 2
+    assert "mahalanobis_distances" not in two[1]
+
+    trimmed, report, detector_result = remove_outlier_samples(
+        clean_frame, return_detector_result=True
+    )
+    assert isinstance(detector_result, dict)
+    # The raw dict carries the per-sample arrays the compact report omits.
+    assert "mahalanobis_distances" in detector_result
+    assert set(detector_result["outlier_indices"]) == set(report["outlier_indices"])
+
+
 def test_isolation_forest_is_superset_not_exact(clean_frame):
     """Isolation forest (a contamination quota) flags at least the injected rows."""
     _, report = remove_outlier_samples(clean_frame, method="isolation_forest")

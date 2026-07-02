@@ -227,3 +227,107 @@ class TestOutlierMethodComparisonBarChart:
             "Should NOT generate outlier_method_comparison when only 1 method run. "
             "Comparison chart only makes sense with 2+ methods."
         )
+
+
+class TestSharedSelectionRefactorUnchanged:
+    """Guard the #173 single-source refactor: the step's mahalanobis /
+    isolation_forest figures (now selected via the shared ``select_outlier_figures``
+    helper on the step's own pre-computed results) have the same figure keys /
+    filenames as calling the ``create_*`` functions directly, and the cross-method
+    comparison + per-genotype figures are unchanged.
+    """
+
+    TRAITS = [f"trait_{j}" for j in range(5)]
+
+    @pytest.fixture
+    def outlier_frame(self):
+        """40-sample, 5-trait clean frame with injected outliers and a geno column."""
+        rng = np.random.RandomState(42)
+        df = pd.DataFrame({f"trait_{j}": rng.randn(40) for j in range(5)})
+        for idx in (5, 17, 28):
+            for j in range(3):
+                df.loc[idx, f"trait_{j}"] += 8.0
+        df.insert(0, "Barcode", [f"BC{i:03d}" for i in range(40)])
+        df.insert(1, "geno", ["G1"] * 20 + ["G2"] * 20)
+        df.insert(2, "rep", list(range(1, 21)) * 2)
+        return df
+
+    def _prev_result(self, df):
+        from sleap_roots_analyze.outlier_detection import (
+            detect_outliers_isolation_forest,
+            detect_outliers_mahalanobis,
+        )
+
+        results = {
+            "mahalanobis": detect_outliers_mahalanobis(df[self.TRAITS]),
+            "isolation_forest": detect_outliers_isolation_forest(
+                df[self.TRAITS], random_state=42
+            ),
+        }
+        return (
+            StepResult(
+                data=df,
+                metadata={
+                    "valid_trait_names": self.TRAITS,
+                    "methods_run": ["mahalanobis", "isolation_forest"],
+                    "outlier_results": results,
+                    "samples": len(df),
+                    "column_mapping": {"genotype": "geno"},
+                },
+                files_generated=[],
+            ),
+            results,
+        )
+
+    def test_step_figures_match_direct_create_calls(
+        self, outlier_frame, config, tmp_path
+    ):
+        """Step mahal/IF filenames == the create_* keys, prefixed as before."""
+        from sleap_roots_analyze.outlier_visualization import (
+            create_isolation_forest_plots,
+            create_mahalanobis_outlier_plots,
+        )
+
+        prev_result, results = self._prev_result(outlier_frame)
+
+        expected_mahal = {
+            f"outliers_mahal_{k}"
+            for k in create_mahalanobis_outlier_plots(
+                df=outlier_frame, mahal_results=results["mahalanobis"]
+            )
+        }
+        expected_if = {
+            f"outliers_if_{k}"
+            for k in create_isolation_forest_plots(
+                df=outlier_frame, iso_results=results["isolation_forest"]
+            )
+        }
+        plt.close("all")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = VisualizeOutliersStep().execute(
+                outlier_frame, config, tmp_path, prev_result
+            )
+
+        stems = {f.stem for f in result.files_generated}
+        # The mahalanobis / isolation_forest figures are exactly the create_* keys.
+        assert expected_mahal, "fixture should produce mahalanobis figures"
+        assert expected_mahal <= stems
+        assert expected_if <= stems
+        # Cross-method comparison figures (>1 method) and per-genotype are unchanged.
+        assert "outlier_comparison" in stems
+        assert "outlier_overlap_heatmap" in stems
+        assert "outlier_method_comparison" in stems
+        assert "outliers_per_genotype" in stems
+
+    def test_per_genotype_stays_cross_method(self, outlier_frame, config, tmp_path):
+        """Exactly one cross-method per-genotype figure (not one per method)."""
+        prev_result, _ = self._prev_result(outlier_frame)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = VisualizeOutliersStep().execute(
+                outlier_frame, config, tmp_path, prev_result
+            )
+        per_geno = [f for f in result.files_generated if "per_genotype" in f.name]
+        assert len(per_geno) == 1

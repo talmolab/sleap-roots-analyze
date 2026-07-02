@@ -12,13 +12,12 @@ from sleap_roots_analyze.outlier_visualization import (
     create_comprehensive_outlier_comparison,
     create_gmm_outlier_plots,
     create_hierarchical_outlier_plots,
-    create_isolation_forest_plots,
     create_kmeans_outlier_plots,
-    create_mahalanobis_outlier_plots,
     create_outlier_method_comparison_plot,
     create_outlier_overlap_heatmap,
     create_outliers_per_genotype_plot,
     create_pca_outlier_plot,
+    select_outlier_figures,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 
@@ -121,7 +120,10 @@ class VisualizeOutliersStep(BaseStep):
                 files.append(fig_path)
 
             elif method == "isolation_forest":
-                figs = create_isolation_forest_plots(df=df, iso_results=result)
+                # Delegate figure selection to the shared helper (#173) using the
+                # step's own pre-computed results — no re-detection; same figure
+                # keys/filenames as before.
+                figs = select_outlier_figures(df, outlier_results, method)
                 for fig_name, fig in figs.items():
                     fig_path = (
                         figures_dir
@@ -139,7 +141,10 @@ class VisualizeOutliersStep(BaseStep):
                     files.append(fig_path)
 
             elif method == "mahalanobis":
-                figs = create_mahalanobis_outlier_plots(df=df, mahal_results=result)
+                # Delegate figure selection to the shared helper (#173) using the
+                # step's own pre-computed results — no re-detection; same figure
+                # keys/filenames as before.
+                figs = select_outlier_figures(df, outlier_results, method)
                 for fig_name, fig in figs.items():
                     fig_path = (
                         figures_dir

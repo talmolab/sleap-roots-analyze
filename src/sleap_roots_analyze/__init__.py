@@ -132,6 +132,8 @@ from sleap_roots_analyze.outlier_visualization import (
     create_kmeans_outlier_plots,
     create_gmm_outlier_plots,
     create_hierarchical_outlier_plots,
+    plot_outlier_analysis,
+    select_outlier_figures,
 )
 
 from sleap_roots_analyze.cross_experiment_analysis import (
@@ -311,6 +313,8 @@ __all__ = [
     "create_kmeans_outlier_plots",
     "create_gmm_outlier_plots",
     "create_hierarchical_outlier_plots",
+    "plot_outlier_analysis",
+    "select_outlier_figures",
     # Cross-experiment analysis functions
     "load_and_align_experiments",
     "calculate_genotype_means",
