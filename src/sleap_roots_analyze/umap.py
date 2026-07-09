@@ -41,8 +41,11 @@ def perform_umap_analysis(
             - embedding: UMAP-transformed data (n_samples x n_components)
             - reducer: Fitted UMAP object for transforming new data
             - scaler: Fitted StandardScaler for preprocessing
-            - n_neighbors: Number of neighbors used
+            - n_neighbors: Number of neighbors used (the effective value, clamped to
+              n_samples - 1 when the request is larger)
             - min_dist: Minimum distance used
+            - feature_names: Feature columns used for the embedding, in input order
+            - random_state: Random seed used for the run
 
     Raises:
         ImportError: If umap-learn is not installed.
@@ -101,4 +104,6 @@ def perform_umap_analysis(
         "scaler": scaler,
         "n_neighbors": n_neighbors,
         "min_dist": min_dist,
+        "feature_names": list(feature_cols),
+        "random_state": random_state,
     }
