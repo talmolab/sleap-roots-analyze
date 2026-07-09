@@ -22,9 +22,11 @@ from sleap_roots_analyze.clustering import (
 )
 from sleap_roots_analyze.result_types import (
     ALGORITHM_GMM,
+    ALGORITHM_HIERARCHICAL,
     ALGORITHM_KMEANS,
     ClusterResult,
     GMMResult,
+    HierarchicalResult,
     KMeansResult,
 )
 
@@ -38,6 +40,42 @@ def _assert_dict_unchanged(d, before):
             np.testing.assert_array_equal(np.asarray(cur), prev)
         else:
             assert cur == prev, k
+
+
+def _labeled_hierarchical_dict():
+    """An inline ``hierarchical_cluster_labels()``-shaped dict (its 11 output keys).
+
+    Hand-built so the result-type tests do not depend on the producer
+    (``hierarchical_cluster_labels`` lands in a later group) or on the dendrogram
+    fixture ``hierarchical_cluster_result`` (which lacks the label/metric keys).
+    """
+    return {
+        "cluster_labels": np.array([0, 0, 1, 2, 2]),
+        "n_clusters": 3,
+        "cluster_sizes": [2, 1, 2],
+        "silhouette_score": 0.42,
+        "davies_bouldin_score": 0.73,
+        "calinski_harabasz_score": 15.6,
+        "feature_names": ["f0", "f1", "f2"],
+        "linkage_method": "ward",
+        "distance_metric": "euclidean",
+        "cophenetic_correlation": 0.81,
+        "cut_height": 3.14,
+    }
+
+
+def _min_base_kwargs():
+    """Minimal required base-field kwargs for constructing a ``ClusterResult``."""
+    return dict(
+        algorithm=ALGORITHM_HIERARCHICAL,
+        n_clusters=1,
+        cluster_labels=[0],
+        cluster_sizes=[1],
+        silhouette_score=0.0,
+        davies_bouldin_score=0.0,
+        calinski_harabasz_score=0.0,
+        feature_names=["a"],
+    )
 
 
 class TestKMeansResultJSON:
@@ -242,4 +280,99 @@ class TestClusterResultNonBreaking:
         d = gmm_cluster_result
         before = copy.deepcopy(d)
         ClusterResult.from_gmm_dict(d, random_state=42)
+        _assert_dict_unchanged(d, before)
+
+
+class TestHierarchicalResultJSON:
+    """Hierarchical clean view serializes to native Python types (#179)."""
+
+    def test_fields_are_native_types_pre_serialization(self):
+        """Float/int fields are native on the dataclass, not laundered by JSON."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+
+        assert isinstance(result, HierarchicalResult)
+        assert result.algorithm == ALGORITHM_HIERARCHICAL
+        assert type(result.silhouette_score) is float
+        assert type(result.cophenetic_correlation) is float
+        assert type(result.cut_height) is float
+        assert result.random_state is None
+        assert all(type(v) is int for v in result.cluster_labels)
+        assert all(type(v) is int for v in result.cluster_sizes)
+
+    def test_json_roundtrip_native_types(self):
+        """Hierarchical view round-trips to native types with the right discriminator."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        parsed = json.loads(json.dumps(dataclasses.asdict(result)))
+
+        assert parsed["algorithm"] == ALGORITHM_HIERARCHICAL
+        assert all(type(v) is int for v in parsed["cluster_labels"])
+        assert all(type(v) is int for v in parsed["cluster_sizes"])
+        assert type(parsed["silhouette_score"]) is float
+        assert type(parsed["cophenetic_correlation"]) is float
+        assert type(parsed["cut_height"]) is float
+        assert parsed["random_state"] is None
+
+    def test_to_json_serializes_random_state_null(self):
+        """random_state serializes to JSON null under the default allow_nan=False."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        assert '"random_state": null' in result.to_json()
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_to_json_rejects_non_finite_cophenetic(self, bad):
+        """A non-finite cophenetic_correlation raises at to_json (mirror of bic)."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        tainted = dataclasses.replace(result, cophenetic_correlation=bad)
+        with pytest.raises(ValueError, match="not JSON compliant"):
+            tainted.to_json()
+
+
+class TestClusterResultOptionalRandomState:
+    """The base random_state accepts None for deterministic algorithms (#179)."""
+
+    def test_base_defaults_random_state_none(self):
+        """random_state defaults to None and serializes as None."""
+        base = ClusterResult(**_min_base_kwargs())
+        assert base.random_state is None
+        assert dataclasses.asdict(base)["random_state"] is None
+
+    def test_explicit_none_serializes_to_json_null(self):
+        """An explicit random_state=None serializes to JSON null."""
+        base = ClusterResult(**_min_base_kwargs(), random_state=None)
+        assert json.loads(base.to_json())["random_state"] is None
+
+    def test_each_subclass_accepts_none(self):
+        """Every subclass constructs with random_state=None without error."""
+        for cls in (KMeansResult, GMMResult, HierarchicalResult):
+            r = cls(**_min_base_kwargs(), random_state=None)
+            assert r.random_state is None
+            assert dataclasses.asdict(r)["random_state"] is None
+
+
+class TestHierarchicalAdapter:
+    """from_hierarchical_dict maps the labeled dict without a seed (#179)."""
+
+    def test_maps_provenance_with_native_casts(self):
+        """Provenance keys are carried with native str/float casts."""
+        d = _labeled_hierarchical_dict()
+        result = ClusterResult.from_hierarchical_dict(d)
+
+        assert result.linkage_method == "ward"
+        assert result.distance_metric == "euclidean"
+        assert result.cophenetic_correlation == pytest.approx(0.81)
+        assert result.cut_height == pytest.approx(3.14)
+        assert type(result.cophenetic_correlation) is float
+        assert type(result.cut_height) is float
+        assert result.n_clusters == 3
+        assert sum(result.cluster_sizes) == len(result.cluster_labels)
+
+    def test_stamps_random_state_none(self):
+        """The adapter takes no seed and stamps random_state=None."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        assert result.random_state is None
+
+    def test_does_not_mutate_input(self):
+        """The adapter maps the dict without mutating it."""
+        d = _labeled_hierarchical_dict()
+        before = copy.deepcopy(d)
+        ClusterResult.from_hierarchical_dict(d)
         _assert_dict_unchanged(d, before)
