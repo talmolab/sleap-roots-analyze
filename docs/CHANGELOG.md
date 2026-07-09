@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Public hierarchical-clustering entry point `hierarchical_cluster_labels` (#179):
+  the **labeled** counterpart to `perform_hierarchical_clustering` (which returns only
+  the dendrogram). Importable from `sleap_roots_analyze`, it composes the existing
+  `perform_hierarchical_clustering` → `calculate_optimal_clusters_hierarchical` (when
+  `n_clusters` is omitted) → `cut_dendrogram` into a single labeled dict (cluster
+  labels/sizes, the three quality metrics, and hierarchical provenance), suitable for
+  building a `ClusterResult`. Follow-up to #129; unblocks bloom-mcp.
+- `HierarchicalResult` result type and the `ClusterResult.from_hierarchical_dict(d)`
+  adapter (#179): a frozen, JSON-serializable view of a hierarchical run. The adapter
+  takes no `random_state` (hierarchical clustering is deterministic) and stamps `None`.
+- `ALGORITHM_HIERARCHICAL` discriminator constant (#179), exported from `result_types`
+  alongside `ALGORITHM_KMEANS` / `ALGORITHM_GMM`.
+
+### Changed
+- `ClusterResult.random_state` is now `Optional[int]` (default `None`) (#179), matching
+  `PCAResult.random_state`, so a deterministic algorithm (hierarchical) can omit the
+  seed. Source-compatible for producers (KMeans/GMM still stamp the `int` seed); a
+  reader that assumed an always-`int` value must now handle `None`.
+
 ## [0.1.0a4] - 2026-07-02 (Pre-release)
 
 ### Added

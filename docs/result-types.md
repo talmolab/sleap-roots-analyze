@@ -59,8 +59,8 @@ result.to_json(indent=2)   # strict JSON; raises on NaN/Inf instead of emitting 
 ```
 
 For clustering, the `ClusterResult.algorithm` discriminator a consumer branches on is
-exported as the constants `ALGORITHM_KMEANS` / `ALGORITHM_GMM` (in `result_types`) — use
-those rather than re-spelling the string literals.
+exported as the constants `ALGORITHM_KMEANS` / `ALGORITHM_GMM` / `ALGORITHM_HIERARCHICAL`
+(in `result_types`) — use those rather than re-spelling the string literals.
 
 ## The types
 
@@ -69,6 +69,7 @@ those rather than re-spelling the string literals.
 | `PCAResult` (+ `FeatureContribution`) | `perform_pca_analysis` dict | `PCAResult.from_pca_dict(d, *, random_state=None, explained_variance_threshold=None)` |
 | `HeritabilityResult` (+ `TraitHeritability`) | `calculate_heritability_estimates` dict | `HeritabilityResult.from_heritability_dict(d, threshold)` |
 | `KMeansResult` / `GMMResult` (subclasses of `ClusterResult`) | `perform_kmeans_clustering` / `perform_gmm_clustering` dict | `ClusterResult.from_kmeans_dict(d, *, random_state)` / `from_gmm_dict(...)` |
+| `HierarchicalResult` (subclass of `ClusterResult`) | `hierarchical_cluster_labels` dict | `ClusterResult.from_hierarchical_dict(d)` (no `random_state` — hierarchical is deterministic) |
 
 All are exported from the top-level `sleap_roots_analyze` namespace and `__all__`.
 

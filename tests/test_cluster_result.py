@@ -376,3 +376,27 @@ class TestHierarchicalAdapter:
         before = copy.deepcopy(d)
         ClusterResult.from_hierarchical_dict(d)
         _assert_dict_unchanged(d, before)
+
+
+class TestHierarchicalResultExport:
+    """Public API surface for the hierarchical additions (#179)."""
+
+    def test_hierarchical_importable_from_package_root(self):
+        """HierarchicalResult and hierarchical_cluster_labels are root-exported."""
+        import sleap_roots_analyze as sra
+
+        assert sra.HierarchicalResult is HierarchicalResult
+        assert callable(sra.hierarchical_cluster_labels)
+        for name in ("HierarchicalResult", "hierarchical_cluster_labels"):
+            assert name in sra.__all__
+        assert len(sra.__all__) == len(set(sra.__all__))
+
+    def test_algorithm_hierarchical_exported_from_result_types_only(self):
+        """ALGORITHM_HIERARCHICAL lives in result_types.__all__, not the root __all__."""
+        import sleap_roots_analyze as sra
+        from sleap_roots_analyze import result_types
+
+        assert result_types.ALGORITHM_HIERARCHICAL == "hierarchical"
+        assert "ALGORITHM_HIERARCHICAL" in result_types.__all__
+        # A bare str constant stays out of the root __all__ (public-API docstring audit).
+        assert "ALGORITHM_HIERARCHICAL" not in sra.__all__
