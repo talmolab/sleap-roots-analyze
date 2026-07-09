@@ -65,6 +65,9 @@ class CleanupConfig:
             Traits exceeding this will be removed. Canonical QC default: 0.2.
         min_samples_per_trait: Minimum number of valid samples required per trait.
             Traits with fewer samples will be removed. Canonical QC default: 10.
+        min_variance: Traits with ``var(ddof=0) <= min_variance`` are removed as the
+            final cleanup step (after sample removal). ``0.0`` drops exactly-constant
+            traits; set negative to disable. Canonical QC default: 0.0.
         custom_replacements: Optional dict mapping old terms to new terms for
             domain-specific trait name terminology (e.g., {"crown": "seminal"} to
             replace "crown" with "seminal" in wheat trait names). Applied during
@@ -75,6 +78,7 @@ class CleanupConfig:
     max_zeros_per_trait: float = 0.5
     max_nans_per_trait: float = 0.2
     min_samples_per_trait: int = 10
+    min_variance: float = 0.0
     custom_replacements: Optional[Dict[str, str]] = None
 
 
