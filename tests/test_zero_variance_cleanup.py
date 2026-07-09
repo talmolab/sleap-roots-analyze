@@ -120,6 +120,37 @@ class TestRemoveZeroVarianceTraits:
         assert remaining == ["const"]
         assert details == {}
 
+    def test_all_nan_column_flags_nothing(self):
+        """An all-NaN column yields ``var == NaN`` so it is not flagged (kept)."""
+        df = pd.DataFrame({"t": [np.nan, np.nan, np.nan]})
+        _, remaining, details = remove_zero_variance_traits(df, ["t"])
+        assert remaining == ["t"]  # var == NaN, and NaN <= x is False
+        assert details == {}
+
+    def test_non_numeric_column_is_skipped(self):
+        """A non-numeric (object) trait column is skipped, not raised on (#177 review)."""
+        df = pd.DataFrame({"s": ["x", "y", "z"], "vary": [1.0, 2.0, 3.0]})
+        # Must not raise a TypeError (var() on strings) — the sibling filters tolerate
+        # object dtype, and this filter skips it instead of crashing public callers.
+        filtered, remaining, details = remove_zero_variance_traits(df, ["s", "vary"])
+        assert "s" not in details  # non-numeric never flagged
+        assert "s" in filtered.columns  # and never dropped
+        assert remaining == ["s", "vary"]
+
+    def test_apply_filters_tolerates_non_numeric_trait_col(self):
+        """apply_data_cleanup_filters does not crash on a hand-built non-numeric col."""
+        n = 20
+        df = _wide_frame(
+            {"vary": [float(i) for i in range(n)], "label": ["a", "b"] * (n // 2)}, n
+        )
+        # A direct caller passing an object column in trait_cols used to hit a TypeError
+        # in the zero-variance step; it should now pass through untouched.
+        clean, log = apply_data_cleanup_filters(
+            df, ["vary", "label"], replicate_col="rep"
+        )
+        assert "label" in clean.columns
+        assert not [e for e in log["removed_traits"] if e["trait"] == "label"]
+
 
 class TestApplyDataCleanupFiltersZeroVariance:
     """Wiring of the filter into the cleanup orchestrator (final step)."""
@@ -220,6 +251,11 @@ class TestCleanTraitsForAnalysisZeroVariance:
             e["trait"] == "t" and e["reason"] == "zero_variance"
             for e in log["removed_traits"]
         )
+        # The re-check keeps the summary fields self-consistent (I1): both final_traits
+        # and traits_retained_fraction reflect the extra drop, not just final_traits.
+        assert log["original_traits"] == 2
+        assert log["final_traits"] == 1
+        assert log["traits_retained_fraction"] == 0.5
 
     def test_all_constant_still_raises_non_constant_guard(self):
         """All-constant input still raises the existing check-(4) guard."""
@@ -299,3 +335,52 @@ class TestCleanupConfigMinVariance:
         zv = [t for t in log["removed_traits"] if t.get("reason") == "zero_variance"]
         assert len(zv) == 1  # the constant trait was dropped by the step
         assert result.metadata["traits_final"] == 1  # only `good` survives
+
+    def test_cleanup_step_min_variance_negative_disables(self, tmp_path):
+        """A negative ``cleanup.min_variance`` keeps constant traits through the step."""
+        from sleap_roots_analyze.pipeline import (
+            CleanupConfig,
+            ColumnConfig,
+            DataConfig,
+            QCPipelineConfig,
+        )
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.steps import CleanupTraitsStep
+
+        n = 20
+        df = pd.DataFrame(
+            {
+                "Barcode": [f"p{i}" for i in range(n)],
+                "geno": ["A", "B"] * (n // 2),
+                "rep": [1, 2] * (n // 2),
+                "good": np.linspace(1.0, 20.0, n),
+                "const_trait": [3.0] * n,
+            }
+        )
+        config = QCPipelineConfig(
+            pipeline_name="t",
+            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            data=DataConfig(csv_path="dummy.csv"),
+            cleanup=CleanupConfig(
+                max_zeros_per_trait=0.5,
+                max_nans_per_trait=0.3,
+                max_nan_fraction=0.5,
+                min_samples_per_trait=10,
+                min_variance=-1.0,  # disable the zero-variance filter
+            ),
+        )
+        prev = StepResult(
+            data=df,
+            metadata={
+                "trait_column_names": ["good", "const_trait"],
+                "metadata_column_names": ["Barcode", "geno", "rep"],
+            },
+            files_generated=[],
+        )
+        result = CleanupTraitsStep().execute(df, config, tmp_path, prev)
+
+        log = result.metadata["cleanup_log"]
+        assert not [
+            t for t in log["removed_traits"] if t.get("reason") == "zero_variance"
+        ]
+        assert result.metadata["traits_final"] == 2  # constant trait retained

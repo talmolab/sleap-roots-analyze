@@ -865,6 +865,10 @@ def create_trait_eda_plots(
                         hypothetical_reasons[trait_name] = (
                             f"Insufficient samples ({trait_info.get('valid_samples', 0)})"
                         )
+                    elif reason == "zero_variance":
+                        hypothetical_reasons[trait_name] = (
+                            f"Zero variance (var={trait_info.get('variance', 0):.2g})"
+                        )
                     else:
                         hypothetical_reasons[trait_name] = reason
     else:

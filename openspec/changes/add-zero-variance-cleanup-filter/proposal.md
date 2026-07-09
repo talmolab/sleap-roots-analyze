@@ -95,6 +95,12 @@ signature change; tightest blast radius.
   fitting. The QC pipeline's PCA-step `excluded_zero_variance_traits` becomes empty when fed
   a cleaned frame. To retain the old behavior (constants kept in the cleaned frame), set
   `min_variance` negative.
+- **Statistics outputs change:** a constant-but-nonzero trait previously flowed into
+  `StatisticalAnalysisStep` and produced a degenerate heritability row (`heritability=0.0`,
+  `model_type="no_variance"`) and ANOVA row (`f_statistic`/`p_value` = `NaN`). It is now
+  dropped at cleanup, so those rows vanish and `n_traits_analyzed` decreases. The removed
+  entries are statistically degenerate (H²=0, p=NaN), so this is a correctness improvement,
+  documented in `docs/CHANGELOG.md`.
 - **No public API surface change** (the new filter is internal; no `__all__` edit).
 - **Downstream:** unblocks bloom-mcp #412 (guard becomes provably unreachable); preempts
   #80. bloom-mcp work is tracked separately.

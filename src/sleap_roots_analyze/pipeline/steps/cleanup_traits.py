@@ -127,7 +127,11 @@ class CleanupTraitsStep(BaseStep):
             ]
         ]
 
-        # Create removed traits detail DataFrame
+        # Create removed traits detail DataFrame. When traits were removed, the columns
+        # are the union of whichever filters fired (each filter records a different key
+        # set). The empty-case fallback lists that full union so the header is stable for
+        # external consumers regardless of which filters fired — including the
+        # zero-variance filter's ``threshold`` / ``variance`` keys (#177).
         if cleanup_log["removed_traits"]:
             removed_traits_df = pd.DataFrame(cleanup_log["removed_traits"])
         else:
@@ -138,6 +142,8 @@ class CleanupTraitsStep(BaseStep):
                     "zero_fraction",
                     "nan_fraction",
                     "n_samples",
+                    "threshold",
+                    "variance",
                 ]
             )
 

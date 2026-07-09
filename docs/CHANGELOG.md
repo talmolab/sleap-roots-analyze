@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clustering results are unchanged (those paths already dropped constants before fitting),
   and the QC PCA step's `excluded_zero_variance_traits` becomes empty when fed a cleaned
   frame. Set `min_variance` negative to retain the previous behavior.
+  **Statistics note:** a constant-but-nonzero trait (e.g. always `3.0`) previously survived
+  cleanup and produced a degenerate row in the heritability table (`{'heritability': 0.0,
+  'model_type': 'no_variance', ...}`) and the ANOVA table (`f_statistic`/`p_value` = `NaN`);
+  it is now dropped at cleanup, so those rows no longer appear and `n_traits_analyzed`
+  drops accordingly. The removed entries were statistically degenerate (H²=0, p=NaN), so
+  this is a correctness improvement, not a loss of real signal. (An all-zeros trait was
+  already removed earlier by the zero-inflation filter, so only constant-nonzero traits are
+  affected.)
 
 ## [0.1.0a4] - 2026-07-02 (Pre-release)
 
