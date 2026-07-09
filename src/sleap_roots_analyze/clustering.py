@@ -778,3 +778,96 @@ def calculate_optimal_clusters_hierarchical(
 
     except Exception as e:
         raise RuntimeError(f"Failed to calculate optimal clusters: {str(e)}") from e
+
+
+def hierarchical_cluster_labels(
+    data: Union[pd.DataFrame, np.ndarray],
+    *,
+    n_clusters: Optional[int] = None,
+    method: str = "ward",
+    metric: str = "euclidean",
+    standardize: bool = True,
+    optimization_method: str = "silhouette",
+    max_clusters: int = 10,
+) -> Dict:
+    """Compose hierarchical clustering into a single labeled result dict.
+
+    Public entry point that turns a dendrogram into cluster labels: it runs
+    :func:`perform_hierarchical_clustering`, selects ``k`` via
+    :func:`calculate_optimal_clusters_hierarchical` when ``n_clusters`` is omitted,
+    then cuts the tree with :func:`cut_dendrogram` — returning one flat dict with
+    cluster labels, sizes, quality metrics, and hierarchical provenance. This is the
+    labeled counterpart to :func:`perform_hierarchical_clustering` (which returns only
+    the dendrogram) and is suitable for building a ``ClusterResult`` via
+    ``ClusterResult.from_hierarchical_dict``. Hierarchical clustering is deterministic,
+    so there is no ``random_state``.
+
+    Args:
+        data: Input data as a DataFrame or array.
+        n_clusters: Number of clusters to cut. When ``None`` (default), the count is
+            chosen by :func:`calculate_optimal_clusters_hierarchical` using
+            ``optimization_method``.
+        method: Linkage method for the hierarchy (``"ward"``, ``"complete"``,
+            ``"average"``, ``"single"``). ``"ward"`` requires ``metric="euclidean"``.
+        metric: Distance metric (``"euclidean"``, ``"manhattan"``, ``"cosine"``, ...).
+        standardize: Whether to standardize the data before clustering.
+        optimization_method: Metric used to auto-select ``k`` when ``n_clusters`` is
+            ``None``. One of ``"silhouette"``, ``"calinski"``, or ``"davies_bouldin"``
+            (note: these differ from the metric *key* names ``silhouette_score`` /
+            ``calinski_harabasz_score`` / ``davies_bouldin_score``).
+        max_clusters: Maximum ``k`` to test during auto-selection.
+
+    Returns:
+        Dictionary with the labeled clustering result:
+        - cluster_labels: Cluster assignment for each sample (0-indexed)
+        - n_clusters: Number of clusters
+        - cluster_sizes: Number of samples per cluster
+        - silhouette_score: Quality metric [-1, 1] (0.0 for a single cluster)
+        - davies_bouldin_score: Quality metric [0, inf) (0.0 for a single cluster)
+        - calinski_harabasz_score: Quality metric [0, inf) (0.0 for a single cluster)
+        - feature_names: Feature (column) names used for clustering
+        - linkage_method: Linkage method used
+        - distance_metric: Distance metric used
+        - cophenetic_correlation: Dendrogram quality metric [0, 1]
+        - cut_height: Height at which the dendrogram was cut
+
+    Raises:
+        ValueError: For invalid arguments propagated from
+            :func:`perform_hierarchical_clustering` (e.g. ``method="ward"`` with a
+            non-euclidean ``metric``, fewer than 2 valid rows, all-NaN input) or from
+            :func:`calculate_optimal_clusters_hierarchical` (fewer than 2 clusters can
+            be tested).
+        RuntimeError: For degenerate metric failures propagated from the composed
+            functions (e.g. ``n_clusters == n_samples``, where the silhouette score is
+            undefined, or an unknown ``optimization_method``).
+
+    Examples:
+        >>> result = hierarchical_cluster_labels(df, n_clusters=3)
+        >>> from sleap_roots_analyze import ClusterResult
+        >>> view = ClusterResult.from_hierarchical_dict(result)
+    """
+    dendrogram = perform_hierarchical_clustering(
+        data, method=method, metric=metric, standardize=standardize
+    )
+
+    if n_clusters is None:
+        optimal = calculate_optimal_clusters_hierarchical(
+            dendrogram, max_clusters=max_clusters, method=optimization_method
+        )
+        n_clusters = optimal["optimal_n_clusters"]
+
+    cut = cut_dendrogram(dendrogram, n_clusters=n_clusters)
+
+    return {
+        "cluster_labels": cut["cluster_labels"],
+        "n_clusters": cut["n_clusters"],
+        "cluster_sizes": cut["cluster_sizes"],
+        "silhouette_score": cut["silhouette_score"],
+        "davies_bouldin_score": cut["davies_bouldin_score"],
+        "calinski_harabasz_score": cut["calinski_harabasz_score"],
+        "feature_names": dendrogram["feature_names"],
+        "linkage_method": dendrogram["linkage_method"],
+        "distance_metric": dendrogram["distance_metric"],
+        "cophenetic_correlation": dendrogram["cophenetic_correlation"],
+        "cut_height": cut["cut_height"],
+    }

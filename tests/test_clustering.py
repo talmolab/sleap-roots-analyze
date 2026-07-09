@@ -10,6 +10,9 @@ from sleap_roots_analyze.clustering import (
     perform_kmeans_clustering,
     perform_gmm_clustering,
     calculate_cluster_quality_metrics,
+    perform_hierarchical_clustering,
+    calculate_optimal_clusters_hierarchical,
+    hierarchical_cluster_labels,
 )
 
 
@@ -679,3 +682,160 @@ class TestClusteringWithNaN:
 
         # Should have fewer samples than input
         assert len(result["data_indices"]) < len(cluster_result_with_nan)
+
+
+_LABELED_KEYS = {
+    "cluster_labels",
+    "n_clusters",
+    "cluster_sizes",
+    "silhouette_score",
+    "davies_bouldin_score",
+    "calinski_harabasz_score",
+    "feature_names",
+    "linkage_method",
+    "distance_metric",
+    "cophenetic_correlation",
+    "cut_height",
+}
+
+
+class TestHierarchicalClusterLabels:
+    """Public labeled hierarchical entry point hierarchical_cluster_labels (#179)."""
+
+    def test_perform_hierarchical_shape_unchanged(self, simple_cluster_data):
+        """Regression pin: perform_hierarchical_clustering keeps its dendrogram keys."""
+        result = perform_hierarchical_clustering(simple_cluster_data)
+        assert set(result.keys()) == {
+            "method",
+            "linkage_matrix",
+            "linkage_method",
+            "distance_metric",
+            "cophenetic_correlation",
+            "data_indices",
+            "feature_names",
+            "data_processed",
+        }
+        assert "cluster_labels" not in result
+
+    def test_returns_labeled_dict_auto_k(self, simple_cluster_data):
+        """Auto-k call returns the labeled key set with structural invariants."""
+        result = hierarchical_cluster_labels(simple_cluster_data)
+        assert set(result.keys()) == _LABELED_KEYS
+        n_samples = len(simple_cluster_data)
+        assert len(result["cluster_labels"]) == n_samples
+        assert result["n_clusters"] == len(set(result["cluster_labels"].tolist()))
+        assert 2 <= result["n_clusters"] <= 10
+
+    def test_auto_k_delegates_to_optimizer(self, simple_cluster_data):
+        """Auto-k equals the optimizer's optimal_n_clusters for the same input."""
+        labeled = hierarchical_cluster_labels(simple_cluster_data)
+        dendrogram = perform_hierarchical_clustering(simple_cluster_data)
+        optimal = calculate_optimal_clusters_hierarchical(
+            dendrogram, method="silhouette"
+        )
+        assert labeled["n_clusters"] == optimal["optimal_n_clusters"]
+
+    def test_honors_explicit_cluster_count(self, simple_cluster_data):
+        """An explicit n_clusters is honored, sizes sum to the sample count."""
+        result = hierarchical_cluster_labels(simple_cluster_data, n_clusters=3)
+        assert result["n_clusters"] == 3
+        assert len(result["cluster_sizes"]) == 3
+        assert sum(result["cluster_sizes"]) == len(result["cluster_labels"])
+
+    def test_deterministic_labels(self, simple_cluster_data):
+        """Identical input yields identical labels (same-process, no golden)."""
+        r1 = hierarchical_cluster_labels(simple_cluster_data, n_clusters=3)
+        r2 = hierarchical_cluster_labels(simple_cluster_data, n_clusters=3)
+        assert np.array_equal(r1["cluster_labels"], r2["cluster_labels"])
+
+    def test_ward_non_euclidean_raises_value_error(self, simple_cluster_data):
+        """Ward linkage + non-euclidean metric propagates ValueError."""
+        with pytest.raises(ValueError, match="Ward linkage requires euclidean metric"):
+            hierarchical_cluster_labels(
+                simple_cluster_data, method="ward", metric="manhattan"
+            )
+
+    def test_too_few_rows_raises_value_error(self):
+        """Fewer than 2 valid rows propagates ValueError."""
+        one_row = pd.DataFrame([[1.0, 2.0, 3.0]], columns=["a", "b", "c"])
+        with pytest.raises(ValueError, match="at least 2 samples"):
+            hierarchical_cluster_labels(one_row, n_clusters=1)
+
+    def test_all_nan_raises_value_error(self):
+        """All-NaN input propagates ValueError."""
+        all_nan = pd.DataFrame(
+            [[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], columns=["a", "b"]
+        )
+        with pytest.raises(ValueError, match="All rows contain NaN"):
+            hierarchical_cluster_labels(all_nan, n_clusters=2)
+
+    @pytest.mark.parametrize("opt_method", ["silhouette", "calinski", "davies_bouldin"])
+    def test_optimization_method_accepted_values(self, simple_cluster_data, opt_method):
+        """Each accepted optimization_method value returns a valid labeled dict."""
+        result = hierarchical_cluster_labels(
+            simple_cluster_data, optimization_method=opt_method
+        )
+        assert 2 <= result["n_clusters"] <= 10
+
+    def test_optimization_method_footgun_raises_runtime_error(
+        self, simple_cluster_data
+    ):
+        """The metric-key-name footgun 'silhouette_score' raises RuntimeError (wrapped)."""
+        with pytest.raises(RuntimeError, match="Failed to calculate optimal clusters"):
+            hierarchical_cluster_labels(
+                simple_cluster_data, optimization_method="silhouette_score"
+            )
+
+    def test_single_cluster_finite_zero_metrics(self, simple_cluster_data):
+        """n_clusters=1 yields finite 0.0 metrics; the typed view serializes."""
+        from sleap_roots_analyze.result_types import ClusterResult
+
+        result = hierarchical_cluster_labels(simple_cluster_data, n_clusters=1)
+        assert result["n_clusters"] == 1
+        assert len(result["cluster_sizes"]) == 1
+        assert result["silhouette_score"] == 0.0
+        assert result["davies_bouldin_score"] == 0.0
+        assert result["calinski_harabasz_score"] == 0.0
+        # finite metrics => strict-JSON serialization succeeds
+        ClusterResult.from_hierarchical_dict(result).to_json()
+
+    def test_cluster_per_sample_raises_runtime_error(self, simple_cluster_data):
+        """n_clusters == n_samples propagates RuntimeError (silhouette undefined)."""
+        n_samples = len(simple_cluster_data)
+        with pytest.raises(RuntimeError, match="Failed to cut dendrogram"):
+            hierarchical_cluster_labels(simple_cluster_data, n_clusters=n_samples)
+
+    def test_two_row_auto_k_raises_value_error(self):
+        """A 2-row input with auto-k propagates ValueError (max_clusters < 2)."""
+        two_rows = pd.DataFrame(
+            [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], columns=["a", "b", "c"]
+        )
+        with pytest.raises(ValueError, match="at least 2 clusters"):
+            hierarchical_cluster_labels(two_rows)
+
+    def test_end_to_end_typed_view(self, simple_cluster_data):
+        """from_hierarchical_dict(producer(df)) yields a populated HierarchicalResult."""
+        from sleap_roots_analyze.result_types import (
+            ALGORITHM_HIERARCHICAL,
+            ClusterResult,
+            HierarchicalResult,
+        )
+
+        view = ClusterResult.from_hierarchical_dict(
+            hierarchical_cluster_labels(simple_cluster_data, n_clusters=3)
+        )
+        assert isinstance(view, HierarchicalResult)
+        assert view.algorithm == ALGORITHM_HIERARCHICAL
+        assert view.n_clusters == 3
+        assert len(view.cluster_labels) == len(simple_cluster_data)
+        assert len(view.cluster_sizes) == 3
+        assert all(
+            isinstance(s, float)
+            for s in (
+                view.silhouette_score,
+                view.davies_bouldin_score,
+                view.calinski_harabasz_score,
+            )
+        )
+        assert not hasattr(view, "cluster_centers")
+        view.to_json()
