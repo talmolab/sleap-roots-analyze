@@ -69,6 +69,7 @@ those rather than re-spelling the string literals.
 | `PCAResult` (+ `FeatureContribution`) | `perform_pca_analysis` dict | `PCAResult.from_pca_dict(d, *, random_state=None, explained_variance_threshold=None)` |
 | `HeritabilityResult` (+ `TraitHeritability`) | `calculate_heritability_estimates` dict | `HeritabilityResult.from_heritability_dict(d, threshold)` |
 | `KMeansResult` / `GMMResult` (subclasses of `ClusterResult`) | `perform_kmeans_clustering` / `perform_gmm_clustering` dict | `ClusterResult.from_kmeans_dict(d, *, random_state)` / `from_gmm_dict(...)` |
+| `UMAPResult` | `perform_umap_analysis` dict | `UMAPResult.from_umap_dict(d, *, random_state=None)` |
 
 All are exported from the top-level `sleap_roots_analyze` namespace and `__all__`.
 

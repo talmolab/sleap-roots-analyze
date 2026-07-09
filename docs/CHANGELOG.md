@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Serializable `UMAPResult` dataclass and `UMAPResult.from_umap_dict(d, *,
+  random_state=None)` adapter (#180): the UMAP sibling of `PCAResult`, completing the
+  result-types epic (#130) across PCA / heritability / clustering / UMAP. Importable from
+  `sleap_roots_analyze`, it holds only the JSON-serializable science of a
+  `perform_umap_analysis` run — `embedding`, `n_neighbors`, `min_dist`, `n_components`,
+  `feature_names`, `n_samples`, `standardized`, `random_state` — excluding the
+  non-serializable fitted `reducer`/`scaler`, and provides `to_dict()` / `to_json()`
+  (strict `allow_nan=False`). Unblocks bloom#425.
+
+### Changed
+- `perform_umap_analysis` additionally returns `feature_names` and `random_state` in its
+  result dict (#180) — additive and non-breaking (all existing keys preserved); the
+  `UMAPResult.from_umap_dict` adapter resolves the seed from its argument or, failing
+  that, the echoed `random_state` key so a UMAP run records the seed it actually used.
+
 ## [0.1.0a4] - 2026-07-02 (Pre-release)
 
 ### Added

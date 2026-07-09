@@ -53,6 +53,7 @@ from sleap_roots_analyze.result_types import (
     ClusterResult,
     KMeansResult,
     GMMResult,
+    UMAPResult,
 )
 
 from sleap_roots_analyze.umap import (
@@ -248,6 +249,7 @@ __all__ = [
     "ClusterResult",
     "KMeansResult",
     "GMMResult",
+    "UMAPResult",
     # UMAP functions
     "perform_umap_analysis",
     # Clustering functions
