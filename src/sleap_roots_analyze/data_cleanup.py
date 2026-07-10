@@ -659,7 +659,10 @@ def remove_zero_variance_traits(
 
     Drops traits whose population variance ``var(ddof=0) <= min_variance``. Using
     ``ddof=0`` matches :func:`sleap_roots_analyze.pca.standardize_data`'s zero-variance
-    test, so a trait that survives cleanup will not be silently dropped later by PCA.
+    test, so a trait with **non-NaN variance** that survives cleanup will not be silently
+    dropped later by PCA. (An all-NaN column has ``var == NaN`` and is kept here but
+    dropped by ``standardize_data``; in practice such columns are already removed by the
+    upstream NaN/low-sample filters.)
     With ``min_variance=0.0`` (the default) this removes exactly-constant traits; set
     ``min_variance`` to a negative value to disable the filter (variance is always
     ``>= 0``).
@@ -794,6 +797,23 @@ def apply_data_cleanup_filters(
         - ``cleanup_steps``: list[dict] — one entry per cleanup step with step name
           and counts
     """
+    # min_variance compares raw, pre-standardization variance (scale-dependent), so warn on
+    # the two easy-to-misuse values: a non-finite threshold (NaN silently disables the
+    # filter, +inf drops every trait) or a positive threshold (mixes squared trait units).
+    if not np.isfinite(min_variance):
+        warnings.warn(
+            f"apply_data_cleanup_filters: min_variance={min_variance!r} is not finite; "
+            "NaN disables the zero-variance filter and +inf drops every trait.",
+            stacklevel=2,
+        )
+    elif min_variance > 0:
+        warnings.warn(
+            f"apply_data_cleanup_filters: min_variance={min_variance} > 0 compares raw, "
+            "pre-standardization variance (squared trait units) and is therefore "
+            "scale-dependent across traits; 0.0 (drop exactly-constant) is usually intended.",
+            stacklevel=2,
+        )
+
     # Annotate as Dict[str, Any]: the values mix int, list, and float, so without this
     # mypy infers dict[str, object] and every ``.append`` on a value errors (#177 review).
     cleanup_log: Dict[str, Any] = {
@@ -1215,6 +1235,18 @@ def clean_traits_for_analysis(
                 if cleanup_log["original_traits"] > 0
                 else 0
             )
+
+    # The entry point's own dropna above can drop rows after apply_data_cleanup_filters set
+    # the sample-count summary; refresh unconditionally so final_samples /
+    # samples_retained_fraction match the returned frame (stale whenever the dropna removed
+    # rows, even if no trait went constant). A no-op on the canonical path (dropna removes
+    # nothing) and never contradicts validation_summary["n_samples"].
+    cleanup_log["final_samples"] = len(clean_df)
+    cleanup_log["samples_retained_fraction"] = (
+        len(clean_df) / cleanup_log["original_samples"]
+        if cleanup_log["original_samples"] > 0
+        else 0
+    )
 
     # Check (2): no NaN in surviving traits. After the row drop above this holds by
     # construction; keep the shared step-03 assertion as a defensive guard against

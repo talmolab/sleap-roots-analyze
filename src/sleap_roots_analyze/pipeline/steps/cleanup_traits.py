@@ -20,6 +20,7 @@ class CleanupTraitsStep(BaseStep):
     2. Remove traits with many NaNs
     3. Remove samples with many NaNs (after bad traits removed)
     4. Remove traits with insufficient samples (after sample removal)
+    5. Remove zero-variance (constant) traits (evaluated after sample removal)
 
     By removing bad traits first, we minimize the number of samples removed.
 

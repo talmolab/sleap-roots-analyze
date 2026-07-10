@@ -790,6 +790,10 @@ def create_trait_eda_plots(
                         removal_reasons_dict[trait_name] = (
                             f"Insufficient samples ({trait_info.get('valid_samples', 0)})"
                         )
+                    elif reason == "zero_variance":
+                        removal_reasons_dict[trait_name] = (
+                            f"Zero variance (var={trait_info.get('variance', 0):.2g})"
+                        )
                     else:
                         removal_reasons_dict[trait_name] = reason
 

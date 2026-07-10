@@ -208,6 +208,25 @@ class TestApplyDataCleanupFiltersZeroVariance:
         assert "const" in clean.columns
         assert not [e for e in log["removed_traits"] if e["reason"] == "zero_variance"]
 
+    def test_positive_min_variance_warns_scale_dependent(self):
+        """A positive min_variance warns that it compares raw, scale-dependent variance."""
+        n = 20
+        df = _wide_frame({"vary": [float(i) for i in range(n)]}, n)
+        with pytest.warns(UserWarning, match="scale-dependent"):
+            apply_data_cleanup_filters(
+                df, ["vary"], replicate_col="rep", min_variance=0.5
+            )
+
+    def test_non_finite_min_variance_warns_and_disables(self):
+        """A NaN min_variance warns about non-finiteness and disables the filter."""
+        n = 20
+        df = _wide_frame({"const": [7.0] * n, "vary": [float(i) for i in range(n)]}, n)
+        with pytest.warns(UserWarning, match="not finite"):
+            clean, _ = apply_data_cleanup_filters(
+                df, ["const", "vary"], replicate_col="rep", min_variance=float("nan")
+            )
+        assert "const" in clean.columns  # NaN disables: var <= NaN is always False
+
 
 class TestCleanTraitsForAnalysisZeroVariance:
     """Constant-free guarantee at the analysis-ready entry point."""
@@ -226,6 +245,14 @@ class TestCleanTraitsForAnalysisZeroVariance:
             e["trait"] == "const" and e["reason"] == "zero_variance"
             for e in log["removed_traits"]
         )
+        # On the canonical path the entry point's dropna is a no-op, so the re-check is
+        # skipped (I4): the orchestrator logs exactly one zero-variance step, not two.
+        zv_steps = [
+            s
+            for s in log["cleanup_steps"]
+            if s["step"] == "remove_zero_variance_traits"
+        ]
+        assert len(zv_steps) == 1
 
     def test_recheck_after_entry_point_dropna(self):
         """A trait made constant by the entry point's own dropna is re-caught."""
@@ -256,6 +283,12 @@ class TestCleanTraitsForAnalysisZeroVariance:
         assert log["original_traits"] == 2
         assert log["final_traits"] == 1
         assert log["traits_retained_fraction"] == 0.5
+        # The sample-count summary is refreshed after the entry point's own dropna (Task 2):
+        # the orchestrator set final_samples=20 before that dropna removed the 1 residual-NaN
+        # row, so without the refresh the log would contradict validation_summary.
+        assert log["final_samples"] == 19
+        assert log["samples_retained_fraction"] == 0.95
+        assert log["final_samples"] == log["validation_summary"]["n_samples"]
 
     def test_all_constant_still_raises_non_constant_guard(self):
         """All-constant input still raises the existing check-(4) guard."""
@@ -384,3 +417,14 @@ class TestCleanupConfigMinVariance:
             t for t in log["removed_traits"] if t.get("reason") == "zero_variance"
         ]
         assert result.metadata["traits_final"] == 2  # constant trait retained
+
+        # No traits were removed, so the step writes the empty-case fallback CSV. Its header
+        # must still include the zero-variance filter's threshold/variance keys so the
+        # schema is stable whether or not that filter fired (Task 5 / I3).
+        removed_csv = next(
+            f
+            for f in result.files_generated
+            if str(f).endswith("01_removed_traits_detail.csv")
+        )
+        header = list(pd.read_csv(removed_csv).columns)
+        assert "threshold" in header and "variance" in header
