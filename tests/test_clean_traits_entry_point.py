@@ -351,16 +351,19 @@ def test_residual_nan_rows_dropped_keeps_other_rows():
 def test_cleanup_path_reduces_to_below_two_samples():
     """The cleanup path itself (not a pre-shrunk input) can trip the >=2 gate.
 
-    All but one row carry a NaN in the trait; dropping residual NaN rows leaves a
-    single sample, so the >=2-samples gate fires.
+    The two traits have **disjoint** non-NaN patterns, so each still varies (>=2 distinct
+    values, surviving the zero-variance filter) yet only one row (row 0) is non-NaN in
+    *both*. Dropping residual NaN rows therefore leaves a single sample, so the
+    >=2-samples gate fires. (A trait with a single non-NaN value would instead be dropped
+    as zero-variance, rerouting to the non-constant-trait error, #177.)
     """
     df = pd.DataFrame(
         {
             "Barcode": [f"BC{i}" for i in range(6)],
             "geno": ["A"] * 3 + ["B"] * 3,
             "rep": [1, 2, 3, 1, 2, 3],
-            "trait_a": [1.0] + [np.nan] * 5,
-            "trait_b": [2.0] + [np.nan] * 5,
+            "trait_a": [10.0, 20.0, np.nan, np.nan, np.nan, np.nan],
+            "trait_b": [5.0, np.nan, 7.0, np.nan, np.nan, np.nan],
         }
     )
     with pytest.raises(ValueError, match=r"only 1 sample"):

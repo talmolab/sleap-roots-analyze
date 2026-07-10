@@ -650,6 +650,86 @@ def remove_low_sample_traits(
     return df_filtered, remaining_traits, removal_details
 
 
+def remove_zero_variance_traits(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    min_variance: float = 0.0,
+) -> Tuple[pd.DataFrame, List[str], Dict]:
+    """Remove constant (zero-variance) traits.
+
+    Drops traits whose population variance ``var(ddof=0) <= min_variance``. Using
+    ``ddof=0`` matches :func:`sleap_roots_analyze.pca.standardize_data`'s zero-variance
+    test, so a trait with **non-NaN variance** that survives cleanup will not be silently
+    dropped later by PCA. (An all-NaN column has ``var == NaN`` and is kept here but
+    dropped by ``standardize_data``; in practice such columns are already removed by the
+    upstream NaN/low-sample filters.)
+    With ``min_variance=0.0`` (the default) this removes exactly-constant traits; set
+    ``min_variance`` to a negative value to disable the filter (variance is always
+    ``>= 0``).
+
+    Mirrors the contract of the sibling trait filters
+    (:func:`remove_zero_inflated_traits`, :func:`remove_traits_with_many_nans`,
+    :func:`remove_low_sample_traits`): it returns ``(filtered_df, remaining_trait_cols,
+    removal_details)`` and is intended to run as the **final** cleanup step, after
+    sample removal, since a trait can become constant only once NaN-carrying rows are
+    dropped.
+
+    Edge cases: an empty or all-NaN frame yields ``var == NaN`` and ``NaN <= x`` is
+    ``False``, so nothing is flagged (degenerate frames are handled by validation, not
+    here); a single-row frame yields ``var == 0`` and is correctly flagged constant. A
+    trait not present in ``df`` is skipped (never flagged) but stays in
+    ``remaining_trait_cols``, matching the sibling filters. Unlike the sibling filters
+    (which use dtype-agnostic ``== 0`` / ``.isna()`` tests), variance is numeric-only, so
+    a **non-numeric** trait column is skipped rather than raising — the caller is
+    responsible for passing numeric ``trait_cols`` (``get_trait_columns`` and
+    ``clean_traits_for_analysis`` already guarantee this).
+
+    Note:
+        ``min_variance`` compares **raw, pre-standardization** variance (in squared trait
+        units), so it is scale-dependent: a single non-zero threshold mixes, e.g., mm²
+        with dimensionless ratios. Keep the ``0.0`` default (exactly "is constant") unless
+        you have a per-analysis reason to raise it. A ``NaN`` threshold silently disables
+        the filter (``var <= NaN`` is always ``False``) and ``+inf`` drops every trait.
+
+    Args:
+        df: DataFrame with trait data.
+        trait_cols: List of trait column names to check. Non-numeric columns are skipped.
+        min_variance: Traits with ``var(ddof=0) <= min_variance`` are removed. ``0.0``
+            drops exactly-constant traits; a negative value disables the filter.
+
+    Returns:
+        Tuple of ``(filtered_dataframe, remaining_trait_cols, removal_details)`` where
+        ``removal_details`` maps each removed trait to
+        ``{"reason": "zero_variance", "variance": <float>, "threshold": <min_variance>}``.
+    """
+    removed_traits = []
+    removal_details = {}
+    df_filtered = df.copy()
+
+    for trait in trait_cols:
+        # Skip absent columns (kept in remaining, matching the siblings) and non-numeric
+        # columns (variance is undefined for them; skip rather than raise a TypeError so a
+        # hand-built trait_cols with an object column does not crash public callers).
+        if trait not in df.columns or not pd.api.types.is_numeric_dtype(df[trait]):
+            continue
+        variance = df[trait].var(ddof=0)
+        # NaN (empty/all-NaN column) is not <= any real threshold, so it is never flagged.
+        if variance <= min_variance:
+            removed_traits.append(trait)
+            removal_details[trait] = {
+                "reason": "zero_variance",
+                "variance": float(variance),
+                "threshold": min_variance,
+            }
+
+    if removed_traits:
+        df_filtered = df_filtered.drop(columns=removed_traits)
+
+    remaining_traits = [t for t in trait_cols if t not in removed_traits]
+
+    return df_filtered, remaining_traits, removal_details
+
+
 def apply_data_cleanup_filters(
     df: pd.DataFrame,
     trait_cols: List[str],
@@ -657,6 +737,7 @@ def apply_data_cleanup_filters(
     max_nans_per_trait: float = 0.2,
     max_nans_per_sample: float = 0.0,
     min_samples_per_trait: int = 10,
+    min_variance: float = 0.0,
     barcode_col: str = "Barcode",
     genotype_col: str = "geno",
     replicate_col: Optional[str] = "rep",
@@ -668,6 +749,11 @@ def apply_data_cleanup_filters(
     2. Remove traits with many NaNs
     3. Remove samples with many NaNs
     4. Remove traits with insufficient samples
+    5. Remove zero-variance (constant) traits
+
+    Step 5 runs **last** (after sample removal) because a trait can become constant only
+    once NaN-carrying rows are dropped; its variance must therefore be measured on the
+    reduced frame.
 
     The signature defaults are the **QC pipeline's canonical** cleanup thresholds:
     they equal ``CleanupConfig()``'s defaults (with ``max_nans_per_sample`` mapping
@@ -688,6 +774,10 @@ def apply_data_cleanup_filters(
             NaN in a surviving trait).
         min_samples_per_trait: Minimum number of valid samples required per trait.
             Default ``10`` (canonical QC).
+        min_variance: Traits with population variance ``var(ddof=0) <= min_variance`` are
+            removed as the final step (after sample removal), using ``ddof=0`` to match
+            ``standardize_data``. Default ``0.0`` drops exactly-constant traits; set
+            negative to disable.
         barcode_col: Name of the barcode/plant ID column (default: "Barcode")
         genotype_col: Name of the genotype column (default: "geno")
         replicate_col: Name of the replicate column if present (default: "rep")
@@ -707,7 +797,26 @@ def apply_data_cleanup_filters(
         - ``cleanup_steps``: list[dict] — one entry per cleanup step with step name
           and counts
     """
-    cleanup_log = {
+    # min_variance compares raw, pre-standardization variance (scale-dependent), so warn on
+    # the two easy-to-misuse values: a non-finite threshold (NaN silently disables the
+    # filter, +inf drops every trait) or a positive threshold (mixes squared trait units).
+    if not np.isfinite(min_variance):
+        warnings.warn(
+            f"apply_data_cleanup_filters: min_variance={min_variance!r} is not finite; "
+            "NaN disables the zero-variance filter and +inf drops every trait.",
+            stacklevel=2,
+        )
+    elif min_variance > 0:
+        warnings.warn(
+            f"apply_data_cleanup_filters: min_variance={min_variance} > 0 compares raw, "
+            "pre-standardization variance (squared trait units) and is therefore "
+            "scale-dependent across traits; 0.0 (drop exactly-constant) is usually intended.",
+            stacklevel=2,
+        )
+
+    # Annotate as Dict[str, Any]: the values mix int, list, and float, so without this
+    # mypy infers dict[str, object] and every ``.append`` on a value errors (#177 review).
+    cleanup_log: Dict[str, Any] = {
         "original_samples": len(df),
         "original_traits": len(trait_cols),
         "removed_traits": [],
@@ -793,6 +902,26 @@ def apply_data_cleanup_filters(
         {
             "step": "remove_low_sample_traits",
             "traits_removed": len(low_sample_removal_details),
+            "remaining_traits": len(valid_traits),
+        }
+    )
+
+    # Step 5: Remove zero-variance (constant) traits. Runs last so variance is measured
+    # on the post-sample-removal frame — a trait can go constant only after NaN rows are
+    # dropped. Does not raise when this empties the trait set; the entry point /
+    # validation handle emptiness.
+    df_clean, valid_traits, zero_variance_removal_details = remove_zero_variance_traits(
+        df_clean, valid_traits, min_variance=min_variance
+    )
+
+    # Log removed traits
+    for trait, details in zero_variance_removal_details.items():
+        cleanup_log["removed_traits"].append({"trait": trait, **details})
+
+    cleanup_log["cleanup_steps"].append(
+        {
+            "step": "remove_zero_variance_traits",
+            "traits_removed": len(zero_variance_removal_details),
             "remaining_traits": len(valid_traits),
         }
     )
@@ -939,9 +1068,11 @@ def clean_traits_for_analysis(
     Notes:
         - Default thresholds are the **QC pipeline's canonical** values
           (``max_zeros_per_trait=0.5``, ``max_nans_per_trait=0.2``,
-          ``max_nans_per_sample=0.0``, ``min_samples_per_trait=10``), so the
-          analysis-ready frame matches what the QC pipeline produces rather than a
-          looser clean. These are inherited directly from
+          ``max_nans_per_sample=0.0``, ``min_samples_per_trait=10``,
+          ``min_variance=0.0``), so the analysis-ready frame matches what the QC
+          pipeline produces rather than a looser clean. The ``min_variance=0.0`` filter
+          drops any constant trait so the returned frame is constant-free (re-checked
+          after the residual-NaN row drop below). These are inherited directly from
           ``apply_data_cleanup_filters``'s signature defaults, which were aligned to
           the canonical QC values in #167 (so there is no separate copy to drift).
           Caller kwargs override; the effective thresholds are recorded in
@@ -964,7 +1095,7 @@ def clean_traits_for_analysis(
         replicate_col: Replicate column to exclude if present (``None`` if absent).
         **cleanup_kwargs: Forwarded to :func:`apply_data_cleanup_filters`
             (``max_zeros_per_trait``, ``max_nans_per_trait``,
-            ``max_nans_per_sample``, ``min_samples_per_trait``).
+            ``max_nans_per_sample``, ``min_samples_per_trait``, ``min_variance``).
 
     Returns:
         Tuple of ``(clean_df, trait_cols, cleanup_log)`` where ``trait_cols`` is
@@ -1036,6 +1167,7 @@ def clean_traits_for_analysis(
         "max_nans_per_trait",
         "max_nans_per_sample",
         "min_samples_per_trait",
+        "min_variance",
     )
     # Guard against a renamed signature parameter: surface the drift here with a
     # clear message instead of as an opaque KeyError in the comprehension below.
@@ -1069,8 +1201,52 @@ def clean_traits_for_analysis(
     # Dropping them here delivers the promised clean frame ("drop bad traits, then
     # the remaining NaN rows") while keeping sample loss minimal — the bad traits
     # were already removed first, so far fewer rows are lost than a naive dropna().
+    n_rows_before_dropna = len(clean_df)
     if surviving:
         clean_df = clean_df.dropna(subset=surviving)
+
+    # Re-run the zero-variance filter ONLY when the dropna above actually removed rows.
+    # On the canonical max_nans_per_sample=0.0 path that dropna is provably a no-op (Step 3
+    # already dropped every row with any NaN in a superset of the surviving traits), so the
+    # surviving traits' variances are unchanged from the orchestrator's Step 5 and the
+    # re-check would be a pure duplicate full-frame scan. Only a loosened
+    # max_nans_per_sample lets the dropna remove rows, which can turn a surviving trait
+    # constant *after* the orchestrator's variance step; re-check then keeps the
+    # analysis-ready frame constant-free and the log complete.
+    if surviving and len(clean_df) != n_rows_before_dropna:
+        clean_df, surviving, zero_variance_recheck = remove_zero_variance_traits(
+            clean_df, surviving, min_variance=thresholds["min_variance"]
+        )
+        for trait, details in zero_variance_recheck.items():
+            cleanup_log["removed_traits"].append({"trait": trait, **details})
+        if zero_variance_recheck:
+            cleanup_log["cleanup_steps"].append(
+                {
+                    "step": "remove_zero_variance_traits",
+                    "traits_removed": len(zero_variance_recheck),
+                    "remaining_traits": len(surviving),
+                }
+            )
+            # Keep the orchestrator-set summary fields consistent with the extra drop so
+            # programmatic consumers (e.g. bloom-mcp) never read a self-contradictory log.
+            cleanup_log["final_traits"] = len(surviving)
+            cleanup_log["traits_retained_fraction"] = (
+                len(surviving) / cleanup_log["original_traits"]
+                if cleanup_log["original_traits"] > 0
+                else 0
+            )
+
+    # The entry point's own dropna above can drop rows after apply_data_cleanup_filters set
+    # the sample-count summary; refresh unconditionally so final_samples /
+    # samples_retained_fraction match the returned frame (stale whenever the dropna removed
+    # rows, even if no trait went constant). A no-op on the canonical path (dropna removes
+    # nothing) and never contradicts validation_summary["n_samples"].
+    cleanup_log["final_samples"] = len(clean_df)
+    cleanup_log["samples_retained_fraction"] = (
+        len(clean_df) / cleanup_log["original_samples"]
+        if cleanup_log["original_samples"] > 0
+        else 0
+    )
 
     # Check (2): no NaN in surviving traits. After the row drop above this holds by
     # construction; keep the shared step-03 assertion as a defensive guard against

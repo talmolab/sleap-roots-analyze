@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Data cleanup now drops **constant (zero-variance) traits** and names them at cleaning
+  time instead of letting PCA drop them silently later (#177). A new internal filter
+  `remove_zero_variance_traits` runs as the **final** step of `apply_data_cleanup_filters`
+  (after sample removal, so variance is measured on the reduced frame) and is re-applied
+  inside `clean_traits_for_analysis` after its own residual-NaN `dropna`, guaranteeing the
+  analysis-ready frame is constant-free on both the standard and loosened-NaN paths. Each
+  dropped trait is logged in `cleanup_log["removed_traits"]` with `reason="zero_variance"`
+  (plus `variance` and `threshold`), matching the sibling trait filters. The threshold is
+  configurable via the new `CleanupConfig.min_variance` (default `0.0`, forwarded by
+  `CleanupTraitsStep`); `0.0` drops exactly-constant traits and a negative value disables
+  the filter. **Behavior note:** for any dataset with a genuinely-constant trait, that
+  column is now absent from cleaned output and appears in the cleanup log; PCA / UMAP /
+  clustering results are unchanged (those paths already dropped constants before fitting),
+  and the QC PCA step's `excluded_zero_variance_traits` becomes empty when fed a cleaned
+  frame. Set `min_variance` negative to retain the previous behavior.
+  **Statistics note:** a constant-but-nonzero trait (e.g. always `3.0`) previously survived
+  cleanup and produced a degenerate row in the heritability table (`{'heritability': 0.0,
+  'model_type': 'no_variance', ...}`) and the ANOVA table (`f_statistic`/`p_value` = `NaN`);
+  it is now dropped at cleanup, so those rows no longer appear and `n_traits_analyzed`
+  drops accordingly. The removed entries were statistically degenerate (H²=0, p=NaN), so
+  this is a correctness improvement, not a loss of real signal. (An all-zeros trait was
+  already removed earlier by the zero-inflation filter, so only constant-nonzero traits are
+  affected.)
+
 ## [0.1.0a4] - 2026-07-02 (Pre-release)
 
 ### Added
