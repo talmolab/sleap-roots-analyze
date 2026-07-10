@@ -72,21 +72,18 @@
 - [x] 2.5b Write failing test for the `optimization_method` surface: each accepted value
       `"silhouette"` / `"calinski"` / `"davies_bouldin"` returns a valid dict with
       `2 <= n_clusters <= max_clusters`; and the metric-key-name footgun
-      `optimization_method="silhouette_score"` raises — assert the ACTUAL type
-      (`RuntimeError`, because the optimizer's `ValueError("Unknown method")` fires
-      *inside* `perform_hierarchical_clustering`'s `try` and is re-wrapped). Pin the type
-      so a future change is caught.
+      `optimization_method="silhouette_score"` raises `ValueError` — the producer
+      validates `optimization_method` up front (against the accepted set) so the footgun
+      surfaces as a clean `ValueError`, not the optimizer's re-wrapped `RuntimeError`.
 - [x] 2.6 Write failing degenerate test: `n_clusters=1` yields `n_clusters == 1`,
       `cluster_sizes` of length 1, and the three quality metrics each `0.0` (finite);
       `from_hierarchical_dict(...).to_json()` still succeeds under `allow_nan=False`.
-- [x] 2.6b Write failing boundary error-contract test pinning the ACTUAL exception type
-      (documents the gap between spec S5's listed `ValueError` cases and other degenerate
-      boundaries): `hierarchical_cluster_labels(df, n_clusters=n_samples)` raises
-      `RuntimeError` (silhouette needs `n_labels <= n_samples - 1`; re-wrapped inside the
-      `try`), while a 2-row df with `n_clusters=None` raises `ValueError` (optimizer
-      `max_clusters < 2`, raised before the `try`). Assert both so the mixed contract is
-      documented rather than a surprise. If a single uniform `ValueError` contract is
-      later desired, normalize in the producer and update spec scenario S5.
+- [x] 2.6b Write failing boundary error-contract test: argument errors surface as a
+      single `ValueError` type. `hierarchical_cluster_labels(df, n_clusters=n_samples)`
+      raises `ValueError` (the producer rejects an out-of-range `n_clusters` — must be in
+      `[1, n_samples - 1]` — up front, before `cut_dendrogram`), and a 2-row df with
+      `n_clusters=None` raises `ValueError` (optimizer `max_clusters < 2`). A caller
+      catches one exception type for every argument error.
 - [x] 2.7 Implement `hierarchical_cluster_labels()` composing
       `perform_hierarchical_clustering` → `calculate_optimal_clusters_hierarchical`
       (when `n_clusters is None`, using `optimization_method`) → `cut_dendrogram`;

@@ -777,11 +777,9 @@ class TestHierarchicalClusterLabels:
         )
         assert 2 <= result["n_clusters"] <= 10
 
-    def test_optimization_method_footgun_raises_runtime_error(
-        self, simple_cluster_data
-    ):
-        """The metric-key-name footgun 'silhouette_score' raises RuntimeError (wrapped)."""
-        with pytest.raises(RuntimeError, match="Failed to calculate optimal clusters"):
+    def test_optimization_method_footgun_raises_value_error(self, simple_cluster_data):
+        """The metric-key-name footgun 'silhouette_score' raises ValueError up front."""
+        with pytest.raises(ValueError, match="optimization_method must be one of"):
             hierarchical_cluster_labels(
                 simple_cluster_data, optimization_method="silhouette_score"
             )
@@ -799,10 +797,10 @@ class TestHierarchicalClusterLabels:
         # finite metrics => strict-JSON serialization succeeds
         ClusterResult.from_hierarchical_dict(result).to_json()
 
-    def test_cluster_per_sample_raises_runtime_error(self, simple_cluster_data):
-        """n_clusters == n_samples propagates RuntimeError (silhouette undefined)."""
+    def test_cluster_per_sample_raises_value_error(self, simple_cluster_data):
+        """n_clusters == n_samples is rejected up front as an out-of-range ValueError."""
         n_samples = len(simple_cluster_data)
-        with pytest.raises(RuntimeError, match="Failed to cut dendrogram"):
+        with pytest.raises(ValueError, match="n_clusters must be in"):
             hierarchical_cluster_labels(simple_cluster_data, n_clusters=n_samples)
 
     def test_two_row_auto_k_raises_value_error(self):

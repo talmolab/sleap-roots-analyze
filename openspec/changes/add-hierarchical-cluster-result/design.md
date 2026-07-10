@@ -70,6 +70,21 @@ The issue offers three API shapes; this change picks one.
   `max_clusters=10`. When `n_clusters is None`, `k` comes from
   `calculate_optimal_clusters_hierarchical(..., method=optimization_method)`.
 
+- **Decision: uniform `ValueError` for argument errors (up-front validation).** Every
+  invalid argument surfaces as `ValueError`, so a consumer (bloom-mcp) catches one
+  exception type. The producer validates the two arguments that would otherwise leak a
+  `RuntimeError` *before* calling the composed functions: an unrecognized
+  `optimization_method` (rejected against the accepted set) and an out-of-range
+  `n_clusters` (must be in `[1, n_samples - 1]`, else `cut_dendrogram`'s silhouette call
+  fails and is re-wrapped as `RuntimeError`). Validating up front — rather than
+  catching-and-rewrapping the composed functions' `RuntimeError` — keeps error messages
+  clear and does **not** mask a *genuine* runtime failure (e.g. non-finite values that
+  survive NaN-dropping still raise `RuntimeError`).
+  - *Alternative: propagate the composed functions' exceptions faithfully (mixed
+    `ValueError` / `RuntimeError`).* Rejected — semantically identical "bad argument"
+    errors surfaced as two types depending only on where validation happened, forcing a
+    consumer to catch both.
+
 ## Risks / Trade-offs
 
 - **`random_state` widening across the JSON boundary** → a strict consumer that

@@ -832,20 +832,29 @@ def hierarchical_cluster_labels(
         - cut_height: Height at which the dendrogram was cut
 
     Raises:
-        ValueError: For invalid arguments propagated from
-            :func:`perform_hierarchical_clustering` (e.g. ``method="ward"`` with a
-            non-euclidean ``metric``, fewer than 2 valid rows, all-NaN input) or from
-            :func:`calculate_optimal_clusters_hierarchical` (fewer than 2 clusters can
-            be tested).
-        RuntimeError: For degenerate metric failures propagated from the composed
-            functions (e.g. ``n_clusters == n_samples``, where the silhouette score is
-            undefined, or an unknown ``optimization_method``).
+        ValueError: For any invalid argument — an invalid ``method``/``metric``
+            combination, fewer than 2 valid rows, all-NaN input, an out-of-range
+            ``n_clusters`` (must be in ``[1, n_samples - 1]`` after NaN rows are
+            dropped), or an unrecognized ``optimization_method``. Bad
+            ``optimization_method`` / ``n_clusters`` are rejected up front and the
+            other cases propagate from the composed functions, so a caller catches a
+            single exception type for every argument error.
+        RuntimeError: For a genuine computation failure inside the composed functions
+            (e.g. non-finite values that survive NaN-dropping) — not for argument
+            errors, which all surface as ``ValueError``.
 
     Examples:
         >>> result = hierarchical_cluster_labels(df, n_clusters=3)
         >>> from sleap_roots_analyze import ClusterResult
         >>> view = ClusterResult.from_hierarchical_dict(result)
     """
+    valid_optimization = {"silhouette", "calinski", "davies_bouldin"}
+    if n_clusters is None and optimization_method not in valid_optimization:
+        raise ValueError(
+            "optimization_method must be one of "
+            f"{sorted(valid_optimization)}, got {optimization_method!r}"
+        )
+
     dendrogram = perform_hierarchical_clustering(
         data, method=method, metric=metric, standardize=standardize
     )
@@ -855,6 +864,13 @@ def hierarchical_cluster_labels(
             dendrogram, max_clusters=max_clusters, method=optimization_method
         )
         n_clusters = optimal["optimal_n_clusters"]
+    else:
+        n_samples = len(dendrogram["data_processed"])
+        if not 1 <= n_clusters <= n_samples - 1:
+            raise ValueError(
+                f"n_clusters must be in [1, {n_samples - 1}] for {n_samples} "
+                f"clustered samples, got {n_clusters}"
+            )
 
     cut = cut_dendrogram(dendrogram, n_clusters=n_clusters)
 

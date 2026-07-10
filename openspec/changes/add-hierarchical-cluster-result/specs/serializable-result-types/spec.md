@@ -13,11 +13,11 @@ returned dict SHALL carry `cluster_labels`, `n_clusters`, `cluster_sizes`,
 `distance_metric`, `cophenetic_correlation`, and `cut_height`. When `n_clusters` is
 `None`, `optimization_method` SHALL be one of `"silhouette"`, `"calinski"`, or
 `"davies_bouldin"` (the values `calculate_optimal_clusters_hierarchical` accepts). It
-SHALL NOT change the return shape of `perform_hierarchical_clustering`, and SHALL
-propagate the underlying exception rather than returning a partial dict: `ValueError`
-for the invalid-argument cases below, and the composed functions' `RuntimeError` for
-degenerate metric failures (e.g. `n_clusters == n_samples`, where the silhouette score
-is undefined).
+SHALL NOT change the return shape of `perform_hierarchical_clustering`. For any invalid
+argument it SHALL raise `ValueError` (rejecting a bad `optimization_method` or an
+out-of-range `n_clusters` up front, and propagating the `ValueError`s the composed
+functions raise) rather than returning a partial dict, so a caller catches a single
+exception type for every argument error.
 
 #### Scenario: Auto-selects the number of clusters when omitted
 
@@ -49,18 +49,19 @@ is undefined).
   SHALL each be `0.0` (finite, so `from_hierarchical_dict(...).to_json()` succeeds
   under `allow_nan=False`)
 
-#### Scenario: Invalid input propagates ValueError
+#### Scenario: Invalid input raises ValueError
 
 - **WHEN** `hierarchical_cluster_labels` is called with `method="ward"` and a
-  non-euclidean `metric`, with fewer than 2 valid rows, or with all-NaN rows
+  non-euclidean `metric`, with fewer than 2 valid rows, with all-NaN rows, or (when
+  `n_clusters` is omitted) with an unrecognized `optimization_method`
 - **THEN** a `ValueError` SHALL be raised and no partial dict SHALL be returned
 
-#### Scenario: Degenerate cluster count propagates the underlying error
+#### Scenario: Out-of-range cluster count raises ValueError
 
-- **WHEN** `hierarchical_cluster_labels(data, n_clusters=n_samples)` is called (a
-  cluster-per-sample request, for which the silhouette score is undefined)
-- **THEN** the underlying `RuntimeError` SHALL propagate and no partial dict SHALL be
-  returned
+- **WHEN** `hierarchical_cluster_labels(data, n_clusters=k)` is called with `k` outside
+  `[1, n_samples - 1]` (e.g. `k == n_samples`, a cluster-per-sample request for which
+  the silhouette score is undefined)
+- **THEN** a `ValueError` SHALL be raised up front and no partial dict SHALL be returned
 
 #### Scenario: perform_hierarchical_clustering return shape is preserved
 
