@@ -227,3 +227,72 @@ class TestDetectOutliersStepEdgeCases:
 
         assert result.metadata["outlier_counts"] == {}
         assert result.metadata["methods_run"] == []
+
+
+class TestDetectOutliersStepFeatureNamesGuardrail:
+    """Regression guardrail for #183.
+
+    DetectOutliersStep builds numeric_df from the raw DataFrame via
+    get_numeric_traits_only(), which excludes barcode/genotype/replicate but
+    not a stray constant trait — so the clustering-based outlier detectors'
+    own internal filtering (fixed in #183) is what keeps a constant column
+    out of feature_names here, not anything DetectOutliersStep does itself.
+    This confirms that protection holds at the pipeline-integration layer.
+    """
+
+    def test_clustering_methods_exclude_constant_trait_from_feature_names(
+        self, tmp_path
+    ):
+        """A stray constant trait in the raw frame never reaches feature_names."""
+        np.random.seed(42)
+        n_samples = 30
+        data = pd.DataFrame(
+            {
+                "Barcode": [f"plant{i}" for i in range(n_samples)],
+                "geno": (["A"] * 10 + ["B"] * 10 + ["C"] * 10),
+                "rep": [1, 2, 3] * 10,
+                "trait1": np.random.randn(n_samples) * 10 + 50,
+                "trait2": np.random.randn(n_samples) * 5 + 25,
+                "trait3": np.random.randn(n_samples) * 3 + 15,
+                # Present in the raw frame but already excluded from
+                # valid_trait_names upstream (simulating #177's cleanup) --
+                # DetectOutliersStep does not itself re-filter to
+                # valid_trait_names before building numeric_df.
+                "constant_trait": np.full(n_samples, 7.0),
+            }
+        )
+        trait_cols = ["trait1", "trait2", "trait3"]
+
+        config = QCPipelineConfig(
+            pipeline_name="test_qc",
+            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            data=DataConfig(csv_path="dummy.csv"),
+            outlier_detection=OutlierDetectionConfig(
+                traditional_methods=[],
+                clustering_methods=["kmeans", "gmm", "hierarchical"],
+            ),
+        )
+        prev_result = StepResult(
+            data=data,
+            metadata={
+                "valid_trait_names": trait_cols,
+                "trait_names": trait_cols,
+                "samples": len(data),
+                "column_mapping": {
+                    "barcode": "Barcode",
+                    "genotype": "geno",
+                    "replicate": "rep",
+                },
+            },
+            files_generated=[],
+        )
+
+        step = DetectOutliersStep()
+        result = step.execute(
+            data=data, config=config, run_dir=tmp_path, prev_result=prev_result
+        )
+
+        for method in ("kmeans", "gmm", "hierarchical"):
+            method_result = result.metadata["outlier_results"][method]
+            assert method_result.get("error") is None
+            assert method_result["feature_names"] == trait_cols

@@ -175,6 +175,41 @@ class TestClusterAdapters:
             )
 
 
+class TestClusterAdapterFeatureNamesAfterFiltering:
+    """Regression tests for #183: adapters inherit the corrected feature_names.
+
+    KMeansResult/GMMResult carry feature_names straight through from the
+    producer dict, with no separate correction logic in the adapters
+    themselves — these confirm that inheritance holds once the producers
+    (perform_kmeans_clustering/perform_gmm_clustering) are fixed to derive
+    feature_names from the post-filter columns.
+    """
+
+    def test_kmeans_adapter_feature_names_matches_filtered_centers(
+        self, pca_constant_feature_data
+    ):
+        """feature_names excludes constant columns and matches centers width."""
+        d = perform_kmeans_clustering(
+            pca_constant_feature_data, n_clusters=3, standardize=True
+        )
+        result = ClusterResult.from_kmeans_dict(d, random_state=42)
+
+        assert result.feature_names == ["variable1", "variable2"]
+        assert len(result.feature_names) == len(result.cluster_centers[0])
+
+    def test_gmm_adapter_feature_names_matches_filtered_means(
+        self, pca_constant_feature_data
+    ):
+        """feature_names excludes constant columns and matches means width."""
+        d = perform_gmm_clustering(
+            pca_constant_feature_data, n_components=3, standardize=True
+        )
+        result = ClusterResult.from_gmm_dict(d, random_state=42)
+
+        assert result.feature_names == ["variable1", "variable2"]
+        assert len(result.feature_names) == len(result.cluster_centers[0])
+
+
 class TestClusterDeterminism:
     """Same seed -> identical result via the typed view (#118)."""
 

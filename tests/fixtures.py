@@ -3464,6 +3464,74 @@ def edge_case_cluster_data():
 
 
 @pytest.fixture
+def cluster_mixed_constant_and_nonnumeric_data():
+    """Create clustering data mixing a constant column and a non-numeric column.
+
+    Covers the half of the feature_names bug that pca_constant_feature_data
+    does not: a non-numeric (string) column silently dropped by
+    select_dtypes inside standardize_data.
+    """
+    np.random.seed(42)
+    n_samples = 90
+
+    df = pd.DataFrame(
+        {
+            "genotype_id": [f"G{i % 3}" for i in range(n_samples)],
+            "constant_trait": np.full(n_samples, 7.0),
+            "variable1": np.random.randn(n_samples),
+            "variable2": np.random.randn(n_samples) * 2,
+        }
+    )
+
+    return df
+
+
+@pytest.fixture
+def cluster_nonnumeric_only_data():
+    """Create clustering data with a non-numeric column but no constant column.
+
+    cluster_mixed_constant_and_nonnumeric_data always pairs the non-numeric
+    column with a constant column; this isolates the select_dtypes half of
+    the filter on its own.
+    """
+    np.random.seed(42)
+    n_samples = 90
+
+    df = pd.DataFrame(
+        {
+            "genotype_id": [f"G{i % 3}" for i in range(n_samples)],
+            "variable1": np.random.randn(n_samples),
+            "variable2": np.random.randn(n_samples) * 2,
+        }
+    )
+
+    return df
+
+
+@pytest.fixture
+def cluster_separated_data_with_constant():
+    """Well-separated 3-cluster 2D data plus one constant column.
+
+    Clusters are separated enough (10 units apart, 0.3 std) that GMM's soft
+    assignments collapse to hard assignments to machine precision, making
+    each cluster's true center exactly recoverable from cluster_labels +
+    data_processed. Needed to test that cluster_centers/means (not just
+    data_processed) are positionally aligned with feature_names -- unlike
+    pca_constant_feature_data, whose variable1/variable2 have no true
+    cluster structure, so GMM's per-component means only approximately
+    match a hard-assignment recomputation there.
+    """
+    np.random.seed(42)
+    cluster1 = np.random.randn(30, 2) * 0.3 + np.array([0, 0])
+    cluster2 = np.random.randn(30, 2) * 0.3 + np.array([10, 10])
+    cluster3 = np.random.randn(30, 2) * 0.3 + np.array([-10, 10])
+    data = np.vstack([cluster1, cluster2, cluster3])
+    df = pd.DataFrame(data, columns=["trait_a", "trait_b"])
+    df["constant_trait"] = 7.0
+    return df
+
+
+@pytest.fixture
 def linkage_matrix_small():
     """Create a small linkage matrix for hierarchical clustering edge cases."""
     from scipy.cluster.hierarchy import linkage

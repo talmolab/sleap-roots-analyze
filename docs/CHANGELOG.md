@@ -32,6 +32,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already removed earlier by the zero-inflation filter, so only constant-nonzero traits are
   affected.)
 
+### Fixed
+- `perform_kmeans_clustering`, `perform_gmm_clustering`, and
+  `perform_hierarchical_clustering` (`clustering.py`) now re-derive `feature_names` from
+  the columns actually used for fitting, on both `standardize=True` and
+  `standardize=False` (#183). Previously `feature_names` was snapshotted **before**
+  constant/non-numeric columns were filtered out, silently mislabeling
+  `cluster_centers`/`means`/`data_processed` for such inputs — not a length mismatch a
+  caller would notice, a positional mislabeling. `standardize=False` additionally now
+  applies the same numeric + non-zero-variance filter `standardize=True` always used
+  internally; previously it applied no filtering at all, so a non-numeric column reached
+  the estimator directly and failed with a raw sklearn "could not convert string to float"
+  error instead of the clear "No numeric columns with non-zero variance found" message.
+  This is separate from the `#177` cleanup change above: `#177` keeps constant traits from
+  ever reaching these functions through the standard cleanup step; `#183` fixes the
+  functions' own label bookkeeping for any caller that doesn't go through it — e.g. direct
+  callers, or `standardize=False`. `KMeansResult`/`GMMResult` and
+  `detect_outliers_kmeans`/`_gmm`/`_hierarchical` (`outlier_detection.py`) inherit the
+  corrected values automatically, with no adapter code changes needed.
+
 ## [0.1.0a4] - 2026-07-02 (Pre-release)
 
 ### Added

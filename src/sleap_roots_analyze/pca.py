@@ -621,6 +621,35 @@ def calculate_pca_reconstruction_error(
     return reconstruction_errors
 
 
+def filter_numeric_nonzero_variance(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only numeric, non-zero-variance columns.
+
+    Shared by standardize_data (the standardize=True path across PCA/UMAP/
+    clustering) and every standardize=False branch that needs the identical
+    filter without standardizing, so the two paths can never drift apart.
+
+    Args:
+        df: DataFrame to filter
+
+    Returns:
+        DataFrame containing only the surviving columns, in original order
+
+    Raises:
+        ValueError: If no numeric column has non-zero variance
+    """
+    df_numeric = df.select_dtypes(include=[np.number])
+
+    # Drop columns with zero variance
+    # Use ddof=0 for population variance (consistent with sklearn)
+    variances = df_numeric.var(ddof=0)
+    df_numeric = df_numeric[variances[variances > 0].index]
+
+    if df_numeric.empty:
+        raise ValueError("No numeric columns with non-zero variance found")
+
+    return df_numeric
+
+
 def standardize_data(
     df: pd.DataFrame,
 ) -> Tuple[np.ndarray, StandardScaler, pd.DataFrame]:
@@ -634,18 +663,11 @@ def standardize_data(
             - X_scaled: Standardized data array
             - scaler: Fitted StandardScaler
             - df_clean: DataFrame with non-numeric columns removed
+
+    Raises:
+        ValueError: If no numeric column has non-zero variance
     """
-    # Remove non-numeric columns
-    df_clean = df.select_dtypes(include=[np.number])
-
-    # Drop columns with zero variance
-    # Use ddof=0 for population variance (consistent with sklearn)
-    variances = df_clean.var(ddof=0)
-    non_zero_var_cols = variances[variances > 0].index
-    df_clean = df_clean[non_zero_var_cols]
-
-    if df_clean.empty:
-        raise ValueError("No numeric columns with non-zero variance found")
+    df_clean = filter_numeric_nonzero_variance(df)
 
     # Standardize
     scaler = StandardScaler()
@@ -796,17 +818,7 @@ def perform_pca_analysis(
             feature_names = df_clean.columns.tolist()
         else:
             # Manual cleaning without standardization
-            df_numeric = df_clean.select_dtypes(include=[np.number])
-
-            # Drop columns with zero variance
-            # ddof = 0 for population variance
-            variances = df_numeric.var(ddof=0)
-            non_zero_var_cols = variances[variances > 0].index
-            df_numeric = df_numeric[non_zero_var_cols]
-
-            if df_numeric.empty:
-                raise ValueError("No numeric columns with non-zero variance found")
-
+            df_numeric = filter_numeric_nonzero_variance(df_clean)
             feature_names = df_numeric.columns.tolist()
             X_processed = df_numeric.values
             scaler = None

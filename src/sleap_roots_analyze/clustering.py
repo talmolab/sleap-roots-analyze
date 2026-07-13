@@ -19,7 +19,7 @@ from sklearn.metrics import (
     calinski_harabasz_score,
 )
 
-from sleap_roots_analyze.pca import standardize_data
+from sleap_roots_analyze.pca import standardize_data, filter_numeric_nonzero_variance
 
 
 def perform_kmeans_clustering(
@@ -56,7 +56,9 @@ def perform_kmeans_clustering(
         - davies_bouldin_score: Quality metric [0, inf), lower is better
         - calinski_harabasz_score: Quality metric [0, inf), higher is better
         - data_indices: Original data indices
-        - feature_names: Feature names (if DataFrame input)
+        - feature_names: Feature names (if DataFrame input); reflects columns
+          remaining after numeric/non-zero-variance filtering, not
+          necessarily the caller's original columns
         - data_processed: Processed data used for clustering (N, n_features)
 
     Raises:
@@ -101,14 +103,21 @@ def perform_kmeans_clustering(
         n_clusters = recommended_max_clusters
 
     original_indices = df_clean.index.tolist()
-    feature_names = df_clean.columns.tolist()
 
     try:
-        # Standardize data if requested
+        # Standardize data if requested. feature_names is derived from the
+        # columns that survive filtering (numeric dtype, non-zero variance),
+        # not the pre-filter df_clean, so it stays aligned with X_processed
+        # (pca.py:793-812 precedent).
         if standardize:
-            X_processed, scaler, _ = standardize_data(df_clean)
+            X_processed, scaler, df_clean = standardize_data(df_clean)
+            feature_names = df_clean.columns.tolist()
         else:
-            X_processed = df_clean.values
+            # standardize_data's own filtering must still apply here, or a
+            # non-numeric/constant column reaches KMeans.fit() directly.
+            df_numeric = filter_numeric_nonzero_variance(df_clean)
+            feature_names = df_numeric.columns.tolist()
+            X_processed = df_numeric.values
 
         # Fit K-Means
         kmeans = KMeans(n_clusters=n_clusters, random_state=random_state, n_init=10)
@@ -322,7 +331,9 @@ def perform_gmm_clustering(
         - davies_bouldin_score: Quality metric [0, inf), lower is better
         - calinski_harabasz_score: Quality metric [0, inf), higher is better
         - data_indices: Original data indices
-        - feature_names: Feature names (if DataFrame input)
+        - feature_names: Feature names (if DataFrame input); reflects columns
+          remaining after numeric/non-zero-variance filtering, not
+          necessarily the caller's original columns
         - data_processed: Processed data used for clustering (N, n_features)
 
     Raises:
@@ -352,14 +363,22 @@ def perform_gmm_clustering(
         )
 
     original_indices = df_clean.index.tolist()
-    feature_names = df_clean.columns.tolist()
 
     try:
-        # Standardize data if requested
+        # Standardize data if requested. feature_names is derived from the
+        # columns that survive filtering (numeric dtype, non-zero variance),
+        # not the pre-filter df_clean, so it stays aligned with X_processed
+        # (pca.py:793-812 precedent).
         if standardize:
-            X_processed, scaler, _ = standardize_data(df_clean)
+            X_processed, scaler, df_clean = standardize_data(df_clean)
+            feature_names = df_clean.columns.tolist()
         else:
-            X_processed = df_clean.values
+            # standardize_data's own filtering must still apply here, or a
+            # non-numeric/constant column reaches GaussianMixture.fit()
+            # directly.
+            df_numeric = filter_numeric_nonzero_variance(df_clean)
+            feature_names = df_numeric.columns.tolist()
+            X_processed = df_numeric.values
 
         bic_scores = []
         aic_scores = []
@@ -530,7 +549,9 @@ def perform_hierarchical_clustering(
         - cophenetic_correlation: Quality metric [0, 1], higher is better.
           Measures how faithfully the dendrogram preserves pairwise distances.
         - data_indices: Original data indices
-        - feature_names: Feature names (if DataFrame input)
+        - feature_names: Feature names (if DataFrame input); reflects columns
+          remaining after numeric/non-zero-variance filtering, not
+          necessarily the caller's original columns
         - data_processed: Processed data used for clustering (N, n_features)
 
     Raises:
@@ -569,14 +590,21 @@ def perform_hierarchical_clustering(
         raise ValueError("Ward linkage requires euclidean metric")
 
     original_indices = df_clean.index.tolist()
-    feature_names = df_clean.columns.tolist()
 
     try:
-        # Standardize data if requested
+        # Standardize data if requested. feature_names is derived from the
+        # columns that survive filtering (numeric dtype, non-zero variance),
+        # not the pre-filter df_clean, so it stays aligned with X_processed
+        # (pca.py:793-812 precedent).
         if standardize:
-            X_processed, scaler, _ = standardize_data(df_clean)
+            X_processed, scaler, df_clean = standardize_data(df_clean)
+            feature_names = df_clean.columns.tolist()
         else:
-            X_processed = df_clean.values
+            # standardize_data's own filtering must still apply here, or a
+            # non-numeric/constant column reaches linkage() directly.
+            df_numeric = filter_numeric_nonzero_variance(df_clean)
+            feature_names = df_numeric.columns.tolist()
+            X_processed = df_numeric.values
 
         # Perform hierarchical clustering
         linkage_matrix = linkage(X_processed, method=method, metric=metric)
