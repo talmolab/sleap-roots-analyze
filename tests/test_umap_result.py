@@ -174,6 +174,36 @@ class TestUMAPAdapter:
         result = UMAPResult.from_umap_dict(umap_dict)
         assert result.random_state == 42
 
+    def test_random_state_explicit_arg_wins_with_zero(self, umap_dict):
+        """An explicit random_state=0 is preserved, not treated as falsy/absent.
+
+        Guards a regression to the idiomatic-but-wrong ``random_state or
+        d.get("random_state")`` pattern, which would silently discard an explicit
+        seed of ``0`` and fall through to the dict's echoed seed instead.
+        """
+        result = UMAPResult.from_umap_dict(umap_dict, random_state=0)
+        assert result.random_state == 0
+        assert type(result.random_state) is int
+
+    def test_random_state_falls_back_to_dict_with_zero(self):
+        """With no argument, an echoed dict seed of 0 is preserved, not treated as absent.
+
+        Guards a regression to a truthiness-based fallback (e.g. ``d.get("random_state")
+        or None``), which would silently collapse a legitimate seed of ``0`` to ``None``.
+        """
+        d = {
+            "embedding": [[0.1, 0.2], [0.3, 0.4]],
+            "n_neighbors": 1,
+            "min_dist": 0.1,
+            "feature_names": ["a", "b"],
+            "scaler": None,
+            "random_state": 0,
+        }
+        result = UMAPResult.from_umap_dict(d)
+
+        assert result.random_state == 0
+        assert type(result.random_state) is int
+
     def test_random_state_none_when_absent(self):
         """With no argument and no echoed seed, random_state is None -> JSON null."""
         d = {

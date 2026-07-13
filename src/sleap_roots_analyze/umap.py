@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -22,7 +22,7 @@ def perform_umap_analysis(
     n_neighbors: int = 15,
     min_dist: float = 0.1,
     n_components: int = 2,
-    random_state: int = 42,
+    random_state: Optional[int] = 42,
 ) -> Dict:
     """Perform UMAP dimensionality reduction.
 
@@ -34,7 +34,8 @@ def perform_umap_analysis(
         min_dist: Minimum distance between points in embedding.
             Controls how tightly UMAP packs points together.
         n_components: Number of dimensions for embedding.
-        random_state: Random seed for reproducibility.
+        random_state: Random seed for reproducibility. ``None`` is accepted and
+            produces a non-deterministic (non-reproducible) embedding.
 
     Returns:
         Dictionary containing:

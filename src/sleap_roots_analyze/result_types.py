@@ -621,7 +621,9 @@ class UMAPResult:
             fitted) before UMAP.
         random_state: Random seed used for the run, stamped for reproducibility
             provenance; ``None`` if no seed was supplied to the adapter or carried by the
-            source dict. UMAP is stochastic, so the seed governs the embedding.
+            source dict. UMAP is stochastic, so the seed governs the embedding — a
+            ``None`` value here means this result is **not** reproducible; it does not
+            mean "no randomness was involved."
     """
 
     embedding: list[list[float]]
