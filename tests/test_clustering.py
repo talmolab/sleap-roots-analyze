@@ -9,6 +9,7 @@ import pytest
 from sleap_roots_analyze.clustering import (
     perform_kmeans_clustering,
     perform_gmm_clustering,
+    perform_hierarchical_clustering,
     calculate_cluster_quality_metrics,
 )
 
@@ -679,3 +680,125 @@ class TestClusteringWithNaN:
 
         # Should have fewer samples than input
         assert len(result["data_indices"]) < len(cluster_result_with_nan)
+
+
+# ============================================================================
+# Regression tests for #183: feature_names silently mislabeled after
+# standardize_data drops non-numeric/zero-variance columns.
+# ============================================================================
+
+FEATURE_NAMES_PRODUCERS = [
+    pytest.param(
+        perform_kmeans_clustering, {"n_clusters": 3}, "cluster_centers", id="kmeans"
+    ),
+    pytest.param(perform_gmm_clustering, {"n_components": 3}, "means", id="gmm"),
+    pytest.param(
+        perform_hierarchical_clustering, {}, "data_processed", id="hierarchical"
+    ),
+]
+
+
+class TestClusteringFeatureNamesAfterFiltering:
+    """feature_names must reflect the columns actually used for fitting.
+
+    perform_kmeans_clustering/perform_gmm_clustering/perform_hierarchical_clustering
+    all filter out non-numeric and zero-variance columns before fitting, but
+    previously kept returning a pre-filter feature_names snapshot.
+    """
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", FEATURE_NAMES_PRODUCERS)
+    def test_length_matches_array(
+        self, pca_constant_feature_data, fn, kwargs, array_key, standardize
+    ):
+        """feature_names length must equal the array's actual column count."""
+        result = fn(pca_constant_feature_data, standardize=standardize, **kwargs)
+        assert len(result["feature_names"]) == result[array_key].shape[1]
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", FEATURE_NAMES_PRODUCERS)
+    def test_constant_columns_excluded_in_original_order(
+        self, pca_constant_feature_data, fn, kwargs, array_key, standardize
+    ):
+        """Constant columns are dropped; surviving names keep original order."""
+        result = fn(pca_constant_feature_data, standardize=standardize, **kwargs)
+        assert result["feature_names"] == ["variable1", "variable2"]
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", FEATURE_NAMES_PRODUCERS)
+    def test_named_value_matches_processed_data(
+        self, pca_constant_feature_data, fn, kwargs, array_key, standardize
+    ):
+        """Named value in data_processed matches a hand-computed expectation.
+
+        A length check alone would not catch feature_names paired with the
+        wrong column; this checks the actual per-column content, not just
+        the array's shape.
+        """
+        result = fn(pca_constant_feature_data, standardize=standardize, **kwargs)
+        data_processed = result["data_processed"]
+        name_to_col = {name: i for i, name in enumerate(result["feature_names"])}
+
+        for col in ("variable1", "variable2"):
+            series = pca_constant_feature_data[col]
+            if standardize:
+                expected = (series - series.mean()) / series.std(ddof=0)
+            else:
+                expected = series
+            np.testing.assert_allclose(
+                data_processed[:, name_to_col[col]], expected.to_numpy(), rtol=1e-6
+            )
+
+
+class TestClusteringMixedConstantAndNonNumeric:
+    """standardize=False must apply the same filter standardize=True does.
+
+    Today standardize=False passes df_clean.values through unfiltered, so a
+    non-numeric column reaches KMeans/GaussianMixture/linkage directly and
+    fails with a raw sklearn "could not convert string to float" error.
+    """
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", FEATURE_NAMES_PRODUCERS)
+    def test_excludes_nonnumeric_and_constant_columns(
+        self,
+        cluster_mixed_constant_and_nonnumeric_data,
+        fn,
+        kwargs,
+        array_key,
+        standardize,
+    ):
+        """Non-numeric and constant columns are excluded, not just tolerated."""
+        result = fn(
+            cluster_mixed_constant_and_nonnumeric_data,
+            standardize=standardize,
+            **kwargs,
+        )
+        assert result["feature_names"] == ["variable1", "variable2"]
+        assert result[array_key].shape[1] == 2
+
+
+class TestClusteringAllColumnsFilteredOut:
+    """Every column non-numeric or zero-variance must raise a clear error.
+
+    Not an uncontrolled sklearn/scipy failure, for either standardize value.
+    """
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", FEATURE_NAMES_PRODUCERS)
+    def test_raises_runtime_error_with_clear_message(
+        self, fn, kwargs, array_key, standardize
+    ):
+        """A fully-filtered input raises RuntimeError with a clear message."""
+        n = 20
+        df = pd.DataFrame(
+            {
+                "genotype_id": [f"G{i % 3}" for i in range(n)],
+                "constant_trait": np.full(n, 7.0),
+                "constant_trait2": np.zeros(n),
+            }
+        )
+        with pytest.raises(
+            RuntimeError, match="No numeric columns with non-zero variance found"
+        ):
+            fn(df, standardize=standardize, **kwargs)

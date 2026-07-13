@@ -3464,6 +3464,29 @@ def edge_case_cluster_data():
 
 
 @pytest.fixture
+def cluster_mixed_constant_and_nonnumeric_data():
+    """Create clustering data mixing a constant column and a non-numeric column.
+
+    Covers the half of the feature_names bug that pca_constant_feature_data
+    does not: a non-numeric (string) column silently dropped by
+    select_dtypes inside standardize_data.
+    """
+    np.random.seed(42)
+    n_samples = 90
+
+    df = pd.DataFrame(
+        {
+            "genotype_id": [f"G{i % 3}" for i in range(n_samples)],
+            "constant_trait": np.full(n_samples, 7.0),
+            "variable1": np.random.randn(n_samples),
+            "variable2": np.random.randn(n_samples) * 2,
+        }
+    )
+
+    return df
+
+
+@pytest.fixture
 def linkage_matrix_small():
     """Create a small linkage matrix for hierarchical clustering edge cases."""
     from scipy.cluster.hierarchy import linkage
