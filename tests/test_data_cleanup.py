@@ -1910,6 +1910,7 @@ class TestCanonicalDefaultDriftGuard:
             "max_nans_per_trait": cfg.max_nans_per_trait,
             "max_nans_per_sample": cfg.max_nan_fraction,
             "min_samples_per_trait": cfg.min_samples_per_trait,
+            "min_variance": cfg.min_variance,
         }
 
     def test_apply_filters_defaults_match_cleanup_config(self):
@@ -1932,6 +1933,7 @@ class TestCanonicalDefaultDriftGuard:
             "max_nans_per_trait": 0.2,
             "max_nans_per_sample": 0.0,
             "min_samples_per_trait": 10,
+            "min_variance": 0.0,
         }
 
     def test_clean_traits_entry_point_defaults_match_cleanup_config(self):

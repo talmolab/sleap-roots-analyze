@@ -71,6 +71,12 @@ cleanup:
   # Typical: 10–30 depending on sample size. For ~150 samples, use 10.
   min_samples_per_trait: 10
 
+  # Optional: drop constant (zero-variance) traits — a trait whose values are all
+  # identical carries no information for PCA/heritability. Default 0.0 drops
+  # exactly-constant traits (recommended); set negative to disable. This is raw
+  # (pre-standardization) variance, so keep 0.0 unless you have a reason to raise it.
+  # min_variance: 0.0
+
 outlier_detection:
   # Traditional outlier detection methods: pca, isolation_forest, mahalanobis
   # For n ≥ 30, Mahalanobis chi-squared is recommended (fast and reliable).

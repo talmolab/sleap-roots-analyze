@@ -20,6 +20,7 @@ class CleanupTraitsStep(BaseStep):
     2. Remove traits with many NaNs
     3. Remove samples with many NaNs (after bad traits removed)
     4. Remove traits with insufficient samples (after sample removal)
+    5. Remove zero-variance (constant) traits (evaluated after sample removal)
 
     By removing bad traits first, we minimize the number of samples removed.
 
@@ -55,6 +56,8 @@ class CleanupTraitsStep(BaseStep):
                 - cleanup.max_nans_per_trait: Max fraction of NaNs allowed per trait
                 - cleanup.max_nan_fraction: Max fraction of NaNs allowed per sample
                 - cleanup.min_samples_per_trait: Min samples required per trait
+                - cleanup.min_variance: Traits with var(ddof=0) <= this are removed
+                  (0.0 drops constants; negative disables)
             run_dir: Directory to save outputs.
             prev_result: Result from LoadDataStep (contains trait column names).
 
@@ -101,6 +104,7 @@ class CleanupTraitsStep(BaseStep):
             max_nans_per_trait=config.cleanup.max_nans_per_trait,
             max_nans_per_sample=config.cleanup.max_nan_fraction,
             min_samples_per_trait=config.cleanup.min_samples_per_trait,
+            min_variance=config.cleanup.min_variance,
             barcode_col=barcode_col,
             genotype_col=genotype_col,
             replicate_col=replicate_col,
@@ -124,7 +128,11 @@ class CleanupTraitsStep(BaseStep):
             ]
         ]
 
-        # Create removed traits detail DataFrame
+        # Create removed traits detail DataFrame. When traits were removed, the columns
+        # are the union of whichever filters fired (each filter records a different key
+        # set). The empty-case fallback lists that full union so the header is stable for
+        # external consumers regardless of which filters fired — including the
+        # zero-variance filter's ``threshold`` / ``variance`` keys (#177).
         if cleanup_log["removed_traits"]:
             removed_traits_df = pd.DataFrame(cleanup_log["removed_traits"])
         else:
@@ -135,6 +143,8 @@ class CleanupTraitsStep(BaseStep):
                     "zero_fraction",
                     "nan_fraction",
                     "n_samples",
+                    "threshold",
+                    "variance",
                 ]
             )
 

@@ -41,6 +41,7 @@ cleanup:
   max_zeros_per_trait: 0.5         # REQUIRED: Max fraction zeros per trait (0.0-1.0)
   max_nans_per_trait: 0.2          # REQUIRED: Max fraction NaN per trait (0.0-1.0)
   min_samples_per_trait: 10        # Min samples required per trait
+  # min_variance: 0.0              # Optional: drop constant (zero-variance) traits (0.0 default drops exactly-constant; <0 disables)
 
 # ============================================================================
 # OPTIONAL: Outlier Detection (Leave empty for cleanup-only pipeline)
