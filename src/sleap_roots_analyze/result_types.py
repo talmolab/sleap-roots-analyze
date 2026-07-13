@@ -18,9 +18,9 @@ serialization rather than silently producing invalid JSON. Callers crossing the
 boundary should use ``to_json`` (or pass ``allow_nan=False`` themselves).
 
 The first type is :class:`PCAResult` (issue #127, the detailed exemplar);
-``HeritabilityResult`` (#128) and ``ClusterResult`` (#129) follow the same
-convention here. This module imports nothing from the analytical modules
-(``pca.py`` etc.) so dependencies stay one-way.
+``HeritabilityResult`` (#128), ``ClusterResult`` (#129), and ``UMAPResult``
+(#180) follow the same convention here. This module imports nothing from the
+analytical modules (``pca.py`` etc.) so dependencies stay one-way.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ __all__ = [
     "KMeansResult",
     "GMMResult",
     "HierarchicalResult",
+    "UMAPResult",
     "ALGORITHM_KMEANS",
     "ALGORITHM_GMM",
     "ALGORITHM_HIERARCHICAL",
@@ -681,3 +682,110 @@ class HierarchicalResult(ClusterResult):
     distance_metric: str = "euclidean"
     cophenetic_correlation: float = 0.0
     cut_height: float = 0.0
+
+
+@dataclass(frozen=True)
+class UMAPResult:
+    """JSON-serializable view of a UMAP run (science only, no fitted objects).
+
+    Built from the ``perform_umap_analysis`` dict via :meth:`from_umap_dict`. Holds
+    only the serializable embedding and its provenance; the fitted ``umap.UMAP``
+    ``reducer`` and ``StandardScaler`` ``scaler`` are intentionally excluded (still
+    available via the legacy dict for in-process callers), mirroring how
+    :class:`PCAResult` omits the fitted ``PCA``/``StandardScaler``.
+
+    ``frozen=True`` is shallow: the dataclass fields cannot be rebound, but the nested
+    ``embedding`` / ``feature_names`` lists are still mutable in place. Treat the result
+    as read-only. Float fields must be finite to satisfy the JSON boundary — use
+    :meth:`to_json` to enforce it.
+
+    ``n_samples`` and ``n_components`` are stored fields (materialized into the
+    serialized payload), not derived properties, even though both are recoverable from
+    ``embedding``'s shape: a JSON consumer reads the result after it has crossed the
+    boundary as a plain dict, where a ``@property`` would be unavailable.
+
+    Attributes:
+        embedding: ``(n_samples, n_components)`` nested list of UMAP coordinates — the
+            serializable payload (mirroring how :class:`PCAResult` stores ``scores``
+            rather than the fitted reducer).
+        n_neighbors: Size of the local neighborhood used — the effective value the run
+            applied (UMAP clamps it to ``n_samples - 1`` when the request is larger).
+        min_dist: Minimum distance between embedded points used for the run.
+        n_components: Number of embedding dimensions (the embedding width).
+        feature_names: Feature (column) names used for the embedding, in input order.
+        n_samples: Number of embedded samples (the embedding row count).
+        standardized: Whether the features were standardized (a ``StandardScaler`` was
+            fitted) before UMAP.
+        random_state: Random seed used for the run, stamped for reproducibility
+            provenance; ``None`` if no seed was supplied to the adapter or carried by the
+            source dict. UMAP is stochastic, so the seed governs the embedding — a
+            ``None`` value here means this result is **not** reproducible; it does not
+            mean "no randomness was involved."
+    """
+
+    embedding: list[list[float]]
+    n_neighbors: int
+    min_dist: float
+    n_components: int
+    feature_names: list[str]
+    n_samples: int
+    standardized: bool
+    random_state: Optional[int] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
+        return dataclasses.asdict(self)
+
+    def to_json(self, **kwargs: Any) -> str:
+        """Serialize to a strict-JSON string, enforcing the finite-floats contract.
+
+        Defaults to ``allow_nan=False`` so a non-finite embedding value
+        (``NaN``/``Infinity`` from a degenerate run) raises a ``ValueError`` here rather
+        than emitting the non-standard tokens a strict JSON consumer (e.g. bloom-mcp)
+        rejects. Extra keyword arguments are forwarded to :func:`json.dumps`.
+
+        Raises:
+            ValueError: If any float field is non-finite (under the default
+                ``allow_nan=False``).
+        """
+        kwargs.setdefault("allow_nan", False)
+        return json.dumps(self.to_dict(), **kwargs)
+
+    @classmethod
+    def from_umap_dict(
+        cls, d: dict, *, random_state: Optional[int] = None
+    ) -> "UMAPResult":
+        """Build a :class:`UMAPResult` from a ``perform_umap_analysis`` dict.
+
+        Reads ``embedding``, ``n_neighbors``, ``min_dist``, and ``feature_names`` from
+        ``d``; derives ``n_components`` from the embedding width and ``n_samples`` from
+        its row count; and sets ``standardized`` from ``d.get("scaler") is not None``.
+        Does not mutate ``d``.
+
+        The seed is resolved from the explicit ``random_state`` argument when supplied,
+        otherwise from ``d.get("random_state")`` (which ``perform_umap_analysis``
+        echoes). Because UMAP's seed is load-bearing — it governs the stochastic
+        embedding — falling back to the echoed seed records the value the run actually
+        used rather than one stamped on trust.
+
+        Args:
+            d: The dict returned by ``perform_umap_analysis``.
+            random_state: Seed to stamp into the result for reproducibility provenance;
+                overrides the dict's echoed seed. When ``None`` (the default), the seed
+                is taken from ``d.get("random_state")``.
+
+        Returns:
+            A frozen :class:`UMAPResult` holding only JSON-serializable science.
+        """
+        embedding = np.asarray(d["embedding"], dtype=float)
+        seed = random_state if random_state is not None else d.get("random_state")
+        return cls(
+            embedding=embedding.tolist(),
+            n_neighbors=int(d["n_neighbors"]),
+            min_dist=float(d["min_dist"]),
+            n_components=int(embedding.shape[1]),
+            feature_names=[str(name) for name in d["feature_names"]],
+            n_samples=int(embedding.shape[0]),
+            standardized=d.get("scaler") is not None,
+            random_state=None if seed is None else int(seed),
+        )

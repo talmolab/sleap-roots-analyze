@@ -24,6 +24,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alongside `ALGORITHM_KMEANS` / `ALGORITHM_GMM`.
 
 ### Changed
+- Data cleanup now drops **constant (zero-variance) traits** and names them at cleaning
+  time instead of letting PCA drop them silently later (#177). A new internal filter
+  `remove_zero_variance_traits` runs as the **final** step of `apply_data_cleanup_filters`
+  (after sample removal, so variance is measured on the reduced frame) and is re-applied
+  inside `clean_traits_for_analysis` after its own residual-NaN `dropna`, guaranteeing the
+  analysis-ready frame is constant-free on both the standard and loosened-NaN paths. Each
+  dropped trait is logged in `cleanup_log["removed_traits"]` with `reason="zero_variance"`
+  (plus `variance` and `threshold`), matching the sibling trait filters. The threshold is
+  configurable via the new `CleanupConfig.min_variance` (default `0.0`, forwarded by
+  `CleanupTraitsStep`); `0.0` drops exactly-constant traits and a negative value disables
+  the filter. **Behavior note:** for any dataset with a genuinely-constant trait, that
+  column is now absent from cleaned output and appears in the cleanup log; PCA / UMAP /
+  clustering results are unchanged (those paths already dropped constants before fitting),
+  and the QC PCA step's `excluded_zero_variance_traits` becomes empty when fed a cleaned
+  frame. Set `min_variance` negative to retain the previous behavior.
+  **Statistics note:** a constant-but-nonzero trait (e.g. always `3.0`) previously survived
+  cleanup and produced a degenerate row in the heritability table (`{'heritability': 0.0,
+  'model_type': 'no_variance', ...}`) and the ANOVA table (`f_statistic`/`p_value` = `NaN`);
+  it is now dropped at cleanup, so those rows no longer appear and `n_traits_analyzed`
+  drops accordingly. The removed entries were statistically degenerate (H²=0, p=NaN), so
+  this is a correctness improvement, not a loss of real signal. (An all-zeros trait was
+  already removed earlier by the zero-inflation filter, so only constant-nonzero traits are
+  affected.)
 - `ClusterResult.random_state` is now `Optional[int]` (default `None`) (#179), matching
   `PCAResult.random_state`, so a deterministic algorithm (hierarchical) can omit the
   seed. Source-compatible for producers (KMeans/GMM still stamp the `int` seed); a
@@ -36,6 +59,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path no longer re-cuts the dendrogram for the same `k` it already computed.
 
 ### Fixed
+- `perform_kmeans_clustering`, `perform_gmm_clustering`, and
+  `perform_hierarchical_clustering` (`clustering.py`) now re-derive `feature_names` from
+  the columns actually used for fitting, on both `standardize=True` and
+  `standardize=False` (#183). Previously `feature_names` was snapshotted **before**
+  constant/non-numeric columns were filtered out, silently mislabeling
+  `cluster_centers`/`means`/`data_processed` for such inputs — not a length mismatch a
+  caller would notice, a positional mislabeling. `standardize=False` additionally now
+  applies the same numeric + non-zero-variance filter `standardize=True` always used
+  internally; previously it applied no filtering at all, so a non-numeric column reached
+  the estimator directly and failed with a raw sklearn "could not convert string to float"
+  error instead of the clear "No numeric columns with non-zero variance found" message.
+  This is separate from the `#177` cleanup change above: `#177` keeps constant traits from
+  ever reaching these functions through the standard cleanup step; `#183` fixes the
+  functions' own label bookkeeping for any caller that doesn't go through it — e.g. direct
+  callers, or `standardize=False`. `KMeansResult`/`GMMResult` and
+  `detect_outliers_kmeans`/`_gmm`/`_hierarchical` (`outlier_detection.py`) inherit the
+  corrected values automatically, with no adapter code changes needed.
 - `perform_hierarchical_clustering` now requires the euclidean metric for `centroid`
   and `median` linkage, not only `ward` (#179) — scipy's `linkage()` enforces this for
   all three methods; the other two previously raised a wrapped `RuntimeError` instead

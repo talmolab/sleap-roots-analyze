@@ -215,6 +215,41 @@ class TestClusterAdapters:
             )
 
 
+class TestClusterAdapterFeatureNamesAfterFiltering:
+    """Regression tests for #183: adapters inherit the corrected feature_names.
+
+    KMeansResult/GMMResult carry feature_names straight through from the
+    producer dict, with no separate correction logic in the adapters
+    themselves — these confirm that inheritance holds once the producers
+    (perform_kmeans_clustering/perform_gmm_clustering) are fixed to derive
+    feature_names from the post-filter columns.
+    """
+
+    def test_kmeans_adapter_feature_names_matches_filtered_centers(
+        self, pca_constant_feature_data
+    ):
+        """feature_names excludes constant columns and matches centers width."""
+        d = perform_kmeans_clustering(
+            pca_constant_feature_data, n_clusters=3, standardize=True
+        )
+        result = ClusterResult.from_kmeans_dict(d, random_state=42)
+
+        assert result.feature_names == ["variable1", "variable2"]
+        assert len(result.feature_names) == len(result.cluster_centers[0])
+
+    def test_gmm_adapter_feature_names_matches_filtered_means(
+        self, pca_constant_feature_data
+    ):
+        """feature_names excludes constant columns and matches means width."""
+        d = perform_gmm_clustering(
+            pca_constant_feature_data, n_components=3, standardize=True
+        )
+        result = ClusterResult.from_gmm_dict(d, random_state=42)
+
+        assert result.feature_names == ["variable1", "variable2"]
+        assert len(result.feature_names) == len(result.cluster_centers[0])
+
+
 class TestClusterDeterminism:
     """Same seed -> identical result via the typed view (#118)."""
 
@@ -328,13 +363,17 @@ class TestHierarchicalResultJSON:
             tainted.to_json()
 
     def test_real_degenerate_input_produces_nan_cophenetic_at_production(self):
-        """A genuinely degenerate input (all-identical points) yields a real NaN
+        """A genuinely degenerate input (2 samples -> 1 pairwise distance, so the
+        cophenetic correlation is an undefined 0/0) yields a real NaN
         cophenetic_correlation from scipy — not a synthetic dataclasses.replace — and
-        the producer/adapter carry it as-is; only to_json rejects it."""
+        the producer/adapter carry it as-is; only to_json rejects it. Each column has
+        real per-column variance so it survives the #183 numeric/non-zero-variance
+        filter (an all-identical-points input would instead raise RuntimeError, since
+        every column would be filtered out)."""
         from sleap_roots_analyze.clustering import hierarchical_cluster_labels
 
-        identical = pd.DataFrame(np.zeros((5, 3)))
-        d = hierarchical_cluster_labels(identical, n_clusters=1, standardize=False)
+        two_rows = pd.DataFrame([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])
+        d = hierarchical_cluster_labels(two_rows, n_clusters=1, standardize=False)
         assert np.isnan(d["cophenetic_correlation"])
 
         result = ClusterResult.from_hierarchical_dict(d)

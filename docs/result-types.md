@@ -70,6 +70,7 @@ exported as the constants `ALGORITHM_KMEANS` / `ALGORITHM_GMM` / `ALGORITHM_HIER
 | `HeritabilityResult` (+ `TraitHeritability`) | `calculate_heritability_estimates` dict | `HeritabilityResult.from_heritability_dict(d, threshold)` |
 | `KMeansResult` / `GMMResult` (subclasses of `ClusterResult`) | `perform_kmeans_clustering` / `perform_gmm_clustering` dict | `ClusterResult.from_kmeans_dict(d, *, random_state)` / `from_gmm_dict(...)` |
 | `HierarchicalResult` (subclass of `ClusterResult`) | `hierarchical_cluster_labels` dict | `ClusterResult.from_hierarchical_dict(d)` (no `random_state` — hierarchical is deterministic) |
+| `UMAPResult` | `perform_umap_analysis` dict | `UMAPResult.from_umap_dict(d, *, random_state=None)` |
 
 All are exported from the top-level `sleap_roots_analyze` namespace and `__all__`.
 
@@ -83,13 +84,12 @@ identical input yields identical labels **within one process**. scipy's `linkage
 `fcluster` tie-breaking is BLAS/platform-sensitive, so this is not a promise of
 byte-for-byte reproducibility across machines — no golden artifact is committed for it.
 
-**Two known footguns, not specific to this epic:**
-- `feature_names` (on `KMeansResult`/`GMMResult`/`HierarchicalResult`) is captured
-  before `standardize_data` drops non-numeric/zero-variance columns, so it can list
-  more names than were actually clustered.
-- `data_indices` (the row-label mapping back to source rows after NaN-dropping) is
-  available on every clustering **producer dict** but is **not** carried onto any
-  `ClusterResult` subclass — use the producer dict directly if you need that mapping.
+**Known gap, not specific to this epic:** `data_indices` (the row-label mapping back
+to source rows after NaN-dropping) is available on every clustering **producer
+dict** but is **not** carried onto any `ClusterResult` subclass — use the producer
+dict directly if you need that mapping. (`feature_names` on `KMeansResult`/
+`GMMResult`/`HierarchicalResult` is derived from the columns actually used for
+fitting, not a pre-filter snapshot — #183 fixed this at the producer level.)
 
 ## Backwards compatibility
 

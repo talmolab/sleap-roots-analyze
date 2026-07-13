@@ -11,6 +11,9 @@ from sleap_roots_analyze.outlier_detection import (
     detect_outliers_mahalanobis,
     detect_outliers_pca,
     detect_outliers_isolation_forest,
+    detect_outliers_kmeans,
+    detect_outliers_gmm,
+    detect_outliers_hierarchical,
     calculate_outlier_threshold,
     identify_outliers_from_distances,
     remove_outliers_from_data,
@@ -2991,3 +2994,85 @@ class TestCombineOutlierMethods:
             assert (
                 actual_total == 2
             ), f"Total methods mismatch: expected 2, got {actual_total}"
+
+
+# ============================================================================
+# Regression tests for #183: detect_outliers_kmeans/_gmm/_hierarchical each
+# dict-spread the clustering producer's output verbatim (e.g.
+# `return {**cluster_result, ...}`), so they inherit the same feature_names
+# mismatch with no coverage of their own today.
+# ============================================================================
+
+DETECT_OUTLIERS_PRODUCERS = [
+    pytest.param(
+        detect_outliers_kmeans, {"n_clusters": 3}, "cluster_centers", id="kmeans"
+    ),
+    pytest.param(detect_outliers_gmm, {"n_components": 3}, "means", id="gmm"),
+    pytest.param(
+        detect_outliers_hierarchical,
+        {"n_clusters": 3},
+        "data_processed",
+        id="hierarchical",
+    ),
+]
+
+
+class TestDetectOutliersFeatureNamesAfterFiltering:
+    """feature_names must reflect the columns actually used for fitting."""
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", DETECT_OUTLIERS_PRODUCERS)
+    def test_feature_names_matches_filtered_array(
+        self, pca_constant_feature_data, fn, kwargs, array_key, standardize
+    ):
+        """feature_names excludes constants and matches the array's width."""
+        result = fn(pca_constant_feature_data, standardize=standardize, **kwargs)
+        assert "error" not in result
+        assert result["feature_names"] == ["variable1", "variable2"]
+        array = np.asarray(result[array_key])
+        assert len(result["feature_names"]) == array.shape[1]
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", DETECT_OUTLIERS_PRODUCERS)
+    def test_excludes_nonnumeric_and_constant_columns(
+        self,
+        cluster_mixed_constant_and_nonnumeric_data,
+        fn,
+        kwargs,
+        array_key,
+        standardize,
+    ):
+        """Non-numeric and constant columns are excluded, not just tolerated."""
+        result = fn(
+            cluster_mixed_constant_and_nonnumeric_data,
+            standardize=standardize,
+            **kwargs,
+        )
+        assert "error" not in result
+        assert result["feature_names"] == ["variable1", "variable2"]
+
+
+class TestDetectOutliersAllColumnsFilteredOut:
+    """Every column non-numeric or zero-variance reports a clear error.
+
+    Instead of an uncontrolled sklearn/scipy failure or a silent crash.
+    These functions catch internally and report via an "error" key rather
+    than raising.
+    """
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", DETECT_OUTLIERS_PRODUCERS)
+    def test_reports_clear_error(self, fn, kwargs, array_key, standardize):
+        """A fully-filtered input reports a clear error, not a raw crash."""
+        n = 20
+        df = pd.DataFrame(
+            {
+                "genotype_id": [f"G{i % 3}" for i in range(n)],
+                "constant_trait": np.full(n, 7.0),
+                "constant_trait2": np.zeros(n),
+            }
+        )
+        result = fn(df, standardize=standardize, **kwargs)
+        assert "No numeric columns with non-zero variance found" in result.get(
+            "error", ""
+        )
