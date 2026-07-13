@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a5] - 2026-07-13 (Pre-release)
+
 ### Added
+- `UMAPResult` (#180): frozen JSON-serializable dataclass (sibling to `PCAResult`):
+  `embedding`, `n_neighbors`, `min_dist`, `n_components`, `feature_names`, `n_samples`,
+  `standardized`, `random_state`. Excludes the fitted `reducer`/`scaler`. Provides
+  `to_dict()`/`to_json()` (strict `allow_nan=False`).
+  `UMAPResult.from_umap_dict(d, *, random_state=None)` derives `n_components`/`n_samples`
+  from the embedding shape and resolves the seed from the argument or the echoed dict
+  key. `perform_umap_analysis` additionally returns `feature_names` + `random_state`
+  (additive, non-breaking). Completes the result-types epic (#130) across
+  PCA/heritability/clustering/UMAP.
 - Public hierarchical-clustering entry point `hierarchical_cluster_labels` (#179):
   the **labeled** counterpart to `perform_hierarchical_clustering` (which returns only
   the dendrogram). Importable from `sleap_roots_analyze`, it composes the existing
