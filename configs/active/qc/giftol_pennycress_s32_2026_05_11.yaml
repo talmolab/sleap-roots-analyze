@@ -1,0 +1,79 @@
+# QC Pipeline Configuration: GIFTOL Pennycress S32 2026-05-11
+#
+# Dataset: traits_summary_with_genotype_no_root_widths.csv (979 cols, 140 rows)
+#          root_widths cols pre-filtered (81 removed) — bug #113 workaround
+# Analysis date: 2026-07-13
+# Generated from: qc_template_grouped.yaml
+#
+# Key choices:
+#   heritability.threshold: 0.0 — first-pass exploratory; compute H² for all traits, no filtering
+#   group_by: plant_age_days — Day 7 (70 plants) and Day 17 (70 plants) analyzed independently
+#   columns.replicate: null — H² model is value~1+(1|genotype); replicate value unused (#142 fixed)
+
+pipeline_name: "giftol_pennycress_s32_2026_05_11"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260709_Emily_Shane_Pennycress_S32_GIFTOL_2026-05-11/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv"
+  image_dir: null
+  additional_exclude_cols: []
+  validate_input: warn
+  group_by: "plant_age_days"
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "genotype"
+  # replicate omitted — null by default (#142 fixed; value never used in heritability model)
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 17
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+pca:
+  n_components: 0.75
+  feature_selection_strategy: "extreme"
+
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+
+visualization:
+  dpi: 300
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"
