@@ -143,6 +143,43 @@
       `n_clusters` is set, empty-DataFrame, single-row auto-k, and the `cluster_labels`
       numpy-array type.
 
+## 6. PR #182 review-round-2 follow-ups (subagent team, incl. eberrigan)
+
+- [x] 6.1 **Blocking:** `method="centroid"`/`"median"` + a non-euclidean metric still
+      leaked `RuntimeError` — scipy requires euclidean for centroid/median, not only
+      ward, and neither `perform_hierarchical_clustering`'s pre-`try` check nor the
+      producer's set-membership checks caught the *combination*. Extended
+      `perform_hierarchical_clustering`'s check to `method in {"ward", "centroid",
+      "median"}`; added regression tests at both the `perform_hierarchical_clustering`
+      and `hierarchical_cluster_labels` levels.
+- [x] 6.2 **Important:** the `random_state: Optional[int] = None` widening silently
+      removed the pre-PR guardrail that rejected a missing seed on `KMeansResult`/
+      `GMMResult` (both are always seeded by their producers). Added a
+      `__post_init__` to each rejecting `random_state=None` (`TypeError`); only
+      `HierarchicalResult` may omit it. Updated the test that previously asserted all
+      three subclasses accept `None`; added a `GMMResult.random_state is int` type
+      assertion (was untested, unlike the `KMeansResult` equivalent).
+- [x] 6.3 **Important:** qualified the "hierarchical clustering is deterministic"
+      claim everywhere it shipped unqualified (the `HierarchicalResult` class
+      docstring, `hierarchical_cluster_labels`'s docstring, `docs/result-types.md`) —
+      no RNG in the composed call path means same-process determinism, not
+      cross-platform reproducibility (scipy tie-breaking is BLAS/platform-sensitive).
+- [x] 6.4 **Important:** eliminated the redundant `cut_dendrogram` re-execution on the
+      auto-`k` path (~11% extra O(n^2) silhouette pass with the default
+      `max_clusters=10`). `calculate_optimal_clusters_hierarchical` now returns the
+      winning candidate's `cut_result` (additive key) from its scan; the producer
+      reuses it instead of re-cutting for the same `k`.
+- [x] 6.5 Documented (not code-changed, per the review's own triage) that a
+      non-numeric column reaching `linkage` with `standardize=False` is a *data*
+      failure, not an *argument* error, and intentionally still raises `RuntimeError`
+      — added a regression test locking this in. Documented the `feature_names`
+      pre-standardization footgun and the `data_indices`-not-on-typed-view gap in
+      `docs/result-types.md` (both pre-existing/epic-wide, per the review).
+- [x] 6.6 Added tests for `n_clusters` edge cases the round-1 pass missed: `bool`,
+      `numpy.float64`, and `<= 0` (only the upper `n_clusters == n_samples` bound was
+      covered); added an end-to-end (non-synthetic) test driving a real `NaN`
+      `cophenetic_correlation` through the full pipeline via all-identical input.
+
 > Notes: `hierarchical_cluster_labels` takes no `random_state`, so the reproducibility
 > determinism coverage guard does **not** require a `CASES` registry entry — do not add
 > one. No hierarchical golden/pinned artifact is committed (scipy `linkage`/`fcluster`

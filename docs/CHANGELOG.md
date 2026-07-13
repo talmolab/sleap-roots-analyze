@@ -27,7 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ClusterResult.random_state` is now `Optional[int]` (default `None`) (#179), matching
   `PCAResult.random_state`, so a deterministic algorithm (hierarchical) can omit the
   seed. Source-compatible for producers (KMeans/GMM still stamp the `int` seed); a
-  reader that assumed an always-`int` value must now handle `None`.
+  reader that assumed an always-`int` value must now handle `None`. `KMeansResult` and
+  `GMMResult` reject `random_state=None` at construction (`TypeError`), restoring the
+  pre-widening guarantee that a seeded algorithm's result always carries a real seed —
+  only `HierarchicalResult` may omit it.
+- `calculate_optimal_clusters_hierarchical` additively returns the winning candidate's
+  `cut_result` (#179) from its `k`-scan, so `hierarchical_cluster_labels`'s auto-`k`
+  path no longer re-cuts the dendrogram for the same `k` it already computed.
+
+### Fixed
+- `perform_hierarchical_clustering` now requires the euclidean metric for `centroid`
+  and `median` linkage, not only `ward` (#179) — scipy's `linkage()` enforces this for
+  all three methods; the other two previously raised a wrapped `RuntimeError` instead
+  of the clear `ValueError` `ward` already got.
 
 ## [0.1.0a4] - 2026-07-02 (Pre-release)
 

@@ -53,9 +53,20 @@ so a caller catches a single exception type for every argument error.
 #### Scenario: Invalid input raises ValueError
 
 - **WHEN** `hierarchical_cluster_labels` is called with an unrecognized `method`,
-  `metric`, or `optimization_method`; a non-integer `n_clusters`; a `ward` /
-  non-euclidean combination; fewer than 2 valid rows; or all-NaN rows
+  `metric`, or `optimization_method`; a non-integer `n_clusters` (including a `bool`
+  or a `numpy` float); a `ward`/`centroid`/`median` + non-euclidean combination
+  (scipy requires euclidean distance for all three, not only `ward`); fewer than 2
+  valid rows; or all-NaN rows
 - **THEN** a `ValueError` SHALL be raised and no partial dict SHALL be returned
+
+#### Scenario: Non-argument data failure raises RuntimeError, not ValueError
+
+- **WHEN** `hierarchical_cluster_labels` is called with data that is not a bad
+  *argument* but cannot be clustered — e.g. non-numeric columns reaching `linkage`
+  when `standardize=False`
+- **THEN** the underlying `RuntimeError` SHALL propagate (this is intentionally not
+  normalized to `ValueError`: the argument-error contract above covers invalid
+  arguments, not invalid data)
 
 #### Scenario: Out-of-range cluster count raises ValueError
 
@@ -92,8 +103,10 @@ succeeds without a custom serializer. The base SHALL provide a `to_dict()` metho
 returning `dataclasses.asdict(self)`, and an `algorithm` field (`"kmeans"` | `"gmm"`
 | `"hierarchical"`) that discriminates the concrete type. The base `random_state`
 field SHALL be `Optional[int]` with default `None`, so a deterministic algorithm with
-no seed (hierarchical) can omit it while seeded algorithms (KMeans/GMM) stamp the
-`int` seed.
+no seed (hierarchical) can omit it. `KMeansResult` and `GMMResult` SHALL each reject
+`random_state=None` at construction (raising `TypeError`) — both algorithms are always
+seeded by their producers, so the widened base default MUST NOT silently let a seeded
+subclass construct without a real seed.
 
 #### Scenario: KMeansResult round-trips through JSON as native types
 
@@ -122,13 +135,21 @@ no seed (hierarchical) can omit it while seeded algorithms (KMeans/GMM) stamp th
   and `cluster_sizes` as lists of `int`, the three quality metrics and
   `cophenetic_correlation`/`cut_height` as `float`, and `random_state` as `null`
 
-#### Scenario: ClusterResult accepts a null random_state
+#### Scenario: Base ClusterResult and HierarchicalResult accept a null random_state
 
-- **WHEN** a `ClusterResult` (or any subclass) is constructed with
+- **WHEN** a `ClusterResult` (the base) or a `HierarchicalResult` is constructed with
   `random_state=None`
 - **THEN** construction SHALL succeed
 - **AND** `dataclasses.asdict(result)["random_state"]` SHALL be `None`, serializing to
   JSON `null`
+
+#### Scenario: KMeansResult and GMMResult reject a null random_state
+
+- **WHEN** a `KMeansResult` or a `GMMResult` is constructed with `random_state=None`
+- **THEN** a `TypeError` SHALL be raised — both algorithms are always seeded, so a
+  missing seed is a real gap, not a valid deterministic run
+- **WHEN** a `KMeansResult` or a `GMMResult` is constructed with a real integer seed
+- **THEN** construction SHALL succeed
 
 ### Requirement: Clustering Adapters From Legacy Dicts
 

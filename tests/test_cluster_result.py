@@ -14,6 +14,7 @@ import dataclasses
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from sleap_roots_analyze.clustering import (
@@ -127,6 +128,7 @@ class TestGMMResultJSON:
         assert type(result.aic) is float
         assert type(result.converged) is bool
         assert type(result.n_iter) is int
+        assert type(result.random_state) is int
         assert all(type(v) is float for v in result.weights)
         assert all(type(v) is float for row in result.cluster_centers for v in row)
 
@@ -325,6 +327,21 @@ class TestHierarchicalResultJSON:
         with pytest.raises(ValueError, match="not JSON compliant"):
             tainted.to_json()
 
+    def test_real_degenerate_input_produces_nan_cophenetic_at_production(self):
+        """A genuinely degenerate input (all-identical points) yields a real NaN
+        cophenetic_correlation from scipy — not a synthetic dataclasses.replace — and
+        the producer/adapter carry it as-is; only to_json rejects it."""
+        from sleap_roots_analyze.clustering import hierarchical_cluster_labels
+
+        identical = pd.DataFrame(np.zeros((5, 3)))
+        d = hierarchical_cluster_labels(identical, n_clusters=1, standardize=False)
+        assert np.isnan(d["cophenetic_correlation"])
+
+        result = ClusterResult.from_hierarchical_dict(d)
+        assert np.isnan(result.cophenetic_correlation)  # accepted at production
+        with pytest.raises(ValueError, match="not JSON compliant"):
+            result.to_json()  # rejected only at the JSON boundary
+
 
 class TestClusterResultOptionalRandomState:
     """The base random_state accepts None for deterministic algorithms (#179)."""
@@ -340,12 +357,28 @@ class TestClusterResultOptionalRandomState:
         base = ClusterResult(**_min_base_kwargs(), random_state=None)
         assert json.loads(base.to_json())["random_state"] is None
 
-    def test_each_subclass_accepts_none(self):
-        """Every subclass constructs with random_state=None without error."""
-        for cls in (KMeansResult, GMMResult, HierarchicalResult):
-            r = cls(**_min_base_kwargs(), random_state=None)
-            assert r.random_state is None
-            assert dataclasses.asdict(r)["random_state"] is None
+    def test_hierarchical_accepts_none(self):
+        """HierarchicalResult (deterministic, no seed) accepts random_state=None."""
+        r = HierarchicalResult(**_min_base_kwargs(), random_state=None)
+        assert r.random_state is None
+        assert dataclasses.asdict(r)["random_state"] is None
+
+    @pytest.mark.parametrize("cls", [KMeansResult, GMMResult])
+    def test_seeded_subclasses_reject_none(self, cls):
+        """KMeans/GMM are always seeded via their producers; None is a real gap.
+
+        Restores the pre-widening guardrail (a missing random_state used to raise
+        TypeError for a required field): base ClusterResult.random_state defaulting
+        to None must not silently let a seeded subclass construct without a seed.
+        """
+        with pytest.raises(TypeError, match="random_state must not be None"):
+            cls(**_min_base_kwargs(), random_state=None)
+
+    @pytest.mark.parametrize("cls", [KMeansResult, GMMResult])
+    def test_seeded_subclasses_accept_a_real_seed(self, cls):
+        """A real seed still constructs without error."""
+        r = cls(**_min_base_kwargs(), random_state=42)
+        assert r.random_state == 42
 
 
 class TestHierarchicalAdapter:

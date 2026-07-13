@@ -73,6 +73,24 @@ exported as the constants `ALGORITHM_KMEANS` / `ALGORITHM_GMM` / `ALGORITHM_HIER
 
 All are exported from the top-level `sleap_roots_analyze` namespace and `__all__`.
 
+**`random_state` guardrail.** The base `ClusterResult.random_state` defaults to `None`
+so `HierarchicalResult` can omit it, but `KMeansResult`/`GMMResult` reject
+`random_state=None` at construction (`TypeError`) — both algorithms are always seeded
+by their producers, so a `None` there is a real gap, not a valid deterministic run.
+
+**Hierarchical "deterministic" caveat.** No RNG is used in the composed call path, so
+identical input yields identical labels **within one process**. scipy's `linkage`/
+`fcluster` tie-breaking is BLAS/platform-sensitive, so this is not a promise of
+byte-for-byte reproducibility across machines — no golden artifact is committed for it.
+
+**Two known footguns, not specific to this epic:**
+- `feature_names` (on `KMeansResult`/`GMMResult`/`HierarchicalResult`) is captured
+  before `standardize_data` drops non-numeric/zero-variance columns, so it can list
+  more names than were actually clustered.
+- `data_indices` (the row-label mapping back to source rows after NaN-dropping) is
+  available on every clustering **producer dict** but is **not** carried onto any
+  `ClusterResult` subclass — use the producer dict directly if you need that mapping.
+
 ## Backwards compatibility
 
 **Additive only.** Existing callers (`result["loadings"]`, the wheat EDPIE paper, the

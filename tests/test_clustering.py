@@ -492,6 +492,26 @@ class TestHierarchicalEdgeCases:
                 metric="manhattan",
             )
 
+    @pytest.mark.parametrize(
+        "method,expected_word", [("centroid", "Centroid"), ("median", "Median")]
+    )
+    def test_hierarchical_centroid_median_non_euclidean_error(
+        self, hierarchical_edge_cases, method, expected_word
+    ):
+        """centroid/median linkage with a non-euclidean metric raises ValueError.
+
+        scipy's linkage() requires euclidean distance for centroid and median, not
+        just ward (#182 review) — regression test mirroring the ward case above.
+        """
+        with pytest.raises(
+            ValueError, match=f"{expected_word} linkage requires euclidean metric"
+        ):
+            perform_hierarchical_clustering(
+                hierarchical_edge_cases["ward_manhattan"],
+                method=method,
+                metric="manhattan",
+            )
+
     def test_hierarchical_different_methods(self, hierarchical_edge_cases):
         """Test hierarchical clustering with different linkage methods."""
         from sleap_roots_analyze.clustering import perform_hierarchical_clustering
@@ -761,10 +781,43 @@ class TestHierarchicalClusterLabels:
                 simple_cluster_data, method="average", metric="bogus"
             )
 
+    @pytest.mark.parametrize("method", ["centroid", "median"])
+    def test_centroid_median_non_euclidean_raises_value_error(
+        self, simple_cluster_data, method
+    ):
+        """centroid/median + non-euclidean metric raises ValueError, not RuntimeError.
+
+        Both method and metric are individually valid names, so this exercises the
+        method+metric *combination* check in perform_hierarchical_clustering, not the
+        set-membership checks above (#182 review: previously leaked RuntimeError).
+        """
+        with pytest.raises(ValueError):
+            hierarchical_cluster_labels(
+                simple_cluster_data, method=method, metric="cosine"
+            )
+
     def test_non_integer_n_clusters_raises_value_error(self, simple_cluster_data):
         """A non-integer n_clusters is rejected up front as ValueError."""
         with pytest.raises(ValueError, match="n_clusters must be an integer"):
             hierarchical_cluster_labels(simple_cluster_data, n_clusters=1.5)
+
+    def test_numpy_float_n_clusters_raises_value_error(self, simple_cluster_data):
+        """A numpy.float64 n_clusters is also rejected (not just a plain Python float)."""
+        with pytest.raises(ValueError, match="n_clusters must be an integer"):
+            hierarchical_cluster_labels(simple_cluster_data, n_clusters=np.float64(2.5))
+
+    def test_boolean_n_clusters_raises_value_error(self, simple_cluster_data):
+        """A bool n_clusters is rejected (bool is a subclass of int in Python)."""
+        with pytest.raises(ValueError, match="n_clusters must be an integer"):
+            hierarchical_cluster_labels(simple_cluster_data, n_clusters=True)
+
+    @pytest.mark.parametrize("bad_k", [0, -1])
+    def test_non_positive_n_clusters_raises_value_error(
+        self, simple_cluster_data, bad_k
+    ):
+        """n_clusters <= 0 raises ValueError (lower bound of the out-of-range check)."""
+        with pytest.raises(ValueError, match="n_clusters must be in"):
+            hierarchical_cluster_labels(simple_cluster_data, n_clusters=bad_k)
 
     def test_ward_non_euclidean_raises_value_error(self, simple_cluster_data):
         """Ward linkage + a valid non-euclidean metric raises ValueError (type only)."""
@@ -873,6 +926,14 @@ class TestHierarchicalClusterLabels:
         assert len(result["cluster_labels"]) == len(surviving) == 8
         assert "s3" not in result["data_indices"]
         assert "s7" not in result["data_indices"]
+
+    def test_non_numeric_column_no_standardize_raises_runtime_error(self):
+        """Non-numeric data reaching linkage (standardize=False) is a data failure,
+        not an argument error — it raises RuntimeError, not ValueError, and this is
+        intentional (see the producer's Raises: docstring)."""
+        df = pd.DataFrame({"a": ["x", "y", "z"] * 10, "b": np.random.randn(30)})
+        with pytest.raises(RuntimeError, match="Hierarchical clustering failed"):
+            hierarchical_cluster_labels(df, standardize=False, n_clusters=3)
 
     def test_end_to_end_typed_view(self, simple_cluster_data):
         """from_hierarchical_dict(producer(df)) yields a populated HierarchicalResult."""

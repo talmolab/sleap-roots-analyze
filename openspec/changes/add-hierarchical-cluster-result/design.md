@@ -98,6 +98,33 @@ The issue offers three API shapes; this change picks one.
   add a `data_indices` field: no `ClusterResult` subclass carries it, so keeping it a
   producer-dict-only concern preserves the typed family's shape.
 
+- **Decision: the euclidean-only linkage constraint covers `ward`, `centroid`, and
+  `median`.** scipy's `linkage()` requires euclidean distance for all three methods,
+  not only `ward`. Fixed at the `perform_hierarchical_clustering` level (not
+  duplicated as a separate check in `hierarchical_cluster_labels`) so every caller —
+  the new producer, `detect_outliers_hierarchical`, `create_dendrogram` — gets the
+  same clear `ValueError` instead of a wrapped `RuntimeError`. Single source of truth
+  avoids the exact drift risk already flagged for the accepted-method/metric sets.
+
+- **Decision: `KMeansResult`/`GMMResult` reject `random_state=None` via
+  `__post_init__`; only `HierarchicalResult` may omit it.** Widening the base
+  `random_state` to `Optional[int] = None` (to let `HierarchicalResult` omit it)
+  otherwise silently removes the pre-widening guarantee that a `KMeansResult`/
+  `GMMResult` always carries a real seed (previously enforced for free by the
+  required-field `TypeError` on missing construction args). Both algorithms are
+  always seeded by their producers, so `random_state=None` on those two subclasses is
+  a real gap, not a valid deterministic run — restore the guardrail explicitly.
+
+- **Decision: `calculate_optimal_clusters_hierarchical` additively returns the
+  winning `cut_result`.** The auto-`k` scan already computes `cut_dendrogram` for
+  every candidate `k`, including the optimal one; `hierarchical_cluster_labels`
+  previously discarded that and re-cut for the same `k`, an avoidable ~1/(max_clusters
+  − 1) extra O(n^2) quality-metric pass. Threading the winning `cut_result` out as an
+  additive dict key (no existing caller asserts an exact key set) lets the producer
+  reuse it — and also benefits the existing `detect_outliers_hierarchical` caller,
+  which has the identical redundant-cut pattern (not changed in this PR — out of
+  scope, flagged as a follow-up opportunity).
+
 ## Risks / Trade-offs
 
 - **`random_state` widening across the JSON boundary** → a strict consumer that
@@ -109,10 +136,14 @@ The issue offers three API shapes; this change picks one.
   quality metrics rather than raising. Mitigation: the adapter carries the numbers as
   produced; `to_json`'s `allow_nan=False` still guards non-finite values.
 - **`davies_bouldin_score == 0.0` for a single cluster is misleading** — lower is better
-  for DB, so `0.0` reads as the *best* possible score for an undefined metric. Mitigation:
-  documented in the producer docstring (do not rank a degenerate `n_clusters=1` run
-  against real runs by DB). Not changed to `NaN` because the design chose `0.0` for
-  `to_json` serializability under `allow_nan=False`.
+  for DB, so `0.0` reads as the *best* possible score for an undefined metric.
+  Mitigation: documented in the producer docstring (do not rank a degenerate
+  `n_clusters=1` run against real runs by DB). Reaffirmed on review (round 2, item #7):
+  the auto-`k` path never selects `k=1`, so the footgun only reaches a consumer that
+  manually constructs/ranks `n_clusters=1` results — not changed to `NaN` (unlike
+  `cophenetic_correlation` below) because the design chose `0.0` for `to_json`
+  serializability under `allow_nan=False`, and this metric (unlike a genuinely
+  degenerate scipy computation) is a deliberate sentinel, not incidental fallout.
 - **`cophenetic_correlation` can be `NaN`** for degenerate inputs (a 2-row input, or
   identical points) and is accepted silently by the producer and adapter — it only
   raises at `ClusterResult.to_json()` (`allow_nan=False`), not at production. Mitigation:

@@ -570,13 +570,23 @@ class KMeansResult(ClusterResult):
         calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
             better).
         feature_names: Feature (column) names used for clustering.
-        random_state: Random seed stamped for reproducibility.
+        random_state: Random seed stamped for reproducibility. Never ``None`` — KMeans
+            always has a real seed via its producer.
         cluster_centers: ``(n_clusters, n_features)`` nested list of centroids.
         inertia: Within-cluster sum of squares.
     """
 
     cluster_centers: list[list[float]] = field(default_factory=list)
     inertia: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Reject ``random_state=None``: KMeans is seeded, unlike hierarchical."""
+        if self.random_state is None:
+            raise TypeError(
+                "KMeansResult.random_state must not be None — KMeans always has a "
+                "real seed via perform_kmeans_clustering; only HierarchicalResult "
+                "(deterministic, no seed) may omit it."
+            )
 
 
 @dataclass(frozen=True)
@@ -594,7 +604,8 @@ class GMMResult(ClusterResult):
         calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
             better).
         feature_names: Feature (column) names used for clustering.
-        random_state: Random seed stamped for reproducibility.
+        random_state: Random seed stamped for reproducibility. Never ``None`` — GMM
+            always has a real seed via its producer.
         cluster_centers: ``(n_clusters, n_features)`` nested list of component
             means.
         covariances: Per-component covariances (the fitted cluster shapes), as a
@@ -624,13 +635,25 @@ class GMMResult(ClusterResult):
     n_iter: int = 0
     covariance_type: str = "full"
 
+    def __post_init__(self) -> None:
+        """Reject ``random_state=None``: GMM is seeded, unlike hierarchical."""
+        if self.random_state is None:
+            raise TypeError(
+                "GMMResult.random_state must not be None — GMM always has a real "
+                "seed via perform_gmm_clustering; only HierarchicalResult "
+                "(deterministic, no seed) may omit it."
+            )
+
 
 @dataclass(frozen=True)
 class HierarchicalResult(ClusterResult):
     """JSON-serializable view of a hierarchical (agglomerative) clustering run.
 
-    Agglomerative clustering has no centroids (so no ``cluster_centers``) and is
-    deterministic (so ``random_state`` is always ``None``). Build via
+    Agglomerative clustering has no centroids (so no ``cluster_centers``) and takes no
+    seed (so ``random_state`` is always ``None``) — there is no RNG in the composed
+    call path, so identical input yields identical labels **within one process**.
+    scipy's ``linkage``/``fcluster`` tie-breaking is BLAS/platform-sensitive, so this is
+    not a promise of byte-for-byte reproducibility across machines. Build via
     :meth:`ClusterResult.from_hierarchical_dict`.
 
     Attributes:
