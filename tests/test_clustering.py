@@ -733,7 +733,9 @@ class TestClusteringFeatureNamesAfterFiltering:
 
         A length check alone would not catch feature_names paired with the
         wrong column; this checks the actual per-column content, not just
-        the array's shape.
+        the array's shape. This exercises data_processed specifically (every
+        producer returns it); see TestClusteringCentroidArrayAlignment below
+        for the equivalent check against cluster_centers/means directly.
         """
         result = fn(pca_constant_feature_data, standardize=standardize, **kwargs)
         data_processed = result["data_processed"]
@@ -747,6 +749,60 @@ class TestClusteringFeatureNamesAfterFiltering:
                 expected = series
             np.testing.assert_allclose(
                 data_processed[:, name_to_col[col]], expected.to_numpy(), rtol=1e-6
+            )
+
+
+CENTROID_PRODUCERS = [
+    pytest.param(
+        perform_kmeans_clustering, {"n_clusters": 3}, "cluster_centers", id="kmeans"
+    ),
+    pytest.param(perform_gmm_clustering, {"n_components": 3}, "means", id="gmm"),
+]
+
+
+class TestClusteringCentroidArrayAlignment:
+    """cluster_centers/means themselves must align with feature_names.
+
+    The data_processed check above only proves feature_names is correctly
+    paired with the raw fitted data; it does not exercise cluster_centers
+    (KMeans) or means (GMM) directly. hierarchical has no equivalent
+    per-cluster centroid array distinct from data_processed, so it is not
+    parametrized here. Uses well-separated clusters (not
+    pca_constant_feature_data, which has no true cluster structure) so a
+    cluster's hard-assignment mean recomputed from cluster_labels +
+    data_processed matches cluster_centers/means to machine precision --
+    verified empirically before writing this test.
+    """
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", CENTROID_PRODUCERS)
+    def test_array_key_matches_hard_assignment_means(
+        self, cluster_separated_data_with_constant, fn, kwargs, array_key, standardize
+    ):
+        """array_key column j is the mean of data_processed[:, j] per cluster."""
+        result = fn(
+            cluster_separated_data_with_constant, standardize=standardize, **kwargs
+        )
+        assert result["feature_names"] == ["trait_a", "trait_b"]
+
+        data_processed = result["data_processed"]
+        labels = np.asarray(result["cluster_labels"])
+        array = np.asarray(result[array_key])
+        n_groups = array.shape[0]
+
+        for col_pos, col_name in enumerate(result["feature_names"]):
+            hard_means = np.array(
+                [data_processed[labels == k, col_pos].mean() for k in range(n_groups)]
+            )
+            np.testing.assert_allclose(
+                array[:, col_pos],
+                hard_means,
+                rtol=1e-6,
+                atol=1e-6,
+                err_msg=(
+                    f"{array_key} column for {col_name!r} does not match its "
+                    "hard-assignment cluster mean"
+                ),
             )
 
 
@@ -776,6 +832,38 @@ class TestClusteringMixedConstantAndNonNumeric:
         )
         assert result["feature_names"] == ["variable1", "variable2"]
         assert result[array_key].shape[1] == 2
+
+    @pytest.mark.parametrize("standardize", [True, False])
+    @pytest.mark.parametrize("fn, kwargs, array_key", FEATURE_NAMES_PRODUCERS)
+    def test_excludes_nonnumeric_without_constant_present(
+        self, cluster_nonnumeric_only_data, fn, kwargs, array_key, standardize
+    ):
+        """Non-numeric exclusion works even with no constant column present."""
+        result = fn(cluster_nonnumeric_only_data, standardize=standardize, **kwargs)
+        assert result["feature_names"] == ["variable1", "variable2"]
+        assert result[array_key].shape[1] == 2
+
+
+class TestClusteringUnchangedOnAlreadyCleanInput:
+    """Pin standardize=False behavior on already-clean input.
+
+    The old code was `X_processed = df_clean.values; feature_names =
+    df_clean.columns.tolist()`. When nothing needs filtering (no
+    non-numeric or constant column, as in simple_cluster_data), the new
+    filter_numeric_nonzero_variance()-based code must reduce to exactly
+    that, byte-for-byte -- not merely "close" or "same shape".
+    """
+
+    @pytest.mark.parametrize("fn, kwargs, array_key", FEATURE_NAMES_PRODUCERS)
+    def test_standardize_false_matches_old_unfiltered_behavior(
+        self, simple_cluster_data, fn, kwargs, array_key
+    ):
+        """data_processed and feature_names exactly match the old unfiltered pass-through."""
+        result = fn(simple_cluster_data, standardize=False, **kwargs)
+        assert result["feature_names"] == list(simple_cluster_data.columns)
+        np.testing.assert_array_equal(
+            result["data_processed"], simple_cluster_data.values
+        )
 
 
 class TestClusteringAllColumnsFilteredOut:
