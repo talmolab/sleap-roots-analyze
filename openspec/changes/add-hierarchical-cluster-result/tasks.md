@@ -122,6 +122,27 @@
       currently installed — if unavailable, hand-check format against `openspec/AGENTS.md`).
 - [x] 4.2 `/lint` + full pytest + coverage via `/pre-merge-check`.
 
+## 5. PR #182 review follow-ups (eberrigan)
+
+- [x] 5.1 Honor the "every argument error → `ValueError`" contract fully: validate
+      `method` (scipy linkage set), `metric` (scipy `pdist` set), and integer
+      `n_clusters` up front, so a bogus `method`/`metric` or a float `n_clusters` no
+      longer leaks a wrapped `RuntimeError`. Hoist the accepted-value sets to
+      module-level constants shared with the producer's validation.
+- [x] 5.2 Carry `data_indices` in the labeled dict (was silently dropped, unlike the
+      sibling producers) so labels map back to source rows after NaN-row dropping; add a
+      partial-NaN test asserting the mapping. `HierarchicalResult` still does not add the
+      field (no `ClusterResult` subclass carries it).
+- [x] 5.3 Validate `optimization_method` unconditionally (not only when `n_clusters is
+      None`); document the `davies_bouldin_score == 0.0` single-cluster caveat, the
+      possible `NaN` `cophenetic_correlation`, and the O(n^2) memory ceiling in the
+      docstring.
+- [x] 5.4 Reword the propagated error-path tests to assert exception *type* (not
+      internal messages owned by the composed functions); add tests for unknown
+      `method`/`metric`, non-integer `n_clusters`, `optimization_method` when
+      `n_clusters` is set, empty-DataFrame, single-row auto-k, and the `cluster_labels`
+      numpy-array type.
+
 > Notes: `hierarchical_cluster_labels` takes no `random_state`, so the reproducibility
 > determinism coverage guard does **not** require a `CASES` registry entry — do not add
 > one. No hierarchical golden/pinned artifact is committed (scipy `linkage`/`fcluster`

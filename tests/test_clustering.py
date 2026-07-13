@@ -696,6 +696,7 @@ _LABELED_KEYS = {
     "distance_metric",
     "cophenetic_correlation",
     "cut_height",
+    "data_indices",
 }
 
 
@@ -748,26 +749,50 @@ class TestHierarchicalClusterLabels:
         r2 = hierarchical_cluster_labels(simple_cluster_data, n_clusters=3)
         assert np.array_equal(r1["cluster_labels"], r2["cluster_labels"])
 
-    def test_ward_non_euclidean_raises_value_error(self, simple_cluster_data):
-        """Ward linkage + non-euclidean metric propagates ValueError."""
-        with pytest.raises(ValueError, match="Ward linkage requires euclidean metric"):
+    def test_unknown_method_raises_value_error(self, simple_cluster_data):
+        """An unrecognized linkage method is rejected up front as ValueError."""
+        with pytest.raises(ValueError, match="method must be one of"):
+            hierarchical_cluster_labels(simple_cluster_data, method="bogus")
+
+    def test_unknown_metric_raises_value_error(self, simple_cluster_data):
+        """An unrecognized distance metric is rejected up front as ValueError."""
+        with pytest.raises(ValueError, match="metric must be one of"):
             hierarchical_cluster_labels(
-                simple_cluster_data, method="ward", metric="manhattan"
+                simple_cluster_data, method="average", metric="bogus"
+            )
+
+    def test_non_integer_n_clusters_raises_value_error(self, simple_cluster_data):
+        """A non-integer n_clusters is rejected up front as ValueError."""
+        with pytest.raises(ValueError, match="n_clusters must be an integer"):
+            hierarchical_cluster_labels(simple_cluster_data, n_clusters=1.5)
+
+    def test_ward_non_euclidean_raises_value_error(self, simple_cluster_data):
+        """Ward linkage + a valid non-euclidean metric raises ValueError (type only)."""
+        # cosine is a valid metric name, so this exercises the ward+euclidean rule
+        # (not the metric-name check); assert the type, not the internal message.
+        with pytest.raises(ValueError):
+            hierarchical_cluster_labels(
+                simple_cluster_data, method="ward", metric="cosine"
             )
 
     def test_too_few_rows_raises_value_error(self):
-        """Fewer than 2 valid rows propagates ValueError."""
+        """Fewer than 2 valid rows raises ValueError (type only; message owned internally)."""
         one_row = pd.DataFrame([[1.0, 2.0, 3.0]], columns=["a", "b", "c"])
-        with pytest.raises(ValueError, match="at least 2 samples"):
+        with pytest.raises(ValueError):
             hierarchical_cluster_labels(one_row, n_clusters=1)
 
     def test_all_nan_raises_value_error(self):
-        """All-NaN input propagates ValueError."""
+        """All-NaN input raises ValueError (type only; message owned internally)."""
         all_nan = pd.DataFrame(
             [[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], columns=["a", "b"]
         )
-        with pytest.raises(ValueError, match="All rows contain NaN"):
+        with pytest.raises(ValueError):
             hierarchical_cluster_labels(all_nan, n_clusters=2)
+
+    def test_empty_dataframe_raises_value_error(self):
+        """An empty DataFrame raises ValueError (type only)."""
+        with pytest.raises(ValueError):
+            hierarchical_cluster_labels(pd.DataFrame(), n_clusters=2)
 
     @pytest.mark.parametrize("opt_method", ["silhouette", "calinski", "davies_bouldin"])
     def test_optimization_method_accepted_values(self, simple_cluster_data, opt_method):
@@ -804,12 +829,50 @@ class TestHierarchicalClusterLabels:
             hierarchical_cluster_labels(simple_cluster_data, n_clusters=n_samples)
 
     def test_two_row_auto_k_raises_value_error(self):
-        """A 2-row input with auto-k propagates ValueError (max_clusters < 2)."""
+        """A 2-row input with auto-k raises ValueError (type only; owned internally)."""
         two_rows = pd.DataFrame(
             [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], columns=["a", "b", "c"]
         )
-        with pytest.raises(ValueError, match="at least 2 clusters"):
+        with pytest.raises(ValueError):
             hierarchical_cluster_labels(two_rows)
+
+    def test_single_row_auto_k_raises_value_error(self):
+        """A single-row input with auto-k raises ValueError (type only)."""
+        one_row = pd.DataFrame([[1.0, 2.0, 3.0]], columns=["a", "b", "c"])
+        with pytest.raises(ValueError):
+            hierarchical_cluster_labels(one_row)
+
+    def test_optimization_method_validated_when_n_clusters_set(
+        self, simple_cluster_data
+    ):
+        """optimization_method is validated even when n_clusters is set (unused path)."""
+        with pytest.raises(ValueError, match="optimization_method must be one of"):
+            hierarchical_cluster_labels(
+                simple_cluster_data, n_clusters=3, optimization_method="bogus"
+            )
+
+    def test_cluster_labels_is_numpy_array(self, simple_cluster_data):
+        """The producer returns cluster_labels as a numpy array (adapter casts to list)."""
+        result = hierarchical_cluster_labels(simple_cluster_data, n_clusters=3)
+        assert isinstance(result["cluster_labels"], np.ndarray)
+
+    def test_data_indices_maps_to_surviving_rows(self):
+        """data_indices maps labels back to original rows after NaN-row dropping."""
+        df = pd.DataFrame(
+            np.arange(30, dtype=float).reshape(10, 3),
+            columns=["a", "b", "c"],
+            index=[f"s{i}" for i in range(10)],
+        )
+        df.loc["s3", "a"] = np.nan
+        df.loc["s7", "b"] = np.nan
+
+        result = hierarchical_cluster_labels(df, n_clusters=3)
+
+        surviving = df.dropna().index.tolist()
+        assert result["data_indices"] == surviving
+        assert len(result["cluster_labels"]) == len(surviving) == 8
+        assert "s3" not in result["data_indices"]
+        assert "s7" not in result["data_indices"]
 
     def test_end_to_end_typed_view(self, simple_cluster_data):
         """from_hierarchical_dict(producer(df)) yields a populated HierarchicalResult."""

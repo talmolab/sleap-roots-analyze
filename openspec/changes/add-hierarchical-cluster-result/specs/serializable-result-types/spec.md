@@ -9,15 +9,16 @@ optimization_method="silhouette", max_clusters=10)` that composes
 when `n_clusters` is `None`), and `cut_dendrogram` into a single labeled dict. The
 returned dict SHALL carry `cluster_labels`, `n_clusters`, `cluster_sizes`,
 `silhouette_score`, `davies_bouldin_score`, `calinski_harabasz_score`,
-`feature_names`, and the hierarchical provenance keys `linkage_method`,
-`distance_metric`, `cophenetic_correlation`, and `cut_height`. When `n_clusters` is
-`None`, `optimization_method` SHALL be one of `"silhouette"`, `"calinski"`, or
+`feature_names`, `data_indices` (the original row labels aligned to `cluster_labels`,
+so labels map back to source rows after NaN-row dropping), and the hierarchical
+provenance keys `linkage_method`, `distance_metric`, `cophenetic_correlation`, and
+`cut_height`. `optimization_method` SHALL be one of `"silhouette"`, `"calinski"`, or
 `"davies_bouldin"` (the values `calculate_optimal_clusters_hierarchical` accepts). It
 SHALL NOT change the return shape of `perform_hierarchical_clustering`. For any invalid
-argument it SHALL raise `ValueError` (rejecting a bad `optimization_method` or an
-out-of-range `n_clusters` up front, and propagating the `ValueError`s the composed
-functions raise) rather than returning a partial dict, so a caller catches a single
-exception type for every argument error.
+argument it SHALL raise `ValueError` — validating `method`, `metric`,
+`optimization_method`, and an integer, in-range `n_clusters` up front, and propagating
+the `ValueError`s the composed functions raise — rather than returning a partial dict,
+so a caller catches a single exception type for every argument error.
 
 #### Scenario: Auto-selects the number of clusters when omitted
 
@@ -51,9 +52,9 @@ exception type for every argument error.
 
 #### Scenario: Invalid input raises ValueError
 
-- **WHEN** `hierarchical_cluster_labels` is called with `method="ward"` and a
-  non-euclidean `metric`, with fewer than 2 valid rows, with all-NaN rows, or (when
-  `n_clusters` is omitted) with an unrecognized `optimization_method`
+- **WHEN** `hierarchical_cluster_labels` is called with an unrecognized `method`,
+  `metric`, or `optimization_method`; a non-integer `n_clusters`; a `ward` /
+  non-euclidean combination; fewer than 2 valid rows; or all-NaN rows
 - **THEN** a `ValueError` SHALL be raised and no partial dict SHALL be returned
 
 #### Scenario: Out-of-range cluster count raises ValueError
@@ -62,6 +63,13 @@ exception type for every argument error.
   `[1, n_samples - 1]` (e.g. `k == n_samples`, a cluster-per-sample request for which
   the silhouette score is undefined)
 - **THEN** a `ValueError` SHALL be raised up front and no partial dict SHALL be returned
+
+#### Scenario: Labels map back to source rows
+
+- **WHEN** `hierarchical_cluster_labels(data)` is called on input with NaN rows
+- **THEN** the returned `data_indices` SHALL be the original row labels of the rows
+  that survived NaN-dropping, aligned to `cluster_labels`
+- **AND** `len(cluster_labels)` SHALL equal `len(data_indices)`
 
 #### Scenario: perform_hierarchical_clustering return shape is preserved
 

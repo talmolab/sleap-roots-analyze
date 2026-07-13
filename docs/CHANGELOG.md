@@ -13,8 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the dendrogram). Importable from `sleap_roots_analyze`, it composes the existing
   `perform_hierarchical_clustering` → `calculate_optimal_clusters_hierarchical` (when
   `n_clusters` is omitted) → `cut_dendrogram` into a single labeled dict (cluster
-  labels/sizes, the three quality metrics, and hierarchical provenance), suitable for
-  building a `ClusterResult`. Follow-up to #129; unblocks bloom-mcp.
+  labels/sizes, the three quality metrics, hierarchical provenance, and `data_indices`
+  mapping labels back to source rows), suitable for building a `ClusterResult`. Every
+  invalid argument (`method`, `metric`, `optimization_method`, `n_clusters`) surfaces as
+  a single `ValueError`. Follow-up to #129; unblocks bloom-mcp.
 - `HierarchicalResult` result type and the `ClusterResult.from_hierarchical_dict(d)`
   adapter (#179): a frozen, JSON-serializable view of a hierarchical run. The adapter
   takes no `random_state` (hierarchical clustering is deterministic) and stamps `None`.

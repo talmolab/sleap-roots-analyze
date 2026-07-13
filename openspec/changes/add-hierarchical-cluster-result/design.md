@@ -72,18 +72,31 @@ The issue offers three API shapes; this change picks one.
 
 - **Decision: uniform `ValueError` for argument errors (up-front validation).** Every
   invalid argument surfaces as `ValueError`, so a consumer (bloom-mcp) catches one
-  exception type. The producer validates the two arguments that would otherwise leak a
-  `RuntimeError` *before* calling the composed functions: an unrecognized
-  `optimization_method` (rejected against the accepted set) and an out-of-range
-  `n_clusters` (must be in `[1, n_samples - 1]`, else `cut_dendrogram`'s silhouette call
-  fails and is re-wrapped as `RuntimeError`). Validating up front — rather than
-  catching-and-rewrapping the composed functions' `RuntimeError` — keeps error messages
-  clear and does **not** mask a *genuine* runtime failure (e.g. non-finite values that
-  survive NaN-dropping still raise `RuntimeError`).
+  exception type. The producer validates *all* arguments that would otherwise leak a
+  `RuntimeError` *before* calling the composed functions: `method` (against the scipy
+  linkage set), `metric` (against the scipy `pdist` set — a bogus name otherwise reaches
+  `linkage`/`pdist` inside `perform_hierarchical_clustering`'s try/except and re-wraps as
+  `RuntimeError`), `optimization_method` (validated unconditionally, even when unused),
+  and `n_clusters` (integer, and in `[1, n_samples - 1]`). The three accepted-value sets
+  live in module-level constants (`_HIERARCHICAL_LINKAGE_METHODS` /
+  `_HIERARCHICAL_DISTANCE_METRICS` / `_HIERARCHICAL_OPTIMIZATION_METHODS`) so the
+  producer's check cannot drift from what the composed calls accept. Validating up front
+  — rather than catching-and-rewrapping the composed functions' `RuntimeError` — keeps
+  error messages clear and does **not** mask a *genuine* runtime failure (e.g. non-finite
+  values that survive NaN-dropping still raise `RuntimeError`).
   - *Alternative: propagate the composed functions' exceptions faithfully (mixed
     `ValueError` / `RuntimeError`).* Rejected — semantically identical "bad argument"
     errors surfaced as two types depending only on where validation happened, forcing a
     consumer to catch both.
+
+- **Decision: the producer dict carries `data_indices`; the typed view does not.**
+  `hierarchical_cluster_labels` returns `cut_dendrogram`'s `data_indices` (the original
+  row labels aligned to `cluster_labels`) so labels map back to source rows after
+  NaN-row dropping — scientifically load-bearing for root phenotyping (label → plant /
+  genotype ID). This matches the sibling producers (`perform_kmeans_clustering` /
+  `perform_gmm_clustering` also return `data_indices`). `HierarchicalResult` does **not**
+  add a `data_indices` field: no `ClusterResult` subclass carries it, so keeping it a
+  producer-dict-only concern preserves the typed family's shape.
 
 ## Risks / Trade-offs
 
@@ -95,6 +108,16 @@ The issue offers three API shapes; this change picks one.
 - **`cut_dendrogram` degenerate cases** (e.g. `n_clusters=1`) produce zero-valued
   quality metrics rather than raising. Mitigation: the adapter carries the numbers as
   produced; `to_json`'s `allow_nan=False` still guards non-finite values.
+- **`davies_bouldin_score == 0.0` for a single cluster is misleading** — lower is better
+  for DB, so `0.0` reads as the *best* possible score for an undefined metric. Mitigation:
+  documented in the producer docstring (do not rank a degenerate `n_clusters=1` run
+  against real runs by DB). Not changed to `NaN` because the design chose `0.0` for
+  `to_json` serializability under `allow_nan=False`.
+- **`cophenetic_correlation` can be `NaN`** for degenerate inputs (a 2-row input, or
+  identical points) and is accepted silently by the producer and adapter — it only
+  raises at `ClusterResult.to_json()` (`allow_nan=False`), not at production. Mitigation:
+  documented in the producer docstring so a caller using the dict/dataclass directly
+  knows to check.
 
 ## Migration Plan
 
