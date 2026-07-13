@@ -19,7 +19,7 @@ from sklearn.metrics import (
     calinski_harabasz_score,
 )
 
-from sleap_roots_analyze.pca import standardize_data
+from sleap_roots_analyze.pca import standardize_data, filter_numeric_nonzero_variance
 
 
 def perform_kmeans_clustering(
@@ -115,11 +115,7 @@ def perform_kmeans_clustering(
         else:
             # standardize_data's own filtering must still apply here, or a
             # non-numeric/constant column reaches KMeans.fit() directly.
-            df_numeric = df_clean.select_dtypes(include=[np.number])
-            variances = df_numeric.var(ddof=0)
-            df_numeric = df_numeric[variances[variances > 0].index]
-            if df_numeric.empty:
-                raise ValueError("No numeric columns with non-zero variance found")
+            df_numeric = filter_numeric_nonzero_variance(df_clean)
             feature_names = df_numeric.columns.tolist()
             X_processed = df_numeric.values
 
@@ -380,11 +376,7 @@ def perform_gmm_clustering(
             # standardize_data's own filtering must still apply here, or a
             # non-numeric/constant column reaches GaussianMixture.fit()
             # directly.
-            df_numeric = df_clean.select_dtypes(include=[np.number])
-            variances = df_numeric.var(ddof=0)
-            df_numeric = df_numeric[variances[variances > 0].index]
-            if df_numeric.empty:
-                raise ValueError("No numeric columns with non-zero variance found")
+            df_numeric = filter_numeric_nonzero_variance(df_clean)
             feature_names = df_numeric.columns.tolist()
             X_processed = df_numeric.values
 
@@ -610,11 +602,7 @@ def perform_hierarchical_clustering(
         else:
             # standardize_data's own filtering must still apply here, or a
             # non-numeric/constant column reaches linkage() directly.
-            df_numeric = df_clean.select_dtypes(include=[np.number])
-            variances = df_numeric.var(ddof=0)
-            df_numeric = df_numeric[variances[variances > 0].index]
-            if df_numeric.empty:
-                raise ValueError("No numeric columns with non-zero variance found")
+            df_numeric = filter_numeric_nonzero_variance(df_clean)
             feature_names = df_numeric.columns.tolist()
             X_processed = df_numeric.values
 
