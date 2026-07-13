@@ -40,19 +40,22 @@ __all__ = [
     "ClusterResult",
     "KMeansResult",
     "GMMResult",
+    "HierarchicalResult",
     "UMAPResult",
     "ALGORITHM_KMEANS",
     "ALGORITHM_GMM",
+    "ALGORITHM_HIERARCHICAL",
 ]
 
 # Key the heritability dict reserves for calculation metadata (not a trait).
 _HERITABILITY_METADATA_KEY = "__calculation_metadata__"
 
 # Clustering ``algorithm`` discriminator values — the JSON tag a consumer branches
-# on to pick KMeansResult vs GMMResult. Named constants (not inline literals) so the
-# producer and any consumer share one spelling.
+# on to pick KMeansResult vs GMMResult vs HierarchicalResult. Named constants (not
+# inline literals) so the producer and any consumer share one spelling.
 ALGORITHM_KMEANS = "kmeans"
 ALGORITHM_GMM = "gmm"
+ALGORITHM_HIERARCHICAL = "hierarchical"
 
 
 @dataclass(frozen=True)
@@ -385,12 +388,13 @@ class HeritabilityResult:
 class ClusterResult:
     """JSON-serializable base view of a clustering run (science only).
 
-    KMeans and GMM return substantially different results, so the algorithm-
-    specific science lives on the :class:`KMeansResult` / :class:`GMMResult`
-    subclasses; this base holds only the fields common to both. The
-    ``algorithm`` field discriminates the concrete type for a JSON consumer
-    (compare against :data:`ALGORITHM_KMEANS` / :data:`ALGORITHM_GMM`).
-    Build via :meth:`from_kmeans_dict` / :meth:`from_gmm_dict`.
+    KMeans, GMM, and hierarchical clustering return substantially different
+    results, so the algorithm-specific science lives on the :class:`KMeansResult`
+    / :class:`GMMResult` / :class:`HierarchicalResult` subclasses; this base holds
+    only the fields common to all three. The ``algorithm`` field discriminates the
+    concrete type for a JSON consumer (compare against :data:`ALGORITHM_KMEANS` /
+    :data:`ALGORITHM_GMM` / :data:`ALGORITHM_HIERARCHICAL`). Build via
+    :meth:`from_kmeans_dict` / :meth:`from_gmm_dict` / :meth:`from_hierarchical_dict`.
 
     ``frozen=True`` is shallow: the fields cannot be rebound, but the nested list
     fields (``cluster_labels``, ``cluster_centers``, ...) are still mutable in
@@ -398,8 +402,9 @@ class ClusterResult:
     boundary; use :meth:`to_json` to enforce it.
 
     Attributes:
-        algorithm: Clustering algorithm, :data:`ALGORITHM_KMEANS` (``"kmeans"``) or
-            :data:`ALGORITHM_GMM` (``"gmm"``).
+        algorithm: Clustering algorithm, :data:`ALGORITHM_KMEANS` (``"kmeans"``),
+            :data:`ALGORITHM_GMM` (``"gmm"``), or :data:`ALGORITHM_HIERARCHICAL`
+            (``"hierarchical"``).
         n_clusters: Number of clusters (KMeans ``n_clusters`` / GMM
             ``n_components``).
         cluster_labels: Hard cluster assignment per sample.
@@ -409,7 +414,8 @@ class ClusterResult:
         calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
             better).
         feature_names: Feature (column) names used for clustering.
-        random_state: Random seed used for the run, stamped for reproducibility.
+        random_state: Random seed stamped for reproducibility, or ``None`` when the
+            algorithm is deterministic / no seed was supplied (e.g. hierarchical).
     """
 
     algorithm: str
@@ -420,7 +426,7 @@ class ClusterResult:
     davies_bouldin_score: float
     calinski_harabasz_score: float
     feature_names: list[str]
-    random_state: int
+    random_state: Optional[int] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
@@ -517,6 +523,39 @@ class ClusterResult:
             covariance_type=str(d["covariance_type"]),
         )
 
+    @classmethod
+    def from_hierarchical_dict(cls, d: dict) -> "HierarchicalResult":
+        """Build a :class:`HierarchicalResult` from a ``hierarchical_cluster_labels`` dict.
+
+        Unlike :meth:`from_kmeans_dict` / :meth:`from_gmm_dict`, this adapter takes no
+        ``random_state`` argument: hierarchical (agglomerative) clustering is
+        deterministic — there is no seed — so ``random_state`` is stamped as ``None``
+        (matching :class:`PCAResult`). Maps the labeled dict into the typed view and
+        carries the hierarchical provenance (``linkage_method``, ``distance_metric``,
+        ``cophenetic_correlation``, ``cut_height``). Does not mutate ``d``.
+
+        Args:
+            d: The dict returned by ``hierarchical_cluster_labels``.
+
+        Returns:
+            A frozen :class:`HierarchicalResult` holding only serializable science.
+        """
+        return HierarchicalResult(
+            algorithm=ALGORITHM_HIERARCHICAL,
+            n_clusters=int(d["n_clusters"]),
+            cluster_labels=[int(x) for x in np.asarray(d["cluster_labels"])],
+            cluster_sizes=[int(x) for x in d["cluster_sizes"]],
+            silhouette_score=float(d["silhouette_score"]),
+            davies_bouldin_score=float(d["davies_bouldin_score"]),
+            calinski_harabasz_score=float(d["calinski_harabasz_score"]),
+            feature_names=[str(name) for name in d["feature_names"]],
+            random_state=None,
+            linkage_method=str(d["linkage_method"]),
+            distance_metric=str(d["distance_metric"]),
+            cophenetic_correlation=float(d["cophenetic_correlation"]),
+            cut_height=float(d["cut_height"]),
+        )
+
 
 @dataclass(frozen=True)
 class KMeansResult(ClusterResult):
@@ -532,13 +571,23 @@ class KMeansResult(ClusterResult):
         calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
             better).
         feature_names: Feature (column) names used for clustering.
-        random_state: Random seed stamped for reproducibility.
+        random_state: Random seed stamped for reproducibility. Never ``None`` — KMeans
+            always has a real seed via its producer.
         cluster_centers: ``(n_clusters, n_features)`` nested list of centroids.
         inertia: Within-cluster sum of squares.
     """
 
     cluster_centers: list[list[float]] = field(default_factory=list)
     inertia: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Reject ``random_state=None``: KMeans is seeded, unlike hierarchical."""
+        if self.random_state is None:
+            raise TypeError(
+                "KMeansResult.random_state must not be None — KMeans always has a "
+                "real seed via perform_kmeans_clustering; only HierarchicalResult "
+                "(deterministic, no seed) may omit it."
+            )
 
 
 @dataclass(frozen=True)
@@ -556,7 +605,8 @@ class GMMResult(ClusterResult):
         calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
             better).
         feature_names: Feature (column) names used for clustering.
-        random_state: Random seed stamped for reproducibility.
+        random_state: Random seed stamped for reproducibility. Never ``None`` — GMM
+            always has a real seed via its producer.
         cluster_centers: ``(n_clusters, n_features)`` nested list of component
             means.
         covariances: Per-component covariances (the fitted cluster shapes), as a
@@ -585,6 +635,53 @@ class GMMResult(ClusterResult):
     converged: bool = False
     n_iter: int = 0
     covariance_type: str = "full"
+
+    def __post_init__(self) -> None:
+        """Reject ``random_state=None``: GMM is seeded, unlike hierarchical."""
+        if self.random_state is None:
+            raise TypeError(
+                "GMMResult.random_state must not be None — GMM always has a real "
+                "seed via perform_gmm_clustering; only HierarchicalResult "
+                "(deterministic, no seed) may omit it."
+            )
+
+
+@dataclass(frozen=True)
+class HierarchicalResult(ClusterResult):
+    """JSON-serializable view of a hierarchical (agglomerative) clustering run.
+
+    Agglomerative clustering has no centroids (so no ``cluster_centers``) and takes no
+    seed (so ``random_state`` is always ``None``) — there is no RNG in the composed
+    call path, so identical input yields identical labels **within one process**.
+    scipy's ``linkage``/``fcluster`` tie-breaking is BLAS/platform-sensitive, so this is
+    not a promise of byte-for-byte reproducibility across machines. Build via
+    :meth:`ClusterResult.from_hierarchical_dict`.
+
+    Attributes:
+        algorithm: Always :data:`ALGORITHM_HIERARCHICAL` (``"hierarchical"``) for
+            this type.
+        n_clusters: Number of clusters the dendrogram was cut into.
+        cluster_labels: Hard cluster assignment per sample.
+        cluster_sizes: Number of samples assigned to each cluster.
+        silhouette_score: Silhouette quality metric in ``[-1, 1]`` (``0.0`` for a
+            single cluster, where it is undefined).
+        davies_bouldin_score: Davies-Bouldin quality metric (lower is better).
+        calinski_harabasz_score: Calinski-Harabasz quality metric (higher is
+            better).
+        feature_names: Feature (column) names used for clustering.
+        random_state: Always ``None`` — hierarchical clustering is deterministic and
+            takes no seed.
+        linkage_method: Linkage method used to build the hierarchy (e.g. ``"ward"``).
+        distance_metric: Distance metric used (e.g. ``"euclidean"``).
+        cophenetic_correlation: How faithfully the dendrogram preserves pairwise
+            distances, in ``[0, 1]`` (higher is better).
+        cut_height: Dendrogram height at which the tree was cut to yield the clusters.
+    """
+
+    linkage_method: str = "ward"
+    distance_metric: str = "euclidean"
+    cophenetic_correlation: float = 0.0
+    cut_height: float = 0.0
 
 
 @dataclass(frozen=True)

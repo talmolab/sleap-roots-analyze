@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Public hierarchical-clustering entry point `hierarchical_cluster_labels` (#179):
+  the **labeled** counterpart to `perform_hierarchical_clustering` (which returns only
+  the dendrogram). Importable from `sleap_roots_analyze`, it composes the existing
+  `perform_hierarchical_clustering` → `calculate_optimal_clusters_hierarchical` (when
+  `n_clusters` is omitted) → `cut_dendrogram` into a single labeled dict (cluster
+  labels/sizes, the three quality metrics, hierarchical provenance, and `data_indices`
+  mapping labels back to source rows), suitable for building a `ClusterResult`. Every
+  invalid argument (`method`, `metric`, `optimization_method`, `n_clusters`) surfaces as
+  a single `ValueError`. Follow-up to #129; unblocks bloom-mcp.
+- `HierarchicalResult` result type and the `ClusterResult.from_hierarchical_dict(d)`
+  adapter (#179): a frozen, JSON-serializable view of a hierarchical run. The adapter
+  takes no `random_state` (hierarchical clustering is deterministic) and stamps `None`.
+- `ALGORITHM_HIERARCHICAL` discriminator constant (#179), exported from `result_types`
+  alongside `ALGORITHM_KMEANS` / `ALGORITHM_GMM`.
+
 ### Changed
 - Data cleanup now drops **constant (zero-variance) traits** and names them at cleaning
   time instead of letting PCA drop them silently later (#177). A new internal filter
@@ -31,6 +47,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this is a correctness improvement, not a loss of real signal. (An all-zeros trait was
   already removed earlier by the zero-inflation filter, so only constant-nonzero traits are
   affected.)
+- `ClusterResult.random_state` is now `Optional[int]` (default `None`) (#179), matching
+  `PCAResult.random_state`, so a deterministic algorithm (hierarchical) can omit the
+  seed. Source-compatible for producers (KMeans/GMM still stamp the `int` seed); a
+  reader that assumed an always-`int` value must now handle `None`. `KMeansResult` and
+  `GMMResult` reject `random_state=None` at construction (`TypeError`), restoring the
+  pre-widening guarantee that a seeded algorithm's result always carries a real seed —
+  only `HierarchicalResult` may omit it.
+- `calculate_optimal_clusters_hierarchical` additively returns the winning candidate's
+  `cut_result` (#179) from its `k`-scan, so `hierarchical_cluster_labels`'s auto-`k`
+  path no longer re-cuts the dendrogram for the same `k` it already computed.
 
 ### Fixed
 - `perform_kmeans_clustering`, `perform_gmm_clustering`, and
@@ -50,6 +76,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   callers, or `standardize=False`. `KMeansResult`/`GMMResult` and
   `detect_outliers_kmeans`/`_gmm`/`_hierarchical` (`outlier_detection.py`) inherit the
   corrected values automatically, with no adapter code changes needed.
+- `perform_hierarchical_clustering` now requires the euclidean metric for `centroid`
+  and `median` linkage, not only `ward` (#179) — scipy's `linkage()` enforces this for
+  all three methods; the other two previously raised a wrapped `RuntimeError` instead
+  of the clear `ValueError` `ward` already got.
 
 ## [0.1.0a4] - 2026-07-02 (Pre-release)
 

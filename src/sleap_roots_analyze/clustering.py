@@ -21,6 +21,45 @@ from sklearn.metrics import (
 
 from sleap_roots_analyze.pca import standardize_data, filter_numeric_nonzero_variance
 
+# Accepted argument values for the hierarchical clustering entry point, hoisted to a
+# single source so the up-front validation in ``hierarchical_cluster_labels`` cannot
+# drift from what the composed scipy / optimizer calls accept — a dropped value would
+# otherwise pass the producer check and resurface as a wrapped ``RuntimeError``.
+_HIERARCHICAL_LINKAGE_METHODS = frozenset(
+    {"single", "complete", "average", "weighted", "centroid", "median", "ward"}
+)
+_HIERARCHICAL_DISTANCE_METRICS = frozenset(
+    {
+        "braycurtis",
+        "canberra",
+        "chebyshev",
+        "cityblock",
+        "correlation",
+        "cosine",
+        "dice",
+        "euclidean",
+        "hamming",
+        "jaccard",
+        "jensenshannon",
+        "kulczynski1",
+        "mahalanobis",
+        "matching",
+        "minkowski",
+        "rogerstanimoto",
+        "russellrao",
+        "seuclidean",
+        "sokalmichener",
+        "sokalsneath",
+        "sqeuclidean",
+        "yule",
+    }
+)
+# Must stay in sync with the score-selection branches in
+# ``calculate_optimal_clusters_hierarchical``.
+_HIERARCHICAL_OPTIMIZATION_METHODS = frozenset(
+    {"silhouette", "calinski", "davies_bouldin"}
+)
+
 
 def perform_kmeans_clustering(
     data: Union[pd.DataFrame, np.ndarray],
@@ -535,8 +574,9 @@ def perform_hierarchical_clustering(
             - 'complete': Maximum distance between clusters (sensitive to outliers)
             - 'average': Average distance between clusters (balanced)
             - 'single': Minimum distance between clusters (can create chains)
+            - 'centroid' / 'median': Distance between cluster centroids/medians
         metric: Distance metric ('euclidean', 'manhattan', 'cosine', etc.)
-            Note: 'ward' method requires 'euclidean' metric
+            Note: 'ward', 'centroid', and 'median' methods require 'euclidean' metric
         standardize: Whether to standardize data before clustering
         compute_full_tree: Compute full dendrogram (set False for large datasets)
 
@@ -556,6 +596,11 @@ def perform_hierarchical_clustering(
 
     Raises:
         ValueError: If data is empty or parameters are invalid
+
+    Note:
+        ``linkage``/``pdist`` build the full pairwise-distance structure, so memory
+        scales as O(n^2) in the sample count — the practical ceiling for this function
+        on large datasets.
 
     Examples:
         >>> result = perform_hierarchical_clustering(df, method='ward')
@@ -585,9 +630,12 @@ def perform_hierarchical_clustering(
     if len(df_clean) < 2:
         raise ValueError("Need at least 2 samples for hierarchical clustering")
 
-    # Validate method and metric combination
-    if method == "ward" and metric != "euclidean":
-        raise ValueError("Ward linkage requires euclidean metric")
+    # Validate method and metric combination. scipy's linkage() requires euclidean
+    # distance for ward, centroid, and median (not just ward) — check all three here,
+    # before the try below, so the ValueError scipy would otherwise raise is not
+    # re-wrapped as a RuntimeError.
+    if method in ("ward", "centroid", "median") and metric != "euclidean":
+        raise ValueError(f"{method.capitalize()} linkage requires euclidean metric")
 
     original_indices = df_clean.index.tolist()
 
@@ -746,6 +794,9 @@ def calculate_optimal_clusters_hierarchical(
         - scores: Score for each k tested
         - k_values: k values tested
         - method: Metric used for optimization
+        - cut_result: The :func:`cut_dendrogram` result for the winning
+          ``optimal_n_clusters`` (already computed during the scan; a caller that
+          wants labels for the optimal k can reuse this instead of re-cutting).
 
     Raises:
         ValueError: If fewer than 2 clusters can be tested, or ``method`` is not one
@@ -770,10 +821,12 @@ def calculate_optimal_clusters_hierarchical(
 
     try:
         scores = []
+        cut_results = []
         k_values = list(range(2, max_clusters + 1))
 
         for k in k_values:
             cut_result = cut_dendrogram(hierarchical_result, n_clusters=k)
+            cut_results.append(cut_result)
 
             if method == "silhouette":
                 score = cut_result["silhouette_score"]
@@ -802,7 +855,161 @@ def calculate_optimal_clusters_hierarchical(
             "scores": scores,
             "k_values": k_values,
             "method": method,
+            "cut_result": cut_results[optimal_idx],
         }
 
     except Exception as e:
         raise RuntimeError(f"Failed to calculate optimal clusters: {str(e)}") from e
+
+
+def hierarchical_cluster_labels(
+    data: Union[pd.DataFrame, np.ndarray],
+    *,
+    n_clusters: Optional[int] = None,
+    method: str = "ward",
+    metric: str = "euclidean",
+    standardize: bool = True,
+    optimization_method: str = "silhouette",
+    max_clusters: int = 10,
+) -> Dict:
+    """Compose hierarchical clustering into a single labeled result dict.
+
+    Public entry point that turns a dendrogram into cluster labels: it runs
+    :func:`perform_hierarchical_clustering`, selects ``k`` via
+    :func:`calculate_optimal_clusters_hierarchical` when ``n_clusters`` is omitted,
+    then cuts the tree with :func:`cut_dendrogram` — returning one flat dict with
+    cluster labels, sizes, quality metrics, and hierarchical provenance. This is the
+    labeled counterpart to :func:`perform_hierarchical_clustering` (which returns only
+    the dendrogram) and is suitable for building a ``ClusterResult`` via
+    ``ClusterResult.from_hierarchical_dict``. Hierarchical clustering itself takes no
+    ``random_state`` (there is no RNG in the composed call path), so results are
+    identical for identical input **within one process**; the exact ``linkage``/
+    ``fcluster`` tie-breaking scipy performs is BLAS/platform-sensitive, so byte-for-byte
+    reproducibility across machines is not guaranteed.
+
+    Args:
+        data: Input data as a DataFrame or array.
+        n_clusters: Number of clusters to cut. When ``None`` (default), the count is
+            chosen by :func:`calculate_optimal_clusters_hierarchical` using
+            ``optimization_method`` — a tie-break-sensitive path (see above), since it
+            is the default behavior of this single call.
+        method: Linkage method for the hierarchy — one of the scipy linkage methods
+            (``"ward"``, ``"complete"``, ``"average"``, ``"single"``, ``"weighted"``,
+            ``"centroid"``, ``"median"``). ``"ward"``, ``"centroid"``, and ``"median"``
+            require ``metric="euclidean"``.
+        metric: Distance metric — one of the scipy ``pdist`` metrics (``"euclidean"``,
+            ``"cityblock"``, ``"cosine"``, ...; note scipy uses ``"cityblock"``, not
+            ``"manhattan"``).
+        standardize: Whether to standardize the data before clustering.
+        optimization_method: Metric used to auto-select ``k`` when ``n_clusters`` is
+            ``None``. One of ``"silhouette"``, ``"calinski"``, or ``"davies_bouldin"``
+            (note: these differ from the metric *key* names ``silhouette_score`` /
+            ``calinski_harabasz_score`` / ``davies_bouldin_score``). Validated even when
+            ``n_clusters`` is set, though it is only used for auto-selection.
+        max_clusters: Maximum ``k`` to test during auto-selection.
+
+    Returns:
+        Dictionary with the labeled clustering result:
+        - cluster_labels: Cluster assignment for each sample (0-indexed)
+        - n_clusters: Number of clusters
+        - cluster_sizes: Number of samples per cluster
+        - silhouette_score: Quality metric [-1, 1] (0.0 for a single cluster)
+        - davies_bouldin_score: Quality metric [0, inf), lower is better. **Caveat:**
+          it is ``0.0`` for a single cluster (where the metric is undefined), which is
+          the *best* possible value — do not rank a degenerate ``n_clusters=1`` run
+          against real runs by this score.
+        - calinski_harabasz_score: Quality metric [0, inf) (0.0 for a single cluster)
+        - feature_names: Feature (column) names actually used for clustering — derived
+          from the columns that survive numeric/non-zero-variance filtering (#183), so
+          it stays aligned with ``n_features`` in the processed data.
+        - linkage_method: Linkage method used
+        - distance_metric: Distance metric used
+        - cophenetic_correlation: Dendrogram quality metric [0, 1]. May be ``NaN`` for
+          degenerate inputs (e.g. all-identical points); the producer/adapter carry it
+          as-is and it is only rejected at ``ClusterResult.to_json()`` (``allow_nan=
+          False``), not at production — a caller using the dict directly should check.
+        - cut_height: Height at which the dendrogram was cut
+        - data_indices: Original row labels for each clustered sample (aligned to
+          ``cluster_labels``), so labels map back to source rows after NaN-row dropping
+
+    Raises:
+        ValueError: For any invalid *argument* — an unrecognized ``method``, ``metric``,
+            or ``optimization_method``; a non-integer ``n_clusters``; an out-of-range
+            ``n_clusters`` (must be in ``[1, n_samples - 1]`` after NaN rows are
+            dropped); a ``ward``/``centroid``/``median`` + non-euclidean combination;
+            fewer than 2 valid rows; or all-NaN input. Every argument error surfaces as
+            ``ValueError`` so a caller catches a single exception type.
+        RuntimeError: For a genuine *data* failure inside the composed functions — e.g.
+            non-numeric columns reaching ``linkage`` with ``standardize=False`` (bad
+            data, not a bad argument, so it is intentionally not normalized to
+            ``ValueError``), or non-finite values that survive NaN-dropping.
+
+    Note:
+        ``linkage`` / ``pdist`` build the full pairwise-distance structure, so memory
+        scales as O(n^2) in the sample count — the practical ceiling for this entry
+        point on large datasets.
+
+    Examples:
+        >>> result = hierarchical_cluster_labels(df, n_clusters=3)
+        >>> from sleap_roots_analyze import ClusterResult
+        >>> view = ClusterResult.from_hierarchical_dict(result)
+    """
+    # Validate every argument up front so all argument errors surface as ValueError
+    # (a bogus method/metric would otherwise reach scipy inside
+    # perform_hierarchical_clustering's try/except and re-wrap as RuntimeError).
+    if method not in _HIERARCHICAL_LINKAGE_METHODS:
+        raise ValueError(
+            f"method must be one of {sorted(_HIERARCHICAL_LINKAGE_METHODS)}, "
+            f"got {method!r}"
+        )
+    if metric not in _HIERARCHICAL_DISTANCE_METRICS:
+        raise ValueError(
+            f"metric must be one of {sorted(_HIERARCHICAL_DISTANCE_METRICS)}, "
+            f"got {metric!r}"
+        )
+    if optimization_method not in _HIERARCHICAL_OPTIMIZATION_METHODS:
+        raise ValueError(
+            "optimization_method must be one of "
+            f"{sorted(_HIERARCHICAL_OPTIMIZATION_METHODS)}, got {optimization_method!r}"
+        )
+    if n_clusters is not None and (
+        isinstance(n_clusters, bool) or not isinstance(n_clusters, (int, np.integer))
+    ):
+        raise ValueError(f"n_clusters must be an integer or None, got {n_clusters!r}")
+
+    dendrogram = perform_hierarchical_clustering(
+        data, method=method, metric=metric, standardize=standardize
+    )
+
+    if n_clusters is None:
+        # calculate_optimal_clusters_hierarchical already cuts the dendrogram for
+        # every candidate k while scanning for the best score, including the winning
+        # one — reuse that cut_result instead of re-running the O(n^2) quality-metric
+        # computation for the same k.
+        optimal = calculate_optimal_clusters_hierarchical(
+            dendrogram, max_clusters=max_clusters, method=optimization_method
+        )
+        cut = optimal["cut_result"]
+    else:
+        n_samples = len(dendrogram["data_processed"])
+        if not 1 <= n_clusters <= n_samples - 1:
+            raise ValueError(
+                f"n_clusters must be in [1, {n_samples - 1}] for {n_samples} "
+                f"clustered samples, got {n_clusters}"
+            )
+        cut = cut_dendrogram(dendrogram, n_clusters=n_clusters)
+
+    return {
+        "cluster_labels": cut["cluster_labels"],
+        "n_clusters": cut["n_clusters"],
+        "cluster_sizes": cut["cluster_sizes"],
+        "silhouette_score": cut["silhouette_score"],
+        "davies_bouldin_score": cut["davies_bouldin_score"],
+        "calinski_harabasz_score": cut["calinski_harabasz_score"],
+        "feature_names": dendrogram["feature_names"],
+        "linkage_method": dendrogram["linkage_method"],
+        "distance_metric": dendrogram["distance_metric"],
+        "cophenetic_correlation": dendrogram["cophenetic_correlation"],
+        "cut_height": cut["cut_height"],
+        "data_indices": cut["data_indices"],
+    }

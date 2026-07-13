@@ -53,6 +53,7 @@ from sleap_roots_analyze.result_types import (
     ClusterResult,
     KMeansResult,
     GMMResult,
+    HierarchicalResult,
     UMAPResult,
 )
 
@@ -67,6 +68,7 @@ from sleap_roots_analyze.clustering import (
     cut_dendrogram,
     calculate_optimal_clusters_hierarchical,
     calculate_cluster_quality_metrics,
+    hierarchical_cluster_labels,
 )
 
 from sleap_roots_analyze.outlier_detection import (
@@ -249,6 +251,7 @@ __all__ = [
     "ClusterResult",
     "KMeansResult",
     "GMMResult",
+    "HierarchicalResult",
     "UMAPResult",
     # UMAP functions
     "perform_umap_analysis",
@@ -259,6 +262,7 @@ __all__ = [
     "cut_dendrogram",
     "calculate_optimal_clusters_hierarchical",
     "calculate_cluster_quality_metrics",
+    "hierarchical_cluster_labels",
     # Outlier detection functions
     "detect_outliers_mahalanobis",
     "detect_outliers_pca",

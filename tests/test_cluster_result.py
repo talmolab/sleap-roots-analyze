@@ -14,6 +14,7 @@ import dataclasses
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from sleap_roots_analyze.clustering import (
@@ -22,9 +23,11 @@ from sleap_roots_analyze.clustering import (
 )
 from sleap_roots_analyze.result_types import (
     ALGORITHM_GMM,
+    ALGORITHM_HIERARCHICAL,
     ALGORITHM_KMEANS,
     ClusterResult,
     GMMResult,
+    HierarchicalResult,
     KMeansResult,
 )
 
@@ -38,6 +41,42 @@ def _assert_dict_unchanged(d, before):
             np.testing.assert_array_equal(np.asarray(cur), prev)
         else:
             assert cur == prev, k
+
+
+def _labeled_hierarchical_dict():
+    """An inline ``hierarchical_cluster_labels()``-shaped dict (its 11 output keys).
+
+    Hand-built so the result-type tests do not depend on the producer
+    (``hierarchical_cluster_labels`` lands in a later group) or on the dendrogram
+    fixture ``hierarchical_cluster_result`` (which lacks the label/metric keys).
+    """
+    return {
+        "cluster_labels": np.array([0, 0, 1, 2, 2]),
+        "n_clusters": 3,
+        "cluster_sizes": [2, 1, 2],
+        "silhouette_score": 0.42,
+        "davies_bouldin_score": 0.73,
+        "calinski_harabasz_score": 15.6,
+        "feature_names": ["f0", "f1", "f2"],
+        "linkage_method": "ward",
+        "distance_metric": "euclidean",
+        "cophenetic_correlation": 0.81,
+        "cut_height": 3.14,
+    }
+
+
+def _min_base_kwargs():
+    """Minimal required base-field kwargs for constructing a ``ClusterResult``."""
+    return dict(
+        algorithm=ALGORITHM_HIERARCHICAL,
+        n_clusters=1,
+        cluster_labels=[0],
+        cluster_sizes=[1],
+        silhouette_score=0.0,
+        davies_bouldin_score=0.0,
+        calinski_harabasz_score=0.0,
+        feature_names=["a"],
+    )
 
 
 class TestKMeansResultJSON:
@@ -89,6 +128,7 @@ class TestGMMResultJSON:
         assert type(result.aic) is float
         assert type(result.converged) is bool
         assert type(result.n_iter) is int
+        assert type(result.random_state) is int
         assert all(type(v) is float for v in result.weights)
         assert all(type(v) is float for row in result.cluster_centers for v in row)
 
@@ -278,3 +318,157 @@ class TestClusterResultNonBreaking:
         before = copy.deepcopy(d)
         ClusterResult.from_gmm_dict(d, random_state=42)
         _assert_dict_unchanged(d, before)
+
+
+class TestHierarchicalResultJSON:
+    """Hierarchical clean view serializes to native Python types (#179)."""
+
+    def test_fields_are_native_types_pre_serialization(self):
+        """Float/int fields are native on the dataclass, not laundered by JSON."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+
+        assert isinstance(result, HierarchicalResult)
+        assert result.algorithm == ALGORITHM_HIERARCHICAL
+        assert type(result.silhouette_score) is float
+        assert type(result.cophenetic_correlation) is float
+        assert type(result.cut_height) is float
+        assert result.random_state is None
+        assert all(type(v) is int for v in result.cluster_labels)
+        assert all(type(v) is int for v in result.cluster_sizes)
+
+    def test_json_roundtrip_native_types(self):
+        """Hierarchical view round-trips to native types with the right discriminator."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        parsed = json.loads(json.dumps(dataclasses.asdict(result)))
+
+        assert parsed["algorithm"] == ALGORITHM_HIERARCHICAL
+        assert all(type(v) is int for v in parsed["cluster_labels"])
+        assert all(type(v) is int for v in parsed["cluster_sizes"])
+        assert type(parsed["silhouette_score"]) is float
+        assert type(parsed["cophenetic_correlation"]) is float
+        assert type(parsed["cut_height"]) is float
+        assert parsed["random_state"] is None
+
+    def test_to_json_serializes_random_state_null(self):
+        """random_state serializes to JSON null under the default allow_nan=False."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        assert '"random_state": null' in result.to_json()
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_to_json_rejects_non_finite_cophenetic(self, bad):
+        """A non-finite cophenetic_correlation raises at to_json (mirror of bic)."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        tainted = dataclasses.replace(result, cophenetic_correlation=bad)
+        with pytest.raises(ValueError, match="not JSON compliant"):
+            tainted.to_json()
+
+    def test_real_degenerate_input_produces_nan_cophenetic_at_production(self):
+        """A genuinely degenerate input (2 samples -> 1 pairwise distance, so the
+        cophenetic correlation is an undefined 0/0) yields a real NaN
+        cophenetic_correlation from scipy — not a synthetic dataclasses.replace — and
+        the producer/adapter carry it as-is; only to_json rejects it. Each column has
+        real per-column variance so it survives the #183 numeric/non-zero-variance
+        filter (an all-identical-points input would instead raise RuntimeError, since
+        every column would be filtered out)."""
+        from sleap_roots_analyze.clustering import hierarchical_cluster_labels
+
+        two_rows = pd.DataFrame([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])
+        d = hierarchical_cluster_labels(two_rows, n_clusters=1, standardize=False)
+        assert np.isnan(d["cophenetic_correlation"])
+
+        result = ClusterResult.from_hierarchical_dict(d)
+        assert np.isnan(result.cophenetic_correlation)  # accepted at production
+        with pytest.raises(ValueError, match="not JSON compliant"):
+            result.to_json()  # rejected only at the JSON boundary
+
+
+class TestClusterResultOptionalRandomState:
+    """The base random_state accepts None for deterministic algorithms (#179)."""
+
+    def test_base_defaults_random_state_none(self):
+        """random_state defaults to None and serializes as None."""
+        base = ClusterResult(**_min_base_kwargs())
+        assert base.random_state is None
+        assert dataclasses.asdict(base)["random_state"] is None
+
+    def test_explicit_none_serializes_to_json_null(self):
+        """An explicit random_state=None serializes to JSON null."""
+        base = ClusterResult(**_min_base_kwargs(), random_state=None)
+        assert json.loads(base.to_json())["random_state"] is None
+
+    def test_hierarchical_accepts_none(self):
+        """HierarchicalResult (deterministic, no seed) accepts random_state=None."""
+        r = HierarchicalResult(**_min_base_kwargs(), random_state=None)
+        assert r.random_state is None
+        assert dataclasses.asdict(r)["random_state"] is None
+
+    @pytest.mark.parametrize("cls", [KMeansResult, GMMResult])
+    def test_seeded_subclasses_reject_none(self, cls):
+        """KMeans/GMM are always seeded via their producers; None is a real gap.
+
+        Restores the pre-widening guardrail (a missing random_state used to raise
+        TypeError for a required field): base ClusterResult.random_state defaulting
+        to None must not silently let a seeded subclass construct without a seed.
+        """
+        with pytest.raises(TypeError, match="random_state must not be None"):
+            cls(**_min_base_kwargs(), random_state=None)
+
+    @pytest.mark.parametrize("cls", [KMeansResult, GMMResult])
+    def test_seeded_subclasses_accept_a_real_seed(self, cls):
+        """A real seed still constructs without error."""
+        r = cls(**_min_base_kwargs(), random_state=42)
+        assert r.random_state == 42
+
+
+class TestHierarchicalAdapter:
+    """from_hierarchical_dict maps the labeled dict without a seed (#179)."""
+
+    def test_maps_provenance_with_native_casts(self):
+        """Provenance keys are carried with native str/float casts."""
+        d = _labeled_hierarchical_dict()
+        result = ClusterResult.from_hierarchical_dict(d)
+
+        assert result.linkage_method == "ward"
+        assert result.distance_metric == "euclidean"
+        assert result.cophenetic_correlation == pytest.approx(0.81)
+        assert result.cut_height == pytest.approx(3.14)
+        assert type(result.cophenetic_correlation) is float
+        assert type(result.cut_height) is float
+        assert result.n_clusters == 3
+        assert sum(result.cluster_sizes) == len(result.cluster_labels)
+
+    def test_stamps_random_state_none(self):
+        """The adapter takes no seed and stamps random_state=None."""
+        result = ClusterResult.from_hierarchical_dict(_labeled_hierarchical_dict())
+        assert result.random_state is None
+
+    def test_does_not_mutate_input(self):
+        """The adapter maps the dict without mutating it."""
+        d = _labeled_hierarchical_dict()
+        before = copy.deepcopy(d)
+        ClusterResult.from_hierarchical_dict(d)
+        _assert_dict_unchanged(d, before)
+
+
+class TestHierarchicalResultExport:
+    """Public API surface for the hierarchical additions (#179)."""
+
+    def test_hierarchical_importable_from_package_root(self):
+        """HierarchicalResult and hierarchical_cluster_labels are root-exported."""
+        import sleap_roots_analyze as sra
+
+        assert sra.HierarchicalResult is HierarchicalResult
+        assert callable(sra.hierarchical_cluster_labels)
+        for name in ("HierarchicalResult", "hierarchical_cluster_labels"):
+            assert name in sra.__all__
+        assert len(sra.__all__) == len(set(sra.__all__))
+
+    def test_algorithm_hierarchical_exported_from_result_types_only(self):
+        """ALGORITHM_HIERARCHICAL lives in result_types.__all__, not the root __all__."""
+        import sleap_roots_analyze as sra
+        from sleap_roots_analyze import result_types
+
+        assert result_types.ALGORITHM_HIERARCHICAL == "hierarchical"
+        assert "ALGORITHM_HIERARCHICAL" in result_types.__all__
+        # A bare str constant stays out of the root __all__ (public-API docstring audit).
+        assert "ALGORITHM_HIERARCHICAL" not in sra.__all__
