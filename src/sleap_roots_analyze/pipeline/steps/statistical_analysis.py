@@ -318,6 +318,10 @@ class StatisticalAnalysisStep(BaseStep):
             )
             if generate_blup_table:
                 blup_df = extract_blup_table(heritability_results)
+                # extract_blup_table indexes by genotype; save_dataframe writes with
+                # index=False, so the genotype labels must become a real column first
+                # or they are silently dropped from the CSV.
+                blup_df = blup_df.reset_index(names=genotype_col)
                 files.append(
                     self.save_dataframe(blup_df, "08_blup_adjusted_means.csv", data_dir)
                 )

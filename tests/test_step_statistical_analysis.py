@@ -503,8 +503,10 @@ class TestBLUPTableOutput:
 
         blup_path = tmp_path / "data" / "08_blup_adjusted_means.csv"
         assert blup_path.exists()
-        blup_df = pd.read_csv(blup_path, index_col=0)
+        blup_df = pd.read_csv(blup_path)
+        assert "Genotype" in blup_df.columns
         assert len(blup_df) == sample_data["Genotype"].nunique()
+        assert set(blup_df["Genotype"]) == set(sample_data["Genotype"].unique())
 
     def test_blup_csv_absent_when_generate_blup_table_false(
         self, sample_data, prev_result, tmp_path
