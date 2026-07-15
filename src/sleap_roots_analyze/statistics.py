@@ -479,6 +479,67 @@ def calculate_heritability_estimates(
     return heritability_results
 
 
+def extract_blup_table(heritability_results: Dict) -> pd.DataFrame:
+    """Build a genotype x trait BLUP-adjusted-means table (issue #109).
+
+    Consumes the dict returned by ``calculate_heritability_estimates`` (the
+    ``remove_low_h2=False`` form, or the first element of the
+    ``remove_low_h2=True`` tuple) and builds a table of
+    ``adjusted_mean = intercept + blup[genotype]`` for every trait whose mixed
+    model succeeded.
+
+    A trait with no ``blup``/``intercept`` keys (the model failed, used the
+    ANOVA-based or no-variance path, or was skipped) gets an entire ``NaN``
+    column — not omitted from the table and not zero-filled. A genotype
+    missing from one succeeded trait's ``blup`` dict but present in another's
+    (traits compute their own genotype set independently, via a per-trait
+    ``dropna()``) gets a cell-level ``NaN`` for that genotype/trait pair only.
+
+    Does not mutate its input. Never raises: a run-level short-circuit dict
+    (``{"error": "..."}``, no per-trait entries) produces an empty
+    ``pd.DataFrame()``; a dict where every trait failed produces a zero-row
+    table with one all-``NaN`` column per input trait.
+
+    Args:
+        heritability_results: The dict returned by
+            ``calculate_heritability_estimates``.
+
+    Returns:
+        pd.DataFrame: Rows indexed by genotype (the union of every succeeded
+        trait's ``blup`` keys), one column per trait (excluding
+        ``__calculation_metadata__``), in the input's trait order.
+    """
+    run_level_error = heritability_results.get("error")
+    if isinstance(run_level_error, str):
+        return pd.DataFrame()
+
+    trait_entries = {
+        trait: entry
+        for trait, entry in heritability_results.items()
+        if trait != "__calculation_metadata__"
+    }
+
+    genotype_universe: set = set()
+    for entry in trait_entries.values():
+        blup = entry.get("blup") if isinstance(entry, dict) else None
+        if blup is not None:
+            genotype_universe.update(blup.keys())
+
+    genotypes = sorted(genotype_universe)
+    columns = {}
+    for trait, entry in trait_entries.items():
+        blup = entry.get("blup") if isinstance(entry, dict) else None
+        intercept = entry.get("intercept") if isinstance(entry, dict) else None
+        if blup is None or intercept is None:
+            columns[trait] = [np.nan] * len(genotypes)
+        else:
+            columns[trait] = [
+                intercept + blup[g] if g in blup else np.nan for g in genotypes
+            ]
+
+    return pd.DataFrame(columns, index=genotypes)
+
+
 def identify_high_heritability_traits(
     heritability_results: Dict, threshold: float = 0.5
 ) -> List[str]:
