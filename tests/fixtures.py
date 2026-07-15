@@ -293,6 +293,64 @@ def heritability_zero_data():
     return pd.DataFrame(data)
 
 
+@pytest.fixture
+def heritability_data_unbalanced_reps():
+    """Generate unbalanced-replication data for the BLUP shrinkage oracle.
+
+    Known genetic variance sigma^2_G=4.0, residual variance sigma^2_E=1.0.
+    10 "low-rep" genotypes (G01-G10) have n=2 reps each; 10 "high-rep"
+    genotypes (G11-G20) have n=20 reps each. Low-rep genotypes' raw means
+    are noisier and should shrink further toward the grand mean than
+    high-rep genotypes' raw means once BLUPs are computed.
+
+    Returns:
+        tuple: (pd.DataFrame, dict) where the dict is
+            {"low_rep_genotypes": [...], "high_rep_genotypes": [...],
+            "trait": "trait_unbalanced"}. Raw means and the grand mean are
+            deliberately not pre-computed here; tests derive them directly
+            from the returned DataFrame so there is one source of truth.
+    """
+    np.random.seed(42)
+
+    low_rep_genotypes = [f"G{g:02d}" for g in range(1, 11)]
+    high_rep_genotypes = [f"G{g:02d}" for g in range(11, 21)]
+
+    data = []
+    barcode = 0
+    for geno in low_rep_genotypes:
+        genotype_effect = np.random.normal(0, 2.0)
+        for r in range(2):
+            data.append(
+                {
+                    "geno": geno,
+                    "rep": r + 1,
+                    "Barcode": f"BC{barcode:04d}",
+                    "trait_unbalanced": 50 + genotype_effect + np.random.normal(0, 1.0),
+                }
+            )
+            barcode += 1
+    for geno in high_rep_genotypes:
+        genotype_effect = np.random.normal(0, 2.0)
+        for r in range(20):
+            data.append(
+                {
+                    "geno": geno,
+                    "rep": r + 1,
+                    "Barcode": f"BC{barcode:04d}",
+                    "trait_unbalanced": 50 + genotype_effect + np.random.normal(0, 1.0),
+                }
+            )
+            barcode += 1
+
+    df = pd.DataFrame(data)
+    meta = {
+        "low_rep_genotypes": low_rep_genotypes,
+        "high_rep_genotypes": high_rep_genotypes,
+        "trait": "trait_unbalanced",
+    }
+    return df, meta
+
+
 # ============================================================================
 # HERITABILITY DIAGNOSTIC FIXTURES - Data for testing diagnostic functions
 # ============================================================================

@@ -536,11 +536,20 @@ class StatisticsConfig:
         calculate_anova: Whether to calculate ANOVA.
         calculate_heritability: Whether to calculate heritability.
         alpha: Significance level for tests.
+        generate_blup_table: Whether to write a `08_blup_adjusted_means.csv`
+            (genotype x trait BLUP-adjusted means) alongside the heritability
+            results. BLUPs are extracted from the same mixed-model fit
+            heritability uses, so this flag only takes effect when
+            `calculate_heritability` is also True. Setting it True while
+            `calculate_heritability` is False is inert — no exception, no
+            warning, just no BLUP output, since there is no model fit to
+            extract from.
     """
 
     calculate_anova: bool = True
     calculate_heritability: bool = True
     alpha: float = 0.05
+    generate_blup_table: bool = True
 
 
 @dataclass

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `extract_blup_table(heritability_results)` (#109): builds a genotype x trait
+  BLUP-adjusted-means `pd.DataFrame` from a `calculate_heritability_estimates` result —
+  `adjusted_mean = intercept + blup[genotype]` for each trait whose mixed model
+  succeeded, with a genuine `NaN` column (not dropped, not zero-filled) for any
+  trait that failed. Importable from `sleap_roots_analyze`. Tier 1 of the
+  cross-platform genotype-prediction program: BLUP-adjusted means are the predictor
+  substrate later tiers use to test whether one phenotyping platform's genotype
+  effects predict another's.
+- Serializable `BLUPResult` dataclass and `BLUPResult.from_blup_table(df, *,
+  intercepts=None)` adapter (#109): holds the genotype x trait adjusted-means matrix
+  for traits whose model succeeded, plus the names of traits that failed
+  (`failed_traits`) — a column needs to be entirely finite to count as succeeded, so
+  even a single cell-level gap reclassifies a trait the same as an outright model
+  failure. Provides `to_dict()` / `to_json()` (strict `allow_nan=False`).
+- `StatisticsConfig.generate_blup_table` (default `True`): controls whether the QC/Viz
+  pipeline's `StatisticalAnalysisStep` writes `08_blup_adjusted_means.csv` alongside
+  `08_heritability_results.csv`. Only takes effect when `calculate_heritability` is
+  also `True` — free once the model is fit.
+
+### Changed
+- `calculate_heritability_estimates` additively returns `blup` (`dict[str, float]`) and
+  `intercept` (`float`) keys per trait when its mixed model succeeds (#109) — both
+  existing return shapes (plain dict, or the `remove_low_h2=True` 4-tuple) are
+  unchanged. A trait solved via the ANOVA-based or no-variance path carries no such
+  keys, since no fitted mixed-model result exists for those paths.
+
 ## [0.1.0a5] - 2026-07-13 (Pre-release)
 
 ### Added

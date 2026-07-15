@@ -18,9 +18,10 @@ serialization rather than silently producing invalid JSON. Callers crossing the
 boundary should use ``to_json`` (or pass ``allow_nan=False`` themselves).
 
 The first type is :class:`PCAResult` (issue #127, the detailed exemplar);
-``HeritabilityResult`` (#128), ``ClusterResult`` (#129), and ``UMAPResult``
-(#180) follow the same convention here. This module imports nothing from the
-analytical modules (``pca.py`` etc.) so dependencies stay one-way.
+``HeritabilityResult`` (#128), ``ClusterResult`` (#129), ``UMAPResult``
+(#180), and ``BLUPResult`` (#109) follow the same convention here. This
+module imports nothing from the analytical modules (``pca.py`` etc.) so
+dependencies stay one-way.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import numpy as np
+import pandas as pd
 
 __all__ = [
     "FeatureContribution",
@@ -42,6 +44,7 @@ __all__ = [
     "GMMResult",
     "HierarchicalResult",
     "UMAPResult",
+    "BLUPResult",
     "ALGORITHM_KMEANS",
     "ALGORITHM_GMM",
     "ALGORITHM_HIERARCHICAL",
@@ -788,4 +791,128 @@ class UMAPResult:
             n_samples=int(embedding.shape[0]),
             standardized=d.get("scaler") is not None,
             random_state=None if seed is None else int(seed),
+        )
+
+
+@dataclass(frozen=True)
+class BLUPResult:
+    """JSON-serializable view of a BLUP-adjusted-means run (science only).
+
+    Built from an ``extract_blup_table()`` DataFrame via
+    :meth:`from_blup_table`. Holds the genotype x trait adjusted-means matrix
+    for traits whose mixed model succeeded, plus the names of traits that
+    failed (mirroring :class:`HeritabilityResult`'s ``per_trait``/
+    ``failed_traits`` split, one level up: genotype x trait matrix instead of
+    a per-trait scalar).
+
+    A trait column must be *entirely* finite to be included in
+    ``adjusted_means``/``trait_names`` — a genuine ``NaN`` column (the
+    model failed, used the ANOVA-based/no-variance path, or was skipped) and
+    a column with even a single cell-level ``NaN`` (a genotype covered by one
+    succeeded trait's model but not another's) are both classified as
+    failed, listed in ``failed_traits`` by name only. This keeps
+    ``adjusted_means`` always finite, satisfying :meth:`to_json`'s
+    ``allow_nan=False`` contract even though the source
+    ``extract_blup_table()`` DataFrame carries real ``NaN``s.
+
+    ``frozen=True`` is shallow: the dataclass fields cannot be rebound, but the
+    nested ``list``/``dict`` fields are still mutable in place. Treat the
+    result as read-only. Float fields must be finite to satisfy the JSON
+    boundary — use :meth:`to_json` to enforce it.
+
+    Attributes:
+        genotype_names: Genotype labels, in the source DataFrame's row order.
+        trait_names: Names of traits whose model succeeded (excludes failed
+            traits), in the source DataFrame's column order.
+        adjusted_means: ``(n_genotypes, n_traits)`` nested list of BLUP-adjusted
+            means (``intercept + blup[genotype]``), aligned to
+            ``genotype_names`` x ``trait_names``. Always finite.
+        failed_traits: Names of traits excluded from ``trait_names`` — no
+            model fit, or at least one cell-level gap. Names only, no values.
+        intercepts: Fixed-effect intercept per succeeded trait in
+            ``trait_names``; empty if not supplied to the adapter.
+    """
+
+    genotype_names: list[str]
+    trait_names: list[str]
+    adjusted_means: list[list[float]]
+    failed_traits: list[str] = field(default_factory=list)
+    intercepts: dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
+        return dataclasses.asdict(self)
+
+    def to_json(self, **kwargs: Any) -> str:
+        """Serialize to a strict-JSON string, enforcing the finite-floats contract.
+
+        Defaults to ``allow_nan=False`` so a non-finite value (``NaN``/
+        ``Infinity`` from a degenerate run) raises a ``ValueError`` here rather
+        than emitting the non-standard tokens a strict JSON consumer (e.g.
+        bloom-mcp) rejects. Extra keyword arguments are forwarded to
+        :func:`json.dumps`.
+
+        Raises:
+            ValueError: If any float field is non-finite (under the default
+                ``allow_nan=False``).
+        """
+        kwargs.setdefault("allow_nan", False)
+        return json.dumps(self.to_dict(), **kwargs)
+
+    @classmethod
+    def from_blup_table(
+        cls, df: pd.DataFrame, *, intercepts: Optional[dict[str, float]] = None
+    ) -> "BLUPResult":
+        """Build a :class:`BLUPResult` from an ``extract_blup_table()`` DataFrame.
+
+        Partitions ``df.columns`` into succeeded (entirely finite, non-empty)
+        and failed (any non-finite value, or zero rows) columns. A zero-row
+        column is explicitly treated as failed — ``pd.Series([],
+        dtype=float).notna().all()`` is vacuously ``True`` in pandas, so
+        relying on ``.notna().all()`` alone would misclassify an
+        all-traits-failed input (zero genotype universe) as all-succeeded.
+        Does not mutate ``df``.
+
+        Args:
+            df: The DataFrame returned by ``extract_blup_table()`` — rows are
+                genotypes, columns are traits, failed traits are ``NaN``
+                columns.
+            intercepts: Fixed-effect intercept per trait, keyed by trait name
+                (typically each succeeded trait's ``heritability_results[trait]
+                ["intercept"]``). Entries for traits not in the resulting
+                ``trait_names`` are dropped; defaults to ``{}`` if omitted.
+
+        Returns:
+            A frozen :class:`BLUPResult` holding only JSON-serializable
+            science.
+        """
+        genotype_names = [str(g) for g in df.index]
+
+        trait_names: list[str] = []
+        failed_traits: list[str] = []
+        for column in df.columns:
+            is_succeeded = len(df) > 0 and bool(df[column].notna().all())
+            if is_succeeded:
+                trait_names.append(str(column))
+            else:
+                failed_traits.append(str(column))
+
+        # df[trait_names] naturally yields one (possibly empty) row per genotype
+        # even when trait_names is empty, keeping adjusted_means aligned to
+        # genotype_names — do not special-case `if trait_names else []`, which
+        # would collapse a non-empty genotype universe to `[]` instead of
+        # `[[], [], ...]` when every trait failed via cell-level gaps.
+        adjusted_means = df[trait_names].to_numpy(dtype=float).tolist()
+        resolved_intercepts = {
+            str(trait): float(intercepts[trait])
+            for trait in trait_names
+            if intercepts is not None and trait in intercepts
+        }
+
+        return cls(
+            genotype_names=genotype_names,
+            trait_names=trait_names,
+            adjusted_means=adjusted_means,
+            failed_traits=failed_traits,
+            intercepts=resolved_intercepts,
         )

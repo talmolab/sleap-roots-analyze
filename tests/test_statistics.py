@@ -4,6 +4,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import warnings
+from unittest.mock import patch
 
 from sleap_roots_analyze.statistics import (
     calculate_trait_statistics,
@@ -14,6 +15,7 @@ from sleap_roots_analyze.statistics import (
     analyze_trait_variance,
     diagnose_heritability_issues,
     compare_trait_heritabilities,
+    extract_blup_table,
 )
 
 
@@ -359,6 +361,368 @@ class TestCalculateHeritabilityEstimates:
                 with_rep[trait]["n_observations"]
                 == without_rep[trait]["n_observations"]
             )
+
+
+class TestBLUPExtraction:
+    """Tests for BLUP extraction added to calculate_heritability_estimates (#109)."""
+
+    def test_blup_extracted_for_successful_trait(self, heritability_data_known_h2):
+        """Every successfully-fit (mixed_model) trait gets blup/intercept keys."""
+        df, _ = heritability_data_known_h2
+        trait_cols = ["trait_high_h2", "trait_moderate_h2", "trait_low_h2"]
+        result = calculate_heritability_estimates(
+            df, trait_cols, genotype_col="geno", replicate_col="rep"
+        )
+        genotypes = set(df["geno"].unique())
+
+        for trait in trait_cols:
+            entry = result[trait]
+            assert entry["model_type"] == "mixed_model"
+            assert "blup" in entry
+            assert "intercept" in entry
+            assert set(entry["blup"].keys()) == genotypes
+            assert type(entry["intercept"]) is float
+            for value in entry["blup"].values():
+                assert type(value) is float
+
+    def test_existing_return_shape_unchanged(self, heritability_data_known_h2):
+        """blup/intercept are additive; both return shapes are unchanged."""
+        df, _ = heritability_data_known_h2
+        trait_cols = ["trait_high_h2", "trait_moderate_h2", "trait_low_h2"]
+        existing_keys = [
+            "heritability",
+            "var_genetic",
+            "var_residual",
+            "mean_n_reps",
+            "n_genotypes",
+            "n_observations",
+            "model_type",
+            "reps_per_geno_stats",
+        ]
+
+        result = calculate_heritability_estimates(
+            df, trait_cols, genotype_col="geno", replicate_col="rep"
+        )
+        assert isinstance(result, dict)
+        for trait in trait_cols:
+            entry = result[trait]
+            for key in existing_keys:
+                assert key in entry
+            assert "blup" in entry
+            assert "intercept" in entry
+
+        tup = calculate_heritability_estimates(
+            df,
+            trait_cols,
+            genotype_col="geno",
+            replicate_col="rep",
+            remove_low_h2=True,
+            h2_threshold=0.99,
+        )
+        assert isinstance(tup, tuple)
+        assert len(tup) == 4
+        heritability_results, df_filtered, removed_traits, removal_details = tup
+        assert len(removed_traits) > 0  # confirm at least one trait was really removed
+        for trait in trait_cols:
+            entry = heritability_results[trait]
+            assert "blup" in entry
+            assert "intercept" in entry
+
+    def test_single_genotype_trait_has_no_blup_keys(self):
+        """A trait with < 2 genotypes (error path) has no blup/intercept keys."""
+        df = pd.DataFrame(
+            {
+                "geno": ["G01"] * 5,
+                "rep": range(1, 6),
+                "trait1": [1.0, 2.0, 3.0, 4.0, 5.0],
+            }
+        )
+        result = calculate_heritability_estimates(
+            df, ["trait1"], genotype_col="geno", replicate_col="rep"
+        )
+        entry = result["trait1"]
+        assert "error" in entry
+        assert "blup" not in entry
+        assert "intercept" not in entry
+
+    def test_mixed_model_fit_failure_has_no_blup_keys(self, heritability_data_known_h2):
+        """A trait whose mixed model fit raises has no blup/intercept keys."""
+        df, _ = heritability_data_known_h2
+        with patch("statsmodels.formula.api.mixedlm", side_effect=Exception("boom")):
+            result = calculate_heritability_estimates(
+                df, ["trait_high_h2"], genotype_col="geno", replicate_col="rep"
+            )
+        entry = result["trait_high_h2"]
+        assert entry["model_type"] == "mixed_model_failed"
+        assert "blup" not in entry
+        assert "intercept" not in entry
+
+    def test_anova_based_and_no_variance_traits_have_no_blup_keys_no_crash(
+        self, heritability_data_known_h2
+    ):
+        """ANOVA-based and no-variance success paths never touch a result object.
+
+        Both paths reach (or, for no-variance, bypass) the shared per-trait dict
+        literal without a fitted mixedlm result; neither should crash or produce
+        blup/intercept keys.
+        """
+        df, _ = heritability_data_known_h2
+        anova_result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            force_method="anova_based",
+        )
+        anova_entry = anova_result["trait_high_h2"]
+        assert anova_entry["model_type"] == "anova_based"
+        assert "blup" not in anova_entry
+        assert "intercept" not in anova_entry
+
+        constant_df = pd.DataFrame(
+            {
+                "geno": ["G01"] * 5 + ["G02"] * 5,
+                "rep": list(range(1, 6)) * 2,
+                "trait_constant": [10.0] * 10,
+            }
+        )
+        novar_result = calculate_heritability_estimates(
+            constant_df, ["trait_constant"], genotype_col="geno", replicate_col="rep"
+        )
+        novar_entry = novar_result["trait_constant"]
+        assert novar_entry["model_type"] == "no_variance"
+        assert "blup" not in novar_entry
+        assert "intercept" not in novar_entry
+
+    def test_adjusted_mean_matches_independent_raw_mean(
+        self, heritability_data_known_h2
+    ):
+        """Intercept + blup[g] approximates genotype g's raw trait mean (balanced)."""
+        df, _ = heritability_data_known_h2
+        trait = "trait_high_h2"
+        result = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep"
+        )
+        entry = result[trait]
+        intercept = entry["intercept"]
+        blup = entry["blup"]
+        raw_means = df.groupby("geno")[trait].mean()
+
+        for geno, raw_mean in raw_means.items():
+            adjusted_mean = intercept + blup[geno]
+            assert adjusted_mean == pytest.approx(raw_mean, abs=0.3)
+
+
+class TestExtractBlupTable:
+    """Tests for extract_blup_table() (#109)."""
+
+    def test_extract_blup_table_success_values(self):
+        """adjusted_mean = intercept + blup[g] for every succeeded trait/genotype."""
+        heritability_results = {
+            "__calculation_metadata__": {
+                "method_used_for_all_traits": "mixed_model",
+                "method_consistency": True,
+            },
+            "trait_a": {
+                "blup": {"G01": 0.5, "G02": -0.5},
+                "intercept": 10.0,
+                "model_type": "mixed_model",
+            },
+            "trait_b": {
+                "blup": {"G01": 1.0, "G02": 2.0},
+                "intercept": 20.0,
+                "model_type": "mixed_model",
+            },
+            "trait_failed": {
+                "error": "Mixed model failed: boom",
+                "model_type": "mixed_model_failed",
+            },
+        }
+
+        df = extract_blup_table(heritability_results)
+
+        assert df.loc["G01", "trait_a"] == pytest.approx(10.5)
+        assert df.loc["G02", "trait_a"] == pytest.approx(9.5)
+        assert df.loc["G01", "trait_b"] == pytest.approx(21.0)
+        assert df.loc["G02", "trait_b"] == pytest.approx(22.0)
+
+    def test_extract_blup_table_failed_trait_is_nan_column(self):
+        """A failed trait's whole column is NaN — not dropped, not zero."""
+        heritability_results = {
+            "trait_a": {
+                "blup": {"G01": 0.5, "G02": -0.5},
+                "intercept": 10.0,
+                "model_type": "mixed_model",
+            },
+            "trait_failed": {
+                "error": "Mixed model failed: boom",
+                "model_type": "mixed_model_failed",
+            },
+        }
+
+        df = extract_blup_table(heritability_results)
+
+        assert "trait_failed" in df.columns
+        assert df["trait_failed"].isna().all()
+        assert not (df["trait_failed"] == 0.0).any()
+
+    def test_extract_blup_table_shape(self):
+        """Rows = genotype union, columns = traits (excluding metadata key)."""
+        heritability_results = {
+            "__calculation_metadata__": {"method_used_for_all_traits": "mixed_model"},
+            "trait_a": {
+                "blup": {"G01": 0.5, "G02": -0.5},
+                "intercept": 10.0,
+                "model_type": "mixed_model",
+            },
+            "trait_b": {
+                "blup": {"G01": 1.0, "G02": 2.0},
+                "intercept": 20.0,
+                "model_type": "mixed_model",
+            },
+            "trait_failed": {
+                "error": "Mixed model failed: boom",
+                "model_type": "mixed_model_failed",
+            },
+        }
+
+        df = extract_blup_table(heritability_results)
+
+        assert set(df.index) == {"G01", "G02"}
+        assert list(df.columns) == ["trait_a", "trait_b", "trait_failed"]
+
+    def test_extract_blup_table_does_not_mutate_input(self):
+        """extract_blup_table() must not mutate its input dict."""
+        import copy
+
+        heritability_results = {
+            "trait_a": {
+                "blup": {"G01": 0.5, "G02": -0.5},
+                "intercept": 10.0,
+                "model_type": "mixed_model",
+            },
+        }
+        before = copy.deepcopy(heritability_results)
+
+        extract_blup_table(heritability_results)
+
+        assert heritability_results == before
+
+    def test_extract_blup_table_run_level_error_dict(self):
+        """A run-level short-circuit dict produces an empty table, no crash."""
+        df = extract_blup_table({"error": "Missing required columns: ['geno']"})
+
+        assert df.empty
+        assert len(df.columns) == 0
+
+    def test_extract_blup_table_all_traits_failed(self):
+        """Zero succeeded traits: zero rows, one all-NaN column per input trait."""
+        heritability_results = {
+            "trait_a": {
+                "error": "Mixed model failed: boom",
+                "model_type": "mixed_model_failed",
+            },
+            "trait_b": {
+                "model_type": "anova_based",
+                "heritability": 0.5,
+            },
+        }
+
+        df = extract_blup_table(heritability_results)
+
+        assert len(df) == 0
+        assert list(df.columns) == ["trait_a", "trait_b"]
+        assert df["trait_a"].isna().all()
+        assert df["trait_b"].isna().all()
+
+    def test_extract_blup_table_cell_level_nan_for_partial_genotype_coverage(self):
+        """A genotype missing from one succeeded trait's blup gets a cell-level NaN."""
+        heritability_results = {
+            "trait_a": {
+                "blup": {"G01": 0.0, "G02": 0.0},
+                "intercept": 10.0,
+                "model_type": "mixed_model",
+            },
+            "trait_b": {
+                "blup": {"G01": 0.0, "G02": 0.0, "G03": 1.0},
+                "intercept": 10.0,
+                "model_type": "mixed_model",
+            },
+        }
+
+        df = extract_blup_table(heritability_results)
+
+        assert "G03" in df.index
+        assert pd.isna(df.loc["G03", "trait_a"])
+        assert df.loc["G03", "trait_b"] == pytest.approx(11.0)
+
+    def test_blup_table_balanced_matches_raw_mean(self, heritability_data_known_h2):
+        """Balanced design: BLUP-adjusted mean approximates the raw genotype mean."""
+        df, _ = heritability_data_known_h2
+        trait_cols = ["trait_high_h2", "trait_moderate_h2", "trait_low_h2"]
+        tolerances = {
+            "trait_high_h2": 0.3,
+            "trait_moderate_h2": 0.5,
+            "trait_low_h2": 0.5,
+        }
+
+        heritability_results = calculate_heritability_estimates(
+            df, trait_cols, genotype_col="geno", replicate_col="rep"
+        )
+        blup_table = extract_blup_table(heritability_results)
+
+        for trait in trait_cols:
+            raw_means = df.groupby("geno")[trait].mean()
+            for geno, raw_mean in raw_means.items():
+                assert blup_table.loc[geno, trait] == pytest.approx(
+                    raw_mean, abs=tolerances[trait]
+                )
+
+    def test_blup_table_unbalanced_shrinks_low_rep_genotypes(
+        self, heritability_data_unbalanced_reps
+    ):
+        """Unbalanced design: low-rep genotypes shrink more than high-rep ones.
+
+        The "grand mean" shrinkage pulls toward is the mixed model's own
+        fixed-effect intercept, not the naive row-average `df[trait].mean()`
+        — those can differ slightly under an unbalanced design, so the
+        reference point for both the raw and adjusted gaps must be the same
+        (the intercept) for an apples-to-apples shrinkage comparison.
+
+        The shrinkage *ratio* (adjusted gap / raw gap), not the raw gap
+        magnitude, is the right oracle: both genotype groups draw their true
+        effect from the same distribution, so a high-rep genotype can
+        legitimately land a larger true effect (and thus a larger raw/adjusted
+        gap) than any low-rep genotype by chance. The ratio isolates the
+        shrinkage factor (theory.md: lambda = var_genetic / (var_genetic +
+        var_residual / n_reps)), which theory guarantees is smaller for n=2
+        than n=20 regardless of which genotype drew the larger true effect.
+        """
+        df, meta = heritability_data_unbalanced_reps
+        trait = meta["trait"]
+
+        heritability_results = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep"
+        )
+        blup_table = extract_blup_table(heritability_results)
+        intercept = heritability_results[trait]["intercept"]
+
+        raw_means = df.groupby("geno")[trait].mean()
+
+        low_rep_ratios = []
+        high_rep_ratios = []
+        for geno in meta["low_rep_genotypes"]:
+            raw_gap = abs(raw_means[geno] - intercept)
+            adjusted_gap = abs(blup_table.loc[geno, trait] - intercept)
+            assert adjusted_gap < raw_gap
+            low_rep_ratios.append(adjusted_gap / raw_gap)
+        for geno in meta["high_rep_genotypes"]:
+            raw_gap = abs(raw_means[geno] - intercept)
+            adjusted_gap = abs(blup_table.loc[geno, trait] - intercept)
+            assert adjusted_gap < raw_gap
+            high_rep_ratios.append(adjusted_gap / raw_gap)
+
+        assert np.mean(low_rep_ratios) < np.mean(high_rep_ratios)
 
 
 class TestIdentifyHighHeritabilityTraits:
