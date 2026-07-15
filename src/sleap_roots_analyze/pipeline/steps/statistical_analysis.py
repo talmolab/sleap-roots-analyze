@@ -15,6 +15,7 @@ from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.statistics import (
     calculate_heritability_estimates,
     calculate_trait_statistics,
+    extract_blup_table,
     perform_anova_by_genotype,
 )
 
@@ -154,6 +155,15 @@ class StatisticalAnalysisStep(BaseStep):
         statistics_config = getattr(config, "statistics", None)
         calculate_heritability = (
             statistics_config.calculate_heritability
+            if statistics_config is not None
+            else True
+        )
+        # generate_blup_table only takes effect when calculate_heritability is
+        # also True (BLUPs come from the same model fit). Resolved with the
+        # same getattr fallback as calculate_heritability so a QCPipelineConfig
+        # (no `statistics` field) still defaults to True (issue #109).
+        generate_blup_table = (
+            statistics_config.generate_blup_table
             if statistics_config is not None
             else True
         )
@@ -306,6 +316,11 @@ class StatisticalAnalysisStep(BaseStep):
                     heritability_df, "08_heritability_results.csv", data_dir
                 )
             )
+            if generate_blup_table:
+                blup_df = extract_blup_table(heritability_results)
+                files.append(
+                    self.save_dataframe(blup_df, "08_blup_adjusted_means.csv", data_dir)
+                )
 
         files.append(
             self.save_json(summary, "08_statistical_analysis_summary.json", data_dir)

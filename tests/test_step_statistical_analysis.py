@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -89,6 +90,10 @@ class TestStatisticalAnalysisStepBasic:
         step.execute(sample_data, config, tmp_path, prev_result)
 
         assert (tmp_path / "data" / "08_heritability_results.csv").exists()
+
+    def test_generate_blup_table_default_true(self):
+        """StatisticsConfig.generate_blup_table defaults to True (#109)."""
+        assert StatisticsConfig().generate_blup_table is True
 
     def test_data_unchanged(self, sample_data, config, prev_result, tmp_path):
         """Test data unchanged."""
@@ -482,6 +487,78 @@ class TestHeritabilityFlagRespected:
 
         # THEN heritability should be calculated (default True)
         assert result.metadata["heritability_results"] != {}
+
+
+class TestBLUPTableOutput:
+    """Test the BLUP-adjusted-means CSV output (#109)."""
+
+    def test_blup_csv_written_when_both_enabled(
+        self, sample_data, viz_config_heritability_enabled, prev_result, tmp_path
+    ):
+        """08_blup_adjusted_means.csv is written when both flags are enabled."""
+        step = StatisticalAnalysisStep()
+        step.execute(
+            sample_data, viz_config_heritability_enabled, tmp_path, prev_result
+        )
+
+        blup_path = tmp_path / "data" / "08_blup_adjusted_means.csv"
+        assert blup_path.exists()
+        blup_df = pd.read_csv(blup_path, index_col=0)
+        assert len(blup_df) == sample_data["Genotype"].nunique()
+
+    def test_blup_csv_absent_when_generate_blup_table_false(
+        self, sample_data, prev_result, tmp_path
+    ):
+        """No BLUP CSV when generate_blup_table=False; heritability CSV unaffected."""
+        config = VizPipelineConfig(
+            pipeline_name="test_viz",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            statistics=StatisticsConfig(
+                calculate_heritability=True, generate_blup_table=False
+            ),
+        )
+        step = StatisticalAnalysisStep()
+        step.execute(sample_data, config, tmp_path, prev_result)
+
+        assert not (tmp_path / "data" / "08_blup_adjusted_means.csv").exists()
+        assert (tmp_path / "data" / "08_heritability_results.csv").exists()
+
+    def test_blup_csv_absent_when_heritability_disabled(
+        self, sample_data, viz_config_heritability_disabled, prev_result, tmp_path
+    ):
+        """No CSV, no exception, no warning when heritability is disabled.
+
+        This is an ordinary, legitimate configuration; a warning here would be
+        noise, not a useful signal (see design.md Decision 5).
+        """
+        step = StatisticalAnalysisStep()
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            step.execute(
+                sample_data, viz_config_heritability_disabled, tmp_path, prev_result
+            )
+
+        assert not (tmp_path / "data" / "08_blup_adjusted_means.csv").exists()
+        assert caught == []
+
+    def test_blup_table_works_with_qc_config_no_statistics(
+        self, sample_data, config, prev_result, tmp_path
+    ):
+        """Works with a bare QCPipelineConfig (no statistics attribute), no crash.
+
+        Regression guard for the QC-pipeline AttributeError risk found in
+        review: generate_blup_table must be resolved via the same
+        getattr(config, "statistics", None) fallback calculate_heritability
+        already uses.
+        """
+        step = StatisticalAnalysisStep()
+        step.execute(sample_data, config, tmp_path, prev_result)
+
+        assert (tmp_path / "data" / "08_blup_adjusted_means.csv").exists()
 
 
 # --- Task 2: Tests for metadata and summary ---
