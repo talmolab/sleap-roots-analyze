@@ -317,6 +317,11 @@ class StatisticalAnalysisStep(BaseStep):
                 )
             )
             if generate_blup_table:
+                # calculate_heritability_estimates is called above with the
+                # literal remove_low_h2=False, so its return is always the
+                # plain-dict form, never the 4-tuple; the isinstance check
+                # narrows the function's Union return type for mypy.
+                assert isinstance(heritability_results, dict)
                 blup_df = extract_blup_table(heritability_results)
                 # extract_blup_table indexes by genotype; save_dataframe writes with
                 # index=False, so the genotype labels must become a real column first
