@@ -861,7 +861,7 @@ class BLUPResult:
 
     @classmethod
     def from_blup_table(
-        cls, df: "pd.DataFrame", *, intercepts: Optional[dict[str, float]] = None
+        cls, df: pd.DataFrame, *, intercepts: Optional[dict[str, float]] = None
     ) -> "BLUPResult":
         """Build a :class:`BLUPResult` from an ``extract_blup_table()`` DataFrame.
 
@@ -897,9 +897,12 @@ class BLUPResult:
             else:
                 failed_traits.append(str(column))
 
-        adjusted_means = (
-            df[trait_names].to_numpy(dtype=float).tolist() if trait_names else []
-        )
+        # df[trait_names] naturally yields one (possibly empty) row per genotype
+        # even when trait_names is empty, keeping adjusted_means aligned to
+        # genotype_names — do not special-case `if trait_names else []`, which
+        # would collapse a non-empty genotype universe to `[]` instead of
+        # `[[], [], ...]` when every trait failed via cell-level gaps.
+        adjusted_means = df[trait_names].to_numpy(dtype=float).tolist()
         resolved_intercepts = {
             str(trait): float(intercepts[trait])
             for trait in trait_names

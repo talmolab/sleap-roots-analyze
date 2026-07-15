@@ -114,6 +114,31 @@ class TestBLUPResultJSON:
         assert set(result.failed_traits) == {"trait_a", "trait_b"}
         result.to_json()  # succeeds
 
+    def test_all_traits_cell_level_failed_keeps_adjusted_means_aligned(self):
+        """adjusted_means stays aligned to genotype_names when every trait fails.
+
+        Distinct from ``test_zero_succeeded_traits_not_misclassified``: here the
+        genotype universe is non-empty (3 genotypes) but every column fails via a
+        cell-level NaN (not a zero-row DataFrame), so ``trait_names`` is empty
+        while ``genotype_names`` is not — ``adjusted_means`` must still be one
+        (empty) row per genotype, not collapse to ``[]``.
+        """
+        df = pd.DataFrame(
+            {
+                "trait_a": [10.5, 9.5, np.nan],
+                "trait_b": [np.nan, 22.0, 11.0],
+            },
+            index=["G01", "G02", "G03"],
+        )
+
+        result = BLUPResult.from_blup_table(df)
+
+        assert result.genotype_names == ["G01", "G02", "G03"]
+        assert result.trait_names == []
+        assert set(result.failed_traits) == {"trait_a", "trait_b"}
+        assert result.adjusted_means == [[], [], []]
+        result.to_json()  # succeeds — no non-finite values to reject
+
     def test_to_json_rejects_non_finite_adjusted_mean(self):
         """A non-finite adjusted_means value raises at to_json, not to_dict."""
         result = BLUPResult(
