@@ -547,6 +547,31 @@ class TestBLUPTableOutput:
         assert not (tmp_path / "data" / "08_blup_adjusted_means.csv").exists()
         assert caught == []
 
+    def test_blup_csv_absent_when_both_disabled(
+        self, sample_data, prev_result, tmp_path
+    ):
+        """No BLUP CSV, no exception, when both flags are False.
+
+        Completes the calculate_heritability x generate_blup_table cross
+        product alongside the both-True, heritability-only-False, and
+        blup-only-False cases above.
+        """
+        config = VizPipelineConfig(
+            pipeline_name="test_viz",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            statistics=StatisticsConfig(
+                calculate_heritability=False, generate_blup_table=False
+            ),
+        )
+        step = StatisticalAnalysisStep()
+        step.execute(sample_data, config, tmp_path, prev_result)
+
+        assert not (tmp_path / "data" / "08_blup_adjusted_means.csv").exists()
+        assert not (tmp_path / "data" / "08_heritability_results.csv").exists()
+
     def test_blup_table_works_with_qc_config_no_statistics(
         self, sample_data, config, prev_result, tmp_path
     ):
