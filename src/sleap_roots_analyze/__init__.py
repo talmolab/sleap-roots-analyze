@@ -18,6 +18,7 @@ from sleap_roots_analyze.statistics import (
     analyze_trait_variance,
     diagnose_heritability_issues,
     compare_trait_heritabilities,
+    extract_blup_table,
 )
 from sleap_roots_analyze.data_cleanup import (
     load_trait_data,
@@ -55,6 +56,7 @@ from sleap_roots_analyze.result_types import (
     GMMResult,
     HierarchicalResult,
     UMAPResult,
+    BLUPResult,
 )
 
 from sleap_roots_analyze.umap import (
@@ -253,6 +255,7 @@ __all__ = [
     "GMMResult",
     "HierarchicalResult",
     "UMAPResult",
+    "BLUPResult",
     # UMAP functions
     "perform_umap_analysis",
     # Clustering functions
@@ -355,6 +358,7 @@ __all__ = [
     "analyze_trait_variance",
     "diagnose_heritability_issues",
     "compare_trait_heritabilities",
+    "extract_blup_table",
     # PC-correlation & trait-enrichment workflows
     "cross_platform_pc_correlations",
     "trait_correlation_enrichment",

@@ -71,6 +71,7 @@ exported as the constants `ALGORITHM_KMEANS` / `ALGORITHM_GMM` / `ALGORITHM_HIER
 | `KMeansResult` / `GMMResult` (subclasses of `ClusterResult`) | `perform_kmeans_clustering` / `perform_gmm_clustering` dict | `ClusterResult.from_kmeans_dict(d, *, random_state)` / `from_gmm_dict(...)` |
 | `HierarchicalResult` (subclass of `ClusterResult`) | `hierarchical_cluster_labels` dict | `ClusterResult.from_hierarchical_dict(d)` (no `random_state` — hierarchical is deterministic) |
 | `UMAPResult` | `perform_umap_analysis` dict | `UMAPResult.from_umap_dict(d, *, random_state=None)` |
+| `BLUPResult` | `extract_blup_table` DataFrame | `BLUPResult.from_blup_table(df, *, intercepts=None)` |
 
 All are exported from the top-level `sleap_roots_analyze` namespace and `__all__`.
 

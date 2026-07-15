@@ -591,6 +591,41 @@ Build a comparison table of variance components and heritability across traits.
 
 ---
 
+#### `extract_blup_table`
+
+```python
+extract_blup_table(
+    heritability_results: Dict
+) -> pd.DataFrame
+```
+
+Build a genotype x trait BLUP-adjusted-means table from a
+`calculate_heritability_estimates` result (issue #109).
+
+**Parameters:**
+- `heritability_results`: The dict returned by `calculate_heritability_estimates`
+  (the `remove_low_h2=False` form, or the first element of the
+  `remove_low_h2=True` tuple)
+
+**Returns:**
+- DataFrame indexed by genotype (the union of every succeeded trait's `blup`
+  keys), one column per trait (excluding `__calculation_metadata__`), in the
+  input's trait order. `adjusted_mean = intercept + blup[genotype]` for each
+  succeeded trait/genotype cell. A trait whose model failed, used the
+  ANOVA-based or no-variance path, or was skipped gets an entire `NaN`
+  column — not omitted, not zero-filled. A genotype missing from one
+  succeeded trait's `blup` dict but present in another's gets a cell-level
+  `NaN` for that genotype/trait pair only. Never raises: a run-level
+  short-circuit dict (`{"error": "..."}`) returns an empty `pd.DataFrame()`.
+
+**Example:**
+```python
+heritability_results = calculate_heritability_estimates(df, trait_cols)
+blup_table = extract_blup_table(heritability_results)
+```
+
+---
+
 ## `pca` Module
 
 Principal Component Analysis for dimensionality reduction of root trait data.

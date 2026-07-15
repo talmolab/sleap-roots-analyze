@@ -1,7 +1,7 @@
 """Tests for the public statistics API surface exposed by ``sleap_roots_analyze``.
 
 These tests guard the contract from the ``statistics-api`` OpenSpec change:
-the eight ``statistics.py`` functions must be importable from the package root,
+the nine ``statistics.py`` functions must be importable from the package root,
 listed in ``__all__``, have resolvable type hints, carry Google-style docstrings,
 and stay in sync with the hand-maintained docs.
 """
@@ -14,7 +14,7 @@ import pytest
 import sleap_roots_analyze as sra
 import sleap_roots_analyze.statistics as stats_module
 
-# The eight functions this change exposes.
+# The nine functions this change exposes.
 STATISTICS_FUNCTIONS = [
     "calculate_trait_statistics",
     "perform_anova_by_genotype",
@@ -24,6 +24,7 @@ STATISTICS_FUNCTIONS = [
     "analyze_trait_variance",
     "diagnose_heritability_issues",
     "compare_trait_heritabilities",
+    "extract_blup_table",
 ]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -114,7 +115,7 @@ class TestDocsInSync:
 
     @pytest.mark.parametrize("name", STATISTICS_FUNCTIONS)
     def test_api_md_lists_function(self, name):
-        """docs/API.md documents each of the eight functions."""
+        """docs/API.md documents each of the nine functions."""
         api_md = (REPO_ROOT / "docs" / "API.md").read_text(encoding="utf-8")
         assert name in api_md, f"{name} not documented in docs/API.md"
 

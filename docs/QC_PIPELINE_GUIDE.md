@@ -143,6 +143,8 @@ The QC pipeline executes 10 steps in sequence:
 ### Analysis Files
 - `08_anova_results.csv` - ANOVA F-statistics and p-values
 - `08_heritability_results.csv` - Heritability estimates (H²) per trait
+- `08_blup_adjusted_means.csv` - BLUP-adjusted genotype means per trait (when
+  `generate_blup_table` and `calculate_heritability` are both enabled)
 - `08_trait_statistics.json` - Descriptive statistics for all traits
 - `10_pipeline_summary.json` - Complete pipeline execution summary
 

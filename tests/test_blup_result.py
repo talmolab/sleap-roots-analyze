@@ -165,3 +165,21 @@ class TestBLUPResultAdapter:
         BLUPResult.from_blup_table(df, intercepts={"trait_a": 10.0, "trait_b": 20.0})
 
         pd.testing.assert_frame_equal(df, before)
+
+
+class TestBLUPResultExport:
+    """Public API surface."""
+
+    def test_blupresult_importable_from_root(self):
+        """BLUPResult is importable from the package root and in __all__."""
+        import sleap_roots_analyze as sra
+
+        assert sra.BLUPResult is BLUPResult
+        assert "BLUPResult" in sra.__all__
+        assert len(sra.__all__) == len(set(sra.__all__))
+
+    def test_listed_in_result_types_all(self):
+        """BLUPResult is listed in result_types.__all__."""
+        from sleap_roots_analyze import result_types
+
+        assert "BLUPResult" in result_types.__all__
