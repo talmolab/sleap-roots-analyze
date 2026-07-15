@@ -4,6 +4,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import warnings
+from unittest.mock import patch
 
 from sleap_roots_analyze.statistics import (
     calculate_trait_statistics,
@@ -359,6 +360,156 @@ class TestCalculateHeritabilityEstimates:
                 with_rep[trait]["n_observations"]
                 == without_rep[trait]["n_observations"]
             )
+
+
+class TestBLUPExtraction:
+    """Tests for BLUP extraction added to calculate_heritability_estimates (#109)."""
+
+    def test_blup_extracted_for_successful_trait(self, heritability_data_known_h2):
+        """Every successfully-fit (mixed_model) trait gets blup/intercept keys."""
+        df, _ = heritability_data_known_h2
+        trait_cols = ["trait_high_h2", "trait_moderate_h2", "trait_low_h2"]
+        result = calculate_heritability_estimates(
+            df, trait_cols, genotype_col="geno", replicate_col="rep"
+        )
+        genotypes = set(df["geno"].unique())
+
+        for trait in trait_cols:
+            entry = result[trait]
+            assert entry["model_type"] == "mixed_model"
+            assert "blup" in entry
+            assert "intercept" in entry
+            assert set(entry["blup"].keys()) == genotypes
+            assert type(entry["intercept"]) is float
+            for value in entry["blup"].values():
+                assert type(value) is float
+
+    def test_existing_return_shape_unchanged(self, heritability_data_known_h2):
+        """blup/intercept are additive; both return shapes are unchanged."""
+        df, _ = heritability_data_known_h2
+        trait_cols = ["trait_high_h2", "trait_moderate_h2", "trait_low_h2"]
+        existing_keys = [
+            "heritability",
+            "var_genetic",
+            "var_residual",
+            "mean_n_reps",
+            "n_genotypes",
+            "n_observations",
+            "model_type",
+            "reps_per_geno_stats",
+        ]
+
+        result = calculate_heritability_estimates(
+            df, trait_cols, genotype_col="geno", replicate_col="rep"
+        )
+        assert isinstance(result, dict)
+        for trait in trait_cols:
+            entry = result[trait]
+            for key in existing_keys:
+                assert key in entry
+            assert "blup" in entry
+            assert "intercept" in entry
+
+        tup = calculate_heritability_estimates(
+            df,
+            trait_cols,
+            genotype_col="geno",
+            replicate_col="rep",
+            remove_low_h2=True,
+            h2_threshold=0.99,
+        )
+        assert isinstance(tup, tuple)
+        assert len(tup) == 4
+        heritability_results, df_filtered, removed_traits, removal_details = tup
+        assert len(removed_traits) > 0  # confirm at least one trait was really removed
+        for trait in trait_cols:
+            entry = heritability_results[trait]
+            assert "blup" in entry
+            assert "intercept" in entry
+
+    def test_single_genotype_trait_has_no_blup_keys(self):
+        """A trait with < 2 genotypes (error path) has no blup/intercept keys."""
+        df = pd.DataFrame(
+            {
+                "geno": ["G01"] * 5,
+                "rep": range(1, 6),
+                "trait1": [1.0, 2.0, 3.0, 4.0, 5.0],
+            }
+        )
+        result = calculate_heritability_estimates(
+            df, ["trait1"], genotype_col="geno", replicate_col="rep"
+        )
+        entry = result["trait1"]
+        assert "error" in entry
+        assert "blup" not in entry
+        assert "intercept" not in entry
+
+    def test_mixed_model_fit_failure_has_no_blup_keys(self, heritability_data_known_h2):
+        """A trait whose mixed model fit raises has no blup/intercept keys."""
+        df, _ = heritability_data_known_h2
+        with patch("statsmodels.formula.api.mixedlm", side_effect=Exception("boom")):
+            result = calculate_heritability_estimates(
+                df, ["trait_high_h2"], genotype_col="geno", replicate_col="rep"
+            )
+        entry = result["trait_high_h2"]
+        assert entry["model_type"] == "mixed_model_failed"
+        assert "blup" not in entry
+        assert "intercept" not in entry
+
+    def test_anova_based_and_no_variance_traits_have_no_blup_keys_no_crash(
+        self, heritability_data_known_h2
+    ):
+        """ANOVA-based and no-variance success paths never touch a result object.
+
+        Both paths reach (or, for no-variance, bypass) the shared per-trait dict
+        literal without a fitted mixedlm result; neither should crash or produce
+        blup/intercept keys.
+        """
+        df, _ = heritability_data_known_h2
+        anova_result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            force_method="anova_based",
+        )
+        anova_entry = anova_result["trait_high_h2"]
+        assert anova_entry["model_type"] == "anova_based"
+        assert "blup" not in anova_entry
+        assert "intercept" not in anova_entry
+
+        constant_df = pd.DataFrame(
+            {
+                "geno": ["G01"] * 5 + ["G02"] * 5,
+                "rep": list(range(1, 6)) * 2,
+                "trait_constant": [10.0] * 10,
+            }
+        )
+        novar_result = calculate_heritability_estimates(
+            constant_df, ["trait_constant"], genotype_col="geno", replicate_col="rep"
+        )
+        novar_entry = novar_result["trait_constant"]
+        assert novar_entry["model_type"] == "no_variance"
+        assert "blup" not in novar_entry
+        assert "intercept" not in novar_entry
+
+    def test_adjusted_mean_matches_independent_raw_mean(
+        self, heritability_data_known_h2
+    ):
+        """Intercept + blup[g] approximates genotype g's raw trait mean (balanced)."""
+        df, _ = heritability_data_known_h2
+        trait = "trait_high_h2"
+        result = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep"
+        )
+        entry = result[trait]
+        intercept = entry["intercept"]
+        blup = entry["blup"]
+        raw_means = df.groupby("geno")[trait].mean()
+
+        for geno, raw_mean in raw_means.items():
+            adjusted_mean = intercept + blup[geno]
+            assert adjusted_mean == pytest.approx(raw_mean, abs=0.3)
 
 
 class TestIdentifyHighHeritabilityTraits:

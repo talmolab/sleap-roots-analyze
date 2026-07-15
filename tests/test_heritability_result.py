@@ -258,3 +258,40 @@ class TestHeritabilityResultNonBreaking:
         before = copy.deepcopy(d)
         HeritabilityResult.from_heritability_dict(d, threshold=0.3)
         assert d == before
+
+    def test_extra_blup_intercept_keys_do_not_affect_traitheritability(self):
+        """Additive blup/intercept keys (#109) don't change TraitHeritability.
+
+        calculate_heritability_estimates now adds blup/intercept keys to a
+        successful trait's dict; from_heritability_dict must keep ignoring
+        unknown keys via .get(), not break or silently absorb them.
+        """
+        d = {
+            "__calculation_metadata__": {
+                "method_used_for_all_traits": "mixed_model",
+                "method_consistency": True,
+            },
+            "trait_a": {
+                "heritability": 0.75,
+                "var_genetic": 3.0,
+                "var_residual": 1.0,
+                "n_genotypes": 20,
+                "n_observations": 100,
+                "model_type": "mixed_model",
+                "blup": {"G01": 0.5, "G02": -0.5},
+                "intercept": 10.0,
+            },
+        }
+
+        result = HeritabilityResult.from_heritability_dict(d, threshold=0.3)
+
+        assert len(result.per_trait) == 1
+        trait = result.per_trait[0]
+        assert isinstance(trait, TraitHeritability)
+        assert trait.trait == "trait_a"
+        assert trait.h2 == pytest.approx(0.75)
+        assert trait.var_genetic == pytest.approx(3.0)
+        assert trait.var_residual == pytest.approx(1.0)
+        assert trait.n_genotypes == 20
+        assert trait.n_observations == 100
+        assert trait.model_type == "mixed_model"

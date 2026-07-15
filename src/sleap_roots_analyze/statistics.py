@@ -246,6 +246,16 @@ def calculate_heritability_estimates(
             - n_genotypes: Number of genotypes
             - n_observations: Total number of observations
             - model_type: Type of model used (mixed_model or anova_based)
+            - blup: BLUP (Best Linear Unbiased Prediction) per genotype, a
+              dict[str, float] from the fitted mixed model's
+              ``result.random_effects``. Present only when
+              ``model_type == "mixed_model"`` — the ANOVA-based and
+              no-variance paths never fit a mixedlm model, so they carry no
+              ``blup``/``intercept`` keys.
+            - intercept: The fixed-effect intercept
+              (``result.fe_params["Intercept"]``) from the same fit. The
+              genotype-adjusted mean is ``intercept + blup[genotype]``.
+              Present under the same condition as ``blup``.
 
         If remove_low_h2=True:
             Tuple of:
@@ -335,6 +345,14 @@ def calculate_heritability_estimates(
                 }
                 continue
 
+            # blup/intercept are BLUPs (Best Linear Unbiased Predictions) extracted
+            # from the mixed model fit below (issue #109). Only the mixed-model
+            # branch has a fitted `result` to extract them from; the ANOVA-based
+            # branch (below) computes variance components via groupby arithmetic
+            # and never fits a model, so these stay None for that path.
+            blup = None
+            intercept = None
+
             if use_mixed_model:
                 # Use mixed model approach (matches R lme4)
                 # Create a clean dataframe for the model
@@ -362,6 +380,14 @@ def calculate_heritability_estimates(
                     )
 
                     model_type = "mixed_model"
+
+                    # Extract BLUPs (issue #109): result.random_effects is a lazy
+                    # property, accessed exactly once here.
+                    blup = {
+                        str(geno): float(effect.iloc[0])
+                        for geno, effect in result.random_effects.items()
+                    }
+                    intercept = float(result.fe_params["Intercept"])
 
                 except Exception as e:
                     # If mixed model fails for this trait, record the error but keep going
@@ -426,6 +452,11 @@ def calculate_heritability_estimates(
                     "std": float(reps_per_geno.std()) if len(reps_per_geno) > 1 else 0,
                 },
             }
+            # Additive BLUP keys (issue #109) — only present when the mixed
+            # model actually fit (blup is None for the ANOVA-based path).
+            if blup is not None:
+                heritability_results[trait]["blup"] = blup
+                heritability_results[trait]["intercept"] = intercept
 
         except Exception as e:
             heritability_results[trait] = {
