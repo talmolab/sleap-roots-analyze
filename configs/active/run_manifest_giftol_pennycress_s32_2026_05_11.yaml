@@ -1,0 +1,22 @@
+# Run Manifest: GIFTOL Pennycress S32 2026-05-11
+#
+# Dataset: Z:/users/eberrigan/20260709_Emily_Shane_Pennycress_S32_GIFTOL_2026-05-11/...
+# Analysis date: 2026-07-13
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   uv run python -m sleap_roots_analyze run-all configs/active/run_manifest_giftol_pennycress_s32_2026_05_11.yaml -o Z:/users/eberrigan/20260709_Emily_Shane_Pennycress_S32_GIFTOL_2026-05-11/sleap-roots-analyze-output
+#
+# All paths are relative to configs/active/
+
+run_name: "giftol_pennycress_s32_2026_05_11"
+description: "QC and Viz for Emily Shane Pennycress S32 GIFTOL 2026-05-11. Groups: plant_age_days (Day 7: 70 plants, Day 17: 70 plants)."
+
+qc_configs:
+  - qc/giftol_pennycress_s32_2026_05_11.yaml
+
+viz_configs:
+  - viz/giftol_pennycress_s32_2026_05_11.yaml
+
+qc_mapping:
+  "viz/giftol_pennycress_s32_2026_05_11.yaml": "qc/giftol_pennycress_s32_2026_05_11.yaml"
