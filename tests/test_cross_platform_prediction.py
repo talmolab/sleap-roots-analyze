@@ -413,3 +413,78 @@ class TestLogoCvPredictInputValidation:
                 reduction_method="representatives",
                 representative_names=rep_names,
             )
+
+
+def _logo_cv_r2_leakage_check(X, y, fit_inside_fold=True):
+    """Reference LOGO-CV R2 with an explicit leakage toggle (theory.md Section 4.3).
+
+    ``fit_inside_fold=True`` mirrors ``logo_cv_predict``'s correct hygiene
+    (scaler and Ridge fit on training-fold data only). ``fit_inside_fold=False``
+    deliberately leaks: both are fit on the FULL dataset (including the
+    held-out genotype) once, before the fold loop. Test-only -- production
+    ``logo_cv_predict`` has no code path equivalent to the leaked branch
+    (structurally asserted by 3.1/3.2/3.4's mock/spy tests).
+    """
+    from sklearn.metrics import r2_score
+
+    loo = LeaveOneOut()
+    y_pred = np.full(len(y), np.nan)
+    if not fit_inside_fold:
+        scaler_global = StandardScaler().fit(X)
+        model_global = Ridge().fit(scaler_global.transform(X), y)
+    for train_idx, test_idx in loo.split(X):
+        if fit_inside_fold:
+            scaler = StandardScaler().fit(X[train_idx])
+            model = Ridge().fit(scaler.transform(X[train_idx]), y[train_idx])
+        else:
+            scaler = scaler_global
+            model = model_global
+        y_pred[test_idx] = model.predict(scaler.transform(X[test_idx])).ravel()
+    return float(r2_score(y, y_pred))
+
+
+class TestLeakageRegression:
+    """Explicit leakage regression test (theory.md Section 4)."""
+
+    def test_leakage_detectable_ratio_at_least_1_10(
+        self, cross_platform_planted_signal_fixture
+    ):
+        """Mean outside-fold-fit R2 is inflated >= 1.10x vs mean inside-fold-fit R2."""
+        r2_inside = [
+            _logo_cv_r2_leakage_check(X.to_numpy(), y, fit_inside_fold=True)
+            for X, y, _ in cross_platform_planted_signal_fixture
+        ]
+        r2_outside = [
+            _logo_cv_r2_leakage_check(X.to_numpy(), y, fit_inside_fold=False)
+            for X, y, _ in cross_platform_planted_signal_fixture
+        ]
+        mean_inside = float(np.mean(r2_inside))
+        mean_outside = float(np.mean(r2_outside))
+        ratio = mean_outside / max(mean_inside, 1e-6)
+        assert ratio >= 1.10, (
+            f"Leakage not detectable: ratio={ratio:.3f} < 1.10. "
+            f"mean_inside={mean_inside:.3f}, mean_outside={mean_outside:.3f}"
+        )
+
+    def test_leakage_inflates_r2_even_on_pure_noise(
+        self, cross_platform_pure_noise_fixture
+    ):
+        """Outside-fold-fit R2 exceeds inside-fold-fit R2 even with no real signal.
+
+        Confirms the leakage mechanism (fitting on data that includes the
+        held-out genotype) inflates R2 generally -- not only when a real
+        planted signal exists to be "over-recovered" -- so 4.1's ratio isn't
+        specific to the signal fixture's parameters. Uses a plain mean
+        comparison rather than the 1.10 ratio (empirically, pure-noise
+        inside-fit R2 is negative, so a multiplicative ratio against a
+        near-zero/negative baseline is not a meaningful threshold).
+        """
+        r2_inside = [
+            _logo_cv_r2_leakage_check(X.to_numpy(), y, fit_inside_fold=True)
+            for X, y, _ in cross_platform_pure_noise_fixture
+        ]
+        r2_outside = [
+            _logo_cv_r2_leakage_check(X.to_numpy(), y, fit_inside_fold=False)
+            for X, y, _ in cross_platform_pure_noise_fixture
+        ]
+        assert float(np.mean(r2_outside)) > float(np.mean(r2_inside))
