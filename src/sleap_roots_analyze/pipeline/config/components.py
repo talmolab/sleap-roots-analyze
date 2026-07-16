@@ -544,12 +544,20 @@ class StatisticsConfig:
             `calculate_heritability` is False is inert — no exception, no
             warning, just no BLUP output, since there is no model fit to
             extract from.
+        fixed_effects: Optional list of column names to add as fixed effects
+            to the heritability mixed model, passed through to
+            `calculate_heritability_estimates(fixed_effects=...)` (#114) —
+            see that function's docstring for the categorical-treatment
+            (every name is `C(...)`-wrapped), metadata-only (not biological
+            traits), and empirical frequency-weighted-intercept conventions.
+            Defaults to `None` (the pre-existing genotype-only model).
     """
 
     calculate_anova: bool = True
     calculate_heritability: bool = True
     alpha: float = 0.05
     generate_blup_table: bool = True
+    fixed_effects: Optional[List[str]] = None
 
 
 @dataclass

@@ -588,6 +588,82 @@ class TestBLUPTableOutput:
         assert (tmp_path / "data" / "08_blup_adjusted_means.csv").exists()
 
 
+class TestFixedEffectsConfig:
+    """Tests for StatisticsConfig.fixed_effects threading (#114)."""
+
+    def test_statistics_config_fixed_effects_default_none(self):
+        """StatisticsConfig.fixed_effects defaults to None."""
+        assert StatisticsConfig().fixed_effects is None
+
+    def test_fixed_effects_threaded_into_heritability_call(self, prev_result, tmp_path):
+        """statistics.fixed_effects changes the heritability/BLUP output."""
+        np.random.seed(0)
+        n = 40
+        data = pd.DataFrame(
+            {
+                "Barcode": [f"plant{i}" for i in range(n)],
+                "Genotype": (["A"] * 10 + ["B"] * 10) * 2,
+                "Replicate": list(range(1, 11)) * 4,
+                "experiment": ["exp1"] * 20 + ["exp2"] * 20,
+                "trait1": np.concatenate(
+                    [
+                        np.random.randn(20) * 2 + 50,
+                        np.random.randn(20) * 2 + 65,
+                    ]
+                ),
+            }
+        )
+        local_prev_result = StepResult(
+            data=data,
+            metadata={"valid_trait_names": ["trait1"], "samples": n},
+            files_generated=[],
+        )
+
+        config_none = VizPipelineConfig(
+            pipeline_name="test_viz",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            statistics=StatisticsConfig(fixed_effects=None),
+        )
+        config_fe = VizPipelineConfig(
+            pipeline_name="test_viz",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            statistics=StatisticsConfig(fixed_effects=["experiment"]),
+        )
+
+        step = StatisticalAnalysisStep()
+        tmp_none = tmp_path / "none"
+        tmp_fe = tmp_path / "fe"
+        step.execute(data, config_none, tmp_none, local_prev_result)
+        step.execute(data, config_fe, tmp_fe, local_prev_result)
+
+        herit_none = pd.read_csv(tmp_none / "data" / "08_heritability_results.csv")
+        herit_fe = pd.read_csv(tmp_fe / "data" / "08_heritability_results.csv")
+        h2_none = herit_none.loc[herit_none["trait"] == "trait1", "heritability"].iloc[
+            0
+        ]
+        h2_fe = herit_fe.loc[herit_fe["trait"] == "trait1", "heritability"].iloc[0]
+        assert h2_none != pytest.approx(h2_fe)
+
+        blup_none = pd.read_csv(tmp_none / "data" / "08_blup_adjusted_means.csv")
+        blup_fe = pd.read_csv(tmp_fe / "data" / "08_blup_adjusted_means.csv")
+        assert not blup_none["trait1"].equals(blup_fe["trait1"])
+
+    def test_fixed_effects_qc_config_no_statistics_resolves_none(
+        self, sample_data, config, prev_result, tmp_path
+    ):
+        """A bare QCPipelineConfig (no statistics field) resolves fixed_effects to None."""
+        step = StatisticalAnalysisStep()
+        result = step.execute(sample_data, config, tmp_path, prev_result)
+
+        assert result.metadata["heritability_results"] != {}
+
+
 # --- Task 2: Tests for metadata and summary ---
 
 
