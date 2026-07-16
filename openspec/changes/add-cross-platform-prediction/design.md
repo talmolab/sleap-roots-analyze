@@ -646,3 +646,88 @@ IMPORTANT/SUGGESTION items — all reconciled:
 Full `tests/test_cross_platform_prediction.py` suite re-run after all fixes: 38 passed (up from
 36 -- 3 new tests added, one pre-existing test's scope widened to cover the `n=2` boundary across
 all three reduction methods).
+
+## Pre-Merge Review (round 2, 5-agent `/review-pr` team, PR #195, no memory of round 1)
+
+Requested explicitly ("please do another round of critical review while we wait") while CI ran on
+the just-opened PR, specifically to catch anything the round-1 team missed. Each of the 5
+subagents was dispatched fresh, with no knowledge of round 1's findings or fixes, and told to
+review PR #195's diff cold. This surfaced one new BLOCKING bug that round 1 missed entirely
+(genuinely different from anything round 1 found), plus several smaller gaps — all reconciled:
+
+- **BLOCKING (new, missed by round 1) — duplicate genotype labels silently defeat the entire
+  LOGO-CV anti-leakage contract.** `logo_cv_predict` used `sklearn.model_selection.LeaveOneOut`,
+  which splits by *row position*, not by genotype identity. If `genotypes` contained a repeated
+  label (two rows for the same genotype -- e.g. a caller accidentally passing raw per-replicate
+  rows instead of genotype means), holding out one row still left the other row for that same
+  genotype in the training fold. This is exactly the failure mode the whole leave-one-*genotype*-out
+  design exists to prevent (theory.md's CV-hygiene contract), and it produced no error, no warning
+  -- just a silently optimistic R². Round 1's leakage regression test (Section 4) didn't catch this
+  because it tests a different leakage vector (fit-outside-fold vs fit-inside-fold on the *same*
+  well-formed genotype list), not malformed/duplicated genotype identity. Fixed: an explicit
+  `Counter`-based check now raises `ValueError` naming the duplicate label(s) before any fold logic
+  runs. New test: `test_logo_cv_predict_rejects_duplicate_genotypes`.
+- **IMPORTANT (confirmed) — `LOGOCVResult` was not exported from the package root, unlike its
+  sibling `logo_cv_predict`.** A caller could get a `logo_cv_predict()` return value but not name
+  its type (`LOGOCVResult`) via `from sleap_roots_analyze import LOGOCVResult` -- inconsistent with
+  every other Tier 1/2/3 result dataclass. Fixed: added to `__init__.py`'s import block and
+  `__all__`. New test: `test_logo_cv_result_importable_from_package_root`.
+- **IMPORTANT (confirmed) — a plain `numpy.ndarray` passed as `X` raised a raw `AttributeError`**
+  (from the first `X.columns` access) instead of the clean `ValueError` contract the rest of the
+  function promises. Fixed: `isinstance(X, pd.DataFrame)` is now the very first validation check.
+- **IMPORTANT (confirmed) — duplicate `representative_names` entries were unvalidated**, silently
+  double-weighting a trait in the `representatives` reduction (e.g. `["a", "a", "b"]` selects
+  column `"a"` twice via `X[["a", "a", "b"]]`). Fixed: a `Counter`-based duplicate check, matching
+  the pattern used for duplicate genotypes.
+- **IMPORTANT (confirmed) — `X` with duplicate column names produced a misleading error.** Indexing
+  a duplicated column name (`X[col]`) returns a `DataFrame`, not a `Series`, and
+  `pd.api.types.is_numeric_dtype()` unconditionally returns `False` for a `DataFrame` -- so the
+  existing non-numeric-column check misreported a duplicate *numeric* column as "non-numeric."
+  Fixed: an explicit `X.columns.duplicated()` check now runs before the non-numeric scan, with an
+  accurate message.
+- **IMPORTANT (confirmed) — `NaN` in `y` was unvalidated**, unlike the existing explicit `NaN`-in-`X`
+  check. It was previously caught only incidentally, deep inside the fold loop, via whichever
+  sklearn estimator happened to be in use that fold -- inconsistent surfacing depending on
+  `reduction_method`. Fixed: `np.isnan(y).any()` raises `ValueError` at the same validation point as
+  the `X` check.
+- **IMPORTANT (confirmed, caught by re-running the tests against the pre-fix code) — two tests were
+  message-blind.** `test_logo_cv_predict_representatives_rejects_empty_representative_names` and
+  `test_logo_cv_predict_rejects_nan_in_X` used bare `pytest.raises(ValueError)` with no `match=`. A
+  reviewer proved (by reverting the corresponding fixes and re-running) that both tests would still
+  pass even if the exact original bugs reappeared, because *some* `ValueError` was still raised
+  from a different, unintended code path. Fixed: both now pin `match=` to the specific validation
+  branch.
+- **SUGGESTION, fixed anyway (test clarity) — the multi-method `n=2` test was a single
+  loop-based test covering all three `reduction_method` values, giving an ambiguous failure message
+  if only one method regressed.** Fixed: parametrized into
+  `test_logo_cv_predict_rejects_n_genotypes_equal_2` with per-method test IDs
+  (`pls_latent`/`representatives`/`pc1`), plus a separate `test_logo_cv_predict_rejects_n_genotypes_equal_1`.
+- **SUGGESTION, fixed anyway (docstring accuracy) — `spearman_p`'s docstring said "imprecise below
+  n≈20-30," which is more optimistic than scipy's own documentation.** `scipy.stats.spearmanr`'s
+  docs state its p-value "is only accurate for very large samples (>500 observations)." Fixed in
+  both `cross_platform_prediction.py`'s `LOGOCVResult` and `result_types.py`'s `TargetPrediction`
+  docstrings; `TargetPrediction`'s `Note:` also gained a caveat about `r2=1.0` appearing alongside a
+  `nan` Spearman rho for a constant `y`, and about `pls_latent` emitting a `UserWarning` per fold
+  (potentially tens of thousands of times in a future permutation loop) for degenerate `y`.
+- **SUGGESTION, fixed anyway (docstring drift) — the `Raises:` section's listed order had drifted
+  from the actual validation order in the code** (new checks were being added at various points in
+  the function without updating the docstring). Fixed: rewritten to match the current code's
+  execution order exactly, verified by grepping every `if` condition in sequence.
+- **Statistical-rigor observation (noted, no fixture/code change made this round) — neither
+  `pls_latent` nor `representatives` is exercised by a fixture near the real EDPIE trait-count
+  regime (p in the tens-to-hundreds); all fixtures use `n_traits=3`.** This duplicates round 1's
+  already-recorded scope-boundary note above; the manual real-data validation (Section 8, already
+  run and signed off) remains the mitigation, not a new synthetic fixture.
+- **Noted, not fixed (already covered) — `n_genotypes=3` (the new minimum) is a degenerate/saturated
+  regime, not merely noisy: 2 training genotypes give `PLSRegression(n_components=1)` zero residual
+  degrees of freedom, so it exactly reproduces both training targets every fold.** This is now
+  explicitly documented in `LOGOCVResult`'s docstring `Note:` (added this round) rather than
+  requiring a stricter runtime guard -- the function is documented as correct-but-untrustworthy at
+  the boundary, matching this program's existing pattern of documenting statistical caveats rather
+  than rejecting statistically-thin-but-technically-valid inputs.
+
+Full `tests/test_cross_platform_prediction.py` suite re-run after all round-2 fixes: 47 passed (up
+from 38 -- 9 new tests: duplicate genotypes, duplicate `representative_names`, duplicate `X`
+columns, non-`DataFrame` `X`, NaN in `y`, `LOGOCVResult` package-root export, plus the `n=2`
+parametrization split and a new `n=1` test). `mypy` baseline: `new: 0`. `scripts/check_public_api_docs.py`:
+140/140 passing.

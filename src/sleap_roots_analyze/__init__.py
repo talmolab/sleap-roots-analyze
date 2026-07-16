@@ -213,6 +213,7 @@ from sleap_roots_analyze.pc_correlations import (
 from sleap_roots_analyze.cross_platform_prediction import (
     fit_pca_on_fold,
     logo_cv_predict,
+    LOGOCVResult,
 )
 from sleap_roots_analyze.result_types import (
     CrossPlatformPredictionResult,
@@ -376,6 +377,7 @@ __all__ = [
     # Cross-platform prediction (Tier 3, #194)
     "fit_pca_on_fold",
     "logo_cv_predict",
+    "LOGOCVResult",
     "CrossPlatformPredictionResult",
     "TargetPrediction",
 ]

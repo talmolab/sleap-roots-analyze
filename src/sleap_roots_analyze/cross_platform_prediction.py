@@ -14,6 +14,7 @@ CV-hygiene contract this module implements against.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
@@ -85,8 +86,10 @@ class LOGOCVResult:
         spearman_rho: Aggregate Spearman rank correlation over the same
             predictions.
         spearman_p: ``spearman_rho``'s p-value. An asymptotic approximation
-            (``scipy.stats.spearmanr``'s default), imprecise below n~=20-30 --
-            descriptive, not hypothesis-test-grade, at this program's n~=19.
+            (``scipy.stats.spearmanr``'s default); scipy's own documentation
+            states this p-value "is only accurate for very large samples
+            (>500 observations)" -- descriptive, not hypothesis-test-grade,
+            at this program's n~=19.
     """
 
     genotypes: list[str]
@@ -120,9 +123,10 @@ def logo_cv_predict(
 
     Args:
         X: Predictor matrix, shape ``(n_genotypes, n_traits)``, columns named
-            by trait, index by genotype label.
+            by trait (no duplicate column names), index by genotype label.
         y: Target values, one per genotype, same order as ``X``'s rows.
-        genotypes: Genotype labels, same order as ``X``'s rows.
+        genotypes: Genotype labels, same order as ``X``'s rows. Must not
+            contain duplicates -- see ``Raises`` below.
         reduction_method: One of ``"pls_latent"`` (default) -- a
             ``StandardScaler`` + ``PLSRegression(n_components=1)`` pipeline
             fit directly on the full trait matrix; ``"representatives"`` --
@@ -133,26 +137,43 @@ def logo_cv_predict(
             via :func:`fit_pca_on_fold`, before a ``StandardScaler`` +
             ``Ridge()`` pipeline.
         representative_names: Trait (column) names to select when
-            ``reduction_method="representatives"``. Required and must be
-            non-empty for that method, and every name must be present in
-            ``X``'s columns; ignored otherwise.
+            ``reduction_method="representatives"``. Required, must be
+            non-empty and duplicate-free, for that method, and every name
+            must be present in ``X``'s columns; ignored otherwise.
 
     Returns:
         A :class:`LOGOCVResult` with per-genotype predictions and aggregate
         R^2/RMSE/Spearman rho.
 
+    Note:
+        ``n_genotypes=3`` (the minimum this function accepts) is a
+        degenerate/saturated regime, not merely a noisy one: each LOGO fold
+        then trains on exactly 2 genotypes, and 2 points give
+        ``PLSRegression(n_components=1)`` zero residual degrees of freedom --
+        it exactly reproduces both training targets every fold. Results at
+        or near this boundary should not be trusted quantitatively; the
+        `n>=3` guard only guarantees the function runs, not that its output
+        is statistically meaningful at the boundary.
+
     Raises:
-        ValueError: If ``X``, ``y``, and ``genotypes`` have mismatched
-            lengths; if ``reduction_method`` is not one of the three valid
-            values; if ``reduction_method="representatives"`` and
-            ``representative_names`` is ``None``/empty or contains a name
-            absent from ``X``'s columns; if fewer than 3 genotypes are
-            provided (each LOGO-CV fold's training set needs at least 2
-            genotypes -- ``PLSRegression``'s own minimum -- so 2 total
-            genotypes is not enough, even though it looks superficially
-            sufficient to form one fold); if ``X`` contains a non-numeric
-            column; or if ``X`` contains any ``NaN`` value.
+        ValueError: If ``X`` is not a ``pandas.DataFrame``; if
+            ``reduction_method`` is not one of the three valid values; if
+            ``X``, ``y``, and ``genotypes`` have mismatched lengths; if
+            ``genotypes`` contains duplicate labels (this would silently
+            leave a held-out genotype's other row in its own training fold,
+            defeating the leave-one-genotype-out contract entirely); if
+            fewer than 3 genotypes are provided (each LOGO-CV fold's training
+            set needs at least 2 genotypes -- ``PLSRegression``'s own
+            minimum -- so 2 total genotypes is not enough, even though it
+            looks superficially sufficient to form one fold); if
+            ``reduction_method="representatives"`` and
+            ``representative_names`` is ``None``/empty, contains duplicates,
+            or contains a name absent from ``X``'s columns; if ``X`` contains
+            duplicate column names; if ``X`` contains a non-numeric column;
+            or if ``X`` or ``y`` contains any ``NaN`` value.
     """
+    if not isinstance(X, pd.DataFrame):
+        raise ValueError(f"X must be a pandas.DataFrame, got {type(X).__name__}")
     if reduction_method not in _VALID_REDUCTION_METHODS:
         raise ValueError(
             f"reduction_method must be one of {_VALID_REDUCTION_METHODS}, "
@@ -162,6 +183,15 @@ def logo_cv_predict(
         raise ValueError(
             "X, y, and genotypes must have the same length: "
             f"got {len(X)}, {len(y)}, {len(genotypes)}"
+        )
+    genotype_counts = Counter(genotypes)
+    duplicate_genotypes = sorted(g for g, count in genotype_counts.items() if count > 1)
+    if duplicate_genotypes:
+        raise ValueError(
+            "genotypes contains duplicate labels, which would silently "
+            "defeat leave-one-genotype-out cross-validation (a held-out "
+            f"genotype's other row would remain in its own training fold): "
+            f"{duplicate_genotypes}"
         )
     if len(genotypes) < 3:
         raise ValueError(
@@ -176,6 +206,15 @@ def logo_cv_predict(
                 "representative_names is required and must be non-empty when "
                 "reduction_method='representatives'"
             )
+        rep_name_counts = Counter(representative_names)
+        duplicate_rep_names = sorted(
+            name for name, count in rep_name_counts.items() if count > 1
+        )
+        if duplicate_rep_names:
+            raise ValueError(
+                f"representative_names contains duplicate entries: "
+                f"{duplicate_rep_names}"
+            )
         unknown_names = [name for name in representative_names if name not in X.columns]
         if unknown_names:
             raise ValueError(
@@ -189,6 +228,10 @@ def logo_cv_predict(
         # scope.
         rep_names: list[str] = list(representative_names)
 
+    duplicate_cols = X.columns[X.columns.duplicated()].tolist()
+    if duplicate_cols:
+        raise ValueError(f"X contains duplicate column name(s): {duplicate_cols}")
+
     non_numeric_cols = [
         col for col in X.columns if not pd.api.types.is_numeric_dtype(X[col])
     ]
@@ -199,6 +242,8 @@ def logo_cv_predict(
     y = np.asarray(y, dtype=float)
     if np.isnan(X_values).any():
         raise ValueError("X contains NaN values")
+    if np.isnan(y).any():
+        raise ValueError("y contains NaN values")
 
     n = len(genotypes)
     y_pred = np.full(n, np.nan)

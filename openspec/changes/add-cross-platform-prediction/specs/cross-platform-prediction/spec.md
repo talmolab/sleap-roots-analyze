@@ -155,6 +155,12 @@ Any other value of `reduction_method` SHALL raise `ValueError`.
 with a clear message on any of the following, rather than allowing an unhandled or unrelated
 exception to surface partway through cross-validation.
 
+#### Scenario: Non-DataFrame X is rejected
+
+- **WHEN** `X` is not a `pandas.DataFrame` (e.g. a bare `numpy.ndarray`)
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` naming the required type, rather than
+  surfacing a raw `AttributeError` deeper in the function
+
 #### Scenario: Mismatched array lengths are rejected
 
 - **WHEN** `len(X) != len(y)` or `len(X) != len(genotypes)`
@@ -165,19 +171,43 @@ exception to surface partway through cross-validation.
 - **WHEN** `reduction_method` is not one of `"pls_latent"`, `"representatives"`, `"pc1"`
 - **THEN** `logo_cv_predict` SHALL raise `ValueError` naming the valid values
 
-#### Scenario: representatives method without representative_names is rejected
+#### Scenario: Duplicate genotype labels are rejected
 
-- **WHEN** `reduction_method="representatives"` and `representative_names` is `None`
-- **THEN** `logo_cv_predict` SHALL raise `ValueError` upfront, before entering the fold loop
+- **WHEN** `genotypes` contains a repeated label
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` naming the duplicate label(s), rather than
+  silently defeating the leave-one-genotype-out contract (`sklearn.model_selection.LeaveOneOut`
+  splits by row position, not genotype identity, so a held-out genotype's other row would
+  otherwise remain in its own training fold)
 
 #### Scenario: Too few genotypes for LOGO-CV is rejected
 
-- **WHEN** `len(genotypes) < 2`
-- **THEN** `logo_cv_predict` SHALL raise `ValueError`
+- **WHEN** `len(genotypes) < 3`
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` (each LOGO-CV fold's training set needs at
+  least 2 genotypes -- `PLSRegression`'s own minimum -- so 2 total genotypes is not enough, even
+  though it looks superficially sufficient to form one fold)
 
-#### Scenario: NaN in X is rejected
+#### Scenario: representatives method without representative_names is rejected
 
-- **WHEN** `X` contains any `NaN` value
+- **WHEN** `reduction_method="representatives"` and `representative_names` is `None` or empty
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` upfront, before entering the fold loop
+
+#### Scenario: Duplicate or unknown representative_names are rejected
+
+- **WHEN** `reduction_method="representatives"` and `representative_names` contains a duplicate
+  entry, or a name not present in `X`'s columns
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` naming the offending entries, rather than
+  silently double-weighting a trait or raising a raw `KeyError`
+
+#### Scenario: Duplicate column names in X are rejected
+
+- **WHEN** `X` contains duplicate column names
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` naming the duplicate column(s), checked
+  before the non-numeric-column scan (indexing a duplicated column name returns a `DataFrame`,
+  not a `Series`, which would otherwise produce a misleading "non-numeric column" error)
+
+#### Scenario: NaN in X or y is rejected
+
+- **WHEN** `X` or `y` contains any `NaN` value
 - **THEN** `logo_cv_predict` SHALL raise `ValueError` rather than silently fitting on or
   propagating the `NaN` — this is a realistic input, not a hypothetical one, since a
   `08_blup_adjusted_means.csv` failed-trait column (per `extract_blup_table`'s documented

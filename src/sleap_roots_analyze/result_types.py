@@ -947,9 +947,10 @@ class TargetPrediction:
             vs. ``PC1``, or across platform pairs).
         spearman_rho: Aggregate Spearman rank correlation over the same
             predictions.
-        spearman_p: ``spearman_rho``'s p-value. An asymptotic approximation,
-            imprecise below n~=20-30 -- descriptive, not hypothesis-test
-            grade, at this program's n~=19 genotypes.
+        spearman_p: ``spearman_rho``'s p-value. An asymptotic approximation;
+            scipy's own documentation states this p-value "is only accurate
+            for very large samples (>500 observations)" -- descriptive, not
+            hypothesis-test-grade, at this program's n~=19 genotypes.
         genotype_names: Genotype labels, same order as ``y_true``/``y_pred``.
         y_true: Observed target values, one per genotype.
         y_pred: Leave-one-genotype-out predicted values, one per genotype.
@@ -958,9 +959,18 @@ class TargetPrediction:
         A zero-variance (constant) ``y`` is a legal ``logo_cv_predict()`` input
         (it does not raise), but produces a non-finite ``spearman_rho``/
         ``spearman_p`` (``scipy.stats.spearmanr`` returns ``nan`` for constant
-        input). Wrapping such a result in :class:`CrossPlatformPredictionResult`
-        and calling :meth:`CrossPlatformPredictionResult.to_json` will then
-        raise ``ValueError`` under this module's finite-floats contract
+        input) -- and, since ``r2_score`` special-cases a constant ``y_true``
+        matched exactly by predictions, ``r2`` can read as a "perfect"
+        ``1.0`` right next to a ``nan`` rho, which could look like a clean fit
+        to a reader who doesn't notice the ``nan``. With
+        ``reduction_method="pls_latent"``, a constant ``y`` also emits a
+        `UserWarning`/`ConstantInputWarning` **per fold** (one per genotype),
+        which would multiply into the tens-of-thousands if a degenerate
+        (e.g. permutation-shuffled) ``y`` were ever fed through a future
+        tight loop. Wrapping such a result in
+        :class:`CrossPlatformPredictionResult` and calling
+        :meth:`CrossPlatformPredictionResult.to_json` will then raise
+        ``ValueError`` under this module's finite-floats contract
         (``allow_nan=False``) -- both sides individually honor their own
         documented behavior, but the combination is a real gap a caller
         constructing a result from possibly-degenerate LOGO-CV output should

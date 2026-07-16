@@ -196,8 +196,13 @@
       `reduction_method="representatives"` with `representative_names=None` (the default) —
       assert a clean `ValueError` raised upfront, not a `TypeError` surfacing deep inside the fold
       loop.
-- [x] 3.16 Write failing test `test_logo_cv_predict_rejects_too_few_genotypes`: `len(genotypes) <
-      2` (LOGO-CV cannot form a fold with an empty training set) — assert `ValueError`.
+- [x] 3.16 Write failing test `test_logo_cv_predict_rejects_n_genotypes_equal_2` (parametrized
+      across all three `reduction_method` values) and `test_logo_cv_predict_rejects_n_genotypes_equal_1`:
+      `len(genotypes) < 3` — raised, not `< 2` as originally planned. Round-2 review (design.md
+      "Pre-Merge Review (round 2)") found that `n=2` still crashed with the default `pls_latent`
+      method: each LOGO-CV fold's training set needs at least 2 genotypes (`PLSRegression`'s own
+      minimum), so 2 total genotypes (1 per fold) is not enough — assert `ValueError` at the raised
+      boundary.
 - [x] 3.17 Write failing test `test_logo_cv_predict_constant_y_does_not_crash`: `y` with zero
       variance (all identical values) — assert the function does not raise (R²/Spearman ρ may be
       `NaN`/degenerate per `sklearn`/`scipy`'s own documented behavior; assert whatever that
@@ -231,6 +236,21 @@
       `CrossPlatformPredictionResult` adapter to consume) containing per-genotype `y_true`/`y_pred`
       plus the three aggregate
       metrics. Google docstring with Args/Returns/Raises. Make 3.1-3.18 green.
+- [x] 3.20 Round-2 pre-merge review hardening (see design.md "Pre-Merge Review (round 2)"):
+      write failing tests then implement fixes for: non-`DataFrame` `X` (raw `AttributeError` ->
+      clean `ValueError`); duplicate genotype labels (BLOCKING — silently defeats LOGO-CV's
+      anti-leakage contract, since `LeaveOneOut` splits by row position, not genotype identity);
+      duplicate `representative_names` entries (silently double-weighted a trait); duplicate
+      column names in `X` (indexing a duplicated column returns a `DataFrame`, producing a
+      misleading "non-numeric column" error — checked before the non-numeric scan); `NaN` in `y`
+      (previously unvalidated, raised inconsistently deep in the fold loop). Export `LOGOCVResult`
+      from the package root (`__init__.py`) alongside `logo_cv_predict`. Rewrite the docstring's
+      `Raises:` section to match the validation order exactly, and correct `spearman_p`'s wording
+      from "imprecise below n≈20-30" to scipy's actual documented ">500 observations" threshold
+      (mirrored in `result_types.py`'s `TargetPrediction`). Add a `Note:` documenting that
+      `n_genotypes=3` (the boundary) is a degenerate/saturated regime, not merely noisy. Replace
+      two message-blind tests (`pytest.raises(ValueError)` with no `match=`) with pinned `match=`
+      patterns after a reviewer proved they'd still pass if the underlying bugs reappeared.
 
 ## 4. Explicit leakage regression test (test-first)
 

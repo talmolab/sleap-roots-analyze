@@ -385,10 +385,14 @@ class TestLogoCvPredictInputValidation:
         Found during pre-merge adversarial review: an empty list bypassed the
         original `is None` check and failed later with a confusing sklearn
         error ("0 feature(s)... minimum of 1 is required by StandardScaler")
-        instead of a clean upfront ValueError.
+        instead of a clean upfront ValueError. Uses `match=` (found during
+        round-2 review: reverting the fix back to the original buggy `is
+        None` check left this test passing anyway, since the empty list still
+        eventually raised *some* ValueError deep in the fold loop -- a
+        message-blind assertion doesn't actually pin the fix).
         """
         X, y, genotypes, _ = _build_simple_dataset(n_genotypes=6)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="representative_names"):
             logo_cv_predict(
                 X,
                 y,
@@ -405,7 +409,7 @@ class TestLogoCvPredictInputValidation:
         function's input validation promises.
         """
         X, y, genotypes, _ = _build_simple_dataset(n_genotypes=6)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="not present in X's columns"):
             logo_cv_predict(
                 X,
                 y,
@@ -414,18 +418,64 @@ class TestLogoCvPredictInputValidation:
                 representative_names=["not_a_real_trait"],
             )
 
-    def test_logo_cv_predict_rejects_too_few_genotypes(self):
-        """Fewer than 3 genotypes raises ValueError (LOGO-CV needs >=2 per training fold).
+    def test_logo_cv_predict_representatives_rejects_duplicate_names(self):
+        """Duplicate entries in representative_names raise ValueError.
 
-        n=2 is the boundary that matters: found during pre-merge adversarial
-        review that `reduction_method="pls_latent"` (the default) previously
-        crashed deep inside the fold loop at n=2 with a raw, unrelated sklearn
-        error ("Found array with 1 sample(s)... minimum of 2 is required by
-        PLSRegression") rather than the clean upfront ValueError the original
-        `len(genotypes) < 2` check implied was the real boundary.
+        Found during round-2 adversarial review: a duplicated name (e.g.
+        ["trait_0", "trait_0"]) previously passed validation silently (both
+        names ARE valid columns) and produced a (5, 2) reduced matrix with two
+        identical columns, silently double-weighting that trait in the Ridge
+        fit -- no error, no warning.
         """
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=6)
+        with pytest.raises(ValueError, match="duplicate"):
+            logo_cv_predict(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=[rep_names[0], rep_names[0]],
+            )
+
+    @pytest.mark.parametrize(
+        "method_kwargs",
+        [
+            {"reduction_method": "pls_latent"},
+            {
+                "reduction_method": "representatives"
+            },  # representative_names filled in below
+            {"reduction_method": "pc1"},
+        ],
+        ids=["pls_latent", "representatives", "pc1"],
+    )
+    def test_logo_cv_predict_rejects_n_genotypes_equal_2(self, method_kwargs):
+        """n_genotypes=2 raises ValueError for every reduction method.
+
+        Parametrized (found during round-2 adversarial review: the original
+        single test looped over all three methods with one shared
+        `pytest.raises` block, so a regression in `pls_latent` specifically
+        -- the exact bug this test exists to catch -- was masked by
+        `representatives`'s own, unrelated failure on a later loop iteration,
+        with no indication in the failure message of which method regressed).
+        n=2 is the boundary that matters: `reduction_method="pls_latent"`
+        (the default) previously crashed deep inside the fold loop at n=2
+        with a raw, unrelated sklearn error ("Found array with 1 sample(s)...
+        minimum of 2 is required by PLSRegression") rather than the clean
+        upfront ValueError the original `len(genotypes) < 2` check implied
+        was the real boundary; `representatives`/`pc1` did not crash at all
+        at n=2 (Ridge/PCA tolerate a 1-sample fold) but silently produced a
+        statistically meaningless result.
+        """
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=2)
+        if method_kwargs["reduction_method"] == "representatives":
+            method_kwargs = {**method_kwargs, "representative_names": rep_names}
+        with pytest.raises(ValueError, match="at least 3 genotypes"):
+            logo_cv_predict(X, y, genotypes, **method_kwargs)
+
+    def test_logo_cv_predict_rejects_n_genotypes_equal_1(self):
+        """n_genotypes=1 raises ValueError (cannot form any LOGO-CV fold at all)."""
         X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=1)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="at least 3 genotypes"):
             logo_cv_predict(
                 X,
                 y,
@@ -434,14 +484,29 @@ class TestLogoCvPredictInputValidation:
                 representative_names=rep_names,
             )
 
-        X2, y2, genotypes2, rep_names2 = _build_simple_dataset(n_genotypes=2)
-        for method_kwargs in (
-            {"reduction_method": "pls_latent"},
-            {"reduction_method": "representatives", "representative_names": rep_names2},
-            {"reduction_method": "pc1"},
-        ):
-            with pytest.raises(ValueError):
-                logo_cv_predict(X2, y2, genotypes2, **method_kwargs)
+    def test_logo_cv_predict_rejects_duplicate_genotypes(self):
+        """Duplicate genotype labels raise ValueError.
+
+        Found during round-2 adversarial review: `logo_cv_predict` uses plain
+        `sklearn.model_selection.LeaveOneOut` (split by row *position*), not
+        `LeaveOneGroupOut` (split by genotype identity) -- if two rows share a
+        genotype label, holding out one copy still leaves the *other* copy of
+        the same genotype in that fold's training set, silently defeating the
+        entire "no step ever sees the held-out genotype during fit" CV-hygiene
+        contract this module exists to implement. Verified live: this
+        previously ran to completion with no error and returned a
+        plausible-looking result.
+        """
+        X, y, _, rep_names = _build_simple_dataset(n_genotypes=6)
+        genotypes_with_dup = ["g0", "g0", "g1", "g2", "g3", "g4"]
+        with pytest.raises(ValueError, match="duplicate"):
+            logo_cv_predict(
+                X,
+                y,
+                genotypes_with_dup,
+                reduction_method="representatives",
+                representative_names=rep_names,
+            )
 
     def test_logo_cv_predict_constant_y_does_not_crash(self):
         """Zero-variance y does not raise (R2/rho may be degenerate)."""
@@ -461,9 +526,70 @@ class TestLogoCvPredictInputValidation:
         X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=6)
         X_with_nan = X.copy()
         X_with_nan.iloc[0, 0] = np.nan
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="X contains NaN"):
             logo_cv_predict(
                 X_with_nan,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+            )
+
+    def test_logo_cv_predict_rejects_nan_in_y(self):
+        """A NaN value anywhere in y raises a clean ValueError.
+
+        Found during round-2 adversarial review: previously unvalidated --
+        raised via sklearn's own internal check deep in the fold loop
+        ("Input y contains NaN.") rather than this function's own clean,
+        upfront message, inconsistent with the equivalent check already
+        applied to X.
+        """
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=6)
+        y_with_nan = y.copy()
+        y_with_nan[0] = np.nan
+        with pytest.raises(ValueError, match="y contains NaN"):
+            logo_cv_predict(
+                X,
+                y_with_nan,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+            )
+
+    def test_logo_cv_predict_rejects_duplicate_columns_in_X(self):
+        """X with duplicate column names raises ValueError naming the duplicates.
+
+        Found during round-2 adversarial review: previously, a duplicated
+        column name made `pd.api.types.is_numeric_dtype(X[col])` return False
+        unconditionally (X[col] returns a DataFrame, not a Series, when the
+        column name is duplicated) -- producing a misleading "X contains
+        non-numeric column(s)" error even when both duplicated columns were
+        genuinely float64.
+        """
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=6)
+        X_dup_cols = X.copy()
+        X_dup_cols.columns = [X.columns[0]] + list(X.columns[1:-1]) + [X.columns[0]]
+        with pytest.raises(ValueError, match="duplicate column"):
+            logo_cv_predict(
+                X_dup_cols,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+            )
+
+    def test_logo_cv_predict_rejects_non_dataframe_X(self):
+        """X passed as a bare numpy.ndarray (not a pandas.DataFrame) raises ValueError.
+
+        Found during round-2 adversarial review: previously raised a raw
+        `AttributeError: 'numpy.ndarray' object has no attribute 'columns'`,
+        the same class of gap already fixed elsewhere in this function's
+        input validation (e.g. the unknown-representative-name KeyError).
+        """
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=6)
+        with pytest.raises(ValueError, match="pandas.DataFrame"):
+            logo_cv_predict(
+                X.to_numpy(),
                 y,
                 genotypes,
                 reduction_method="representatives",
@@ -831,3 +957,16 @@ class TestPublicApiExport:
         assert sra.logo_cv_predict is module_logo_cv_predict
         assert "fit_pca_on_fold" in sra.__all__
         assert "logo_cv_predict" in sra.__all__
+
+    def test_logo_cv_result_importable_from_package_root(self):
+        """LOGOCVResult (logo_cv_predict's own return type) is importable and in __all__.
+
+        Found during round-2 adversarial review: fit_pca_on_fold/logo_cv_predict
+        were exported but the dataclass logo_cv_predict directly returns was
+        not, unlike the pc_correlations tier's precedent of exporting a
+        function together with its result type.
+        """
+        import sleap_roots_analyze as sra
+
+        assert sra.LOGOCVResult is LOGOCVResult
+        assert "LOGOCVResult" in sra.__all__
