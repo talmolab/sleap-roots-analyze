@@ -11,6 +11,7 @@ Complete API documentation for `sleap-roots-analyze`.
 - [outlier_detection](#outlier_detection-module)
 - [outlier_visualization](#outlier_visualization-module)
 - [visualization](#visualization-module)
+- [cross_platform_prediction](#cross_platform_prediction-module)
 
 ---
 
@@ -1575,6 +1576,64 @@ create_outliers_per_genotype_plot(
 
 Render a per-genotype outlier bar chart (absolute counts and proportions) across the
 methods present in `all_outlier_results`.
+
+---
+
+## `cross_platform_prediction` Module
+
+Cross-platform genotype-effect prediction: leave-one-genotype-out (LOGO) cross-validated
+ridge/PLS machinery (Tier 3 of the wheat EDPIE cross-platform genotype-prediction program,
+#194). Given genotype BLUPs (or raw genotype means) estimated within one platform, tests
+whether they predict genotype effects in another platform.
+
+### Functions
+
+#### `fit_pca_on_fold`
+
+```python
+fit_pca_on_fold(
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    n_components: int = 1
+) -> np.ndarray
+```
+
+Fit a fresh `sklearn.decomposition.PCA` on `X_train` only, project `X_test` onto the
+resulting components. Deliberately distinct from the pipeline-level PCA step in the `pca`
+module: that step is fit on every genotype before a leave-one-genotype-out fold loop runs,
+so reusing it here would leak the held-out genotype's position into the component loadings.
+
+#### `logo_cv_predict`
+
+```python
+logo_cv_predict(
+    X: pd.DataFrame,
+    y: np.ndarray,
+    genotypes: Sequence[str],
+    reduction_method: str = "pls_latent",
+    representative_names: Optional[Sequence[str]] = None
+) -> LOGOCVResult
+```
+
+Predict each genotype's target value via leave-one-genotype-out cross-validation. A fresh
+`sklearn.pipeline.Pipeline` is instantiated and fit inside each fold (no step ever sees the
+held-out genotype during fit). `reduction_method` is one of `"pls_latent"` (default, a
+`StandardScaler` + `PLSRegression(n_components=1)` pipeline fit on the full trait matrix),
+`"representatives"` (`X` reduced to `representative_names` before a `StandardScaler` +
+`Ridge()` pipeline), or `"pc1"` (`X` reduced to a per-fold PCA score via `fit_pca_on_fold`
+before a `StandardScaler` + `Ridge()` pipeline). Returns aggregate R², RMSE, and Spearman ρ
+computed over the concatenated leave-one-out predictions.
+
+**Example:**
+```python
+result = logo_cv_predict(
+    X=source_blup_table,
+    y=target_blup_table["target_trait"].values,
+    genotypes=source_blup_table.index.tolist(),
+    reduction_method="pls_latent",
+)
+print(result.r2, result.rmse, result.spearman_rho)
+```
 
 ---
 

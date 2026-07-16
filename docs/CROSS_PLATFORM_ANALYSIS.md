@@ -15,6 +15,7 @@ This guide covers the cross-platform correlation analysis pipeline, which compar
 - [Interpreting Results](#interpreting-results)
 - [Examples](#examples)
 - [Public PC-Correlation and Trait-Enrichment Workflows](#public-pc-correlation-and-trait-enrichment-workflows)
+- [Cross-Platform Genotype-Effect Prediction](#cross-platform-genotype-effect-prediction)
 - [References](#references)
 
 ---
@@ -918,3 +919,59 @@ result["results"][0]  # Combined EnrichmentResult (fold_enrichment, interpretati
 ```
 
 CLI reproduction: `uv run scripts/run_trait_enrichment.py --pair "Label=<csv>" --output-dir <dir>`.
+
+## Cross-Platform Genotype-Effect Prediction
+
+Tier 3 of the wheat EDPIE cross-platform genotype-prediction program (issue #194)
+reframes the cross-platform result from *correlation* to *predictability*: given
+genotype BLUPs (Tier 1, `extract_blup_table`) estimated within one platform, test
+whether they predict genotype effects in another platform via ridge regression /
+Partial Least Squares (PLS) with leave-one-genotype-out (LOGO) cross-validation.
+
+`logo_cv_predict` implements the CV-hygiene contract underlying every LOGO-CV
+oracle in this program: a fresh `sklearn.pipeline.Pipeline` is instantiated and
+fit **inside** each fold, so no step ever sees the held-out genotype during fit.
+Three `reduction_method` values are supported: `pls_latent` (default —
+`PLSRegression(n_components=1)`, fixed rather than searched via an inner CV loop,
+both for statistical reasons at n≈18 training genotypes and to keep a future
+1000-permutation null tractable) and `representatives` (variance-based cluster
+representatives, unsupervised and selected once before the fold loop) fit a
+`Ridge()`/`PLSRegression` model directly; `pc1` reduces each fold's predictors to
+a single principal-component score via `fit_pca_on_fold` — a per-fold PCA utility
+deliberately distinct from the pipeline-level `PCA` step, since fitting PCA on all
+genotypes before the fold loop would leak the held-out genotype's position into
+the component loadings.
+
+```python
+from sleap_roots_analyze import logo_cv_predict, CrossPlatformPredictionResult
+
+result = logo_cv_predict(
+    X=source_platform_blup_table,          # (n_genotypes, n_traits) DataFrame
+    y=target_platform_blup_table["target_trait"].values,
+    genotypes=source_platform_blup_table.index.tolist(),
+    reduction_method="pls_latent",
+)
+print(result.r2, result.rmse, result.spearman_rho)
+
+# Bundle multiple prediction targets (representative traits + PC1) into one
+# JSON-serializable result:
+prediction = CrossPlatformPredictionResult.from_logo_cv_results(
+    source_platform="Turface19",
+    target_platform="Cylinder",
+    predictor_source="blup",
+    reduction_method="pls_latent",
+    logo_cv_results={"target_trait": result, "PC1": pc1_result},
+)
+```
+
+Trait-set continuity with the paper's own published Section 3.4 result (cluster
+each platform's traits independently at |ρ|≥0.80 → correlate every
+representative pair → filter to |ρ|≥0.55 → count distinct traits per side) is
+verified against the real `cluster_correlated_traits`/
+`select_cluster_representatives` functions in `cross_experiment_analysis`, not a
+hardcoded lookup — see `tests/test_cross_platform_prediction.py`'s
+`TestTraitSetIdentityOracle`.
+
+This tier ships the statistical machinery only — `PredictionConfig` and a
+`PredictCrossPlatformStep` pipeline wiring (Tier 3.5) and the permutation null
+(Tier 4) are separate, later changes.

@@ -4307,3 +4307,123 @@ def numerical_stability_golden():
         "trait_summary": pd.read_csv(GOLDEN_TRAIT_SUMMARY, index_col=0),
         "provenance": json.loads(GOLDEN_PROVENANCE.read_text()),
     }
+
+
+# ============================================================================
+# CROSS-PLATFORM PREDICTION FIXTURES (Tier 3, #194)
+# ============================================================================
+# N=20-seed averaged design -- see design.md Decision 6 in the
+# add-cross-platform-prediction OpenSpec change. A single LOGO-CV
+# (leave-one-genotype-out cross-validation) realization at n~=19 genotypes has
+# too much sampling variance to pin a per-seed tolerance against (theory.md's
+# illustrative single-seed recipe was empirically found NOT to reliably
+# recover its claimed R^2); only the MEAN LOGO-CV R^2 across many independent
+# realizations is stable enough to assert on. Empirically verified with
+# np.random.default_rng, ridge = sklearn.linear_model.Ridge (default alpha),
+# pls = sklearn.cross_decomposition.PLSRegression(n_components=1), seeds
+# 1..20:
+#   signal (n_genotypes=19, n_traits=3, signal_strength=0.8):
+#     ridge mean~=0.719 (sd~=0.143), pls mean~=0.646 (sd~=0.187)
+#   noise  (same shape, seed offset +10000, no planted relationship):
+#     ridge mean~=-0.280 (sd~=0.197), pls mean~=-0.254 (sd~=0.194)
+#   synthetic non-EDPIE (n_genotypes=25, n_traits=4, seed offset +20000):
+#     ridge mean~=0.694 (sd~=0.150), pls mean~=0.624 (sd~=0.152)
+# Do not change n_genotypes/n_traits/signal_strength without re-verifying --
+# these were tuned (n_traits reduced from a first-draft 10 to 3) specifically
+# to produce a wide, reliable mean-R^2 gap between signal and noise at this
+# program's actual genotype count.
+
+
+def _make_planted_signal_realization(n_genotypes, n_traits, signal_strength, seed):
+    """Build one planted-signal LOGO-CV realization.
+
+    ``y`` is a known linear combination of ``X``'s columns plus noise
+    calibrated so the true LOGO-CV R^2 is near ``signal_strength`` -- but only
+    in *expectation* across many realizations, not for any single seed (see
+    design.md Decision 6). ``X`` is returned as a genotype-indexed,
+    trait-named DataFrame, matching ``logo_cv_predict``'s expected input
+    shape (design.md Decision 7).
+
+    Args:
+        n_genotypes: Number of genotypes (rows).
+        n_traits: Number of predictor traits (columns).
+        signal_strength: Target LOGO-CV R^2 in expectation (0, 1).
+        seed: Seed for ``np.random.default_rng``.
+
+    Returns:
+        tuple[pd.DataFrame, np.ndarray, list[str]]: ``(X, y, genotypes)``.
+    """
+    rng = np.random.default_rng(seed)
+    genotypes = [f"geno_{i:02d}" for i in range(n_genotypes)]
+    trait_names = [f"trait_{j}" for j in range(n_traits)]
+    X = rng.standard_normal((n_genotypes, n_traits))
+    w = rng.standard_normal(n_traits)
+    w /= np.linalg.norm(w)
+    noise_std = np.sqrt((1 - signal_strength) / signal_strength)
+    y = X @ w + noise_std * rng.standard_normal(n_genotypes)
+    X_df = pd.DataFrame(X, index=genotypes, columns=trait_names)
+    return X_df, y, genotypes
+
+
+@pytest.fixture
+def cross_platform_planted_signal_fixture():
+    """20 independent planted-signal LOGO-CV realizations (n=19, p=3 traits).
+
+    Each realization's ``y`` is a known linear combination of ``X`` plus
+    calibrated noise (signal_strength=0.8). See the module-level docstring
+    above for the empirically-verified mean LOGO-CV R^2 this fixture
+    produces.
+
+    Returns:
+        list[tuple[pd.DataFrame, np.ndarray, list[str]]]: 20 ``(X, y,
+        genotypes)`` realizations, seeds 1..20.
+    """
+    return [_make_planted_signal_realization(19, 3, 0.8, seed) for seed in range(1, 21)]
+
+
+@pytest.fixture
+def cross_platform_pure_noise_fixture():
+    """20 independent pure-noise LOGO-CV realizations (n=19, p=3 traits).
+
+    ``X`` and ``y`` are independently drawn with no planted relationship.
+    Uses a seed offset of +10000 relative to
+    ``cross_platform_planted_signal_fixture`` to guarantee independent draws.
+    See the module-level docstring above for the empirically-verified mean
+    LOGO-CV R^2 this fixture produces (expected negative, not zero -- see
+    design.md Decision 6).
+
+    Returns:
+        list[tuple[pd.DataFrame, np.ndarray, list[str]]]: 20 ``(X, y,
+        genotypes)`` realizations.
+    """
+    realizations = []
+    for seed in range(1, 21):
+        rng = np.random.default_rng(seed + 10000)
+        n_genotypes, n_traits = 19, 3
+        genotypes = [f"geno_{i:02d}" for i in range(n_genotypes)]
+        trait_names = [f"trait_{j}" for j in range(n_traits)]
+        X = rng.standard_normal((n_genotypes, n_traits))
+        y = rng.standard_normal(n_genotypes)
+        X_df = pd.DataFrame(X, index=genotypes, columns=trait_names)
+        realizations.append((X_df, y, genotypes))
+    return realizations
+
+
+@pytest.fixture
+def cross_platform_synthetic_non_edpie_fixture():
+    """20 planted-signal LOGO-CV realizations with a non-EDPIE shape.
+
+    Uses ``n_genotypes=25`` and ``n_traits=4`` (both different from the
+    EDPIE-shaped fixtures above) and non-EDPIE-style column/genotype names,
+    confirming ``logo_cv_predict``/``fit_pca_on_fold`` make no assumption
+    about EDPIE-specific shapes or names. Uses a seed offset of +20000 to
+    guarantee independent draws from the other two fixtures.
+
+    Returns:
+        list[tuple[pd.DataFrame, np.ndarray, list[str]]]: 20 ``(X, y,
+        genotypes)`` realizations.
+    """
+    return [
+        _make_planted_signal_realization(25, 4, 0.8, seed + 20000)
+        for seed in range(1, 21)
+    ]

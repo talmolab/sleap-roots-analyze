@@ -1,7 +1,7 @@
-exp1_data_path: pipeline_runs/2026-02-12_191823/qc/edpie_root_core_qc_20260212_192315/07_data_outliers_removed.csv
+exp1_data_path: c:/repos/sleap-roots-analyze/tests/fixtures/real/wheat_edpie/inputs/post_qc/root_core_final_data_paper_vintage.csv
 exp1_name: Root Core EDPIE (QC'd)
 exp1_genotype_col: Genotype
-exp2_data_path: pipeline_runs/2026-02-12_191823/qc/cylinder_edpie_qc_20260212_192028/07_data_outliers_removed.csv
+exp2_data_path: c:/repos/sleap-roots-analyze/tests/fixtures/real/wheat_edpie/inputs/post_qc/cylinder_final_data_paper_vintage.csv
 exp2_name: Cylinder EDPIE (QC'd)
 exp2_genotype_col: Genotype
 correlation_method: spearman
@@ -37,6 +37,15 @@ exp1_exclude_cols:
 - outlier_flag
 - outlier_reason
 - plant_identifier
+- Rspkgp Calc Pct
+- Ant Dto Day
+- Boot Dtoinit Day
+- Hd Dto Day
+- Root Count 45cm
+- Gwsp Calc (g)
+- Mat Dto Day
+- Root Count 35cm
+- Root Count 40cm
 exp2_exclude_cols:
 - Geno_rep
 - Sterilization
@@ -69,7 +78,20 @@ exp2_exclude_cols:
 - wave_id
 - wave_name
 - wave_number
+- Scanline First Ind Min
+- Seminal Count Max
+- Scanline Intersection Counts Max P75
+- Scanline Intersection Counts P75 Min
+- Scanline First Ind Med
+- Scanline First Ind P25
+- Scanline Intersection Counts Max Med
+- Scanline Intersection Counts Max Min
+- Scanline Last Ind Max
+- Seminal Count Min
 trait_reduction_method: clustering
 trait_reduction_target: both
 trait_clustering_threshold: 0.8
 trait_clustering_linkage: complete
+enrichment_enabled: false
+enrichment_p_value_column: spearman_p
+validate_input: warn

@@ -86,6 +86,27 @@ the relevant `harness/` viz config and re-extracting.
   **full real reproduction data** (original column names `Barcode`/`Genotype`/`Replicate`).
   The post-QC `inputs/post_qc/<platform>_final_data.csv` tables are reused by the
   follow-up contract-conformance change (canonicalized to the contract's role names there).
+- **`expected/cross_platform/root_core_vs_cylinder/` is a documented exception, pinned to
+  a different (later) data vintage than every other fixture in this tree.** Every other
+  fixture here — `inputs/post_qc/{root_core,cylinder,turface_150,turface_19}_final_data.csv`,
+  the three sibling cross-platform pairings, and all QC/viz/numerical-stability goldens —
+  is anchored to the single `pipeline_runs/2026-02-12_191823` run. `root_core_vs_cylinder`
+  alone is regenerated (2026-07-16, as part of the `add-cross-platform-prediction`
+  OpenSpec change's trait-set identity oracle investigation — see that change's
+  `design.md` Decision 2) from the **2026-03-30** run behind the wheat EDPIE paper's
+  published Section 3.4 result (`wheat-edpie-paper/data/cross_platform_field_v2/
+  cross_platform_Root_Core_EDPIE_vs_Cylinder_EDPIE_20260330_213908/`, external vault),
+  using two additionally-committed post-QC inputs,
+  `inputs/post_qc/{root_core,cylinder}_final_data_paper_vintage.csv`, and a dedicated
+  harness config, `harness/cross_platform/cross_platform_rootcore_vs_cylinder_paper_vintage.yaml`
+  (kept separate from the live `configs/active/` recipe, which continues to track
+  whatever data vintage is current for real analysis work). This was necessary because
+  the Feb-12 vintage clusters to 28 field / 121 cylinder representative traits — not the
+  paper's 14 field / 28 cylinder — so it cannot reproduce the published trait-set-identity
+  result. The regenerated fixture verifiably reproduces the paper exactly: clustering
+  gives 22 field / 129 cylinder representatives; correlating all 22×129 = 2,838
+  representative pairs and filtering to `|ρ| ≥ 0.55` leaves 36 pairs, spanning 14 distinct
+  field traits and 28 distinct cylinder traits.
 
 ## Tolerance policy
 
