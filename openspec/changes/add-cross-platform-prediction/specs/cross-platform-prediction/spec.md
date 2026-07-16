@@ -213,32 +213,48 @@ scenario above.
 
 Cluster-representative trait selection for cross-platform prediction SHALL reuse the existing
 `cluster_correlated_traits`/`select_cluster_representatives` functions
-(`cross_experiment_analysis.py`) unchanged, applied to a **genotype-mean/BLUP-level** trait
-matrix (one row per genotype), at the existing default `threshold=0.8`. On the real EDPIE
-cylinder and field genotype-mean matrices, this selection SHALL deterministically reproduce the
-same representative trait sets reported in the wheat EDPIE paper's Section 3.4 (28 cylinder + 14
-field traits) — a trait-set **identity** check, not a numeric correlation/R² threshold.
+(`cross_experiment_analysis.py`) unchanged, applied independently to the **field** and
+**cylinder** genotype-mean trait matrices (one row per genotype, raw arithmetic per-genotype
+mean — matching `ReduceTraitRedundancyStep`'s `.groupby().mean()`, not a BLUP-adjusted mean; see
+design.md Decision 2), at the existing default `threshold=0.8`. Every resulting field
+representative trait SHALL then be correlated (Spearman) against every resulting cylinder
+representative trait, on the real EDPIE `root_core_vs_cylinder` genotype-mean data. Among the
+pairs with `|ρ| >= 0.55`, the count of **distinct** field traits and the count of **distinct**
+cylinder traits appearing in those pairs SHALL deterministically reproduce the trait counts
+reported in the wheat EDPIE paper's Section 3.4 (14 field traits, 28 cylinder traits) — a
+trait-set **identity** check on the correlation-filtered, downstream trait set, not a numeric
+correlation/R² threshold and not the raw per-platform representative counts (which are an
+intermediate quantity, not the oracle's target).
 
-> **STATUS: BLOCKED pending handoff investigation — see design.md Decision 2, tasks.md task 1.4.
-> The requirement text above is the pre-`/review-openspec` draft, retained for reference only. It
-> is NOT approved for implementation.** Round 1 review found: (a) a real, already-committed
-> fixture in this repo
-> (`tests/fixtures/real/wheat_edpie/expected/cross_platform/root_core_vs_cylinder/exp{1,2}_trait_clusters.csv`)
-> shows `select_cluster_representatives` alone produces 28 field / 121 cylinder representative
-> traits — neither matches "28 cylinder + 14 field"; (b) the paper's actual Section 3.4 text
-> ("Of 2,838 trait pairs tested... 36 had |ρ|≥0.55, spanning 14 field traits and 28 cylinder
-> traits") describes a downstream artifact of clustering *plus* cross-platform correlation
-> filtering, not raw per-platform representative counts. This requirement SHALL be rewritten once
-> a handoff investigation into the real Section 3.4 pipeline returns, before any test is written
-> against it.
+> **Resolved 2026-07-16 — see design.md Decision 2's resolution and tasks.md task 1.4.** A
+> handoff investigation confirmed against the real Mar-30 paper-run artifacts
+> (`cross_platform_correlations.csv` in `wheat-edpie-paper/data/cross_platform_field_v2/
+> cross_platform_Root_Core_EDPIE_vs_Cylinder_EDPIE_20260330_213908/`) that clustering alone
+> produces 22 field / 129 cylinder representatives (not the raw counts of 28/14 the earlier draft
+> of this requirement asserted directly), and that correlating all 22×129=2,838 representative
+> pairs, filtering to `|ρ|>=0.55` (36 pairs survive), and counting distinct traits per side among
+> those 36 pairs reproduces 14 field / 28 cylinder exactly. The investigation also found the
+> fixture this repo had already committed for `root_core_vs_cylinder` (28 field / 121 cylinder
+> representatives) comes from an unrelated, older 2026-02-12 data vintage — not the paper's own
+> run — and must be regenerated from the Mar-30 vintage (task 1.4) before the scenarios below can
+> pass.
 
-#### Scenario: Real EDPIE data reproduces the Section 3.4 trait counts
+#### Scenario: Clustering each platform independently reproduces the intermediate representative counts
 
-- **WHEN** `cluster_correlated_traits`/`select_cluster_representatives` is run on the verified
-  real EDPIE cylinder genotype-mean matrix at `threshold=0.8`
-- **THEN** the resulting representative-trait count SHALL be 28
-- **WHEN** the same is run on the verified real EDPIE field genotype-mean matrix
-- **THEN** the resulting representative-trait count SHALL be 14
+- **WHEN** `cluster_correlated_traits`/`select_cluster_representatives` is run on the real EDPIE
+  field genotype-mean matrix at `threshold=0.8`
+- **THEN** the resulting representative-trait count SHALL be 22
+- **WHEN** the same is run on the real EDPIE cylinder genotype-mean matrix
+- **THEN** the resulting representative-trait count SHALL be 129
+
+#### Scenario: Correlation filtering at |ρ|≥0.55 reproduces the Section 3.4 trait counts
+
+- **WHEN** every field representative trait (22, from the scenario above) is correlated (Spearman)
+  against every cylinder representative trait (129), on the real EDPIE `root_core_vs_cylinder`
+  genotype-mean data
+- **THEN** exactly 2,838 pairs SHALL be tested, of which exactly 36 SHALL have `|ρ| >= 0.55`
+- **AND** among those 36 pairs, the count of distinct field traits SHALL be 14 and the count of
+  distinct cylinder traits SHALL be 28
 
 #### Scenario: Selection is deterministic given the same input
 

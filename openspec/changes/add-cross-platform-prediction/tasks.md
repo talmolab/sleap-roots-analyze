@@ -9,9 +9,12 @@
 > (1.1/1.2, empirically verified — do not reuse theory.md's literal single-seed recipe, which was
 > independently confirmed NOT to recover its claimed R² at this program's scale); `representative_
 > indices` renamed `representative_names` throughout (Decision 7); input-validation tests added
-> (new 3.13-3.18); Section 5 (trait-set identity oracle) is **BLOCKED** pending a handoff
-> investigation — do not start it; Section 6's export gained a test-first task; Section 9 gained a
+> (new 3.13-3.18); Section 6's export gained a test-first task; Section 9 gained a
 > `docs/CROSS_PLATFORM_ANALYSIS.md` task.
+>
+> **Section 5 (trait-set identity oracle) was BLOCKED pending a handoff investigation — RESOLVED
+> 2026-07-16, see design.md Decision 2's resolution and task 1.4 below.** Section 5 is now
+> unblocked.
 
 ## 1. Fixtures (test-first)
 
@@ -49,19 +52,50 @@
       `fit_pca_on_fold` make no assumption about EDPIE-specific shapes or names. Follow the same
       N-seed-averaged design as 1.1 for the same statistical reasons. Document the chosen
       parameters and seeds.
-- [ ] 1.4 **BLOCKED — trait-set identity oracle (Section 5). Do not start until this returns.**
-      `/review-openspec` round 1 found the original design (reproduce 28 cylinder + 14 field
-      traits directly from `select_cluster_representatives()` on BLUP-adjusted means) tests the
-      wrong substrate and very likely the wrong quantity — see design.md Decision 2's full
-      revision. Confirmed: a real, already-committed fixture in this repo
-      (`tests/fixtures/real/wheat_edpie/expected/cross_platform/root_core_vs_cylinder/
-      exp{1,2}_trait_clusters.csv`) shows `select_cluster_representatives` alone gives 28
-      field / 121 cylinder representatives — neither matches 14/28. A handoff investigation has
-      been requested (external vault access needed to confirm the real Section 3.4 pipeline
-      mechanism: clustering alone, or clustering plus cross-platform correlation filtering at
-      |ρ|≥0.55, per `results_3.4_draft_20260330.md`'s literal wording). **Section 5 cannot be
-      correctly specced or implemented until this returns — proceed with Sections 2, 3, 4, 6-10
-      in the meantime; they do not depend on this resolution.**
+- [ ] 1.4 **Regenerate the `root_core_vs_cylinder` fixture at the Mar-30 paper vintage — resolved
+      plan, see design.md Decision 2's 2026-07-16 resolution.** The 2026-07-16 handoff
+      investigation confirmed the real Section 3.4 mechanism (cluster each platform's traits at
+      |ρ|≥0.80 → correlate every field-representative × cylinder-representative pair → filter to
+      |ρ|≥0.55 → count distinct traits per side) against the real Mar-30 paper-run artifacts, and
+      found the currently-committed `root_core_vs_cylinder` fixture's 28 field/121 cylinder
+      representative counts come from an unrelated, older **2026-02-12** data vintage (the same
+      vintage every other `wheat_edpie` golden in this repo is anchored to) — not from the paper's
+      own run. Concrete steps:
+      1. Copy the Mar-30 run's QC'd inputs — `07_data_outliers_removed.csv` for both root_core and
+         cylinder, from `wheat-edpie-paper/data/cross_platform_field_v2/
+         cross_platform_Root_Core_EDPIE_vs_Cylinder_EDPIE_20260330_213908/` (external vault; paths
+         to be supplied by Elizabeth) — into this repo's fixture tree as a clearly-labeled
+         exception vintage (e.g. `tests/fixtures/real/wheat_edpie/inputs/post_qc/
+         root_core_final_data_paper_vintage.csv` / `cylinder_final_data_paper_vintage.csv`, naming
+         decided during implementation).
+      2. Add a harness config carrying that run's exact exclude-column lists (9 field + 10
+         cylinder columns beyond the Feb-12 fixture's list — see design.md Decision 2's resolution
+         for the full column names) and `min_genotypes_for_correlation: 10` /
+         `min_samples_per_genotype: 2` / `trait_clustering_threshold: 0.8` /
+         `correlation_method: spearman` (matching the source run's `config.yaml` exactly).
+      3. Regenerate `expected/cross_platform/root_core_vs_cylinder/{config.yaml,
+         cross_platform_alignment_summary.csv, cross_platform_correlations.csv,
+         exp1_trait_clusters.csv, exp2_trait_clusters.csv, pipeline_summary.json}` in place via
+         the current pipeline code (`ReduceTraitRedundancyStep` +
+         `cluster_correlated_traits`/`select_cluster_representatives` + the cross-platform
+         correlation step).
+      4. **Verify** the regenerated fixture reproduces: 22 field / 129 cylinder representatives →
+         2,838 candidate pairs → 36 pairs at `|ρ|≥0.55` → **14 distinct field traits / 28 distinct
+         cylinder traits** among those 36 — an exact match to the published Section 3.4 numbers.
+         If it doesn't match exactly, re-check the copied exclude-column lists and QC data against
+         the source run before touching Section 5's oracle test.
+      5. Add a README note in `tests/fixtures/real/wheat_edpie/` (or the `inputs/raw/README.txt`
+         provenance doc) flagging `root_core_vs_cylinder` as a documented exception pinned to the
+         Mar-30 paper-run vintage, distinct from the tree's Feb-12 anchor used everywhere else
+         (the other 3 sibling directed-pair fixtures — `root_core_vs_turface_19`,
+         `turface_150_vs_turface_19`, `turface_19_vs_cylinder` — stay on Feb-12, unchanged).
+      Confirmed safe: only `test_pipeline_reproduction.py` reads
+      `cross_platform_correlations.csv`/`cross_platform_alignment_summary.csv` from this fixture
+      family, and only structurally (columns present, non-empty, `spearman_r ∈ [-1, 1]`, positive
+      counts) — never the exact 28/121/3388 values; `bloommcp` has zero path/data connection to
+      this fixture subtree (published-package dependency only, its own `wheat_edpie` goldens are
+      an unrelated `turface_19` QC/PCA copy). Regenerating in place cannot break any
+      currently-passing test.
 
 ## 2. `fit_pca_on_fold` (test-first)
 
@@ -207,26 +241,37 @@
       `fit_inside_fold=False` branch — 3.1/3.2/3.4's mock/spy tests already assert this
       structurally; cross-reference here rather than duplicating.
 
-## 5. Trait-set identity oracle — **BLOCKED, do not start** (see task 1.4 / design.md Decision 2)
+## 5. Trait-set identity oracle — **unblocked 2026-07-16** (see task 1.4 / design.md Decision 2)
 
-> `/review-openspec` round 1 found the original design below tests the wrong substrate and very
-> likely the wrong quantity (confirmed: a real committed fixture shows `select_cluster_
-> representatives` alone gives 28 field / 121 cylinder representatives, not 14/28 — see task 1.4
-> and design.md Decision 2 for the full finding). **5.1/5.2 below are the pre-review draft,
-> retained for reference only — do not implement against them as written.** A handoff
-> investigation into the real Section 3.4 pipeline has been requested; this section will be
-> rewritten once it returns, before any implementation here begins.
+> `/review-openspec` round 1 found the pre-review design below tested the wrong substrate and
+> quantity (a real committed fixture showed `select_cluster_representatives` alone gives 28
+> field / 121 cylinder representatives, not 14/28). The 2026-07-16 handoff investigation confirmed
+> the real mechanism — clustering *plus* cross-platform correlation filtering at |ρ|≥0.55, counting
+> **distinct** traits per side among the surviving pairs — against the actual Mar-30 paper-run
+> artifacts, and traced the fixture mismatch to an unrelated older data vintage (see design.md
+> Decision 2's resolution). **5.1-5.3 below implement against the regenerated fixture from task
+> 1.4 — do not start until task 1.4's regeneration is complete and verified.**
 
-- [ ] 5.1 **(superseded, pending rewrite)** Once task 1.4 resolves the real mechanism, write a
-      failing test reproducing whatever the actual Section 3.4 pipeline does — likely clustering
-      *plus* cross-platform correlation filtering at |ρ|≥0.55, not clustering alone (see task
-      1.4's reconstruction). Do not assume the pre-review draft's "call
-      `select_cluster_representatives` on genotype-mean/BLUP-level input, assert 28/14" design is
-      correct — it has been empirically shown not to match.
-- [ ] 5.2 **(superseded, pending rewrite)** `test_cluster_representatives_deterministic_given_same_input`
-      may still be a valid, independent check once 5.1 is rewritten (determinism of
-      `cluster_correlated_traits`/`select_cluster_representatives` alone is unaffected by which
-      quantity 5.1 ultimately targets) — re-confirm once 5.1's design is finalized.
+- [ ] 5.1 Write failing test `test_cluster_and_correlate_reproduces_section_3_4_representative_counts`
+      (`tests/test_cross_platform_prediction.py` or alongside `cross_experiment_analysis.py`'s
+      existing clustering tests, whichever this repo's convention favors): run
+      `cluster_correlated_traits`/`select_cluster_representatives` (`threshold=0.8`) on the
+      regenerated `root_core_vs_cylinder` fixture's (task 1.4) field and cylinder genotype-mean
+      matrices; assert exactly **22** field representatives and **129** cylinder representatives —
+      the intermediate quantity confirmed against the fixture's own `pipeline_summary.json`, not
+      yet the paper's headline 14/28.
+- [ ] 5.2 Write failing test `test_cross_platform_correlation_filter_reproduces_section_3_4_trait_set`:
+      correlate every field-representative × cylinder-representative pair from 5.1 (Spearman, on
+      genotype means — matching `ReduceTraitRedundancyStep`'s plain `.groupby().mean()`, not a
+      BLUP; see design.md Decision 2 finding 1) using this repo's existing cross-platform
+      correlation step; assert **2,838** total pairs tested, **36** pairs with `|ρ| >= 0.55`, and
+      among those 36 pairs exactly **14 distinct field traits** and **28 distinct cylinder
+      traits** — the literal trait-set identity oracle from issue #194, reproducing Section 3.4's
+      published numbers exactly via the real pipeline code, not a hardcoded lookup.
+- [ ] 5.3 Write failing test `test_cluster_representatives_deterministic_given_same_input`: run
+      `cluster_correlated_traits`/`select_cluster_representatives` twice on the same genotype-mean
+      matrix (from 5.1's fixture); assert identical cluster assignments and identical
+      representative selections both times.
 
 ## 6. `CrossPlatformPredictionResult` (test-first)
 
@@ -340,11 +385,10 @@
 - [ ] 10.4 `/review-openspec` — adversarial proposal review, ≥1 round, reconcile literally into
       `design.md`. **Round 1 complete** (5 parallel reviewers; 2 BLOCKING + 9 IMPORTANT findings,
       reconciled into `design.md`'s "Adversarial Review Reconciliation (round 1)" section, this
-      file, and `proposal.md` — one BLOCKING finding, the trait-set identity oracle's mechanism,
-      remains genuinely open pending a handoff investigation; see task 1.4). This task is not
-      satisfied until the user has reviewed and approved the reconciled proposal — required before
-      implementation (Sections 1-9 above) begins, per the roadmap's per-tier loop. Section 5 also
-      requires the handoff investigation's return before it can be implemented, independent of
-      general approval on Sections 1-4/6-10.
+      file, and `proposal.md`). The trait-set identity oracle's mechanism was the one BLOCKING
+      finding left genuinely open pending a handoff investigation — **resolved 2026-07-16**, see
+      design.md Decision 2's resolution and task 1.4. This task is not satisfied until the user has
+      reviewed and approved the reconciled proposal, including this resolution — required before
+      implementation (Sections 1-9 above) begins, per the roadmap's per-tier loop.
 - [ ] 10.5 Complete Section 8's manual real-data validation and get Elizabeth's explicit sign-off
       before opening the PR.

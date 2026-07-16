@@ -22,10 +22,11 @@ four with no existing in-repo LOGO-CV pattern to extend. The closest analog is `
 The existing `cluster_correlated_traits`/`select_cluster_representatives` functions
 (`cross_experiment_analysis.py:1832-2014`, consumed today by `ReduceTraitRedundancyStep`) already
 implement the correlation-threshold clustering + highest-variance-representative selection this
-tier's trait-set identity oracle needs — no new clustering code is required. **However, see
-Decision 2 (revised after `/review-openspec` round 1): what exactly the trait-set identity oracle
-should assert is currently BLOCKED pending an investigation into the real Section 3.4 pipeline —
-do not start Section 5 of tasks.md until that investigation returns.**
+tier's trait-set identity oracle needs — no new clustering code is required. **See Decision 2's
+2026-07-16 resolution: a handoff investigation confirmed the real Section 3.4 mechanism (clustering
+plus cross-platform correlation filtering, not clustering alone) and identified a data-vintage
+mismatch in the currently-committed fixture. Section 5 of tasks.md is unblocked — see task 1.4 and
+Decision 2 for the concrete fixture-regeneration plan.**
 
 ## Goals / Non-Goals
 
@@ -37,7 +38,8 @@ do not start Section 5 of tasks.md until that investigation returns.**
   belongs to Tier 3.5's `PredictionConfig.__post_init__`, not this tier); a new
   `CrossPlatformPredictionResult` frozen dataclass; the five acceptance-criteria oracles from issue
   #194 (planted-signal recovery, leakage regression test, PC1 per-fold oracle, trait-set identity
-  oracle — **blocked, see Decision 2** — and synthetic non-EDPIE generalizability fixture); a
+  oracle — **resolved, see Decision 2's 2026-07-16 resolution** — and synthetic non-EDPIE
+  generalizability fixture); a
   non-CI manual validation task against real EDPIE platform data before merge.
 - **Non-Goals:** the `PredictionConfig` dataclass, `PredictCrossPlatformStep`, and any CLI/pipeline
   wiring (Tier 3.5); the permutation null and its figures (Tier 4); PLS component-count search
@@ -76,7 +78,7 @@ on the same answer:
   to propose then, with a concrete motivating result in hand rather than speculatively.
 - **Inner-CV search over 1-3.** Rejected for the reasons above.
 
-### Decision 2: Cluster-representative-selection input is genotype-mean/BLUP-level, not raw sample-level — **REVISED after `/review-openspec` round 1; trait-set identity oracle BLOCKED**
+### Decision 2: Cluster-representative-selection input is genotype-mean/BLUP-level, not raw sample-level — **REVISED after `/review-openspec` round 1; RESOLVED 2026-07-16 by handoff investigation**
 
 **What (original, pre-review):** The trait-set identity oracle computes the Spearman correlation
 matrix that feeds `cluster_correlated_traits` on the **genotype × trait BLUP-adjusted-means
@@ -118,27 +120,93 @@ by counting a real committed fixture):**
    originally scoped (reproduce 28/14 directly from `select_cluster_representatives` alone) tests
    the wrong quantity.
 
-**Current status: BLOCKED.** A handoff investigation has been requested (external vault access
-needed to find the exact script/run behind `results_3.4_draft_20260330.md`'s numbers and confirm
-the reconstructed cluster→correlate→filter→count-distinct pipeline above, or correct it). **Do not
-begin tasks.md Section 5 (trait-set identity oracle) until this returns.** Everything else in this
-tier (Sections 1-4, 6-10) does not depend on the answer and can proceed. Once resolved, this
-Decision and the `cross-platform-prediction` spec's "Trait-Set Identity Oracle" requirement need a
-follow-up revision reflecting the actual mechanism.
+**Resolution (handoff investigation, 2026-07-16):** The requested investigation located and
+directly counted the real Section 3.4 provenance artifacts, confirming the reconstructed
+cluster→correlate→filter→count-distinct pipeline above and identifying one additional root cause
+that finding 3 didn't anticipate.
 
-**What is NOT blocked:** `cluster_correlated_traits`/`select_cluster_representatives` reuse for the
-`reduction_method="representatives"` *prediction* path (Section 3) does not depend on this
+*Source run.* `wheat-edpie-paper/data/cross_platform_field_v2/
+cross_platform_Root_Core_EDPIE_vs_Cylinder_EDPIE_20260330_213908/` (external vault, timestamped
+2026-03-30, the same afternoon as `results_3.4_draft_20260330.md`). Its committed
+`cross_platform_correlations.csv` has exactly **2,838 rows** (matching "2,838 trait pairs tested"
+verbatim), of which **36** have `|spearman_r| >= 0.55` (matching "36 had |ρ|≥0.55" verbatim),
+spanning **14 distinct `exp1_trait` (field)** and **28 distinct `exp2_trait` (cylinder)** values
+among those 36 rows — an exact match to "14 field traits and 28 cylinder traits." Its
+`pipeline_summary.json` confirms the denominator: clustering reduced field traits 24→**22**
+representatives and cylinder traits 836→**129** representatives, and **22 × 129 = 2,838** exactly.
+This confirms finding 3's reconstruction: cluster each platform's traits independently (|ρ|≥0.80,
+highest-variance representative per cluster) → correlate every field-representative ×
+cylinder-representative pair → filter to |ρ|≥0.55 → count **distinct** traits per side among the
+surviving pairs. There is no additional filter trimming a larger candidate space down to 2,838 —
+the paper's run had 22×129=2,838 candidate pairs from the start.
+
+*The one correction to finding 3.* The "28 field / 121 cylinder" representative counts from this
+repo's currently-committed `root_core_vs_cylinder` fixture are not the paper's own per-platform
+representative counts at all — they come from a **different, older data vintage**. This repo's
+entire `wheat_edpie` golden fixture tree (QC goldens, viz goldens, numerical-stability goldens, and
+the issue-#120 PC-correlation/enrichment goldens) is anchored to a single **2026-02-12** pipeline
+run (`pipeline_runs/2026-02-12_191823`, documented in
+`tests/fixtures/real/wheat_edpie/inputs/raw/README.txt`); the committed `root_core_vs_cylinder`
+fixture's `config.yaml` points at that same Feb-12 QC output and a narrower exclude-column list (9
+fewer field columns, 10 fewer cylinder columns excluded pre-clustering than the paper's Mar-30
+run), which is why it clusters to 35→28 field / 819→121 cylinder representatives instead of
+24→22 / 836→129. The paper's cylinder count of 28 is a coincidental numeric collision with the
+fixture's field-representative count of 28 — not the same quantity. The fixture is internally
+self-consistent and was never wrong on its own terms; it simply is not, and was never intended to
+be, the substrate for literally reproducing the published Section 3.4 numbers.
+
+**Chosen resolution:** bring in the Mar-30 vintage as a second, explicitly-labeled data snapshot
+used *only* for the `root_core_vs_cylinder` trait-set identity oracle. The other 3 sibling
+directed-pair fixtures (`root_core_vs_turface_19`, `turface_150_vs_turface_19`,
+`turface_19_vs_cylinder`) and every QC/viz/numerical-stability golden stay on the Feb-12 anchor,
+unchanged. Confirmed safe to do: a repo-wide audit found only `test_pipeline_reproduction.py` reads
+`cross_platform_correlations.csv`/`cross_platform_alignment_summary.csv` from this fixture family,
+and it only asserts structural properties (required columns present, non-empty, `spearman_r ∈
+[-1, 1]`, positive genotype/sample counts) — never the exact 28/121/3388 values; no other test
+reads `config.yaml`, `exp{1,2}_trait_clusters.csv`, or `pipeline_summary.json` from this fixture at
+all. `bloommcp` depends on `sleap-roots-analyze` only as a published PyPI package (library code, no
+test fixtures shipped) and its own `wheat_edpie`-labeled goldens are an unrelated,
+independently-copied `turface_19` QC/PCA fixture family with zero path or data connection to
+`cross_platform/root_core_vs_cylinder`. Regenerating this one fixture in place therefore cannot
+break any currently-passing test or any downstream consumer.
+
+Concretely: copy the Mar-30 run's `07_data_outliers_removed.csv` (root_core and cylinder) into the
+fixture tree as a labeled exception; add a harness config carrying the Mar-30 run's exact
+exclude-column lists; regenerate `expected/cross_platform/root_core_vs_cylinder/*` via the current
+pipeline code; verify it reproduces 22/129 representatives → 2,838 pairs → 36 pairs at |ρ|≥0.55 →
+14 field/28 cylinder distinct; add a README note flagging this one directory as a documented
+exception to the tree's Feb-12 anchor (see tasks.md task 1.4 for the concrete steps). The
+trait-set identity oracle (tasks.md Section 5) then exercises the real
+`cluster_correlated_traits`/`select_cluster_representatives` functions plus a new
+correlate-and-filter step against this regenerated fixture, asserting the **14 field / 28
+cylinder distinct-trait-count** invariant among pairs at `|ρ|≥0.55` — not the per-platform
+representative counts (22/129), which are an intermediate quantity, not the oracle's target. This
+also corrects the original requirement text in `cross-platform-prediction`'s spec.md, which
+asserted representative-trait counts of 28/14 directly (the wrong substrate, per finding 3) — see
+the rewritten requirement there.
+
+**What was never blocked:** `cluster_correlated_traits`/`select_cluster_representatives` reuse for
+the `reduction_method="representatives"` *prediction* path (Section 3) never depended on this
 resolution — that path only needs *some* deterministic, unsupervised representative-selection
 mechanism (variance-based, at any consistent aggregation level), not a specific reproduction of
-28/14. Only the standalone "trait-set identity oracle" (Section 5) is blocked.
+28/14.
 
-**Alternatives considered (for the eventual resolution):**
-- **Raw genotype-mean, matching `ReduceTraitRedundancyStep` exactly.** Likely correct for
-  reproducing the historical clustering step itself, but per finding 3 above, clustering alone may
-  not be the full mechanism the 14/28 figure measures.
+**Alternatives considered (for the resolution):**
+- **Raw genotype-mean, matching `ReduceTraitRedundancyStep` exactly.** Confirmed correct for
+  reproducing the historical clustering step itself — the Mar-30 run's `pipeline_summary.json`
+  step `02_reduce_trait_redundancy` uses exactly this path. But per finding 3 and the resolution
+  above, clustering alone is not the full mechanism the 14/28 figure measures — correlation
+  filtering on top of clustering is required.
 - **BLUP-adjusted mean.** Rejected as the oracle's substrate (though still valid as a *separate*,
   clearly-labeled robustness/ablation report, per finding 2 above) — it cannot be what produced a
   pre-Tier-1 historical result.
+- **Treat the paper's precomputed `cross_platform_correlations.csv` as the oracle directly,
+  without rerunning clustering/correlation code.** Considered; rejected as weaker than exercising
+  the real pipeline — it would not catch a regression in `cluster_correlated_traits` or a future
+  correlation-and-filter step, only a change in a static reference file.
+- **Keep the Feb-12 fixture as canonical and drop the literal 14/28 assertion.** Considered;
+  rejected because it would decouple Tier 3's oracle from the actual published Section 3.4 result,
+  requiring issue #194's acceptance criterion to be edited rather than met.
 
 ### Decision 3: Permutation runtime is documented, not designed around, in Tier 3
 
@@ -389,13 +457,15 @@ unexamined default or an unstated precondition as a settled, validated design ch
   pipeline-level step leaks the held-out genotype into loadings) but means there are now two
   PCA-fitting code paths in the codebase with different contracts — worth a clear docstring
   cross-reference in both directions so a future reader doesn't try to consolidate them.
-- **Trait-set identity oracle mechanism is BLOCKED, not just under-specified.** Superseded by
-  Decision 2's round-1 revision above: this is no longer a "verify exact numbers at implementation
-  time" risk (like a Tier 1/2 fixture-parameter deferral) — it's a confirmed mismatch between what
-  the oracle was designed to test (raw `select_cluster_representatives` output) and what the real
-  Section 3.4 result appears to actually be (a downstream artifact of clustering plus
-  cross-platform correlation filtering). Blocks tasks.md Section 5 specifically; does not block
-  Sections 1-4, 6-10.
+- **Trait-set identity oracle mechanism — resolved, but requires a one-time fixture regeneration.**
+  Superseded by Decision 2's 2026-07-16 resolution: the oracle targets clustering plus
+  cross-platform correlation filtering (confirmed against the real Mar-30 paper-run artifacts), not
+  clustering alone. The residual risk is narrower now: the `root_core_vs_cylinder` fixture must be
+  regenerated from a second, explicitly-labeled Mar-30 data vintage before Section 5 can be
+  implemented against it (task 1.4) — a one-time fixture-authoring step, not an open design
+  question. If the regenerated fixture does not reproduce 22/129 representatives → 2,838 pairs →
+  14/28 distinct exactly, that is a signal to re-check the copied exclude-column lists/QC data
+  against the source run before touching the oracle test itself.
 
 ## Migration Plan
 
@@ -405,8 +475,9 @@ fixtures only. No existing caller is affected.
 
 ## Open Questions
 
-**Blocking:** Decision 2's trait-set identity oracle mechanism — a handoff investigation has been
-requested (external vault access needed); tasks.md Section 5 is on hold pending its return.
+**Resolved:** Decision 2's trait-set identity oracle mechanism — the 2026-07-16 handoff
+investigation returned; tasks.md Section 5 is unblocked (task 1.4 has the concrete
+fixture-regeneration plan).
 
 **Not blocking:** Decision 4's metric-interpretation flag remains open for final confirmation but
 does not block implementation (Sections 1-4 already implement it consistently, and it's cheap to
@@ -426,7 +497,11 @@ documentation, git workflow) against this proposal before any implementation beg
   28 field / 121 cylinder representatives, not 14/28). Fixed: Decision 2 rewritten; Section 5
   blocked pending a handoff investigation into the real Section 3.4 pipeline (cluster → correlate
   representative pairs → filter |ρ|≥0.55 → count distinct traits per side, reconstructed from
-  `results_3.4_draft_20260330.md`'s exact wording but not yet confirmed).
+  `results_3.4_draft_20260330.md`'s exact wording but not yet confirmed). **Resolved 2026-07-16:**
+  the handoff investigation confirmed this mechanism exactly against the real Mar-30 paper-run
+  artifacts, and additionally found the committed fixture's 28/121 comes from an older, unrelated
+  Feb-12 data vintage — see Decision 2's resolution for the full reconciliation and the
+  fixture-regeneration plan now unblocking Section 5.
 - **BLOCKING — planted-signal/pure-noise fixtures don't recover their claimed R² at theory.md's
   literal single-seed parameters.** Independently reproduced: seed=42 gives R²=0.469 (ridge, not
   "≈0.8"); seeds 1-7 range -0.67 to 0.87. Fixed: Decision 6 redesigns both fixtures as N=20-seed

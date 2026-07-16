@@ -58,18 +58,21 @@ to this repo; referenced here for provenance only).
   finite-float contract, a `from_*` adapter, added to `__all__` and the package `__init__.py`. One
   instance per (platform pair, reduction method); nested `TargetPrediction` list covers each
   cluster-representative target trait plus PC1 (see design.md Decision 5).
-- **Trait-set identity oracle: BLOCKED, not part of this proposal's implementable scope yet.**
-  `/review-openspec` found the original design (reproduce 28 cylinder + 14 field traits directly
-  from `select_cluster_representatives()` on BLUP-adjusted means) tests the wrong substrate and
-  very likely the wrong quantity entirely — see design.md Decision 2's full revision. A real,
-  already-committed fixture in this repo shows `select_cluster_representatives` alone gives 28
-  field / 121 cylinder representatives, not 14/28; the real Section 3.4 figure appears to be a
-  downstream artifact of clustering *plus* cross-platform correlation filtering, not clustering
-  alone. **A handoff investigation has been requested** (see the separately-delivered vault
-  handoff prompt) to confirm the real mechanism before this oracle can be correctly specced.
-  `cluster_correlated_traits`/`select_cluster_representatives` are still reused unchanged for the
-  `reduction_method="representatives"` *prediction* path (Section 3) — that does not depend on
-  this resolution.
+- **Trait-set identity oracle: resolved 2026-07-16 via handoff investigation.**
+  `/review-openspec` round 1 found the original design (reproduce 28 cylinder + 14 field traits
+  directly from `select_cluster_representatives()` on BLUP-adjusted means) tested the wrong
+  substrate and the wrong quantity entirely — see design.md Decision 2's full revision. The
+  requested handoff investigation confirmed the real mechanism against the actual Mar-30 paper-run
+  artifacts: cluster each platform's traits independently (|ρ|≥0.80, highest-variance
+  representative) → 22 field / 129 cylinder representatives → correlate every representative pair
+  (22×129 = 2,838) → filter to |ρ|≥0.55 (36 pairs survive) → count **distinct** traits per side
+  among those 36 pairs → 14 field / 28 cylinder, an exact match. The investigation also traced this
+  repo's already-committed `root_core_vs_cylinder` fixture's mismatching 28/121 counts to an
+  unrelated, older 2026-02-12 data vintage — not the paper's own run — requiring a one-time fixture
+  regeneration from the Mar-30 vintage (tasks.md task 1.4) before the oracle tests (Section 5) can
+  be implemented. `cluster_correlated_traits`/`select_cluster_representatives` are reused unchanged
+  for both the oracle and the `reduction_method="representatives"` *prediction* path (Section 3) —
+  the latter never depended on this resolution.
 - **Explicit leakage regression test**: theory.md §4's mechanism implemented against a
   **redesigned** planted-signal fixture (design.md Decision 6) — `n_traits=3`, N=20-seed averaged
   R², not theory.md's literal single-seed recipe, which `/review-openspec` empirically found does
@@ -95,10 +98,12 @@ function, config, or pipeline behavior is touched.
 
 - PLS component count fixed at `n_components=1` — no inner-CV search (statistical + Tier-4-runtime
   reasons, design.md Decision 1).
-- **BLOCKED, revised round 1:** the trait-set identity oracle's substrate/mechanism — the original
-  "genotype-mean/BLUP-level" framing conflated two different matrices, and the target quantity
-  (28/14) is very likely not reproducible from clustering alone. Pending a handoff investigation
-  (design.md Decision 2).
+- **Revised round 1, resolved 2026-07-16:** the trait-set identity oracle's substrate/mechanism —
+  the original "genotype-mean/BLUP-level" framing conflated two different matrices, and the target
+  quantity (28/14) is not reproducible from clustering alone. A handoff investigation confirmed the
+  real two-stage mechanism (cluster → correlate → filter → count distinct) against the actual
+  paper-run artifacts and identified a data-vintage mismatch requiring a one-time fixture
+  regeneration (design.md Decision 2, tasks.md task 1.4).
 - Tier 4's permutation-null runtime is estimated and documented (≈152,000 fits, well under the
   30-minute feasibility gate) rather than designed around with parallelization scaffolding now;
   `logo_cv_predict` is written stateless so Tier 4 can wrap it without refactoring (design.md
@@ -126,9 +131,9 @@ function, config, or pipeline behavior is touched.
 ### Affected specs
 
 - `cross-platform-prediction` (ADDED) — new capability: `fit_pca_on_fold`, `logo_cv_predict`, the
-  CV-hygiene contract, the leakage regression test, and the synthetic-fixture oracles. The
-  trait-set identity oracle requirement is present but its mechanism is **blocked** pending a
-  handoff investigation (design.md Decision 2) — do not implement against it until resolved.
+  CV-hygiene contract, the leakage regression test, the synthetic-fixture oracles, and the
+  trait-set identity oracle (mechanism resolved 2026-07-16, design.md Decision 2 — implementation
+  gated only on tasks.md task 1.4's one-time fixture regeneration, not a design question).
 - `serializable-result-types` (ADDED) — new `CrossPlatformPredictionResult` /
   `TargetPrediction` requirement, following the existing frozen-dataclass /
   `to_json(allow_nan=False)` / `from_*` adapter / `__all__` export pattern. (Corrected from an
