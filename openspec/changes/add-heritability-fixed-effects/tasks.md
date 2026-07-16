@@ -607,33 +607,69 @@
       (already implemented and tested, but missing from the normative spec
       text per the review's spec-sync finding) both now have `#### Scenario:`
       entries.
-- [ ] 7.3 **(Deferred — candidate follow-up issue, not fixed in this PR)**
+- [x] 7.3 **(Fixed in this PR, on user request rather than deferred)**
       `fixed_effects` columns are excluded from the low-`H2`-filtering trait
       scan for direct API callers (`remove_low_h2=True`), but
       `StatisticalAnalysisStep` always calls with `remove_low_h2=False`, so
-      the *pipeline's* upstream `trait_cols` (fixed once in `LoadDataStep`
-      via `get_trait_columns`) has no knowledge of
-      `config.statistics.fixed_effects` and only excludes names matching a
-      hardcoded substring list. A `fixed_effects` name outside that list
-      (e.g. `"block"`) is silently treated as a phenotypic trait everywhere
-      upstream of the statistics step. Needs a config-level design decision
-      (auto-derive `additional_exclude_cols` from `fixed_effects`? validate
-      they're disjoint? document the required manual sync?) — out of scope
-      for a same-PR fix; file as a follow-up issue referencing #114.
-- [ ] 7.4 **(Deferred — candidate follow-up issue)** No config-schema
-      validation for `StatisticsConfig.fixed_effects` (e.g. a bare string
-      instead of a list isn't caught, producing a misleading
-      character-by-character "Missing required columns" error). No golden
-      template documents `fixed_effects` even as a commented example.
-- [ ] 7.5 **(Deferred — candidate follow-up issue)** The `ConvergenceWarning`
-      heuristic's confirmed false-negative (a fixed effect
-      near-deterministically confounded with genotype can fit cleanly with
-      zero warnings) is currently only documented in the docstring. Consider
-      surfacing it as an actual `UserWarning` at call time when
-      `fixed_effects` is used, so it's visible without reading source.
-- [ ] 7.6 **(Deferred, minor)** Duplicate entries *within* `fixed_effects`
-      itself (e.g. `["experiment", "experiment"]`) aren't rejected upfront —
-      degrades to a `mixed_model_failed` error from patsy rather than a
-      clean message. No test for the single-level (zero-variance)
-      fixed-effect case (verified correct by hand-tracing, per pre-merge
-      review, but untested).
+      the *pipeline's* upstream `trait_cols` (fixed once in
+      `LoadDataAndImagesStep` via `get_trait_columns`) had no knowledge of
+      `config.statistics.fixed_effects` and only excluded names matching a
+      hardcoded substring list. Fixed via the auto-derive design (chosen
+      over validate-disjoint-and-require-manual-sync, which would only make
+      the trap loud instead of removing it): `VizPipelineConfig.__post_init__`
+      (`viz_config.py`) now unions `statistics.fixed_effects` into
+      `data.additional_exclude_cols` at config-construction time, deduped —
+      no step-ordering change needed. `QCPipelineConfig` has no `statistics`
+      field today, so this fix applies to `VizPipelineConfig`, the only
+      config class composing both `data` and `statistics`. Tests:
+      `test_viz_pipeline_config_auto_excludes_fixed_effects`,
+      `test_viz_pipeline_config_auto_exclude_dedups_overlapping_names`,
+      `test_viz_pipeline_config_no_fixed_effects_leaves_additional_exclude_unchanged`,
+      and an integration test,
+      `test_fixed_effect_column_excluded_from_pipeline_trait_cols`, proving
+      `LoadDataAndImagesStep` no longer treats a `"block"`-named fixed effect
+      as a trait.
+- [x] 7.4 **(Fixed in this PR)** Added `StatisticsConfig.__post_init__`
+      (`components.py`) rejecting `fixed_effects` that isn't `None` or a
+      `list[str]` — catches the bare-string case (a `str` is iterable, so it
+      would otherwise silently become a per-character `fixed_effects` list
+      producing a misleading "Missing required columns" error). The
+      nonexistent-column half of this task needed no new code:
+      `calculate_heritability_estimates`'s existing missing-column check
+      already covers it at runtime, since column names can't be validated
+      until data loads. Added a commented `fixed_effects` example to both
+      viz golden templates (`viz_template_with_images.yaml`,
+      `viz_template_no_images.yaml`) and a note in `docs/API.md`. Tests:
+      `test_statistics_config_fixed_effects_rejects_non_list`,
+      `test_statistics_config_fixed_effects_rejects_non_str_elements`.
+- [x] 7.5 **(Fixed in this PR)** The `ConvergenceWarning` heuristic's
+      confirmed false-negative is now also surfaced as a `UserWarning` at
+      call time (`statistics.py`, in the mixed-model success path, gated on
+      `fixed_effects` being set — same gating convention as the
+      `ConvergenceWarning`-capture block above it): after a successful fit
+      with zero `ConvergenceWarning`s, for each fixed effect, if any
+      genotype's observations are confined to a single level of a fixed
+      effect that has more than one level overall, a `UserWarning`
+      describing the possible confound is emitted. Purely diagnostic — does
+      not change `model_type`/`blup`/`intercept` (unlike the
+      `ConvergenceWarning`-as-failure path, a different, already-correct
+      mechanism). Confirmed to fire correctly (not a false positive) on the
+      existing `heritability_data_field_block` fixture (1.2): 7 of its
+      15 genotypes have only n=2 reps at an 80/20 block skew, which rounds
+      to 0 reps in one block for several of them — a real, previously-silent
+      confound this heuristic now surfaces. Tests:
+      `test_confounded_fixed_effect_emits_user_warning`,
+      `test_unconfounded_fixed_effect_emits_no_user_warning`
+      (`TestConfoundWarning` in `test_statistics.py`).
+- [x] 7.6 **(Fixed in this PR)** Duplicate entries *within* `fixed_effects`
+      itself are now rejected upfront with a structural
+      `{"error": "Duplicate fixed_effects column name(s): [...]"}`, matching
+      the existing missing-column/reused-name error shape, instead of
+      degrading to an obscure `mixed_model_failed` error from patsy. Added
+      the single-level (zero-variance) fixed-effect regression test —
+      confirmed green with no implementation change needed (verified
+      correct by hand-tracing in pre-merge review: `_marginal_intercept`'s
+      "exactly one unmatched level" identity check holds even when
+      `fixed_effects` has zero non-reference coefficients). Tests:
+      `test_duplicate_fixed_effects_names_rejected`,
+      `test_single_level_fixed_effect_succeeds`.

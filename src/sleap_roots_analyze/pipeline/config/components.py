@@ -550,7 +550,14 @@ class StatisticsConfig:
             see that function's docstring for the categorical-treatment
             (every name is `C(...)`-wrapped), metadata-only (not biological
             traits), and empirical frequency-weighted-intercept conventions.
-            Defaults to `None` (the pre-existing genotype-only model).
+            Defaults to `None` (the pre-existing genotype-only model). Must
+            be `None` or a list of `str`; a bare string is rejected at
+            construction time rather than silently iterated
+            character-by-character (PR #193 review). Names listed here are
+            also automatically unioned into
+            `VizPipelineConfig.data.additional_exclude_cols`, so they are
+            never mistaken for phenotypic traits upstream of the statistics
+            step (issue #114).
     """
 
     calculate_anova: bool = True
@@ -558,6 +565,17 @@ class StatisticsConfig:
     alpha: float = 0.05
     generate_blup_table: bool = True
     fixed_effects: Optional[List[str]] = None
+
+    def __post_init__(self):
+        """Validate fixed_effects is None or a list of str (issue #114)."""
+        if self.fixed_effects is not None and (
+            not isinstance(self.fixed_effects, list)
+            or not all(isinstance(fe, str) for fe in self.fixed_effects)
+        ):
+            raise ValueError(
+                f"fixed_effects must be None or a list of str, got "
+                f"{self.fixed_effects!r}"
+            )
 
 
 @dataclass

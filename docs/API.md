@@ -362,6 +362,21 @@ Calculate broad-sense heritability (H²) for traits using mixed models.
   experiment, wave, batch, scanner) to add as fixed effects, changing the
   model formula from `value ~ 1` to `value ~ C(fe_1) + C(fe_2) + ...`
   (issue #114). Default `None` reproduces pre-existing behavior exactly.
+  A duplicate name within `fixed_effects` (e.g. `["experiment",
+  "experiment"]`) is rejected with a structural `{"error": ...}`, same as a
+  missing or invalid column name. When a mixed-model fit succeeds with zero
+  `ConvergenceWarning`s but a genotype's observations are confined to a
+  single level of a fixed effect that has more than one level overall
+  (a confound `statsmodels` doesn't reliably warn about on its own), a
+  `UserWarning` is emitted describing the possible confound; the trait
+  still returns a normal successful result (this is diagnostic only, not a
+  failure classification).
+- `StatisticsConfig.fixed_effects` (the pipeline config equivalent, used by
+  `VizPipelineConfig`) must be `None` or a `list` of `str` -- a bare string
+  is rejected at config-construction time. Names listed there are also
+  automatically unioned into `VizPipelineConfig.data.additional_exclude_cols`,
+  so a fixed-effect column is never mistaken for a phenotypic trait by the
+  pipeline's upstream `trait_cols` scan.
 
 **Returns:**
 - If `remove_low_h2=False`: Dictionary with heritability results

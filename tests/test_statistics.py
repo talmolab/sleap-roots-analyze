@@ -1238,6 +1238,127 @@ class TestFixedEffects:
                 entry["model_type"] == "mixed_model_failed"
             ), f"{trait} should have failed due to the repeated warning"
 
+    def test_duplicate_fixed_effects_names_rejected(self, heritability_data_known_h2):
+        """A repeated name within fixed_effects is rejected with a clear error.
+
+        Regression test (PR #193 review, 7.6): without this check,
+        fixed_effects=["experiment", "experiment"] degrades to an obscure
+        patsy failure from a duplicate C(...) term in the formula, deep
+        inside the per-trait try/except, rather than a clear structural
+        error matching the existing missing-column/reused-name error shape.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = "A"
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["experiment", "experiment"],
+        )
+        assert "error" in result
+        assert "Duplicate fixed_effects" in result["error"]
+        assert "trait_high_h2" not in result
+
+    def test_single_level_fixed_effect_succeeds(self, heritability_data_known_h2):
+        """A single-level (zero variance) fixed_effects column fits successfully.
+
+        Regression test for 7.6: verified correct by hand-tracing in
+        pre-merge review (patsy's C(fe) term contributes zero non-reference
+        coefficients when there is only one level, so
+        _marginal_intercept's "exactly one unmatched level" identity check
+        still holds), but was previously untested.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["single_level"] = "only_value"
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["single_level"],
+        )
+        entry = result["trait_high_h2"]
+        assert "error" not in entry
+        assert entry["model_type"] == "mixed_model"
+        assert "blup" in entry
+        assert isinstance(entry["intercept"], float)
+
+
+class TestConfoundWarning:
+    """Tests for the confound UserWarning heuristic (7.5).
+
+    The ConvergenceWarning-as-failure heuristic (task 1.9/1.11) has a
+    confirmed false-negative: a fixed effect near-deterministically
+    confounded with genotype can fit cleanly with zero warnings from
+    statsmodels itself (see task 1.10). This surfaces an independent,
+    cheap diagnostic instead of leaving that case silent: if any genotype's
+    observations are confined to a single level of a fixed effect that has
+    more than one level overall, that genotype contributes no
+    within-genotype information for separating the two effects.
+    """
+
+    def test_confounded_fixed_effect_emits_user_warning(self):
+        """A fixed effect fully confounded with genotype triggers the warning.
+
+        Every genotype sits in exactly one level of the fixed effect; the
+        trait must still succeed (this is diagnostic only, not a failure).
+        """
+        rng = np.random.default_rng(3)
+        rows = []
+        for g in range(10):
+            level = "A" if g < 5 else "B"
+            effect = rng.normal(0, 2.0)
+            shift = 3.0 if level == "B" else 0.0
+            for r in range(5):
+                rows.append(
+                    {
+                        "geno": f"G{g:02d}",
+                        "trait": 50 + effect + shift + rng.normal(0, 1.0),
+                        "experiment": level,
+                    }
+                )
+        df = pd.DataFrame(rows)
+
+        with pytest.warns(UserWarning, match="confound"):
+            result = calculate_heritability_estimates(
+                df,
+                ["trait"],
+                genotype_col="geno",
+                replicate_col=None,
+                fixed_effects=["experiment"],
+            )
+        entry = result["trait"]
+        assert "error" not in entry
+        assert entry["model_type"] == "mixed_model"
+
+    def test_unconfounded_fixed_effect_emits_no_user_warning(
+        self, heritability_data_known_h2
+    ):
+        """An unconfounded fixed effect does not trigger the warning.
+
+        False-positive guard: genotypes here span multiple levels.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = ["A", "B"] * (len(df) // 2) + ["A"] * (len(df) % 2)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = calculate_heritability_estimates(
+                df,
+                ["trait_high_h2"],
+                genotype_col="geno",
+                replicate_col="rep",
+                fixed_effects=["experiment"],
+            )
+        confound_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert not confound_warnings
+        assert "error" not in result["trait_high_h2"]
+
 
 def _two_level_fixed_effect_fixture(seed=1, n_geno=10, n_reps=5, n_b=2):
     """20/5-rep-style fixture with one fixed effect at a known, unequal split.

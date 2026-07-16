@@ -77,3 +77,26 @@ class VizPipelineConfig:
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     summary: SummaryConfig = field(default_factory=SummaryConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+
+    def __post_init__(self):
+        """Auto-exclude fixed_effects columns from the trait_cols scan (#114, 7.3).
+
+        `LoadDataAndImagesStep` fixes `trait_cols` once, at the very start of
+        the pipeline, using only `data.additional_exclude_cols` plus a
+        hardcoded metadata-substring list -- it has no knowledge of
+        `statistics.fixed_effects` on its own. A fixed_effects name outside
+        that hardcoded list (e.g. "block") would otherwise be silently
+        treated as a phenotypic trait everywhere upstream of the statistics
+        step. Unioning it into `additional_exclude_cols` here, at
+        config-construction time, closes that gap without any step-ordering
+        change. Deduplicates against names already present (e.g. a
+        fixed_effects name that also happens to match the hardcoded
+        substring list, or that a user already listed explicitly).
+        """
+        if self.statistics.fixed_effects:
+            self.data.additional_exclude_cols = list(
+                dict.fromkeys(
+                    (self.data.additional_exclude_cols or [])
+                    + self.statistics.fixed_effects
+                )
+            )

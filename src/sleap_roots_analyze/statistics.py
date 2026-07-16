@@ -467,6 +467,21 @@ def calculate_heritability_estimates(
             )
         }
 
+    # A name repeated within fixed_effects itself (e.g. ["experiment",
+    # "experiment"]) produces a duplicate C(...) term in the formula below,
+    # which degrades to an obscure patsy failure deep inside the per-trait
+    # try/except rather than a clear structural error (PR #193 review).
+    seen_fe_names = set()
+    duplicate_fe_names = []
+    for fe in fixed_effects:
+        if fe in seen_fe_names and fe not in duplicate_fe_names:
+            duplicate_fe_names.append(fe)
+        seen_fe_names.add(fe)
+    if duplicate_fe_names:
+        return {
+            "error": f"Duplicate fixed_effects column name(s): {duplicate_fe_names}"
+        }
+
     for trait in trait_cols:
         if trait not in df.columns:
             heritability_results[trait] = {"error": f"Trait column '{trait}' not found"}
@@ -602,6 +617,43 @@ def calculate_heritability_estimates(
                         intercept = _marginal_intercept(
                             result, model_data, fixed_effects
                         )
+                        # statsmodels' own convergence-warning check (above)
+                        # is a confirmed false-negative for a fixed effect
+                        # near-deterministically confounded with genotype --
+                        # a fit can succeed cleanly with zero warnings (PR
+                        # #193 review, 7.5). Surface an independent, cheap
+                        # diagnostic instead of leaving that case silent: if
+                        # every observation for a genotype sits in a single
+                        # level of a fixed effect that has more than one
+                        # level overall, that genotype contributes no
+                        # within-genotype information for separating the two
+                        # effects, inflating apparent heritability.
+                        for fe in fixed_effects:
+                            if model_data[fe].nunique() < 2:
+                                continue
+                            levels_per_genotype = model_data.groupby("genotype")[
+                                fe
+                            ].nunique()
+                            confounded_genotypes = levels_per_genotype[
+                                levels_per_genotype < 2
+                            ].index.tolist()
+                            if confounded_genotypes:
+                                shown = confounded_genotypes[:5]
+                                more = (
+                                    f" (+{len(confounded_genotypes) - 5} more)"
+                                    if len(confounded_genotypes) > 5
+                                    else ""
+                                )
+                                warnings.warn(
+                                    f"Trait '{trait}': fixed effect '{fe}' "
+                                    f"may be confounded with genotype -- "
+                                    f"{len(confounded_genotypes)} genotype(s) "
+                                    f"appear in only one level of '{fe}': "
+                                    f"{shown}{more}. Heritability may be "
+                                    f"inflated by attributing '{fe}' "
+                                    f"variation to genotype.",
+                                    UserWarning,
+                                )
                     else:
                         intercept = float(result.fe_params["Intercept"])
 

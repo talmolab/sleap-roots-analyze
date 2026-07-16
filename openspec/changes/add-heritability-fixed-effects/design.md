@@ -730,3 +730,55 @@ surfaced 4 more real, fixed issues:
   `fixed_effects=None` caller would still see such a warning). Not required
   by any spec scenario; left as a candidate follow-up rather than expanding
   this tier's scope further.
+
+## PR Review Follow-up (`/review-pr` on PR #193, after the pre-merge review above)
+
+A `/review-pr` pass on the already-open PR reproduced one BLOCKING crash
+(fixed immediately, see `tasks.md` 7.1/7.2) plus four IMPORTANT/minor items
+initially deferred as candidate follow-up issues. On explicit user request,
+all four were fixed in this same PR instead of filed separately (see
+`tasks.md` 7.3–7.6 for the full description and tests of each):
+
+- **7.3 — the pipeline never benefited from the `remove_low_h2=True` fix
+  above.** That fix (pre-merge review, this file) unions `fixed_effects`
+  into `additional_exclude` for direct API callers, but
+  `StatisticalAnalysisStep` always calls with `remove_low_h2=False` — a
+  literal, intentional hardcoded value (this step only *calculates*
+  results; a separate, later step owns actual trait removal), not a
+  configurable flag and not the right lever to fix this regardless. The
+  real gap is upstream: `trait_cols` is fixed once at pipeline step 1
+  (`LoadDataAndImagesStep`), using only `data.additional_exclude_cols`, with
+  no knowledge of `statistics.fixed_effects` at all. **Design choice: auto-
+  derive**, over validating disjointness and requiring the user to name a
+  column in both places (which only makes the trap loud, not gone).
+  `VizPipelineConfig.__post_init__` now unions `statistics.fixed_effects`
+  into `data.additional_exclude_cols` at config-construction time.
+  `QCPipelineConfig` has no `statistics` field, so this fix's reach is
+  `VizPipelineConfig` — the only config class composing both components
+  today.
+- **7.4 — no config-schema validation.** A bare string (itself iterable)
+  passed as `fixed_effects` would silently become a per-character list.
+  Fixed with a `StatisticsConfig.__post_init__` type check. The
+  nonexistent-column half needed no new code — already caught at runtime by
+  the existing missing-column check, which is as early as it can be since
+  column names aren't knowable until data loads.
+- **7.5 — the `ConvergenceWarning` false-negative (documented as a
+  limitation in the pre-merge review above) is now also an actual
+  `UserWarning`.** After a clean fit with `fixed_effects` set, if any
+  genotype's observations are confined to a single level of a fixed effect
+  with more than one level overall, a `UserWarning` fires — purely
+  diagnostic, doesn't reclassify the fit as failed. Confirmed to generalize
+  correctly by re-running the existing test suite: it fires (correctly, not
+  a false positive) on the pre-existing `heritability_data_field_block`
+  fixture (1.2), where several of the 7 low-rep (n=2) genotypes round to
+  100% of their reps in one block under the fixture's 80/20 skew spec —
+  a real, previously-silent confound for those specific genotypes that this
+  heuristic now surfaces without changing any fixture or existing
+  assertion.
+- **7.6 — duplicate names within `fixed_effects` and the single-level
+  case.** A repeated name (e.g. `["experiment", "experiment"]`) now returns
+  the same structural `{"error": ...}` shape as the missing-column/
+  reused-name checks, instead of an obscure patsy failure. The single-level
+  (zero-variance) fixed-effect case needed no code change — a new
+  regression test confirms `_marginal_intercept`'s existing identity check
+  already handles zero recovered non-reference coefficients correctly.

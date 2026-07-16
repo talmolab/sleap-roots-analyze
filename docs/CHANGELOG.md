@@ -37,6 +37,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pipeline's `StatisticalAnalysisStep` writes `08_blup_adjusted_means.csv` alongside
   `08_heritability_results.csv`. Only takes effect when `calculate_heritability` is
   also `True` — free once the model is fit.
+- `StatisticsConfig.fixed_effects` must now be `None` or a `list[str]` — a bare
+  string is rejected with `ValueError` at config-construction time instead of
+  silently degrading to a per-character `fixed_effects` list (PR #193 review).
+- A `UserWarning` is now emitted when a fixed effect is confounded with genotype
+  (every observation for some genotype confined to a single level of that fixed
+  effect), even when the fit converges cleanly with zero `ConvergenceWarning`s —
+  diagnostic only, does not reclassify the trait's result (PR #193 review).
+- A duplicate name within `fixed_effects` (e.g. `["experiment", "experiment"]`) is
+  now rejected with a structural `{"error": ...}`, matching the existing
+  missing-column/reused-name error shape, instead of an obscure `patsy` failure
+  (PR #193 review).
+
+### Fixed
+- `VizPipelineConfig` now automatically unions `statistics.fixed_effects` into
+  `data.additional_exclude_cols` at construction time, so a fixed-effect column
+  named outside the hardcoded metadata-substring list (e.g. `"block"`) is no
+  longer silently treated as a phenotypic trait by the pipeline's upstream
+  `trait_cols` scan. The existing `remove_low_h2=True` fix for direct API callers
+  never reached the pipeline, since `StatisticalAnalysisStep` always calls with
+  `remove_low_h2=False` (PR #193 review).
 
 ### Changed
 - `calculate_heritability_estimates` additively returns `blup` (`dict[str, float]`) and
