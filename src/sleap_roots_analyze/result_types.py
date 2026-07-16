@@ -830,7 +830,15 @@ class BLUPResult:
         failed_traits: Names of traits excluded from ``trait_names`` — no
             model fit, or at least one cell-level gap. Names only, no values.
         intercepts: Fixed-effect intercept per succeeded trait in
-            ``trait_names``; empty if not supplied to the adapter.
+            ``trait_names``; empty if not supplied to the adapter. When the
+            source ``calculate_heritability_estimates`` call used a
+            non-empty ``fixed_effects`` (#114), a value here is the
+            empirical, sample frequency-weighted intercept described in
+            that function's docstring — a sample-composition-dependent
+            quantity that can differ trait-to-trait, not a population-typical
+            or EMM/lsmeans-style equally-weighted value. ``BLUPResult`` and
+            its adapter are unaware of ``fixed_effects`` and store whatever
+            ``intercept`` float each trait's source dict carries, unchanged.
     """
 
     genotype_names: list[str]

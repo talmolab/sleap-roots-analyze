@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 from sleap_roots_analyze.result_types import BLUPResult
+from sleap_roots_analyze.statistics import extract_blup_table
 
 
 def _blup_df():
@@ -190,6 +191,31 @@ class TestBLUPResultAdapter:
         BLUPResult.from_blup_table(df, intercepts={"trait_a": 10.0, "trait_b": 20.0})
 
         pd.testing.assert_frame_equal(df, before)
+
+    def test_intercepts_passthrough_fixed_effects(self):
+        """A fixed-effects-derived intercept passes through unchanged (#114).
+
+        Through both extract_blup_table() and BLUPResult.from_blup_table().
+        BLUPResult and its adapter are unaware of fixed_effects -- they only
+        ever see whatever `intercept` float a trait's source dict carries,
+        whether that came from a plain fixed_effects=None fit or an
+        empirical frequency-weighted fixed_effects fit.
+        """
+        # An arbitrary, non-trivial value standing in for an empirical
+        # frequency-weighted intercept produced by fixed_effects.
+        fixed_effects_intercept = 47.638291
+        heritability_results = {
+            "trait_a": {
+                "model_type": "mixed_model",
+                "blup": {"G01": 0.5, "G02": -0.5},
+                "intercept": fixed_effects_intercept,
+            },
+        }
+        blup_df = extract_blup_table(heritability_results)
+        result = BLUPResult.from_blup_table(
+            blup_df, intercepts={"trait_a": fixed_effects_intercept}
+        )
+        assert result.intercepts["trait_a"] == fixed_effects_intercept
 
 
 class TestBLUPResultExport:
