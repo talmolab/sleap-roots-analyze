@@ -127,13 +127,23 @@ validated for presence in `df`, extending the existing top-level
 `replicate_col`): a missing fixed-effect column SHALL produce the same
 run-level `{"error": "Missing required columns: [...]"}` short-circuit as a
 missing `genotype_col`, listing every missing column. Every name in
-`fixed_effects` SHALL also be validated with `fe.isidentifier()` before being
-interpolated into the formula string; a name that is not a valid Python
-identifier (e.g. one containing a patsy formula operator such as `*` or `:`)
-SHALL produce a run-level structural error rather than being interpolated —
-without this, a column name containing an operator character could silently
-misparse as a patsy expression over other, differently-named columns rather
-than a literal reference to itself. The per-trait model
+`fixed_effects` SHALL also be validated with `isinstance(fe, str) and
+fe.isidentifier()` before being interpolated into the formula string — the
+`isinstance` check SHALL be evaluated first (short-circuiting), so a
+non-`str` element (e.g. an int-labeled column, plausible for a CSV-derived
+batch/wave/scanner code) produces the same run-level structural error rather
+than an uncaught `AttributeError` from calling `.isidentifier()` on a
+non-string. A name that is not a valid Python identifier (e.g. one
+containing a patsy formula operator such as `*` or `:`) SHALL produce a
+run-level structural error rather than being interpolated — without this, a
+column name containing an operator character could silently misparse as a
+patsy expression over other, differently-named columns rather than a
+literal reference to itself. A `fixed_effects` name that duplicates
+`genotype_col` or `replicate_col` SHALL also produce a run-level structural
+error rather than being interpolated — without this, the duplicate column
+selection surfaces as a confusing pandas-internal error deep inside the
+per-trait loop (e.g. `"Grouper for 'geno' not 1-dimensional"`) rather than a
+clear structural error. The per-trait model
 subset SHALL become `df[[trait, genotype_col] + fixed_effects].dropna()`
 (dropping rows with a `NaN` in any fixed-effect column, in addition to the
 existing trait/genotype `NaN` handling) — this subset change SHALL only take
@@ -246,6 +256,30 @@ still ignores `fixed_effects` in its own variance-component computation).
   interpolated as if it were a literal column reference — it SHALL NOT
   silently evaluate as elementwise multiplication of the separate `"rep"`
   and `"block"` columns
+
+#### Scenario: A non-string fixed_effects element is rejected, not crashed
+
+- **GIVEN** `fixed_effects=[5]` where `5` is a valid, int-labeled column in
+  `df` (plausible for a CSV-derived batch/wave/scanner code)
+- **WHEN** `calculate_heritability_estimates(df, trait_cols,
+  fixed_effects=[5])` is called
+- **THEN** the call SHALL produce the same run-level `{"error": "Invalid
+  fixed_effects column name(s): [...]"}` structural error as an
+  invalid-identifier string name
+- **AND** no exception (e.g. `AttributeError` from calling `.isidentifier()`
+  on a non-`str`) SHALL propagate to the caller
+
+#### Scenario: A fixed_effects name duplicating genotype_col or replicate_col is rejected
+
+- **GIVEN** `fixed_effects=["geno"]` where `"geno"` is also `genotype_col`
+  (or, symmetrically, `fixed_effects=[replicate_col]`)
+- **WHEN** `calculate_heritability_estimates` is called
+- **THEN** the call SHALL produce a run-level structural error naming the
+  duplicated column(s)
+- **AND** the per-trait loop SHALL NOT be reached — without this check, the
+  duplicate-column selection surfaces as a confusing pandas-internal error
+  (e.g. `"Grouper for 'geno' not 1-dimensional"`) rather than a clear
+  structural error
 
 #### Scenario: Fixed-effect columns are always treated as categorical
 

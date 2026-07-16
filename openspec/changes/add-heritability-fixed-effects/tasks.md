@@ -592,3 +592,48 @@
       task is not satisfied until the user has reviewed and approved the
       reconciled proposal — required before implementation (Sections 1–5
       above) begins, per the roadmap's per-tier loop.
+
+## 7. PR review follow-up (`/review-pr` on PR #193, after merge into main was not done — fixes landed on the open PR)
+
+- [x] 7.1 Fix BLOCKING: `fixed_effects` element that isn't a `str` (e.g. an
+      int-labeled CSV column) crashed with an uncaught `AttributeError` from
+      `fe.isidentifier()`, contradicting the function's own documented
+      "nothing propagates to the caller" contract. Fixed:
+      `isinstance(fe, str)` checked first (short-circuiting) in the same
+      validation line. Test:
+      `test_fixed_effect_non_string_name_rejected_not_crashed`.
+- [x] 7.2 Documented in the statistics-api spec delta: the non-str rejection
+      (7.1) and the pre-existing genotype/replicate-collision rejection
+      (already implemented and tested, but missing from the normative spec
+      text per the review's spec-sync finding) both now have `#### Scenario:`
+      entries.
+- [ ] 7.3 **(Deferred — candidate follow-up issue, not fixed in this PR)**
+      `fixed_effects` columns are excluded from the low-`H2`-filtering trait
+      scan for direct API callers (`remove_low_h2=True`), but
+      `StatisticalAnalysisStep` always calls with `remove_low_h2=False`, so
+      the *pipeline's* upstream `trait_cols` (fixed once in `LoadDataStep`
+      via `get_trait_columns`) has no knowledge of
+      `config.statistics.fixed_effects` and only excludes names matching a
+      hardcoded substring list. A `fixed_effects` name outside that list
+      (e.g. `"block"`) is silently treated as a phenotypic trait everywhere
+      upstream of the statistics step. Needs a config-level design decision
+      (auto-derive `additional_exclude_cols` from `fixed_effects`? validate
+      they're disjoint? document the required manual sync?) — out of scope
+      for a same-PR fix; file as a follow-up issue referencing #114.
+- [ ] 7.4 **(Deferred — candidate follow-up issue)** No config-schema
+      validation for `StatisticsConfig.fixed_effects` (e.g. a bare string
+      instead of a list isn't caught, producing a misleading
+      character-by-character "Missing required columns" error). No golden
+      template documents `fixed_effects` even as a commented example.
+- [ ] 7.5 **(Deferred — candidate follow-up issue)** The `ConvergenceWarning`
+      heuristic's confirmed false-negative (a fixed effect
+      near-deterministically confounded with genotype can fit cleanly with
+      zero warnings) is currently only documented in the docstring. Consider
+      surfacing it as an actual `UserWarning` at call time when
+      `fixed_effects` is used, so it's visible without reading source.
+- [ ] 7.6 **(Deferred, minor)** Duplicate entries *within* `fixed_effects`
+      itself (e.g. `["experiment", "experiment"]`) aren't rejected upfront —
+      degrades to a `mixed_model_failed` error from patsy rather than a
+      clean message. No test for the single-level (zero-variance)
+      fixed-effect case (verified correct by hand-tracing, per pre-merge
+      review, but untested).

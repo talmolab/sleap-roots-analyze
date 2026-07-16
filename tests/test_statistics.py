@@ -805,6 +805,30 @@ class TestFixedEffects:
         assert "Invalid fixed_effects" in result["error"]
         assert "trait_high_h2" not in result
 
+    def test_fixed_effect_non_string_name_rejected_not_crashed(self):
+        """A non-str fixed_effects element is rejected, not crashed.
+
+        Regression test (PR #193 review): a CSV-derived batch/wave/scanner
+        column can plausibly be int-labeled; `fe.isidentifier()` assumed
+        every element was already a str, crashing with `AttributeError:
+        'int' object has no attribute 'isidentifier'` before the per-trait
+        try/except that this function's own docstring promises shields
+        every caller from an uncaught exception.
+        """
+        df = pd.DataFrame(
+            {
+                "trait": [1.0, 2.0, 3.0, 4.0],
+                "geno": ["a", "a", "b", "b"],
+                5: [1, 1, 2, 2],
+            }
+        )
+        result = calculate_heritability_estimates(
+            df, ["trait"], genotype_col="geno", replicate_col=None, fixed_effects=[5]
+        )
+        assert "error" in result
+        assert "Invalid fixed_effects" in result["error"]
+        assert "trait" not in result
+
     def test_fixed_effect_reusing_genotype_col_rejected(
         self, heritability_data_known_h2
     ):

@@ -441,8 +441,14 @@ def calculate_heritability_estimates(
     # Every fixed_effects name is interpolated directly into the formula
     # string below (issue #114); a name that isn't a valid identifier (e.g.
     # containing a patsy operator like `*` or `:`) could otherwise silently
-    # misparse as an expression over other, differently-named columns.
-    invalid_fe_names = [fe for fe in fixed_effects if not fe.isidentifier()]
+    # misparse as an expression over other, differently-named columns. A
+    # non-str element (e.g. an int-labeled CSV column) has no
+    # .isidentifier() at all -- checked first so this returns the same
+    # structural error instead of an uncaught AttributeError (PR #193
+    # review).
+    invalid_fe_names = [
+        fe for fe in fixed_effects if not isinstance(fe, str) or not fe.isidentifier()
+    ]
     if invalid_fe_names:
         return {"error": f"Invalid fixed_effects column name(s): {invalid_fe_names}"}
 
