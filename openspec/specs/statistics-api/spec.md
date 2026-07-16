@@ -81,7 +81,12 @@ The package SHALL provide `extract_blup_table(heritability_results)` in
 dict returned by `calculate_heritability_estimates()`. For each trait whose
 per-trait entry carries a `blup` dict and an `intercept` float (i.e. the mixed
 model succeeded), the adjusted mean for genotype `g` SHALL be
-`intercept + blup[g]`. For a trait with no `blup`/`intercept` (the model
+`intercept + blup[g]`. `intercept` is supplied by
+`calculate_heritability_estimates()` and MAY be a frequency-weighted marginal
+value (see "Heritability Model Fixed Effects") when that call used
+`fixed_effects`; `extract_blup_table()` itself is unaware of `fixed_effects`
+and applies the same `intercept + blup[g]` formula regardless of how
+`intercept` was computed. For a trait with no `blup`/`intercept` (the model
 failed, errored, used the ANOVA-based or no-variance path, or was skipped),
 the entire column SHALL be `NaN` — not omitted from the table and not
 zero-filled. A genotype absent from one succeeded trait's `blup` dict but
@@ -205,4 +210,369 @@ replicates.
   smaller than `|raw_mean - grand_mean|` (shrinkage toward the grand mean)
 - **AND** this shrinkage gap SHALL be larger for low-replicate genotypes than
   for high-replicate genotypes (shrinkage scales inversely with replication)
+
+### Requirement: Heritability Model Fixed Effects
+
+`calculate_heritability_estimates()` SHALL accept an optional
+`fixed_effects: Optional[List[str]] = None` parameter. When `None` (the
+default), behavior SHALL be byte-for-byte identical to a call without this
+parameter — the model formula remains `"value ~ 1"` and `intercept` remains
+`float(result.fe_params["Intercept"])`.
+
+When `fixed_effects` is a non-empty list, the mixed-model formula for the
+`mixed_model` path SHALL become `"value ~ " + " + ".join(f"C({fe})" for fe in
+fixed_effects)`, wrapping every named column in `C(...)` unconditionally —
+every fixed effect SHALL be treated as categorical regardless of its pandas
+dtype, with no dtype-based inference. Every name in `fixed_effects` SHALL be
+validated for presence in `df`, extending the existing top-level
+`required_cols` check (alongside `genotype_col` and, when truthy,
+`replicate_col`): a missing fixed-effect column SHALL produce the same
+run-level `{"error": "Missing required columns: [...]"}` short-circuit as a
+missing `genotype_col`, listing every missing column. Every name in
+`fixed_effects` SHALL also be validated with `isinstance(fe, str) and
+fe.isidentifier()` before being interpolated into the formula string — the
+`isinstance` check SHALL be evaluated first (short-circuiting), so a
+non-`str` element (e.g. an int-labeled column, plausible for a CSV-derived
+batch/wave/scanner code) produces the same run-level structural error rather
+than an uncaught `AttributeError` from calling `.isidentifier()` on a
+non-string. A name that is not a valid Python identifier (e.g. one
+containing a patsy formula operator such as `*` or `:`) SHALL produce a
+run-level structural error rather than being interpolated — without this, a
+column name containing an operator character could silently misparse as a
+patsy expression over other, differently-named columns rather than a
+literal reference to itself. A `fixed_effects` name that duplicates
+`genotype_col` or `replicate_col` SHALL also produce a run-level structural
+error rather than being interpolated — without this, the duplicate column
+selection surfaces as a confusing pandas-internal error deep inside the
+per-trait loop (e.g. `"Grouper for 'geno' not 1-dimensional"`) rather than a
+clear structural error. The per-trait model
+subset SHALL become `df[[trait, genotype_col] + fixed_effects].dropna()`
+(dropping rows with a `NaN` in any fixed-effect column, in addition to the
+existing trait/genotype `NaN` handling) — this subset change SHALL only take
+effect when `fixed_effects` is non-empty.
+
+A mixed-model fit failure introduced by `fixed_effects` (non-convergence, a
+fixed effect confounded with genotype, or any other `statsmodels` exception)
+SHALL be caught by the existing per-trait `try/except` around the model fit,
+recorded as `{"error": "Mixed model failed: ...", "model_type":
+"mixed_model_failed"}` for that trait — identical handling to a
+non-`fixed_effects`-related fit failure (this reuse of the existing
+`try/except` applies regardless of whether `fixed_effects` is set, since it
+requires no new code). **The additional warning-capture behavior below,
+however, SHALL apply only when `fixed_effects` is non-empty** — this is
+required for the "byte-for-byte identical when `fixed_effects=None`"
+guarantee earlier in this requirement: an unconditional warning-to-failure
+check would be a behavior change for existing, non-`fixed_effects` callers
+(a convergence warning on a plain `"value ~ 1"` fit would newly become a
+failure where it previously succeeded), which this requirement's opening
+paragraph explicitly rules out. When `fixed_effects` is non-empty, the fit
+call SHALL be wrapped in `warnings.catch_warnings(record=True)` with
+`warnings.simplefilter("always")` called immediately inside that block (NOT
+`record=True` alone — Python's default once-per-source-location filter can
+otherwise silently drop a repeat occurrence of the same warning for a later
+trait in the same process). A captured warning SHALL be treated as a fit
+failure for that trait (same error dict shape) only when
+`issubclass(warning.category, statsmodels.tools.sm_exceptions.ConvergenceWarning)`
+— checked by category, NOT by matching the warning's message text (several
+real `statsmodels` convergence-related warning messages do not contain the
+word "convergence" at all). A captured warning of any other category SHALL
+NOT be treated as a fit failure. This is required even though `statsmodels`
+did not raise — `MixedLM.fit()` does not reliably raise on a fixed effect
+that is (near-)fully confounded with genotype, so relying on raised
+exceptions alone would let such a fit silently succeed with degenerate
+parameters. No new upfront identifiability or collinearity pre-validation
+(checked before fitting) SHALL be added; only the fit's own exception/warning
+signals are observed.
+
+`fixed_effects` and `replicate_col` SHALL be fully independent: `replicate_col`
+SHALL NOT be automatically included in `fixed_effects`, and no validation
+SHALL link the two parameters. A block/replicate fixed effect SHALL be
+expressed by naming that column directly in `fixed_effects`.
+
+When `fixed_effects` is non-empty and a trait's mixed model succeeds,
+`intercept` SHALL be computed as an empirical, sample frequency-weighted
+value rather than the raw `result.fe_params["Intercept"]`: for each fixed
+effect, each level's fitted contribution (`0.0` for the reference level
+dropped by patsy's treatment coding; its own coefficient in
+`result.fe_params` for every other level) SHALL be weighted by that level's
+share of the fitted `model_data` rows (that trait's own post-`dropna()`
+subset), summed across levels within that fixed effect, then summed across
+all fixed effects and added to the base `Intercept` coefficient. This value
+is a sample-margin quantity, not a population-typical or EMM/lsmeans-style
+equally-weighted marginal mean — it is sensitive to that trait's own
+missing-data pattern and to incidental level-frequency imbalance, and two
+traits sharing the same `fixed_effects` columns MAY receive different
+per-level weights. The per-level coefficient SHALL be recovered by parsing
+`result.fe_params`'s actual fitted parameter names (matching
+`^C\({fe}\)\[T\.(.*)\]$` for each fixed effect `fe`), not by reconstructing
+the expected key string forward from each observed level's raw value; each
+recovered level string SHALL be matched back to `model_data[fe]`'s values by
+equality, not by positional pairing against a separately-sorted list of
+levels (positional pairing silently mispairs frequencies when a fixed effect
+is a `pandas.Categorical` with a non-default `categories=` order, since
+patsy's reference level is then the first *declared* category, not the first
+in sorted order). The implementation SHALL assert the number of
+non-reference coefficients recovered for a fixed effect equals
+`model_data[fe].nunique() - 1` — computed on that trait's own
+post-`dropna()` fitted subset, not the raw input `df` (a level present in
+`df` can be entirely absent from a specific trait's `model_data` due to that
+trait's own missingness pattern) — raising rather than silently defaulting a
+mismatched level's contribution to `0.0`.
+
+The docstring SHALL document that `fixed_effects` is intended for
+metadata-style covariates that confound with genotype (experiment, wave,
+batch, scanner), not biological/phenotypic traits — a documentation
+convention, not a runtime-enforced check. It SHALL also document that
+`intercept` is an empirical frequency-weighted (not population-typical)
+value when `fixed_effects` is set, and that the row-filtering subset change
+applies identically regardless of `force_method` (the ANOVA-based path
+still ignores `fixed_effects` in its own variance-component computation).
+
+#### Scenario: fixed_effects=None reproduces current behavior exactly
+
+- **WHEN** `calculate_heritability_estimates(df, trait_cols, ...)` is called
+  without `fixed_effects` (or with `fixed_effects=None`)
+- **THEN** the returned dict SHALL be identical, key-for-key and value-for-value,
+  to a call made before this parameter existed — including the `"value ~ 1"`
+  formula and `intercept == float(result.fe_params["Intercept"])`
+
+#### Scenario: A missing fixed-effect column produces a structural error
+
+- **GIVEN** `fixed_effects=["experiment"]` where `"experiment"` is not a column
+  in `df`
+- **WHEN** `calculate_heritability_estimates(df, trait_cols, fixed_effects=["experiment"])`
+  is called
+- **THEN** the return value SHALL be `{"error": "Missing required columns:
+  [...]"}` listing `"experiment"`, with no per-trait entries — the same
+  run-level short-circuit shape as a missing `genotype_col`
+
+#### Scenario: A fixed-effect column name containing a patsy operator is rejected, not silently misparsed
+
+- **GIVEN** `fixed_effects=["rep*block"]` on a `df` that also has separate
+  `"rep"` and `"block"` columns
+- **WHEN** `calculate_heritability_estimates(df, trait_cols,
+  fixed_effects=["rep*block"])` is called
+- **THEN** the call SHALL produce a loud, run-level structural error (the
+  name fails `fe.isidentifier()`)
+- **AND** the formula SHALL NOT be constructed with `"rep*block"`
+  interpolated as if it were a literal column reference — it SHALL NOT
+  silently evaluate as elementwise multiplication of the separate `"rep"`
+  and `"block"` columns
+
+#### Scenario: A non-string fixed_effects element is rejected, not crashed
+
+- **GIVEN** `fixed_effects=[5]` where `5` is a valid, int-labeled column in
+  `df` (plausible for a CSV-derived batch/wave/scanner code)
+- **WHEN** `calculate_heritability_estimates(df, trait_cols,
+  fixed_effects=[5])` is called
+- **THEN** the call SHALL produce the same run-level `{"error": "Invalid
+  fixed_effects column name(s): [...]"}` structural error as an
+  invalid-identifier string name
+- **AND** no exception (e.g. `AttributeError` from calling `.isidentifier()`
+  on a non-`str`) SHALL propagate to the caller
+
+#### Scenario: A fixed_effects name duplicating genotype_col or replicate_col is rejected
+
+- **GIVEN** `fixed_effects=["geno"]` where `"geno"` is also `genotype_col`
+  (or, symmetrically, `fixed_effects=[replicate_col]`)
+- **WHEN** `calculate_heritability_estimates` is called
+- **THEN** the call SHALL produce a run-level structural error naming the
+  duplicated column(s)
+- **AND** the per-trait loop SHALL NOT be reached — without this check, the
+  duplicate-column selection surfaces as a confusing pandas-internal error
+  (e.g. `"Grouper for 'geno' not 1-dimensional"`) rather than a clear
+  structural error
+
+#### Scenario: Fixed-effect columns are always treated as categorical
+
+- **GIVEN** a fixed-effect column whose values are numeric-looking (e.g.
+  `wave_number` with values `1`, `2`, `3`) but represent discrete metadata
+  groups
+- **WHEN** the mixed model is fit with that column in `fixed_effects`
+- **THEN** the fitted formula SHALL wrap the column in `C(...)`, producing one
+  coefficient per non-reference level in `result.fe_params` (treatment
+  coding), NOT a single continuous-slope coefficient
+
+#### Scenario: Rows with a NaN fixed-effect value are dropped from the model fit
+
+- **GIVEN** a row with valid `trait` and `genotype_col` values but a `NaN` in a
+  named `fixed_effects` column
+- **WHEN** `calculate_heritability_estimates(df, trait_cols,
+  fixed_effects=[...])` is called with that column included
+- **THEN** that row SHALL be excluded from the per-trait model subset
+- **AND** the same row SHALL NOT be excluded when the same call is made with
+  `fixed_effects=None`
+
+#### Scenario: A batch-confounded synthetic fixture shows corrected H² below uncorrected H²
+
+- **GIVEN** a synthetic dataset where genotypes are unevenly distributed
+  across two or more "experiment" batches, with a systematic per-batch shift
+  baked into the trait values (mirroring issue #114's Bloom-experiment
+  scenario)
+- **WHEN** `calculate_heritability_estimates` is called once with
+  `fixed_effects=None` and once with `fixed_effects=["experiment"]`
+- **THEN** the `fixed_effects=None` run's heritability estimate SHALL be
+  greater than the `fixed_effects=["experiment"]` run's estimate for the
+  batch-confounded trait
+
+#### Scenario: A model-fit failure from fixed effects is recorded like any other failure
+
+- **GIVEN** a trait whose mixed-model fit raises when `fixed_effects` is set
+  (e.g. a `statsmodels` convergence failure)
+- **WHEN** `calculate_heritability_estimates` processes that trait
+- **THEN** that trait's per-trait dict SHALL be `{"error": "Mixed model
+  failed: ...", "model_type": "mixed_model_failed"}`
+- **AND** no exception SHALL propagate out of `calculate_heritability_estimates`
+- **AND** processing SHALL continue for the remaining traits
+
+#### Scenario: A convergence warning during fit is treated as a failure, not a silent success
+
+- **GIVEN** a trait whose mixed-model fit, with `fixed_effects` set, emits a
+  convergence warning (e.g. `statsmodels`' `ConvergenceWarning`) but does not
+  raise
+- **WHEN** `calculate_heritability_estimates` processes that trait
+- **THEN** that trait's per-trait dict SHALL be classified as failed (the
+  same `{"error": ..., "model_type": "mixed_model_failed"}` shape as a raised
+  exception), NOT returned as a successful `mixed_model` result with
+  `blup`/`intercept`/`heritability` values
+- **AND** processing SHALL continue for the remaining traits
+
+#### Scenario: A warning of an unrelated category does not fail the trait
+
+- **GIVEN** a trait whose mixed-model fit, with `fixed_effects` set, emits a
+  warning of a category other than `ConvergenceWarning` (e.g. a plain
+  `UserWarning`) but does not raise, on otherwise-normal data
+- **WHEN** `calculate_heritability_estimates` processes that trait
+- **THEN** that trait's per-trait dict SHALL be a normal successful
+  `mixed_model` result (`blup`/`intercept`/`heritability` present, no
+  `error` key) — an implementation that treats any captured warning as a
+  failure, regardless of category, violates this scenario
+
+#### Scenario: A convergence warning is not caught when fixed_effects is unset
+
+- **GIVEN** a trait whose mixed-model fit emits a `ConvergenceWarning` but
+  does not raise, called with `fixed_effects=None` (or omitted)
+- **WHEN** `calculate_heritability_estimates` processes that trait
+- **THEN** that trait's per-trait dict SHALL be a normal successful
+  `mixed_model` result, exactly as it would be without this tier's changes —
+  the warning-capture behavior added by this tier SHALL apply only when
+  `fixed_effects` is non-empty, preserving the byte-for-byte compatibility
+  guarantee for `fixed_effects=None` callers
+
+#### Scenario: Empirical frequency-weighted intercept matches a hand-computed average
+
+- **GIVEN** a fixture with a single fixed effect having two levels observed
+  at known, unequal frequencies in the fitted data
+- **WHEN** `calculate_heritability_estimates(df, trait_cols,
+  fixed_effects=["experiment"])` is called and the trait's mixed model
+  succeeds
+- **THEN** the returned `intercept` SHALL equal
+  `fe_params["Intercept"] + level_frequency[level] * offset[level]` summed
+  over the fixed effect's non-reference levels (`offset[level]` from
+  `result.fe_params`, `0.0` implicitly for the reference level), within
+  floating-point tolerance — an independent, hand-computed oracle, not a
+  tautological re-derivation of the implementation
+
+#### Scenario: Multiple fixed effects contribute independently to the intercept
+
+- **GIVEN** `fixed_effects=["experiment", "block"]`, each with its own
+  observed level frequencies
+- **WHEN** the mixed model succeeds
+- **THEN** the returned `intercept` SHALL equal the base `Intercept` plus the
+  independent frequency-weighted contribution of `experiment`'s levels plus
+  the independent frequency-weighted contribution of `block`'s levels (patsy's
+  `+` composes fixed effects additively, not as an interaction) — the two
+  effects' contributions SHALL NOT be conflated or double-counted
+
+#### Scenario: A float-dtype fixed-effect column does not corrupt the coefficient lookup
+
+- **GIVEN** a fixed-effect column stored as `float64` (e.g. `wave_number` with
+  values `1.0`, `2.0`, `3.0`, a realistic case when the source column had a
+  `NaN` elsewhere in the original data before this trait's `dropna()`)
+- **WHEN** the mixed model is fit with that column in `fixed_effects` and the
+  intercept is computed
+- **THEN** every non-reference level's coefficient SHALL be correctly
+  attributed (recovered by parsing `result.fe_params`'s actual fitted
+  parameter names, not by reconstructing a key from the raw `float64` value)
+- **AND** the recovered non-reference coefficient count SHALL equal
+  `model_data[fe].nunique() - 1` — a mismatch SHALL raise rather than
+  silently attribute a real level's contribution as `0.0`
+
+#### Scenario: A non-default categorical level order does not mispair frequencies with coefficients
+
+- **GIVEN** a fixed-effect column declared as `pandas.Categorical` with an
+  explicit, non-alphabetical/non-numeric `categories=[...]` order (so
+  patsy's reference level is the first *declared* category, not the first in
+  sorted order)
+- **WHEN** the mixed model is fit with that column in `fixed_effects` and the
+  intercept is computed
+- **THEN** each recovered level's frequency SHALL be matched to its correct
+  coefficient by equality against `model_data[fe]`'s actual values, NOT by
+  positional pairing against a separately-sorted list of unique levels —
+  the returned `intercept` SHALL match an independent hand-computation using
+  the fixture's known level frequencies and offsets
+
+#### Scenario: A repeated identical convergence warning fails every affected trait, not just the first
+
+- **GIVEN** two different traits in the same
+  `calculate_heritability_estimates` call whose mixed-model fits (with
+  `fixed_effects` set) both emit the same `ConvergenceWarning` (same message,
+  same source location) without raising
+- **WHEN** `calculate_heritability_estimates` processes both traits in the
+  same call
+- **THEN** both traits' per-trait dicts SHALL be classified as failed — the
+  fit-wrapping SHALL force `warnings.simplefilter("always")` so that
+  Python's default once-per-location warning filter does not silently drop
+  the second trait's identical warning
+
+#### Scenario: fixed_effects does not affect the ANOVA-based path's model, only its row filtering
+
+- **GIVEN** `fixed_effects=["experiment"]` and
+  `force_method="anova_based"`
+- **WHEN** `calculate_heritability_estimates` processes a trait
+- **THEN** that trait's per-trait model subset SHALL still exclude rows with
+  a `NaN` in the `"experiment"` column (the same row-filtering as the
+  mixed-model path)
+- **AND** the ANOVA-based variance-component computation SHALL NOT use
+  `fixed_effects` in any way — `model_type` SHALL be `"anova_based"`, with no
+  `C(...)`-wrapped formula ever constructed for this path
+
+#### Scenario: Field-block fixed effect changes BLUP-adjusted means relative to genotype-only
+
+- **GIVEN** a field-block-style fixture with a systematic per-block shift in
+  trait values
+- **WHEN** `calculate_heritability_estimates` is run once with
+  `fixed_effects=None` and once with `fixed_effects=["block"]`, and each
+  result is passed to `extract_blup_table()`
+- **THEN** the two runs' adjusted-means tables SHALL differ for at least one
+  genotype/trait pair beyond floating-point tolerance
+
+#### Scenario: Shrinkage still scales inversely with replication when fixed_effects is set
+
+- **GIVEN** a field-block-style fixture unbalanced across fixed-effect
+  levels, with some genotypes having substantially fewer replicates than
+  others (mirroring Tier 1's unbalanced-design shrinkage oracle), and block
+  composition skew applied orthogonally to the replicate-count grouping (not
+  correlated with which genotypes are low- vs high-replicate)
+- **WHEN** `calculate_heritability_estimates(..., fixed_effects=["block"])`
+  is run
+- **THEN** for every genotype, `abs(blup[genotype])` SHALL be smaller than
+  `|raw_mean_detrended[genotype] - reference_level_intercept|`, where
+  `raw_mean_detrended` is computed by subtracting the fitted `C(block)`
+  coefficient for each observation's (non-reference) block level before
+  averaging within genotype (NOT the naive
+  `df.groupby(genotype)[trait].mean()`, which is itself contaminated by each
+  genotype's own block composition — the exact effect being corrected for),
+  and `reference_level_intercept` is the fitted model's raw
+  `fe_params["Intercept"]` — NOT `calculate_heritability_estimates`'s own
+  returned `intercept`, which for a `fixed_effects` run is the empirical
+  frequency-weighted value (see the "Heritability Model Fixed Effects"
+  requirement), not the reference-level value this comparison needs. Using
+  the empirical frequency-weighted `intercept` here (or comparing against
+  `extract_blup_table()`'s already-summed `adjusted_mean` instead of
+  `blup[genotype]` directly) introduces a constant offset that does not
+  cancel under the absolute-value comparison and breaks this property for a
+  subset of genotypes — confirmed empirically during implementation
+- **AND** this shrinkage gap SHALL be larger for low-replicate genotypes than
+  for high-replicate genotypes, matching Tier 1's existing guarantee
 

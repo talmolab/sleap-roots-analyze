@@ -195,20 +195,23 @@ top-level `sleap_roots_analyze` namespace and list them in `__all__`.
 
 ### Requirement: Non-Breaking Heritability Return Shape
 
-Neither adding `HeritabilityResult` nor extracting BLUPs SHALL change the
-return shape of `calculate_heritability_estimates()`; the function SHALL keep
-returning its existing dict / tuple (a plain `dict` when
-`remove_low_h2=False`, or a 4-tuple `(heritability_results, df_filtered,
-removed_traits, removal_details)` when `remove_low_h2=True`) so all current
-callers continue to work unchanged. BLUP extraction MAY add `blup`
-(`dict[str, float]`) and `intercept` (`float`) keys to a trait's own
-per-trait dict, but only when that trait's mixed model fit succeeds
-(`model_type == "mixed_model"`); a trait solved via the ANOVA-based path
-(`model_type == "anova_based"`), the no-variance short-circuit (`model_type ==
-"no_variance"`), or any error path SHALL NOT carry `blup`/`intercept` keys,
-since no fitted mixed-model `result` object exists for those paths.
-`result.random_effects` SHALL be accessed exactly once per successful trait
-fit.
+`calculate_heritability_estimates()` SHALL keep its return shape unchanged by `HeritabilityResult`, BLUP extraction, or the `fixed_effects` parameter.
+The function SHALL keep returning its
+existing dict / tuple (a plain `dict` when `remove_low_h2=False`, or a 4-tuple
+`(heritability_results, df_filtered, removed_traits, removal_details)` when
+`remove_low_h2=True`) so all current callers continue to work unchanged. BLUP
+extraction MAY add `blup` (`dict[str, float]`) and `intercept` (`float`) keys
+to a trait's own per-trait dict, but only when that trait's mixed model fit
+succeeds (`model_type == "mixed_model"`); a trait solved via the ANOVA-based
+path (`model_type == "anova_based"`), the no-variance short-circuit
+(`model_type == "no_variance"`), or any error path SHALL NOT carry
+`blup`/`intercept` keys, since no fitted mixed-model `result` object exists
+for those paths. `result.random_effects` SHALL be accessed exactly once per
+successful trait fit. When the call used a non-empty `fixed_effects`,
+`intercept` SHALL be the empirical frequency-weighted value described under
+`statistics-api`'s "Heritability Model Fixed Effects" requirement rather than
+the raw `result.fe_params["Intercept"]` — this SHALL NOT change the key's
+type (`float`) or its presence condition (mixed-model success only).
 
 #### Scenario: Existing heritability return is preserved and not mutated
 
@@ -260,6 +263,15 @@ fit.
   `intercept` key
 - **AND** no exception SHALL be raised while producing that trait's result,
   even though no fitted mixed-model `result` object exists for it
+
+#### Scenario: fixed_effects does not change which traits carry blup/intercept keys
+
+- **WHEN** `calculate_heritability_estimates(df, trait_cols,
+  fixed_effects=[...])` is called
+- **THEN** the same condition governs `blup`/`intercept` presence as without
+  `fixed_effects` — `model_type == "mixed_model"` for that trait — with
+  `intercept`'s value computed per the marginal-intercept rule instead of the
+  raw `fe_params["Intercept"]`
 
 ### Requirement: Serializable Clustering Result Types
 
@@ -369,7 +381,13 @@ and from `adjusted_means`), `adjusted_means: list[list[float]]` (shape
 `(n_genotypes, n_traits)`, aligned to `genotype_names` × `trait_names`, always
 finite), `failed_traits: list[str]` (names only, no values — mirrors
 `HeritabilityResult.failed_traits`), and `intercepts: dict[str, float]` (one
-entry per succeeded trait in `trait_names`).
+entry per succeeded trait in `trait_names`). When the source
+`heritability_results` was produced with a non-empty `fixed_effects`,
+`intercepts`' values are the empirical frequency-weighted intercepts described
+under `statistics-api`'s "Heritability Model Fixed Effects" requirement,
+rather than a raw reference-level coefficient — `BLUPResult` and its adapter
+are unaware of `fixed_effects` and store whatever `intercept` float each
+trait's source dict carries, unchanged.
 
 #### Scenario: BLUPResult round-trips through JSON as native types
 
@@ -437,6 +455,16 @@ entry per succeeded trait in `trait_names`).
 - **THEN** a `ValueError` SHALL be raised (under the default `allow_nan=False`)
   rather than emitting the non-standard `NaN`/`Infinity` tokens a strict JSON
   consumer rejects
+
+#### Scenario: intercepts values pass through unchanged when the source used fixed_effects
+
+- **GIVEN** an `extract_blup_table()`-shaped DataFrame and an `intercepts`
+  mapping produced from a `heritability_results` dict whose
+  `calculate_heritability_estimates` call used a non-empty `fixed_effects`
+- **WHEN** `BLUPResult.from_blup_table(df, intercepts=...)` is called
+- **THEN** `result.intercepts` SHALL contain exactly those marginal-intercept
+  values, unchanged — `BLUPResult`/`from_blup_table` SHALL NOT recompute or
+  reinterpret them
 
 ### Requirement: BLUPResult Adapter From The BLUP Table
 
