@@ -78,7 +78,7 @@ class VizPipelineConfig:
     summary: SummaryConfig = field(default_factory=SummaryConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Auto-exclude fixed_effects columns from the trait_cols scan (#114, 7.3).
 
         `LoadDataAndImagesStep` fixes `trait_cols` once, at the very start of

@@ -566,7 +566,7 @@ class StatisticsConfig:
     generate_blup_table: bool = True
     fixed_effects: Optional[List[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate fixed_effects is None or a list of str (issue #114)."""
         if self.fixed_effects is not None and (
             not isinstance(self.fixed_effects, list)
