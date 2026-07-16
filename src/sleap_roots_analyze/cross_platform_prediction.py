@@ -182,6 +182,12 @@ def logo_cv_predict(
                 f"representative_names contains names not present in X's "
                 f"columns: {unknown_names}"
             )
+        # `representative_names` is confirmed non-None/non-empty above; compute
+        # here (not in a second, separate `if reduction_method ==
+        # "representatives":` block below) so static type checkers can narrow
+        # it from `Optional[Sequence[str]]` to `Sequence[str]` within this one
+        # scope.
+        rep_names: list[str] = list(representative_names)
 
     non_numeric_cols = [
         col for col in X.columns if not pd.api.types.is_numeric_dtype(X[col])
@@ -199,7 +205,7 @@ def logo_cv_predict(
     loo = LeaveOneOut()
 
     if reduction_method == "representatives":
-        rep_values = X[list(representative_names)].to_numpy(dtype=float)
+        rep_values = X[rep_names].to_numpy(dtype=float)
 
     for train_idx, test_idx in loo.split(X_values):
         y_train = y[train_idx]
