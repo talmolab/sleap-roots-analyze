@@ -27,37 +27,54 @@ to this repo; referenced here for provenance only).
     `X_train.shape[1] < n_components`. Deliberately distinct from the pipeline-level `PCA` step in
     `pca.py` — reusing that step would fit loadings on all genotypes before the fold loop,
     leaking the held-out genotype's position into the PC axes (theory.md §3.1).
-  - **`logo_cv_predict(X, y, genotypes, reduction_method="pls_latent", representative_indices=None) -> LOGOCVResult`**
+  - **`logo_cv_predict(X, y, genotypes, reduction_method="pls_latent", representative_names=None) -> LOGOCVResult`**
     (see design.md for the exact return shape) — implements the CV-hygiene contract from
     theory.md §2-3: a fresh `sklearn.Pipeline` is instantiated and fit **inside** each
-    `LeaveOneOut` fold. Three `reduction_method` values: `pls_latent` (default) — `StandardScaler`
+    `LeaveOneOut` fold. `X` is a labeled `pandas.DataFrame` (`(n_genotypes, n_traits)`, columns
+    named by trait, index by genotype), not a bare `np.ndarray` — see design.md Decision 7 (fixes
+    a real name-vs-index integration gap between this function and
+    `select_cluster_representatives`'s string-name output, found during `/review-openspec`).
+    Three `reduction_method` values: `pls_latent` (default) — `StandardScaler`
     + `PLSRegression(n_components=1, fixed — see design.md Decision 1)` fit directly on the full
     trait matrix, no separate reduction step (PLS supervises its own dimensionality reduction);
-    `representatives` — `StandardScaler` + `Ridge()` fit on trait columns selected once,
-    pre-loop, by variance-based cluster-representative selection (unsupervised, safe to fix
-    up front per theory.md §2.2); `pc1` — `StandardScaler` + `Ridge()` fit on the single PC1
-    score computed **per fold** via `fit_pca_on_fold`.
+    `representatives` — `StandardScaler` + `Ridge()` (default `alpha=1.0`, an accepted but
+    undiscussed choice — design.md Decision 9) fit on trait columns selected once, pre-loop, by
+    variance-based cluster-representative selection (`representative_names`, unsupervised, safe to
+    fix up front per theory.md §2.2); `pc1` — `StandardScaler` + `Ridge()` fit on the single PC1
+    score computed **per fold** via `fit_pca_on_fold`. Explicit precondition (design.md Decision
+    9): `X`'s columns must never include the target trait's own values.
   - Aggregate CV **R², RMSE, and Spearman ρ** computed once over the concatenated leave-one-out
     predictions (matching theory.md §4.3's `logo_cv_r2` reference implementation exactly — see
     design.md Decision 4 for why this, not a per-single-genotype metric, is the correct reading of
     "per fold").
-  - **`predictor_source` runtime guard**: functions accept either a BLUP-adjusted-means DataFrame
-    or a raw genotype-means DataFrame with the same `(n_genotypes, n_traits)` shape — the
-    config-level `{blup, genotype_means}` wiring itself is Tier 3.5's scope.
+  - **`predictor_source`**: `{blup, genotype_means}`, stored as **provenance metadata** on
+    `CrossPlatformPredictionResult`, not validated by `logo_cv_predict` itself — functions accept
+    whatever `X` DataFrame they're given regardless of provenance. The actual pre-flight *guard*
+    (rejecting an unresolvable BLUP path) is Tier 3.5's `PredictionConfig.__post_init__` scope, not
+    this tier's (design.md Decision 8 — the original "runtime guard" framing overstated what this
+    tier validates).
 - **New `CrossPlatformPredictionResult` frozen dataclass** in `result_types.py`, following the
   `BLUPResult`/`HeritabilityResult` template exactly: `to_dict()`/`to_json(allow_nan=False)`
   finite-float contract, a `from_*` adapter, added to `__all__` and the package `__init__.py`. One
   instance per (platform pair, reduction method); nested `TargetPrediction` list covers each
   cluster-representative target trait plus PC1 (see design.md Decision 5).
-- **Trait-set identity oracle**: reuses the *existing* `cluster_correlated_traits`/
-  `select_cluster_representatives` (`cross_experiment_analysis.py:1832-2014`, already consumed by
-  `ReduceTraitRedundancyStep`) — no new clustering code. Called on the **genotype-mean/BLUP-level**
-  matrix (design.md Decision 2), asserting reproduction of the paper's Section 3.4 trait set
-  (28 cylinder + 14 field traits) at the existing default `threshold=0.8`. This is a
-  **deterministic trait-set identity check**, not a numeric R² threshold.
-- **Explicit leakage regression test**: theory.md §4 implemented verbatim —
-  `make_planted_signal_fixture`, `logo_cv_r2(..., fit_inside_fold=True/False)`, asserting
-  `r2_outside / r2_inside >= 1.10`.
+- **Trait-set identity oracle: BLOCKED, not part of this proposal's implementable scope yet.**
+  `/review-openspec` found the original design (reproduce 28 cylinder + 14 field traits directly
+  from `select_cluster_representatives()` on BLUP-adjusted means) tests the wrong substrate and
+  very likely the wrong quantity entirely — see design.md Decision 2's full revision. A real,
+  already-committed fixture in this repo shows `select_cluster_representatives` alone gives 28
+  field / 121 cylinder representatives, not 14/28; the real Section 3.4 figure appears to be a
+  downstream artifact of clustering *plus* cross-platform correlation filtering, not clustering
+  alone. **A handoff investigation has been requested** (see the separately-delivered vault
+  handoff prompt) to confirm the real mechanism before this oracle can be correctly specced.
+  `cluster_correlated_traits`/`select_cluster_representatives` are still reused unchanged for the
+  `reduction_method="representatives"` *prediction* path (Section 3) — that does not depend on
+  this resolution.
+- **Explicit leakage regression test**: theory.md §4's mechanism implemented against a
+  **redesigned** planted-signal fixture (design.md Decision 6) — `n_traits=3`, N=20-seed averaged
+  R², not theory.md's literal single-seed recipe, which `/review-openspec` empirically found does
+  not reliably recover its claimed R² at this program's actual scale (n=19 genotypes). Asserts
+  `mean(r2_outside_across_seeds) / mean(r2_inside_across_seeds) >= 1.10`.
 - **PC1 per-fold oracle**: `fit_pca_on_fold` is exercised inside the LOGO loop; its R² is reported
   as a separate `TargetPrediction` entry from the representative-trait path, never mixed into the
   same aggregate.
@@ -74,12 +91,14 @@ to this repo; referenced here for provenance only).
 No breaking changes — this tier adds a new module and a new result type only; no existing
 function, config, or pipeline behavior is touched.
 
-## Design decisions (resolved via brainstorming this session — full rationale and alternatives in `design.md`)
+## Design decisions (resolved via brainstorming this session, then revised during `/review-openspec` round 1 — full rationale and alternatives in `design.md`)
 
 - PLS component count fixed at `n_components=1` — no inner-CV search (statistical + Tier-4-runtime
   reasons, design.md Decision 1).
-- Cluster-representative-selection input for the trait-set identity oracle is genotype-mean/
-  BLUP-level, matching `ReduceTraitRedundancyStep`'s existing convention (design.md Decision 2).
+- **BLOCKED, revised round 1:** the trait-set identity oracle's substrate/mechanism — the original
+  "genotype-mean/BLUP-level" framing conflated two different matrices, and the target quantity
+  (28/14) is very likely not reproducible from clustering alone. Pending a handoff investigation
+  (design.md Decision 2).
 - Tier 4's permutation-null runtime is estimated and documented (≈152,000 fits, well under the
   30-minute feasibility gate) rather than designed around with parallelization scaffolding now;
   `logo_cv_predict` is written stateless so Tier 4 can wrap it without refactoring (design.md
@@ -90,17 +109,31 @@ function, config, or pipeline behavior is touched.
 - `CrossPlatformPredictionResult` nests one `TargetPrediction` per (representative trait or PC1);
   `comparison_methods` produce separate result instances, not a third nesting level (design.md
   Decision 5).
+- **Added round 1:** planted-signal/pure-noise fixtures redesigned as N=20-seed averages after
+  `/review-openspec` empirically found theory.md's literal single-seed recipe doesn't hold at this
+  program's scale (design.md Decision 6).
+- **Added round 1:** `logo_cv_predict` takes a labeled `DataFrame` and `representative_names`
+  (trait name list), not a bare `ndarray` + integer indices — fixes a real integration gap with
+  `select_cluster_representatives`'s string-name output (design.md Decision 7).
+- **Added round 1:** `predictor_source` is provenance metadata, not a validated runtime guard in
+  this tier — the real guard is Tier 3.5's `PredictionConfig` scope (design.md Decision 8).
+- **Added round 1:** Ridge `alpha` default, RMSE cross-trait scale, Spearman p at small n, and the
+  X/y-exclusion precondition are documented as known limitations/contracts, not solved with new
+  code (design.md Decision 9).
 
 ## Impact
 
 ### Affected specs
 
 - `cross-platform-prediction` (ADDED) — new capability: `fit_pca_on_fold`, `logo_cv_predict`, the
-  CV-hygiene contract, the leakage regression test, the trait-set identity oracle, and the
-  synthetic-fixture oracles.
-- `serializable-result-types` (MODIFIED) — new `CrossPlatformPredictionResult` /
+  CV-hygiene contract, the leakage regression test, and the synthetic-fixture oracles. The
+  trait-set identity oracle requirement is present but its mechanism is **blocked** pending a
+  handoff investigation (design.md Decision 2) — do not implement against it until resolved.
+- `serializable-result-types` (ADDED) — new `CrossPlatformPredictionResult` /
   `TargetPrediction` requirement, following the existing frozen-dataclass /
-  `to_json(allow_nan=False)` / `from_*` adapter / `__all__` export pattern.
+  `to_json(allow_nan=False)` / `from_*` adapter / `__all__` export pattern. (Corrected from an
+  earlier draft's "MODIFIED" label, per `/review-openspec` round 1 — this delta is purely
+  additive, matching the actual `## ADDED Requirements` delta file.)
 
 ### Affected code
 
@@ -113,6 +146,10 @@ function, config, or pipeline behavior is touched.
 - `tests/test_cross_platform_prediction.py` (new) — all oracle tests from issue #194's
   acceptance criteria.
 - `docs/API.md`, `docs/CHANGELOG.md`, `docs/result-types.md` — new module/result-type entries.
+- `docs/CROSS_PLATFORM_ANALYSIS.md` — new section documenting `logo_cv_predict`/`fit_pca_on_fold`,
+  mirroring the immediately-preceding `pc_correlations` tier's section shape (added per
+  `/review-openspec` round 1 — this is the actual narrative home for cross-platform program docs
+  and was missing from the original Impact list).
 
 ### Explicitly out of scope
 

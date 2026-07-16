@@ -14,10 +14,14 @@ field SHALL be a native Python type (`int`, `float`, `str`, `bool`), so that
 `CrossPlatformPredictionResult` SHALL hold `source_platform: str`, `target_platform: str`,
 `predictor_source: str`, `reduction_method: str`, and `predictions: list[TargetPrediction]` — one
 `TargetPrediction` entry per prediction target (each cluster-representative trait in the target
-platform, plus one entry for the first principal component, `target_name="PC1"`). Each
-`TargetPrediction` SHALL hold `target_name: str`, `r2: float`, `rmse: float`,
-`spearman_rho: float`, `spearman_p: float`, `genotype_names: list[str]`, `y_true: list[float]`,
-and `y_pred: list[float]`.
+platform, plus one entry for the first principal component, `target_name="PC1"`). `predictor_source`
+SHALL be stored as provenance metadata only (`{"blup", "genotype_means"}`) — this dataclass and its
+adapter SHALL NOT validate it or branch behavior on it; the corresponding runtime guard is Tier
+3.5's `PredictionConfig` scope, not this type's. Each `TargetPrediction` SHALL hold
+`target_name: str`, `r2: float`, `rmse: float`, `spearman_rho: float`, `spearman_p: float`,
+`genotype_names: list[str]`, `y_true: list[float]`, and `y_pred: list[float]`. Docstrings SHALL
+note that `rmse` is not comparable across `TargetPrediction` entries with different underlying
+trait scales, and that `spearman_p` is an asymptotic approximation, imprecise below n≈20-30.
 
 #### Scenario: CrossPlatformPredictionResult round-trips through JSON as native types
 

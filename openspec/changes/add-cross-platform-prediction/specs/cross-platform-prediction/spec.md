@@ -40,21 +40,32 @@ in `pca.py`, and SHALL NOT retain any state between calls.
 ### Requirement: Leave-One-Genotype-Out Cross-Validated Prediction
 
 The package SHALL provide `logo_cv_predict(X, y, genotypes, reduction_method="pls_latent",
-representative_indices=None)` in `cross_platform_prediction.py` that predicts each genotype's
+representative_names=None)` in `cross_platform_prediction.py` that predicts each genotype's
 target value using a model fit on every other genotype (leave-one-genotype-out cross-validation),
 and reports aggregate R², Root Mean Squared Error (RMSE), and Spearman rank correlation (ρ, with
 p-value) computed over the concatenated set of leave-one-out predictions across all folds. A
 fresh `sklearn.pipeline.Pipeline` SHALL be instantiated and fit inside each fold; no step SHALL be
 fit on data that includes the held-out genotype.
 
+`X` SHALL be a `pandas.DataFrame` of shape `(n_genotypes, n_traits)`, with columns named by trait
+and index by genotype label — not a bare `numpy.ndarray` — so that `representative_names` (a list
+of trait names, taken directly from `select_cluster_representatives()`'s own return type) can be
+used to select columns (`X[representative_names]`) without a separate name-to-index resolution
+step. Callers SHALL ensure `X`'s columns never include the target trait's own values (an
+unenforceable-from-`X`-alone precondition, since `logo_cv_predict` cannot itself distinguish a
+predictor column from an accidentally-included target column).
+
 `reduction_method` SHALL support three values:
 - `"pls_latent"` (default): a `StandardScaler` + `PLSRegression(n_components=1)` pipeline fit
   directly on the full trait matrix — no separate dimensionality-reduction step.
-- `"representatives"`: `X` reduced to the columns named by `representative_indices` (selected
+- `"representatives"`: `X` reduced to the columns named by `representative_names` (selected
   once, before the fold loop, since this is an unsupervised, non-data-leaking selection) before a
-  `StandardScaler` + `Ridge()` pipeline is fit.
+  `StandardScaler` + `Ridge()` pipeline is fit. `representative_names` SHALL be required
+  (non-`None`) when this method is selected.
 - `"pc1"`: `X` reduced to a single principal-component score computed **per fold** via
   `fit_pca_on_fold`, before a `StandardScaler` + `Ridge()` pipeline is fit.
+
+Any other value of `reduction_method` SHALL raise `ValueError`.
 
 #### Scenario: A fresh Pipeline is fit inside each fold, not before the loop
 
@@ -80,10 +91,10 @@ fit on data that includes the held-out genotype.
 - **THEN** every fold's `PLSRegression` instance SHALL be constructed with `n_components=1`
 - **AND** no inner cross-validation loop SHALL search over alternative component counts
 
-#### Scenario: representatives indices are fixed before the fold loop
+#### Scenario: representative_names are fixed before the fold loop
 
-- **WHEN** `reduction_method="representatives"` with `representative_indices` provided
-- **THEN** the same `representative_indices` SHALL be used to reduce `X` in every fold — no
+- **WHEN** `reduction_method="representatives"` with `representative_names` provided
+- **THEN** the same `representative_names` SHALL be used to reduce `X` in every fold — no
   per-fold re-selection
 
 #### Scenario: pc1 reduction calls fit_pca_on_fold once per fold with that fold's data only
@@ -98,19 +109,27 @@ fit on data that includes the held-out genotype.
 - **THEN** the result SHALL contain exactly `len(genotypes)` predictions, ordered identically to
   the input `genotypes` sequence
 
-#### Scenario: Planted-signal fixture recovers R² near the planted signal strength
+#### Scenario: Planted-signal fixture recovers a comfortably positive mean R² across repeated realizations
 
-- **WHEN** `logo_cv_predict` runs on a fixture where `y` is a known linear combination of `X`
-  plus calibrated noise (signal strength `s`)
-- **THEN** the aggregate R² over concatenated leave-one-out predictions SHALL be within an
-  empirically-established tolerance of `s`, for both `pls_latent` and `representatives` (or
-  `ridge`-equivalent) reduction methods
+- **WHEN** `logo_cv_predict` runs once per realization of a fixed set of N independent fixture
+  realizations, each where `y` is a known linear combination of `X` plus calibrated noise (signal
+  strength `s`)
+- **THEN** the **mean** aggregate R² over concatenated leave-one-out predictions, averaged across
+  all N realizations, SHALL be comfortably positive and within an empirically-established range,
+  for both `pls_latent` and `representatives` (or `ridge`-equivalent) reduction methods
+- **AND** a single realization's R² is NOT required to individually be close to `s` — LOGO-CV R²
+  at this program's sample size (n≈19) has high per-realization variance; only the mean across
+  repeated realizations is asserted
 
-#### Scenario: Pure-noise fixture produces R² near zero
+#### Scenario: Pure-noise fixture produces a mean R² clearly separated from the signal fixture
 
-- **WHEN** `logo_cv_predict` runs on a fixture where `X` and `y` are independently drawn with no
-  planted relationship
-- **THEN** the aggregate R² SHALL be approximately 0, within tolerance
+- **WHEN** `logo_cv_predict` runs once per realization of a fixed set of N independent fixture
+  realizations where `X` and `y` are independently drawn with no planted relationship
+- **THEN** the **mean** aggregate R² across all N realizations SHALL be comfortably separated
+  (lower, by an empirically-justified margin) from the planted-signal fixture's mean R²
+- **AND** this mean is NOT required to equal approximately 0 — LOGO-CV R² on pure noise at small
+  `n` can be, and is expected to be, negative (a known, correct property of `r2_score`, not a
+  defect)
 
 #### Scenario: Synthetic non-EDPIE fixture generalizes
 
@@ -125,19 +144,64 @@ fit on data that includes the held-out genotype.
 - **THEN** the result SHALL include RMSE and Spearman ρ (with its p-value), each computed over
   the same concatenated leave-one-out predictions used for R²
 
+### Requirement: Input Validation
+
+`logo_cv_predict` SHALL validate its inputs before entering the fold loop and raise `ValueError`
+with a clear message on any of the following, rather than allowing an unhandled or unrelated
+exception to surface partway through cross-validation.
+
+#### Scenario: Mismatched array lengths are rejected
+
+- **WHEN** `len(X) != len(y)` or `len(X) != len(genotypes)`
+- **THEN** `logo_cv_predict` SHALL raise `ValueError`
+
+#### Scenario: Invalid reduction_method is rejected
+
+- **WHEN** `reduction_method` is not one of `"pls_latent"`, `"representatives"`, `"pc1"`
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` naming the valid values
+
+#### Scenario: representatives method without representative_names is rejected
+
+- **WHEN** `reduction_method="representatives"` and `representative_names` is `None`
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` upfront, before entering the fold loop
+
+#### Scenario: Too few genotypes for LOGO-CV is rejected
+
+- **WHEN** `len(genotypes) < 2`
+- **THEN** `logo_cv_predict` SHALL raise `ValueError`
+
+#### Scenario: NaN in X is rejected
+
+- **WHEN** `X` contains any `NaN` value
+- **THEN** `logo_cv_predict` SHALL raise `ValueError` rather than silently fitting on or
+  propagating the `NaN` — this is a realistic input, not a hypothetical one, since a
+  `08_blup_adjusted_means.csv` failed-trait column (per `extract_blup_table`'s documented
+  behavior in the `statistics-api` spec) is entirely `NaN`
+
+#### Scenario: Constant y does not raise
+
+- **WHEN** `y` has zero variance (all identical values)
+- **THEN** `logo_cv_predict` SHALL NOT raise — R²/Spearman ρ MAY be `NaN` or otherwise degenerate,
+  matching whatever `sklearn`/`scipy`'s own documented behavior is for this input, rather than
+  `logo_cv_predict` inventing a new contract for this case
+
 ### Requirement: Explicit Leakage Regression Test
 
 The package's test suite SHALL include a standalone test proving that a deliberately-leaked LOGO-CV
 implementation (scaler and model fit on the full dataset — including the held-out genotype —
-before the fold loop) produces a detectably inflated R² relative to the correctly-hygienic
-implementation, on a planted-signal fixture.
+before the fold loop) produces a detectably inflated mean R² relative to the correctly-hygienic
+implementation, averaged across the same set of N independent planted-signal fixture realizations
+used by the Leave-One-Genotype-Out Cross-Validated Prediction requirement's planted-signal
+scenario above.
 
-#### Scenario: Outside-fold-fit R² is inflated relative to inside-fold-fit R²
+#### Scenario: Outside-fold-fit mean R² is inflated relative to inside-fold-fit mean R²
 
-- **WHEN** LOGO-CV R² is computed twice on the same planted-signal fixture — once with the
-  scaler and model fit inside each fold (`fit_inside_fold=True`), once with both fit on the full
-  dataset before the loop (`fit_inside_fold=False`)
-- **THEN** the ratio `r2_outside_fold / max(r2_inside_fold, 1e-6)` SHALL be at least 1.10
+- **WHEN** LOGO-CV R² is computed for each of N independent planted-signal fixture realizations,
+  twice per realization — once with the scaler and model fit inside each fold
+  (`fit_inside_fold=True`), once with both fit on the full dataset before the loop
+  (`fit_inside_fold=False`) — and each side's R² is averaged across all N realizations
+- **THEN** the ratio `mean(r2_outside_fold) / max(mean(r2_inside_fold), 1e-6)` SHALL be at least
+  1.10
 
 #### Scenario: Production code path matches only the inside-fold-fit behavior
 
@@ -154,6 +218,19 @@ matrix (one row per genotype), at the existing default `threshold=0.8`. On the r
 cylinder and field genotype-mean matrices, this selection SHALL deterministically reproduce the
 same representative trait sets reported in the wheat EDPIE paper's Section 3.4 (28 cylinder + 14
 field traits) — a trait-set **identity** check, not a numeric correlation/R² threshold.
+
+> **STATUS: BLOCKED pending handoff investigation — see design.md Decision 2, tasks.md task 1.4.
+> The requirement text above is the pre-`/review-openspec` draft, retained for reference only. It
+> is NOT approved for implementation.** Round 1 review found: (a) a real, already-committed
+> fixture in this repo
+> (`tests/fixtures/real/wheat_edpie/expected/cross_platform/root_core_vs_cylinder/exp{1,2}_trait_clusters.csv`)
+> shows `select_cluster_representatives` alone produces 28 field / 121 cylinder representative
+> traits — neither matches "28 cylinder + 14 field"; (b) the paper's actual Section 3.4 text
+> ("Of 2,838 trait pairs tested... 36 had |ρ|≥0.55, spanning 14 field traits and 28 cylinder
+> traits") describes a downstream artifact of clustering *plus* cross-platform correlation
+> filtering, not raw per-platform representative counts. This requirement SHALL be rewritten once
+> a handoff investigation into the real Section 3.4 pipeline returns, before any test is written
+> against it.
 
 #### Scenario: Real EDPIE data reproduces the Section 3.4 trait counts
 
