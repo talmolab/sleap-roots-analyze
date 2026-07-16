@@ -45,6 +45,8 @@ __all__ = [
     "HierarchicalResult",
     "UMAPResult",
     "BLUPResult",
+    "TargetPrediction",
+    "CrossPlatformPredictionResult",
     "ALGORITHM_KMEANS",
     "ALGORITHM_GMM",
     "ALGORITHM_HIERARCHICAL",
@@ -923,4 +925,151 @@ class BLUPResult:
             adjusted_means=adjusted_means,
             failed_traits=failed_traits,
             intercepts=resolved_intercepts,
+        )
+
+
+@dataclass(frozen=True)
+class TargetPrediction:
+    """JSON-serializable per-target leave-one-genotype-out (LOGO-CV) prediction.
+
+    One entry per prediction target within a
+    :class:`CrossPlatformPredictionResult` run: each cluster-representative
+    trait in the target platform, plus one entry with ``target_name="PC1"``
+    for the first-principal-component target (Tier 3, #194).
+
+    Attributes:
+        target_name: Name of the predicted target -- a representative trait
+            name, or ``"PC1"``.
+        r2: Aggregate R^2 over the concatenated leave-one-out predictions.
+        rmse: Aggregate Root Mean Squared Error over the same predictions.
+            Not comparable across ``TargetPrediction`` entries with
+            different underlying trait scales (e.g. a representative trait
+            vs. ``PC1``, or across platform pairs).
+        spearman_rho: Aggregate Spearman rank correlation over the same
+            predictions.
+        spearman_p: ``spearman_rho``'s p-value. An asymptotic approximation,
+            imprecise below n~=20-30 -- descriptive, not hypothesis-test
+            grade, at this program's n~=19 genotypes.
+        genotype_names: Genotype labels, same order as ``y_true``/``y_pred``.
+        y_true: Observed target values, one per genotype.
+        y_pred: Leave-one-genotype-out predicted values, one per genotype.
+    """
+
+    target_name: str
+    r2: float
+    rmse: float
+    spearman_rho: float
+    spearman_p: float
+    genotype_names: list[str]
+    y_true: list[float]
+    y_pred: list[float]
+
+
+@dataclass(frozen=True)
+class CrossPlatformPredictionResult:
+    """JSON-serializable view of a cross-platform LOGO-CV prediction run.
+
+    Built from one or more ``logo_cv_predict()`` outputs (Tier 3, #194) via
+    :meth:`from_logo_cv_results`. Holds one instance per (platform pair,
+    reduction method) combination; a nested :class:`TargetPrediction` list
+    covers every prediction target (each cluster-representative trait, plus
+    ``"PC1"``). A ``comparison_methods`` sweep (an additional reduction
+    method reported alongside the primary one) produces a separate
+    ``CrossPlatformPredictionResult`` instance, not a third nesting level.
+
+    ``frozen=True`` is shallow: the dataclass fields cannot be rebound, but
+    the nested ``predictions`` list is still mutable in place. Treat the
+    result as read-only. Float fields must be finite to satisfy the JSON
+    boundary -- use :meth:`to_json` to enforce it.
+
+    Attributes:
+        source_platform: Name of the platform whose genotype effects are the
+            predictor.
+        target_platform: Name of the platform whose genotype effects are
+            being predicted.
+        predictor_source: ``{"blup", "genotype_means"}`` -- provenance
+            metadata describing which substrate the predictor matrix came
+            from. Stored, not validated: this type and its adapter do not
+            branch on this value or check it against anything. The
+            corresponding runtime guard (rejecting an unresolvable BLUP
+            path) is Tier 3.5's ``PredictionConfig`` scope, not this type's.
+        reduction_method: The dimensionality-reduction method used for this
+            run (``"pls_latent"``, ``"representatives"``, or ``"pc1"``).
+        predictions: One :class:`TargetPrediction` per prediction target.
+    """
+
+    source_platform: str
+    target_platform: str
+    predictor_source: str
+    reduction_method: str
+    predictions: list[TargetPrediction] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
+        return dataclasses.asdict(self)
+
+    def to_json(self, **kwargs: Any) -> str:
+        """Serialize to a strict-JSON string, enforcing the finite-floats contract.
+
+        Defaults to ``allow_nan=False`` so a non-finite value raises a
+        ``ValueError`` here rather than emitting the non-standard tokens a
+        strict JSON consumer (e.g. bloom-mcp) rejects. Extra keyword
+        arguments are forwarded to :func:`json.dumps`.
+
+        Raises:
+            ValueError: If any float field is non-finite (under the default
+                ``allow_nan=False``).
+        """
+        kwargs.setdefault("allow_nan", False)
+        return json.dumps(self.to_dict(), **kwargs)
+
+    @classmethod
+    def from_logo_cv_results(
+        cls,
+        *,
+        source_platform: str,
+        target_platform: str,
+        predictor_source: str,
+        reduction_method: str,
+        logo_cv_results: dict[str, Any],
+    ) -> "CrossPlatformPredictionResult":
+        """Build a :class:`CrossPlatformPredictionResult` from LOGO-CV outputs.
+
+        Accepts any object exposing ``r2``, ``rmse``, ``spearman_rho``,
+        ``spearman_p``, ``genotypes``, ``y_true``, ``y_pred`` attributes
+        (duck-typed to ``cross_platform_prediction.LOGOCVResult`` without
+        importing it -- this module imports nothing from the analytical
+        modules, keeping dependencies one-way). Does not mutate its inputs.
+
+        Args:
+            source_platform: Name of the predictor platform.
+            target_platform: Name of the predicted platform.
+            predictor_source: ``{"blup", "genotype_means"}`` provenance label.
+            reduction_method: The reduction method used for this run.
+            logo_cv_results: Mapping of target name (a representative trait
+                name, or ``"PC1"``) to its LOGO-CV result object.
+
+        Returns:
+            A frozen :class:`CrossPlatformPredictionResult` holding only
+            JSON-serializable science.
+        """
+        predictions = [
+            TargetPrediction(
+                target_name=str(target_name),
+                r2=float(result.r2),
+                rmse=float(result.rmse),
+                spearman_rho=float(result.spearman_rho),
+                spearman_p=float(result.spearman_p),
+                genotype_names=[str(g) for g in result.genotypes],
+                y_true=[float(v) for v in result.y_true],
+                y_pred=[float(v) for v in result.y_pred],
+            )
+            for target_name, result in logo_cv_results.items()
+        ]
+        return cls(
+            source_platform=source_platform,
+            target_platform=target_platform,
+            predictor_source=predictor_source,
+            reduction_method=reduction_method,
+            predictions=predictions,
         )

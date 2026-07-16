@@ -210,6 +210,15 @@ from sleap_roots_analyze.pc_correlations import (
     EnrichmentResult,
 )
 
+from sleap_roots_analyze.cross_platform_prediction import (
+    fit_pca_on_fold,
+    logo_cv_predict,
+)
+from sleap_roots_analyze.result_types import (
+    CrossPlatformPredictionResult,
+    TargetPrediction,
+)
+
 __all__ = [
     # CLI
     "main",
@@ -364,4 +373,9 @@ __all__ = [
     "trait_correlation_enrichment",
     "CrossPlatformPCResult",
     "EnrichmentResult",
+    # Cross-platform prediction (Tier 3, #194)
+    "fit_pca_on_fold",
+    "logo_cv_predict",
+    "CrossPlatformPredictionResult",
+    "TargetPrediction",
 ]

@@ -6,6 +6,7 @@ acceptance-criteria oracles this test suite implements against.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,9 +21,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import LeaveOneOut
 
 from sleap_roots_analyze.cross_platform_prediction import (
+    LOGOCVResult,
     fit_pca_on_fold,
     logo_cv_predict,
 )
+from sleap_roots_analyze.result_types import CrossPlatformPredictionResult
 
 
 class TestFitPcaOnFold:
@@ -636,3 +639,143 @@ class TestTraitSetIdentityOracle:
 
         assert clusters_a == clusters_b
         assert reps_a == reps_b
+
+
+class TestCrossPlatformPredictionResult:
+    """Tests for CrossPlatformPredictionResult / TargetPrediction (result_types.py)."""
+
+    @staticmethod
+    def _sample_logo_cv_results(n_genotypes=5):
+        """Build a small dict of target_name -> LOGOCVResult for adapter tests."""
+        genotypes = [f"g{i}" for i in range(n_genotypes)]
+        rep_result = LOGOCVResult(
+            genotypes=genotypes,
+            y_true=np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+            y_pred=np.array([1.1, 1.9, 3.2, 3.8, 5.1]),
+            r2=0.95,
+            rmse=0.15,
+            spearman_rho=0.9,
+            spearman_p=0.02,
+        )
+        pc1_result = LOGOCVResult(
+            genotypes=genotypes,
+            y_true=np.array([0.5, 1.5, 2.5, 3.5, 4.5]),
+            y_pred=np.array([0.6, 1.4, 2.7, 3.3, 4.6]),
+            r2=0.88,
+            rmse=0.2,
+            spearman_rho=0.85,
+            spearman_p=0.05,
+        )
+        return {"trait_a": rep_result, "PC1": pc1_result}
+
+    def test_cross_platform_prediction_result_round_trips_through_json(self):
+        """json.dumps(asdict(result)) succeeds and round-trips as native types."""
+        results = self._sample_logo_cv_results()
+        result = CrossPlatformPredictionResult.from_logo_cv_results(
+            source_platform="Turface19",
+            target_platform="Cylinder",
+            predictor_source="blup",
+            reduction_method="pls_latent",
+            logo_cv_results=results,
+        )
+        json_str = result.to_json()
+        round_tripped = json.loads(json_str)
+        for pred in round_tripped["predictions"]:
+            assert isinstance(pred["r2"], float)
+            assert isinstance(pred["rmse"], float)
+            assert isinstance(pred["spearman_rho"], float)
+            assert isinstance(pred["spearman_p"], float)
+            for v in pred["y_true"] + pred["y_pred"]:
+                assert isinstance(v, float)
+
+    def test_cross_platform_prediction_result_no_sklearn_objects(self):
+        """No sklearn/numpy object appears anywhere in the dict view."""
+        results = self._sample_logo_cv_results()
+        result = CrossPlatformPredictionResult.from_logo_cv_results(
+            source_platform="Turface19",
+            target_platform="Cylinder",
+            predictor_source="blup",
+            reduction_method="pls_latent",
+            logo_cv_results=results,
+        )
+        as_dict = result.to_dict()
+
+        def _walk(obj):
+            if isinstance(obj, dict):
+                for v in obj.values():
+                    yield from _walk(v)
+            elif isinstance(obj, list):
+                for v in obj:
+                    yield from _walk(v)
+            else:
+                yield obj
+
+        for value in _walk(as_dict):
+            assert not isinstance(value, np.ndarray)
+            assert not isinstance(value, np.generic)
+
+    def test_cross_platform_prediction_result_from_logo_cv_adapter(self):
+        """The adapter maps every field from the source LOGO-CV results exactly."""
+        results = self._sample_logo_cv_results()
+        result = CrossPlatformPredictionResult.from_logo_cv_results(
+            source_platform="Turface19",
+            target_platform="Cylinder",
+            predictor_source="blup",
+            reduction_method="pls_latent",
+            logo_cv_results=results,
+        )
+        assert result.source_platform == "Turface19"
+        assert result.target_platform == "Cylinder"
+        assert result.predictor_source == "blup"
+        assert result.reduction_method == "pls_latent"
+        by_name = {p.target_name: p for p in result.predictions}
+        assert by_name["trait_a"].r2 == pytest.approx(0.95)
+        assert by_name["trait_a"].rmse == pytest.approx(0.15)
+        assert by_name["PC1"].r2 == pytest.approx(0.88)
+
+    def test_cross_platform_prediction_result_pc1_reported_separately(self):
+        """PC1's metrics are independent of, never combined with, other targets'."""
+        results = self._sample_logo_cv_results()
+        result = CrossPlatformPredictionResult.from_logo_cv_results(
+            source_platform="Turface19",
+            target_platform="Cylinder",
+            predictor_source="blup",
+            reduction_method="pls_latent",
+            logo_cv_results=results,
+        )
+        by_name = {p.target_name: p for p in result.predictions}
+        assert "PC1" in by_name
+        assert "trait_a" in by_name
+        assert by_name["PC1"].r2 != by_name["trait_a"].r2
+        # Never averaged/combined -- each is independently computed.
+        all_r2 = [p.r2 for p in result.predictions]
+        assert by_name["PC1"].r2 in all_r2
+        assert by_name["trait_a"].r2 in all_r2
+
+
+class TestPublicApiExport:
+    """Public package-root export (mirroring test_blup_result.py's precedent)."""
+
+    def test_cross_platform_prediction_result_importable_from_package_root(self):
+        """CrossPlatformPredictionResult/TargetPrediction are importable and in __all__."""
+        import sleap_roots_analyze as sra
+        from sleap_roots_analyze.result_types import TargetPrediction
+
+        assert sra.CrossPlatformPredictionResult is CrossPlatformPredictionResult
+        assert sra.TargetPrediction is TargetPrediction
+        assert "CrossPlatformPredictionResult" in sra.__all__
+        assert "TargetPrediction" in sra.__all__
+        assert len(sra.__all__) == len(set(sra.__all__))
+
+    def test_cross_platform_prediction_functions_importable_from_package_root(self):
+        """fit_pca_on_fold/logo_cv_predict are importable from the package root."""
+        import sleap_roots_analyze as sra
+        from sleap_roots_analyze.cross_platform_prediction import (
+            fit_pca_on_fold as module_fit_pca_on_fold,
+            logo_cv_predict as module_logo_cv_predict,
+        )
+
+        assert sra.fit_pca_on_fold is module_fit_pca_on_fold
+        assert sra.logo_cv_predict is module_logo_cv_predict
+        assert "fit_pca_on_fold" in sra.__all__
+        assert "logo_cv_predict" in sra.__all__
