@@ -13,8 +13,9 @@
 > `docs/CROSS_PLATFORM_ANALYSIS.md` task.
 >
 > **Section 5 (trait-set identity oracle) was BLOCKED pending a handoff investigation — RESOLVED
-> 2026-07-16, see design.md Decision 2's resolution and task 1.4 below.** Section 5 is now
-> unblocked.
+> 2026-07-16, see design.md Decision 2's resolution and task 1.4 below.** Task 1.4's fixture
+> regeneration is done and verified (exact match to the published 22/129 → 2,838 → 36 → 14/28);
+> Section 5 is ready for implementation.
 
 ## 1. Fixtures (test-first)
 
@@ -52,8 +53,8 @@
       `fit_pca_on_fold` make no assumption about EDPIE-specific shapes or names. Follow the same
       N-seed-averaged design as 1.1 for the same statistical reasons. Document the chosen
       parameters and seeds.
-- [ ] 1.4 **Regenerate the `root_core_vs_cylinder` fixture at the Mar-30 paper vintage — resolved
-      plan, see design.md Decision 2's 2026-07-16 resolution.** The 2026-07-16 handoff
+- [x] 1.4 **Regenerate the `root_core_vs_cylinder` fixture at the Mar-30 paper vintage — DONE
+      2026-07-16.** See design.md Decision 2's resolution. The 2026-07-16 handoff
       investigation confirmed the real Section 3.4 mechanism (cluster each platform's traits at
       |ρ|≥0.80 → correlate every field-representative × cylinder-representative pair → filter to
       |ρ|≥0.55 → count distinct traits per side) against the real Mar-30 paper-run artifacts, and
@@ -79,16 +80,26 @@
          the current pipeline code (`ReduceTraitRedundancyStep` +
          `cluster_correlated_traits`/`select_cluster_representatives` + the cross-platform
          correlation step).
-      4. **Verify** the regenerated fixture reproduces: 22 field / 129 cylinder representatives →
-         2,838 candidate pairs → 36 pairs at `|ρ|≥0.55` → **14 distinct field traits / 28 distinct
-         cylinder traits** among those 36 — an exact match to the published Section 3.4 numbers.
-         If it doesn't match exactly, re-check the copied exclude-column lists and QC data against
-         the source run before touching Section 5's oracle test.
-      5. Add a README note in `tests/fixtures/real/wheat_edpie/` (or the `inputs/raw/README.txt`
-         provenance doc) flagging `root_core_vs_cylinder` as a documented exception pinned to the
-         Mar-30 paper-run vintage, distinct from the tree's Feb-12 anchor used everywhere else
-         (the other 3 sibling directed-pair fixtures — `root_core_vs_turface_19`,
-         `turface_150_vs_turface_19`, `turface_19_vs_cylinder` — stay on Feb-12, unchanged).
+      4. **Verified 2026-07-16, exact match.** Ran `uv run sleap-roots-analyze cross-platform
+         tests/fixtures/harness/cross_platform/cross_platform_rootcore_vs_cylinder_paper_vintage.yaml`
+         (the actual `CrossPlatformPipeline` — `LoadCrossPlatformDataStep` →
+         `ReduceTraitRedundancyStep` → `CalculateCrossPlatformCorrelationsStep`, not a hand-rolled
+         reimplementation) against the two copied paper-vintage CSVs. Pipeline log and direct CSV
+         inspection both confirm: 24→**22** field representatives, 836→**129** cylinder
+         representatives, **2,838** candidate pairs tested, **36** pairs at `|ρ|≥0.55`, spanning
+         **14** distinct field traits and **28** distinct cylinder traits among those 36 — an exact
+         match to the published Section 3.4 numbers, byte-for-byte on every count. The curated
+         artifact set (`config.yaml`, `cross_platform_alignment_summary.csv`,
+         `cross_platform_correlations.csv`, `exp1_trait_clusters.csv`, `exp2_trait_clusters.csv`,
+         `pipeline_summary.json` — matching this fixture family's existing curation policy, no
+         PNGs/logs/loaded-intermediate CSVs) was copied in place over the stale Feb-12-vintage
+         fixture. Full `tests/test_pipeline_reproduction.py` suite (45 tests) re-run and passes,
+         confirming the "confirmed safe to regenerate" audit held.
+      5. **Done.** Added a "Provenance" bullet to `tests/fixtures/README.md` flagging
+         `root_core_vs_cylinder` as a documented exception pinned to the Mar-30 paper-run vintage,
+         distinct from the tree's Feb-12 anchor used everywhere else (the other 3 sibling
+         directed-pair fixtures — `root_core_vs_turface_19`, `turface_150_vs_turface_19`,
+         `turface_19_vs_cylinder` — stay on Feb-12, unchanged).
       Confirmed safe: only `test_pipeline_reproduction.py` reads
       `cross_platform_correlations.csv`/`cross_platform_alignment_summary.csv` from this fixture
       family, and only structurally (columns present, non-empty, `spearman_r ∈ [-1, 1]`, positive
@@ -241,7 +252,7 @@
       `fit_inside_fold=False` branch — 3.1/3.2/3.4's mock/spy tests already assert this
       structurally; cross-reference here rather than duplicating.
 
-## 5. Trait-set identity oracle — **unblocked 2026-07-16** (see task 1.4 / design.md Decision 2)
+## 5. Trait-set identity oracle — **ready for implementation** (fixture regenerated 2026-07-16, task 1.4 / design.md Decision 2)
 
 > `/review-openspec` round 1 found the pre-review design below tested the wrong substrate and
 > quantity (a real committed fixture showed `select_cluster_representatives` alone gives 28
@@ -249,8 +260,9 @@
 > the real mechanism — clustering *plus* cross-platform correlation filtering at |ρ|≥0.55, counting
 > **distinct** traits per side among the surviving pairs — against the actual Mar-30 paper-run
 > artifacts, and traced the fixture mismatch to an unrelated older data vintage (see design.md
-> Decision 2's resolution). **5.1-5.3 below implement against the regenerated fixture from task
-> 1.4 — do not start until task 1.4's regeneration is complete and verified.**
+> Decision 2's resolution). **Task 1.4's fixture regeneration is done and verified (exact match:
+> 22/129 → 2,838 → 36 → 14/28)** — 5.1-5.3 below can now be implemented directly against the
+> regenerated, committed `expected/cross_platform/root_core_vs_cylinder/` fixture.
 
 - [ ] 5.1 Write failing test `test_cluster_and_correlate_reproduces_section_3_4_representative_counts`
       (`tests/test_cross_platform_prediction.py` or alongside `cross_experiment_analysis.py`'s

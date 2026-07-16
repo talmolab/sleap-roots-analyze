@@ -1,0 +1,115 @@
+# Cross-Platform Analysis Configuration — PAPER-VINTAGE EXCEPTION
+# Comparing Root Core EDPIE (QC'd) vs Cylinder EDPIE (QC'd), Mar-30 data vintage
+#
+# This is NOT the live/active analysis config (see configs/active/cross_platform/
+# cross_platform_rootcore_vs_cylinder.yaml for that). This config exists solely to
+# regenerate tests/fixtures/real/wheat_edpie/expected/cross_platform/root_core_vs_cylinder/
+# so it reproduces the wheat EDPIE paper's Section 3.4 published numbers exactly
+# (14 field + 28 cylinder distinct traits among pairs at |rho|>=0.55, out of 2,838
+# candidate pairs from 22 field x 129 cylinder cluster representatives).
+#
+# Source of exp1/exp2_data_path and every parameter below: the exact config.yaml
+# committed alongside the paper's own analysis run, in the external wheat-edpie-paper
+# vault at data/cross_platform_field_v2/
+# cross_platform_Root_Core_EDPIE_vs_Cylinder_EDPIE_20260330_213908/config.yaml.
+# Only the two data paths were changed, to point at this repo's committed copies of
+# that run's QC'd inputs (tests/fixtures/real/wheat_edpie/inputs/post_qc/
+# {root_core,cylinder}_final_data_paper_vintage.csv) instead of the vault's own
+# (external, not-committed-here) paths. See design.md Decision 2 (add-cross-platform-
+# prediction OpenSpec change) for the full investigation and rationale.
+
+exp1_data_path: "c:/repos/sleap-roots-analyze/tests/fixtures/real/wheat_edpie/inputs/post_qc/root_core_final_data_paper_vintage.csv"
+exp1_name: "Root Core EDPIE (QC'd)"
+exp1_genotype_col: "Genotype"
+
+exp2_data_path: "c:/repos/sleap-roots-analyze/tests/fixtures/real/wheat_edpie/inputs/post_qc/cylinder_final_data_paper_vintage.csv"
+exp2_name: "Cylinder EDPIE (QC'd)"
+exp2_genotype_col: "Genotype"
+
+correlation_method: "spearman"
+min_samples_per_genotype: 2
+significance_level: 0.05
+fdr_correction_method: "fdr_bh"
+confidence_level: 0.95
+min_genotypes_for_correlation: 10
+power_analysis_alpha: 0.05
+power_analysis_power: 0.8
+
+top_n_correlations: 50
+top_n_joint_plots: 15
+top_n_boxplots: 15
+figsize_summary: [18, 16]
+figsize_joint: [10, 10]
+figsize_boxplot: [16, 6]
+
+trait_reduction_method: "clustering"
+trait_reduction_target: "both"
+trait_clustering_threshold: 0.8
+trait_clustering_linkage: "complete"
+
+# Column exclusions — copied verbatim from the vault's Mar-30 config.yaml.
+exp1_exclude_cols:
+  - "Plot"
+  - "Ent"
+  - "Sub"
+  - "Cid"
+  - "Sid"
+  - "GID"
+  - "Cross name"
+  - "Sel_Hist"
+  - "Origin"
+  - "outlier_flag"
+  - "outlier_reason"
+  - "plant_identifier"
+  - "Rspkgp Calc Pct"
+  - "Ant Dto Day"
+  - "Boot Dtoinit Day"
+  - "Hd Dto Day"
+  - "Root Count 45cm"
+  - "Gwsp Calc (g)"
+  - "Mat Dto Day"
+  - "Root Count 35cm"
+  - "Root Count 40cm"
+
+exp2_exclude_cols:
+  - "Geno_rep"
+  - "Sterilization"
+  - "DOT"
+  - "QC_SLEAP"
+  - "QC_Code"
+  - "Date_QC"
+  - "Outlier_Harvest_Only"
+  - "scan_id"
+  - "accession_id"
+  - "crown"
+  - "date_scanned"
+  - "experiment_id"
+  - "experiment_name"
+  - "germ_day"
+  - "germ_day_color"
+  - "lateral"
+  - "phenotyper_id"
+  - "plant_age_days"
+  - "plant_id"
+  - "plant_name"
+  - "primary"
+  - "scan_path"
+  - "scanner_id"
+  - "species_genus"
+  - "species_id"
+  - "species_name"
+  - "species_species"
+  - "uploaded_at"
+  - "wave_id"
+  - "wave_name"
+  - "wave_number"
+  - "Scanline First Ind Min"
+  - "Seminal Count Max"
+  - "Scanline Intersection Counts Max P75"
+  - "Scanline Intersection Counts P75 Min"
+  - "Scanline First Ind Med"
+  - "Scanline First Ind P25"
+  - "Scanline Intersection Counts Max Med"
+  - "Scanline Intersection Counts Max Min"
+  - "Scanline Last Ind Max"
+  - "Seminal Count Min"

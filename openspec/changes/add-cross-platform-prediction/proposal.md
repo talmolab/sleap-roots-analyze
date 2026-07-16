@@ -132,8 +132,9 @@ function, config, or pipeline behavior is touched.
 
 - `cross-platform-prediction` (ADDED) — new capability: `fit_pca_on_fold`, `logo_cv_predict`, the
   CV-hygiene contract, the leakage regression test, the synthetic-fixture oracles, and the
-  trait-set identity oracle (mechanism resolved 2026-07-16, design.md Decision 2 — implementation
-  gated only on tasks.md task 1.4's one-time fixture regeneration, not a design question).
+  trait-set identity oracle (mechanism resolved 2026-07-16, design.md Decision 2; the
+  `root_core_vs_cylinder` fixture regeneration, tasks.md task 1.4, is complete and verified — ready
+  for implementation).
 - `serializable-result-types` (ADDED) — new `CrossPlatformPredictionResult` /
   `TargetPrediction` requirement, following the existing frozen-dataclass /
   `to_json(allow_nan=False)` / `from_*` adapter / `__all__` export pattern. (Corrected from an

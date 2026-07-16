@@ -457,15 +457,14 @@ unexamined default or an unstated precondition as a settled, validated design ch
   pipeline-level step leaks the held-out genotype into loadings) but means there are now two
   PCA-fitting code paths in the codebase with different contracts — worth a clear docstring
   cross-reference in both directions so a future reader doesn't try to consolidate them.
-- **Trait-set identity oracle mechanism — resolved, but requires a one-time fixture regeneration.**
+- **Trait-set identity oracle mechanism — resolved and fixture regeneration complete.**
   Superseded by Decision 2's 2026-07-16 resolution: the oracle targets clustering plus
   cross-platform correlation filtering (confirmed against the real Mar-30 paper-run artifacts), not
-  clustering alone. The residual risk is narrower now: the `root_core_vs_cylinder` fixture must be
-  regenerated from a second, explicitly-labeled Mar-30 data vintage before Section 5 can be
-  implemented against it (task 1.4) — a one-time fixture-authoring step, not an open design
-  question. If the regenerated fixture does not reproduce 22/129 representatives → 2,838 pairs →
-  14/28 distinct exactly, that is a signal to re-check the copied exclude-column lists/QC data
-  against the source run before touching the oracle test itself.
+  clustering alone. The `root_core_vs_cylinder` fixture has been regenerated from a second,
+  explicitly-labeled Mar-30 data vintage (task 1.4) — verified by actually running the pipeline
+  (`uv run sleap-roots-analyze cross-platform ...`), not a hand-derived expectation: it reproduces
+  22/129 representatives → 2,838 candidate pairs → 36 pairs at `|ρ|≥0.55` → 14/28 distinct traits
+  exactly. Section 5 can be implemented directly against the now-committed fixture.
 
 ## Migration Plan
 
