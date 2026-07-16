@@ -92,6 +92,15 @@ dict directly if you need that mapping. (`feature_names` on `KMeansResult`/
 `GMMResult`/`HierarchicalResult` is derived from the columns actually used for
 fitting, not a pre-filter snapshot — #183 fixed this at the producer level.)
 
+**`BLUPResult.intercepts` semantics depend on the source call (#114).** When the
+`calculate_heritability_estimates` call backing `extract_blup_table()` used a
+non-empty `fixed_effects`, a trait's `intercepts` value is an empirical, sample
+frequency-weighted quantity (see that function's docstring) rather than the
+plain model intercept — it can differ trait-to-trait and is not a
+population-typical value. `BLUPResult`/`from_blup_table` are unaware of
+`fixed_effects` and store whatever `intercept` float each trait's source dict
+carries, unchanged.
+
 ## Backwards compatibility
 
 **Additive only.** Existing callers (`result["loadings"]`, the wheat EDPIE paper, the

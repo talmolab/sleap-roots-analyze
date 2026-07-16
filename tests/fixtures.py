@@ -351,6 +351,171 @@ def heritability_data_unbalanced_reps():
     return df, meta
 
 
+@pytest.fixture
+def heritability_data_batch_confounded():
+    """Generate batch-confounded data for the fixed_effects H2 oracle.
+
+    Mirrors issue #114's Bloom-experiment scenario: 20 genotypes, n=10
+    reps each, evenly split into two groups whose reps are mostly (but not
+    entirely) in one of two synthetic batches — genuinely partial
+    per-genotype mixing, not full determinism. Combined with a large
+    per-batch shift, the resulting between-genotype variance from the
+    confound exceeds the within-genotype variance from the partial mixing,
+    so uncorrected H2 (fixed_effects=None) comes out above corrected H2
+    (fixed_effects=["experiment"]).
+
+    Verified empirically (this exact construction, legacy np.random.seed
+    API): seed=42 gives H2_uncorrected~=0.9405, H2_corrected~=0.7194,
+    gap~=0.2211. Across 10 tested seeds (1,2,3,7,13,21,42,99,123,777) the
+    minimum gap is 0.2138 -- comfortably above the 0.05 threshold tests
+    assert. Do not change sigma_g/shift/rep counts without re-verifying;
+    an earlier draft (sigma_g=3.0, shift=8.0, n=4 reps, a 16/4-genotype
+    3:1/1:3 partial mix) was confirmed by simulation to produce the
+    opposite sign, because with too few reps any genuinely partial mix
+    injects more within-genotype variance than between-genotype variance,
+    regardless of shift magnitude.
+
+    Returns:
+        tuple: (pd.DataFrame, dict) where the dict is
+            {"trait": "trait_batch_confounded", "batch_col": "experiment"}.
+    """
+    np.random.seed(42)
+
+    mostly_a = [f"G{g:02d}" for g in range(1, 11)]
+    mostly_b = [f"G{g:02d}" for g in range(11, 21)]
+    n_reps = 10
+
+    data = []
+    barcode = 0
+    for geno in mostly_a:
+        genotype_effect = np.random.normal(0, 0.4)
+        batches = ["Bloom_A"] * 9 + ["Bloom_B"] * 1
+        for r, batch in enumerate(batches):
+            shift = 10.0 if batch == "Bloom_B" else 0.0
+            value = 50 + genotype_effect + shift + np.random.normal(0, 1.0)
+            data.append(
+                {
+                    "geno": geno,
+                    "rep": r + 1,
+                    "Barcode": f"BC{barcode:04d}",
+                    "trait_batch_confounded": value,
+                    "experiment": batch,
+                }
+            )
+            barcode += 1
+    for geno in mostly_b:
+        genotype_effect = np.random.normal(0, 0.4)
+        batches = ["Bloom_A"] * 1 + ["Bloom_B"] * 9
+        for r, batch in enumerate(batches):
+            shift = 10.0 if batch == "Bloom_B" else 0.0
+            value = 50 + genotype_effect + shift + np.random.normal(0, 1.0)
+            data.append(
+                {
+                    "geno": geno,
+                    "rep": r + 1,
+                    "Barcode": f"BC{barcode:04d}",
+                    "trait_batch_confounded": value,
+                    "experiment": batch,
+                }
+            )
+            barcode += 1
+
+    df = pd.DataFrame(data)
+    meta = {"trait": "trait_batch_confounded", "batch_col": "experiment"}
+    return df, meta
+
+
+@pytest.fixture
+def heritability_data_field_block():
+    """Generate field-block data for the fixed_effects BLUP/shrinkage oracles.
+
+    15 genotypes split into two replicate-count groups: 7 "low-rep"
+    genotypes (G01-G07) with n=2 reps each, 8 "high-rep" genotypes
+    (G08-G15) with n=10 reps each. A per-"block" shift is added, with
+    block-composition skew applied as the same ~71% block_1-heavy ratio
+    within *both* replicate-count groups -- orthogonal to which
+    replicate-count group a genotype is in. This orthogonality is
+    required: an earlier draft skewed block assignment by genotype ID in
+    a way that correlated with the replicate-count grouping, and was
+    confirmed by simulation to produce an unreliable shrinkage oracle
+    (~40% failure rate on the naive comparison, even though the simpler
+    BLUP-difference oracle was unaffected).
+
+    Verified empirically (this exact construction, legacy np.random.seed
+    API, 10 tested seeds): the BLUP-adjusted-means oracle (fixed_effects
+    vs. none) never failed to show a difference, and the
+    shrinkage-scales-with-replication oracle never failed *when compared
+    against a block-detrended raw mean* (subtracting the fitted C(block)
+    coefficient per observation before averaging within genotype) --
+    comparing against the naive, non-detrended raw mean is NOT a valid
+    shrinkage test here, since that naive mean is itself contaminated by
+    each genotype's own block composition, the exact thing the fixed
+    effect corrects for.
+
+    Returns:
+        tuple: (pd.DataFrame, dict) where the dict is
+            {"trait": "trait_field_block", "low_rep_genotypes": [...],
+            "high_rep_genotypes": [...]}.
+    """
+    np.random.seed(42)
+
+    low_rep_genotypes = [f"G{g:02d}" for g in range(1, 8)]
+    high_rep_genotypes = [f"G{g:02d}" for g in range(8, 16)]
+    low_block1_heavy = {"G01", "G02", "G03", "G04", "G05"}
+    high_block1_heavy = {"G08", "G09", "G10", "G11", "G12", "G13"}
+
+    data = []
+    barcode = 0
+    for geno in low_rep_genotypes:
+        n_reps = 2
+        block1_frac = 0.8 if geno in low_block1_heavy else 0.2
+        genotype_effect = np.random.normal(0, 2.0)
+        n_b1 = round(block1_frac * n_reps)
+        n_b2 = n_reps - n_b1
+        blocks = ["block_1"] * n_b1 + ["block_2"] * n_b2
+        for r, block in enumerate(blocks):
+            shift = 5.0 if block == "block_2" else 0.0
+            value = 50 + genotype_effect + shift + np.random.normal(0, 1.0)
+            data.append(
+                {
+                    "geno": geno,
+                    "rep": r + 1,
+                    "Barcode": f"BC{barcode:04d}",
+                    "trait_field_block": value,
+                    "block": block,
+                }
+            )
+            barcode += 1
+    for geno in high_rep_genotypes:
+        n_reps = 10
+        block1_frac = 0.8 if geno in high_block1_heavy else 0.2
+        genotype_effect = np.random.normal(0, 2.0)
+        n_b1 = round(block1_frac * n_reps)
+        n_b2 = n_reps - n_b1
+        blocks = ["block_1"] * n_b1 + ["block_2"] * n_b2
+        for r, block in enumerate(blocks):
+            shift = 5.0 if block == "block_2" else 0.0
+            value = 50 + genotype_effect + shift + np.random.normal(0, 1.0)
+            data.append(
+                {
+                    "geno": geno,
+                    "rep": r + 1,
+                    "Barcode": f"BC{barcode:04d}",
+                    "trait_field_block": value,
+                    "block": block,
+                }
+            )
+            barcode += 1
+
+    df = pd.DataFrame(data)
+    meta = {
+        "trait": "trait_field_block",
+        "low_rep_genotypes": low_rep_genotypes,
+        "high_rep_genotypes": high_rep_genotypes,
+    }
+    return df, meta
+
+
 # ============================================================================
 # HERITABILITY DIAGNOSTIC FIXTURES - Data for testing diagnostic functions
 # ============================================================================

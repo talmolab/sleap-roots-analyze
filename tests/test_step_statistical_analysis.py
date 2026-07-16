@@ -18,7 +18,10 @@ from sleap_roots_analyze.pipeline import (
 from sleap_roots_analyze.pipeline.config.components import StatisticsConfig
 from sleap_roots_analyze.pipeline.config.viz_config import VizPipelineConfig
 from sleap_roots_analyze.pipeline.core import StepResult
-from sleap_roots_analyze.pipeline.steps import StatisticalAnalysisStep
+from sleap_roots_analyze.pipeline.steps import (
+    LoadDataAndImagesStep,
+    StatisticalAnalysisStep,
+)
 
 
 @pytest.fixture
@@ -586,6 +589,184 @@ class TestBLUPTableOutput:
         step.execute(sample_data, config, tmp_path, prev_result)
 
         assert (tmp_path / "data" / "08_blup_adjusted_means.csv").exists()
+
+
+class TestFixedEffectsConfig:
+    """Tests for StatisticsConfig.fixed_effects threading (#114)."""
+
+    def test_statistics_config_fixed_effects_default_none(self):
+        """StatisticsConfig.fixed_effects defaults to None."""
+        assert StatisticsConfig().fixed_effects is None
+
+    def test_fixed_effects_threaded_into_heritability_call(self, prev_result, tmp_path):
+        """statistics.fixed_effects changes the heritability/BLUP output."""
+        np.random.seed(0)
+        n = 40
+        data = pd.DataFrame(
+            {
+                "Barcode": [f"plant{i}" for i in range(n)],
+                "Genotype": (["A"] * 10 + ["B"] * 10) * 2,
+                "Replicate": list(range(1, 11)) * 4,
+                "experiment": ["exp1"] * 20 + ["exp2"] * 20,
+                "trait1": np.concatenate(
+                    [
+                        np.random.randn(20) * 2 + 50,
+                        np.random.randn(20) * 2 + 65,
+                    ]
+                ),
+            }
+        )
+        local_prev_result = StepResult(
+            data=data,
+            metadata={"valid_trait_names": ["trait1"], "samples": n},
+            files_generated=[],
+        )
+
+        config_none = VizPipelineConfig(
+            pipeline_name="test_viz",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            statistics=StatisticsConfig(fixed_effects=None),
+        )
+        config_fe = VizPipelineConfig(
+            pipeline_name="test_viz",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path="dummy.csv"),
+            statistics=StatisticsConfig(fixed_effects=["experiment"]),
+        )
+
+        step = StatisticalAnalysisStep()
+        tmp_none = tmp_path / "none"
+        tmp_fe = tmp_path / "fe"
+        step.execute(data, config_none, tmp_none, local_prev_result)
+        step.execute(data, config_fe, tmp_fe, local_prev_result)
+
+        herit_none = pd.read_csv(tmp_none / "data" / "08_heritability_results.csv")
+        herit_fe = pd.read_csv(tmp_fe / "data" / "08_heritability_results.csv")
+        h2_none = herit_none.loc[herit_none["trait"] == "trait1", "heritability"].iloc[
+            0
+        ]
+        h2_fe = herit_fe.loc[herit_fe["trait"] == "trait1", "heritability"].iloc[0]
+        assert h2_none != pytest.approx(h2_fe)
+
+        blup_none = pd.read_csv(tmp_none / "data" / "08_blup_adjusted_means.csv")
+        blup_fe = pd.read_csv(tmp_fe / "data" / "08_blup_adjusted_means.csv")
+        assert not blup_none["trait1"].equals(blup_fe["trait1"])
+
+    def test_fixed_effects_qc_config_no_statistics_resolves_none(
+        self, sample_data, config, prev_result, tmp_path
+    ):
+        """A bare QCPipelineConfig (no statistics field) resolves fixed_effects to None."""
+        step = StatisticalAnalysisStep()
+        result = step.execute(sample_data, config, tmp_path, prev_result)
+
+        assert result.metadata["heritability_results"] != {}
+
+    def test_statistics_config_fixed_effects_rejects_non_list(self):
+        """A bare string is rejected at config-construction time (PR #193, 7.4).
+
+        A str is iterable, so passing it straight through would silently
+        produce a per-character fixed_effects list deep inside
+        calculate_heritability_estimates instead of a clear error.
+        """
+        with pytest.raises(ValueError, match="fixed_effects"):
+            StatisticsConfig(fixed_effects="experiment")
+
+    def test_statistics_config_fixed_effects_rejects_non_str_elements(self):
+        """A non-str element is rejected at config-construction time.
+
+        Before it ever reaches calculate_heritability_estimates.
+        """
+        with pytest.raises(ValueError, match="fixed_effects"):
+            StatisticsConfig(fixed_effects=["experiment", 5])
+
+    def test_viz_pipeline_config_auto_excludes_fixed_effects(self):
+        """VizPipelineConfig auto-derives additional_exclude_cols (7.3).
+
+        Unions statistics.fixed_effects into data.additional_exclude_cols
+        automatically. Without this, the pipeline's upstream trait_cols scan
+        (LoadDataAndImagesStep -> get_trait_columns) has no knowledge of
+        config.statistics.fixed_effects on its own, so a fixed_effects name
+        outside the hardcoded metadata-substring list (e.g. "block") would
+        silently be treated as a phenotypic trait everywhere upstream of the
+        statistics step.
+        """
+        config = VizPipelineConfig(
+            pipeline_name="test_viz",
+            data=DataConfig(csv_path="dummy.csv", additional_exclude_cols=["existing"]),
+            statistics=StatisticsConfig(fixed_effects=["block", "experiment"]),
+        )
+        assert config.data.additional_exclude_cols == [
+            "existing",
+            "block",
+            "experiment",
+        ]
+
+    def test_viz_pipeline_config_auto_exclude_dedups_overlapping_names(self):
+        """A fixed_effects name already present in additional_exclude_cols is deduped.
+
+        E.g. because it also matches the hardcoded metadata-substring list.
+        """
+        config = VizPipelineConfig(
+            pipeline_name="test_viz",
+            data=DataConfig(
+                csv_path="dummy.csv", additional_exclude_cols=["experiment"]
+            ),
+            statistics=StatisticsConfig(fixed_effects=["experiment", "block"]),
+        )
+        assert config.data.additional_exclude_cols == ["experiment", "block"]
+
+    def test_viz_pipeline_config_no_fixed_effects_leaves_additional_exclude_unchanged(
+        self,
+    ):
+        """fixed_effects=None (the default) leaves additional_exclude_cols alone.
+
+        No behavior change for existing callers.
+        """
+        config = VizPipelineConfig(
+            pipeline_name="test_viz",
+            data=DataConfig(csv_path="dummy.csv", additional_exclude_cols=["existing"]),
+        )
+        assert config.data.additional_exclude_cols == ["existing"]
+
+    def test_fixed_effect_column_excluded_from_pipeline_trait_cols(self, tmp_path):
+        """A fixed_effects column outside the hardcoded substring list is excluded.
+
+        Integration test for 7.3: e.g. "block" is excluded from trait_cols by
+        LoadDataAndImagesStep once VizPipelineConfig auto-derives the
+        exclusion, not silently treated as a trait.
+        """
+        csv_path = tmp_path / "data.csv"
+        pd.DataFrame(
+            {
+                "Barcode": [f"p{i}" for i in range(8)],
+                "Genotype": ["A"] * 4 + ["B"] * 4,
+                "Replicate": [1, 2, 3, 4] * 2,
+                "block": [1, 2, 1, 2, 1, 2, 1, 2],
+                "trait1": np.random.default_rng(0).normal(size=8),
+            }
+        ).to_csv(csv_path, index=False)
+
+        config = VizPipelineConfig(
+            pipeline_name="test_viz",
+            columns=ColumnConfig(
+                barcode="Barcode", genotype="Genotype", replicate="Replicate"
+            ),
+            data=DataConfig(csv_path=str(csv_path)),
+            statistics=StatisticsConfig(fixed_effects=["block"]),
+        )
+
+        step = LoadDataAndImagesStep()
+        result = step.execute(
+            data=None, config=config, run_dir=tmp_path, prev_result=None
+        )
+
+        assert "block" not in result.metadata["trait_cols"]
+        assert "trait1" in result.metadata["trait_cols"]
 
 
 # --- Task 2: Tests for metadata and summary ---

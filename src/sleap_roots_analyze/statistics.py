@@ -14,6 +14,7 @@ module when analyzing one experiment's replicated measurements; use
 
 from __future__ import annotations
 
+import re
 import numpy as np
 import pandas as pd
 import warnings
@@ -21,6 +22,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 from statsmodels.regression.mixed_linear_model import MixedLM
+from statsmodels.tools.sm_exceptions import ConvergenceWarning
 from scipy import stats
 from scipy.stats import f_oneway
 from typing import Any, Dict, List, Tuple, Optional, Union
@@ -192,6 +194,97 @@ def perform_anova_by_genotype(
     return anova_results
 
 
+def _marginal_intercept(
+    result: Any, model_data: pd.DataFrame, fixed_effects: List[str]
+) -> float:
+    """Empirical, sample frequency-weighted intercept for a fixed-effects fit (#114).
+
+    ``result.fe_params["Intercept"]`` alone represents the fitted value when
+    every fixed effect is at patsy's reference level -- a naming artifact
+    (the first level in sorted order, or the first declared category for a
+    ``pandas.Categorical``), not a scientifically meaningful baseline. This
+    computes an empirical frequency-weighted average across each fixed
+    effect's *observed* levels instead: for each fixed effect, each level's
+    fitted contribution (0.0 for the reference level; its own coefficient in
+    ``result.fe_params`` for every other level) is weighted by that level's
+    share of ``model_data`` rows, summed across levels within that fixed
+    effect, then summed across all fixed effects and added to the base
+    ``Intercept`` coefficient.
+
+    This is a sample-margin quantity, not a population-typical or
+    EMM/lsmeans-style equally-weighted marginal mean: it depends on each
+    trait's own observed level frequencies (post-``dropna()``), so two
+    traits sharing the same ``fixed_effects`` columns may get different
+    values.
+
+    Per-level coefficients are recovered by parsing ``result.fe_params``'s
+    actual fitted parameter names, not by reconstructing the expected key
+    string forward from each observed level's raw value -- the latter risks
+    silently misattributing a real level to the reference level's implicit
+    ``0.0`` on a dtype/formatting mismatch (e.g. a ``float64`` column).
+
+    Args:
+        result: The fitted ``MixedLMResults`` object.
+        model_data: The DataFrame the model was fit on (post-``dropna()``),
+            containing one column per name in ``fixed_effects``.
+        fixed_effects: Names of the fixed-effect columns in the fitted
+            formula.
+
+    Returns:
+        float: The empirical frequency-weighted intercept.
+
+    Raises:
+        ValueError: If a fixed effect's recovered coefficients don't form an
+            exact identity with its observed levels -- either a coefficient
+            doesn't match any observed level string (a dtype/formatting
+            mismatch), or more than one observed level lacks a coefficient
+            (more than one apparent "reference" level). Either case indicates
+            a level failed to match back to its coefficient, which must not
+            be silently defaulted to 0.0.
+    """
+    intercept = float(result.fe_params["Intercept"])
+    for fe in fixed_effects:
+        pattern = re.compile(rf"^C\({re.escape(fe)}\)\[T\.(.*)\]$")
+        level_coefficients = {}
+        for key in result.fe_params.index:
+            match = pattern.match(key)
+            if match:
+                level_coefficients[match.group(1)] = float(result.fe_params[key])
+
+        level_frequencies = model_data[fe].value_counts(normalize=True)
+        observed_level_strs = {str(v) for v in level_frequencies.index}
+        coefficient_keys = set(level_coefficients.keys())
+
+        # An identity check, not just a count check: every recovered
+        # coefficient must correspond to an actually-observed level (a
+        # coefficient key that doesn't match any observed level string would
+        # indicate a dtype/formatting mismatch, not a real reference level),
+        # and exactly one observed level must lack a coefficient (the true
+        # reference level patsy dropped). A count-only check (matching
+        # len(level_coefficients) to n_levels - 1) can pass even when a real
+        # level's string silently failed to match its own coefficient while
+        # an unrelated mismatch happened to keep the count the same.
+        if not coefficient_keys.issubset(observed_level_strs):
+            raise ValueError(
+                f"Fixed effect '{fe}' has fitted coefficient(s) for level(s) "
+                f"not found in the fitted data: "
+                f"{coefficient_keys - observed_level_strs}"
+            )
+        unmatched_levels = observed_level_strs - coefficient_keys
+        if len(unmatched_levels) != 1:
+            raise ValueError(
+                f"Expected exactly one reference level (no fitted "
+                f"coefficient) for fixed effect '{fe}', found "
+                f"{len(unmatched_levels)}: {unmatched_levels}"
+            )
+
+        for level_value, frequency in level_frequencies.items():
+            coefficient = level_coefficients.get(str(level_value), 0.0)
+            intercept += float(frequency) * coefficient
+
+    return intercept
+
+
 def calculate_heritability_estimates(
     df: pd.DataFrame,
     trait_cols: List[str],
@@ -202,6 +295,7 @@ def calculate_heritability_estimates(
     h2_threshold: float = 0.3,
     barcode_col: str = "Barcode",
     additional_exclude: Optional[List[str]] = None,
+    fixed_effects: Optional[List[str]] = None,
 ) -> Union[Dict, Tuple[Dict, pd.DataFrame, List[str], Dict]]:
     """Calculate broad-sense heritability estimates for traits using mixed model approach.
 
@@ -235,6 +329,41 @@ def calculate_heritability_estimates(
         h2_threshold: Heritability threshold for filtering (default: 0.3, only used if remove_low_h2=True)
         barcode_col: Name of barcode column (default: "Barcode", only used if remove_low_h2=True)
         additional_exclude: Additional columns to exclude from traits (only used if remove_low_h2=True)
+        fixed_effects: Optional list of column names to add as fixed effects to
+            the mixed model, changing the formula from ``value ~ 1`` to
+            ``value ~ C(fe_1) + C(fe_2) + ...``. Every name is wrapped in
+            ``C(...)`` unconditionally — always treated as categorical,
+            regardless of pandas dtype, since fixed effects in this context
+            are metadata-style confounders (experiment, wave, batch, scanner),
+            not biological/phenotypic traits and not continuous covariates.
+            Each name must be a valid Python identifier (validated with
+            ``str.isidentifier()``); a name containing a patsy formula
+            operator (``*``, ``:``, etc.) produces a structural error instead
+            of being interpolated into the formula string, since that could
+            otherwise silently misparse as an expression over other columns.
+            Missing columns produce the same structural error as a missing
+            ``genotype_col``. When set, the per-trait model subset additionally
+            drops rows with a ``NaN`` in any fixed-effect column — this only
+            changes behavior when ``fixed_effects`` is non-empty; ``None``
+            (the default) reproduces this function's pre-existing behavior
+            exactly, including the ANOVA-based path, which never uses
+            ``fixed_effects`` in its own variance-component computation
+            (only the row-filtering subset change applies to it). Also only
+            when non-empty: a captured ``ConvergenceWarning`` during the fit
+            (checked by category, not message text) is treated as a fit
+            failure for that trait, since ``statsmodels`` does not always
+            *raise* on a fixed effect confounded with genotype. This is a
+            best-effort signal, not a guarantee: a fixed effect that is
+            confounded with genotype but not enough to trigger a numerical
+            convergence problem can converge cleanly with no warning at all,
+            silently producing a non-identifiable variance-component split
+            between the genotype random effect and the fixed effect. No
+            upfront identifiability/collinearity pre-validation is performed
+            — a fixed effect chosen as a metadata covariate should still be
+            reviewed for how it's distributed across genotypes.
+            ``fixed_effects`` is independent of ``replicate_col`` — a
+            block/replicate fixed effect is expressed by naming that column
+            here directly.
 
     Returns:
         If remove_low_h2=False:
@@ -252,10 +381,17 @@ def calculate_heritability_estimates(
               ``model_type == "mixed_model"`` — the ANOVA-based and
               no-variance paths never fit a mixedlm model, so they carry no
               ``blup``/``intercept`` keys.
-            - intercept: The fixed-effect intercept
-              (``result.fe_params["Intercept"]``) from the same fit. The
-              genotype-adjusted mean is ``intercept + blup[genotype]``.
-              Present under the same condition as ``blup``.
+            - intercept: The fixed-effect intercept from the same fit. When
+              ``fixed_effects`` is empty/``None``, this is exactly
+              ``result.fe_params["Intercept"]``. When ``fixed_effects`` is
+              non-empty, this is instead the empirical, sample
+              frequency-weighted intercept computed by
+              :func:`_marginal_intercept` — a sample-composition-dependent
+              value that can differ trait-to-trait (each trait computes its
+              own ``dropna()`` subset), not a population-typical or
+              EMM/lsmeans-style equally-weighted value. The genotype-adjusted
+              mean is ``intercept + blup[genotype]`` either way. Present
+              under the same condition as ``blup``.
 
         If remove_low_h2=True:
             Tuple of:
@@ -263,6 +399,15 @@ def calculate_heritability_estimates(
             - DataFrame with low heritability traits removed
             - List of removed trait names
             - Dictionary with removal details
+
+    Raises:
+        Nothing propagates to the caller. When ``fixed_effects`` is
+        non-empty, a captured ``ConvergenceWarning`` is converted to an
+        internal ``RuntimeError`` to route it through the same handling as a
+        raised model-fit exception — both are caught by this function's own
+        per-trait ``try/except`` and recorded as that trait's
+        ``{"error": ..., "model_type": "mixed_model_failed"}`` entry, never
+        raised to the caller.
     """
     heritability_results = {}
 
@@ -284,12 +429,58 @@ def calculate_heritability_estimates(
     # replicate_col is optional and its values are never used in the model
     # (value ~ 1 + (1|genotype)). Only require the column when a (truthy) name was
     # provided; treat None or "" identically as "no replicate column" (issue #142).
+    fixed_effects = fixed_effects or []
     required_cols = [genotype_col]
     if replicate_col:
         required_cols.append(replicate_col)
+    required_cols.extend(fixed_effects)
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
         return {"error": f"Missing required columns: {missing_cols}"}
+
+    # Every fixed_effects name is interpolated directly into the formula
+    # string below (issue #114); a name that isn't a valid identifier (e.g.
+    # containing a patsy operator like `*` or `:`) could otherwise silently
+    # misparse as an expression over other, differently-named columns. A
+    # non-str element (e.g. an int-labeled CSV column) has no
+    # .isidentifier() at all -- checked first so this returns the same
+    # structural error instead of an uncaught AttributeError (PR #193
+    # review).
+    invalid_fe_names = [
+        fe for fe in fixed_effects if not isinstance(fe, str) or not fe.isidentifier()
+    ]
+    if invalid_fe_names:
+        return {"error": f"Invalid fixed_effects column name(s): {invalid_fe_names}"}
+
+    # Naming genotype_col or replicate_col as a fixed effect too produces a
+    # duplicate-column selection and a confusing pandas-internal error deep
+    # inside the per-trait loop (e.g. "Grouper for 'geno' not 1-dimensional")
+    # rather than a clear structural error -- reject it upfront instead.
+    reused_names = [
+        fe for fe in fixed_effects if fe == genotype_col or fe == replicate_col
+    ]
+    if reused_names:
+        return {
+            "error": (
+                f"fixed_effects column(s) {reused_names} duplicate "
+                f"genotype_col/replicate_col; name a different column"
+            )
+        }
+
+    # A name repeated within fixed_effects itself (e.g. ["experiment",
+    # "experiment"]) produces a duplicate C(...) term in the formula below,
+    # which degrades to an obscure patsy failure deep inside the per-trait
+    # try/except rather than a clear structural error (PR #193 review).
+    seen_fe_names = set()
+    duplicate_fe_names = []
+    for fe in fixed_effects:
+        if fe in seen_fe_names and fe not in duplicate_fe_names:
+            duplicate_fe_names.append(fe)
+        seen_fe_names.add(fe)
+    if duplicate_fe_names:
+        return {
+            "error": f"Duplicate fixed_effects column name(s): {duplicate_fe_names}"
+        }
 
     for trait in trait_cols:
         if trait not in df.columns:
@@ -299,7 +490,11 @@ def calculate_heritability_estimates(
         # Subset to the only columns the model uses. Replicate is deliberately
         # excluded: its values are never used, so including it (and any NaNs in it)
         # must not drop rows or change H² relative to replicate=None (issue #142).
-        subset = df[[trait, genotype_col]].dropna()
+        # fixed_effects columns ARE included (issue #114): a NaN in a named
+        # fixed-effect column drops that row, applied identically regardless
+        # of force_method (the ANOVA-based path below never uses
+        # fixed_effects in its own formula, only in this shared row filter).
+        subset = df[[trait, genotype_col] + fixed_effects].dropna()
 
         if len(subset) < 4:  # Need minimum data for variance estimation
             heritability_results[trait] = {
@@ -355,17 +550,48 @@ def calculate_heritability_estimates(
 
             if use_mixed_model:
                 # Use mixed model approach (matches R lme4)
-                # Create a clean dataframe for the model
-                model_data = subset.copy()
-                model_data.columns = ["value", "genotype"]
+                # Rename to canonical value/genotype columns; fixed_effects
+                # columns keep their original names since the formula below
+                # references them by name (issue #114).
+                model_data = subset.rename(
+                    columns={trait: "value", genotype_col: "genotype"}
+                )
 
-                # Fit mixed model: value ~ 1 + (1|genotype)
+                # Fit mixed model: value ~ 1 + (1|genotype), or
+                # value ~ C(fe_1) + ... + (1|genotype) when fixed_effects is
+                # set (issue #114). Every fixed effect is wrapped in C(...)
+                # unconditionally -- always treated as categorical.
                 # This matches the R code: lmer(value ~ (1 | ecot_id), data = data_H)
+                if fixed_effects:
+                    formula = "value ~ " + " + ".join(
+                        f"C({fe})" for fe in fixed_effects
+                    )
+                else:
+                    formula = "value ~ 1"
                 try:
                     model = smf.mixedlm(
-                        "value ~ 1", model_data, groups=model_data["genotype"]
+                        formula, model_data, groups=model_data["genotype"]
                     )
-                    result = model.fit(reml=True)  # Use REML like lme4 default
+                    # statsmodels does not reliably *raise* on a fixed effect
+                    # confounded with genotype -- it can instead emit a
+                    # ConvergenceWarning and still return a plausible-looking
+                    # result. Only when fixed_effects is set, capture
+                    # warnings (forcing "always" so a repeat identical
+                    # warning for a later trait isn't silently dropped by
+                    # Python's default once-per-location filter) and treat a
+                    # ConvergenceWarning as a fit failure via the same
+                    # except block below -- gated on fixed_effects so
+                    # fixed_effects=None callers see byte-for-byte identical
+                    # behavior to before this parameter existed (issue #114).
+                    if fixed_effects:
+                        with warnings.catch_warnings(record=True) as caught:
+                            warnings.simplefilter("always")
+                            result = model.fit(reml=True)
+                        for w in caught:
+                            if issubclass(w.category, ConvergenceWarning):
+                                raise RuntimeError(f"Convergence warning: {w.message}")
+                    else:
+                        result = model.fit(reml=True)  # Use REML like lme4 default
 
                     # Extract variance components
                     var_genetic = float(
@@ -387,7 +613,49 @@ def calculate_heritability_estimates(
                         str(geno): float(effect.iloc[0])
                         for geno, effect in result.random_effects.items()
                     }
-                    intercept = float(result.fe_params["Intercept"])
+                    if fixed_effects:
+                        intercept = _marginal_intercept(
+                            result, model_data, fixed_effects
+                        )
+                        # statsmodels' own convergence-warning check (above)
+                        # is a confirmed false-negative for a fixed effect
+                        # near-deterministically confounded with genotype --
+                        # a fit can succeed cleanly with zero warnings (PR
+                        # #193 review, 7.5). Surface an independent, cheap
+                        # diagnostic instead of leaving that case silent: if
+                        # every observation for a genotype sits in a single
+                        # level of a fixed effect that has more than one
+                        # level overall, that genotype contributes no
+                        # within-genotype information for separating the two
+                        # effects, inflating apparent heritability.
+                        for fe in fixed_effects:
+                            if model_data[fe].nunique() < 2:
+                                continue
+                            levels_per_genotype = model_data.groupby("genotype")[
+                                fe
+                            ].nunique()
+                            confounded_genotypes = levels_per_genotype[
+                                levels_per_genotype < 2
+                            ].index.tolist()
+                            if confounded_genotypes:
+                                shown = confounded_genotypes[:5]
+                                more = (
+                                    f" (+{len(confounded_genotypes) - 5} more)"
+                                    if len(confounded_genotypes) > 5
+                                    else ""
+                                )
+                                warnings.warn(
+                                    f"Trait '{trait}': fixed effect '{fe}' "
+                                    f"may be confounded with genotype -- "
+                                    f"{len(confounded_genotypes)} genotype(s) "
+                                    f"appear in only one level of '{fe}': "
+                                    f"{shown}{more}. Heritability may be "
+                                    f"inflated by attributing '{fe}' "
+                                    f"variation to genotype.",
+                                    UserWarning,
+                                )
+                    else:
+                        intercept = float(result.fe_params["Intercept"])
 
                 except Exception as e:
                     # If mixed model fails for this trait, record the error but keep going
@@ -465,6 +733,17 @@ def calculate_heritability_estimates(
 
     # Optionally filter low heritability traits
     if remove_low_h2:
+        # fixed_effects columns are metadata covariates, not candidate traits
+        # (issue #114) -- without excluding them here, get_trait_columns()
+        # (called internally by remove_low_heritability_traits) has no way to
+        # know they aren't traits, since it was never told they were fit as
+        # fixed effects rather than trait_cols. Left unexcluded, a
+        # fixed_effects column with no entry in heritability_results (it was
+        # never fit as a trait) gets silently removed from df_filtered with
+        # reason "No heritability estimate available".
+        combined_exclude = list(
+            dict.fromkeys((additional_exclude or []) + fixed_effects)
+        )
         df_filtered, removed_traits, removal_details = remove_low_heritability_traits(
             df=df,
             heritability_results=heritability_results,
@@ -472,7 +751,7 @@ def calculate_heritability_estimates(
             barcode_col=barcode_col,
             genotype_col=genotype_col,
             replicate_col=replicate_col,
-            additional_exclude=additional_exclude,
+            additional_exclude=combined_exclude or None,
         )
         return heritability_results, df_filtered, removed_traits, removal_details
 

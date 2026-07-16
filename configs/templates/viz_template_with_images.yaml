@@ -44,6 +44,13 @@ statistics:
   # Significance level for ANOVA
   alpha: 0.05
 
+  # Optional metadata covariates (e.g. batch/experiment/block/scanner -- not
+  # biological traits) to add as fixed effects to the heritability mixed
+  # model (issue #114). Automatically excluded from the trait_cols scan, so
+  # listing a name here does not also require adding it to
+  # data.additional_exclude_cols.
+  # fixed_effects: ["experiment"]
+
 # PCA configuration
 pca:
   # Number of PCs to retain (should match QC config)

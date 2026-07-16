@@ -167,6 +167,12 @@ class StatisticalAnalysisStep(BaseStep):
             if statistics_config is not None
             else True
         )
+        # fixed_effects (#114) resolved with the same getattr fallback,
+        # defaulting to None (genotype-only model) when config.statistics is
+        # absent (the QC-pipeline case).
+        fixed_effects = (
+            statistics_config.fixed_effects if statistics_config is not None else None
+        )
 
         if calculate_heritability:
             heritability_results = calculate_heritability_estimates(
@@ -176,6 +182,7 @@ class StatisticalAnalysisStep(BaseStep):
                 replicate_col=replicate_col,
                 force_method=None,  # Use default mixed model approach
                 remove_low_h2=False,  # Don't remove yet, that's Step 9
+                fixed_effects=fixed_effects,
             )
 
             # Convert heritability results to DataFrame for saving

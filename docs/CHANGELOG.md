@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `calculate_heritability_estimates(fixed_effects=...)` (#114): optional list of
+  metadata-style covariate columns (experiment, wave, batch, scanner) added as
+  fixed effects to the mixed model, changing the formula from `value ~ 1` to
+  `value ~ C(fe_1) + C(fe_2) + ...` — every name is `C(...)`-wrapped
+  unconditionally (always categorical). Corrects a heritability-inflation bug
+  where a batch/experiment confound gets absorbed into the genotype term when
+  genotypes aren't balanced across batches. Default `None` reproduces
+  pre-existing behavior exactly. Tier 2 of the cross-platform
+  genotype-prediction program (Tier 1: #109).
+- `StatisticsConfig.fixed_effects` (default `None`): threads the above into the
+  QC/Viz pipeline's `StatisticalAnalysisStep`.
 - `extract_blup_table(heritability_results)` (#109): builds a genotype x trait
   BLUP-adjusted-means `pd.DataFrame` from a `calculate_heritability_estimates` result —
   `adjusted_mean = intercept + blup[genotype]` for each trait whose mixed model
@@ -26,6 +37,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pipeline's `StatisticalAnalysisStep` writes `08_blup_adjusted_means.csv` alongside
   `08_heritability_results.csv`. Only takes effect when `calculate_heritability` is
   also `True` — free once the model is fit.
+- `StatisticsConfig.fixed_effects` must now be `None` or a `list[str]` — a bare
+  string is rejected with `ValueError` at config-construction time instead of
+  silently degrading to a per-character `fixed_effects` list (PR #193 review).
+- A `UserWarning` is now emitted when a fixed effect is confounded with genotype
+  (every observation for some genotype confined to a single level of that fixed
+  effect), even when the fit converges cleanly with zero `ConvergenceWarning`s —
+  diagnostic only, does not reclassify the trait's result (PR #193 review).
+- A duplicate name within `fixed_effects` (e.g. `["experiment", "experiment"]`) is
+  now rejected with a structural `{"error": ...}`, matching the existing
+  missing-column/reused-name error shape, instead of an obscure `patsy` failure
+  (PR #193 review).
+
+### Fixed
+- `VizPipelineConfig` now automatically unions `statistics.fixed_effects` into
+  `data.additional_exclude_cols` at construction time, so a fixed-effect column
+  named outside the hardcoded metadata-substring list (e.g. `"block"`) is no
+  longer silently treated as a phenotypic trait by the pipeline's upstream
+  `trait_cols` scan. The existing `remove_low_h2=True` fix for direct API callers
+  never reached the pipeline, since `StatisticalAnalysisStep` always calls with
+  `remove_low_h2=False` (PR #193 review).
 
 ### Changed
 - `calculate_heritability_estimates` additively returns `blup` (`dict[str, float]`) and
@@ -33,6 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existing return shapes (plain dict, or the `remove_low_h2=True` 4-tuple) are
   unchanged. A trait solved via the ANOVA-based or no-variance path carries no such
   keys, since no fitted mixed-model result exists for those paths.
+- When `fixed_effects` is used (#114), the `intercept` key becomes an empirical,
+  sample frequency-weighted value instead of the raw model intercept — a
+  sample-composition-dependent quantity that can differ trait-to-trait, not a
+  population-typical value. A captured `ConvergenceWarning` during the fit (only
+  when `fixed_effects` is set) is now treated as a trait-level failure, since
+  `statsmodels` does not reliably raise on a fixed effect confounded with
+  genotype. No change when `fixed_effects` is unset.
 
 ## [0.1.0a5] - 2026-07-13 (Pre-release)
 

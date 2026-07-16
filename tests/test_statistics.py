@@ -6,6 +6,9 @@ import numpy as np
 import warnings
 from unittest.mock import patch
 
+import statsmodels.formula.api as smf
+from statsmodels.tools.sm_exceptions import ConvergenceWarning
+
 from sleap_roots_analyze.statistics import (
     calculate_trait_statistics,
     perform_anova_by_genotype,
@@ -16,6 +19,7 @@ from sleap_roots_analyze.statistics import (
     diagnose_heritability_issues,
     compare_trait_heritabilities,
     extract_blup_table,
+    _marginal_intercept,
 )
 
 
@@ -720,6 +724,987 @@ class TestExtractBlupTable:
             raw_gap = abs(raw_means[geno] - intercept)
             adjusted_gap = abs(blup_table.loc[geno, trait] - intercept)
             assert adjusted_gap < raw_gap
+            high_rep_ratios.append(adjusted_gap / raw_gap)
+
+        assert np.mean(low_rep_ratios) < np.mean(high_rep_ratios)
+
+
+class TestFixedEffects:
+    """Tests for the fixed_effects parameter on calculate_heritability_estimates (#114)."""
+
+    def test_fixed_effects_none_matches_current_behavior(
+        self, heritability_data_known_h2
+    ):
+        """fixed_effects=None (or omitted, or []) reproduces current behavior."""
+        df, _ = heritability_data_known_h2
+        trait = "trait_high_h2"
+
+        result_omitted = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep"
+        )
+        result_none = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep", fixed_effects=None
+        )
+        result_empty = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep", fixed_effects=[]
+        )
+
+        assert result_omitted[trait] == result_none[trait]
+        assert result_omitted[trait] == result_empty[trait]
+
+        model_data = df[[trait, "geno"]].copy()
+        model_data.columns = ["value", "genotype"]
+        model = smf.mixedlm("value ~ 1", model_data, groups=model_data["genotype"])
+        expected_result = model.fit(reml=True)
+        assert result_omitted[trait]["intercept"] == pytest.approx(
+            float(expected_result.fe_params["Intercept"])
+        )
+
+    def test_missing_fixed_effect_column_returns_structural_error(
+        self, heritability_data_known_h2
+    ):
+        """A missing fixed_effects column short-circuits with a structural error."""
+        df, _ = heritability_data_known_h2
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["nonexistent_col"],
+        )
+        assert "error" in result
+        assert "nonexistent_col" in result["error"]
+        assert "trait_high_h2" not in result
+
+    def test_fixed_effect_column_name_with_patsy_metacharacter_rejected(
+        self, heritability_data_known_h2
+    ):
+        """A fixed_effects name that isn't a valid identifier is rejected loudly.
+
+        The column must actually exist in df (so the earlier missing-column
+        check doesn't intercept it first) while still failing
+        isidentifier(), to genuinely exercise the isidentifier() validation
+        rather than the unrelated missing-column path.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        # A pandas column name is not required to be a valid Python
+        # identifier -- this legitimately exists in df.columns.
+        df["rep*block"] = df["rep"]
+        assert "rep*block" in df.columns
+        assert not "rep*block".isidentifier()
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["rep*block"],
+        )
+        assert "error" in result
+        assert "Invalid fixed_effects" in result["error"]
+        assert "trait_high_h2" not in result
+
+    def test_fixed_effect_non_string_name_rejected_not_crashed(self):
+        """A non-str fixed_effects element is rejected, not crashed.
+
+        Regression test (PR #193 review): a CSV-derived batch/wave/scanner
+        column can plausibly be int-labeled; `fe.isidentifier()` assumed
+        every element was already a str, crashing with `AttributeError:
+        'int' object has no attribute 'isidentifier'` before the per-trait
+        try/except that this function's own docstring promises shields
+        every caller from an uncaught exception.
+        """
+        df = pd.DataFrame(
+            {
+                "trait": [1.0, 2.0, 3.0, 4.0],
+                "geno": ["a", "a", "b", "b"],
+                5: [1, 1, 2, 2],
+            }
+        )
+        result = calculate_heritability_estimates(
+            df, ["trait"], genotype_col="geno", replicate_col=None, fixed_effects=[5]
+        )
+        assert "error" in result
+        assert "Invalid fixed_effects" in result["error"]
+        assert "trait" not in result
+
+    def test_fixed_effect_reusing_genotype_col_rejected(
+        self, heritability_data_known_h2
+    ):
+        """Naming genotype_col as a fixed effect too is rejected with a clear error.
+
+        Regression test (found in pre-merge review): without this check,
+        fixed_effects=[genotype_col] causes a duplicate-column selection
+        that surfaces as a confusing pandas-internal error deep inside the
+        per-trait loop ("Grouper for 'geno' not 1-dimensional") rather than a
+        clear structural error.
+        """
+        df, _ = heritability_data_known_h2
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["geno"],
+        )
+        assert "error" in result
+        assert "duplicate" in result["error"]
+        assert "trait_high_h2" not in result
+
+    def test_fixed_effect_reusing_replicate_col_rejected(
+        self, heritability_data_known_h2
+    ):
+        """Naming replicate_col as a fixed effect too is rejected with a clear error."""
+        df, _ = heritability_data_known_h2
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["rep"],
+        )
+        assert "error" in result
+        assert "duplicate" in result["error"]
+        assert "trait_high_h2" not in result
+
+    def test_fixed_effect_column_always_treated_as_categorical(self):
+        """A numeric-looking fixed effect is C()-wrapped, not treated as continuous."""
+        rng = np.random.default_rng(0)
+        rows = []
+        for wave in (1, 2, 3):
+            shift = {1: 0.0, 2: 5.0, 3: -3.0}[wave]
+            for g in range(10):
+                for r in range(3):
+                    rows.append(
+                        {
+                            "geno": f"G{g:02d}",
+                            "wave_number": wave,
+                            "value": 50
+                            + shift
+                            + rng.normal(0, 1.0)
+                            + (0.1 * g if r == 0 else 0),
+                        }
+                    )
+        model_data = pd.DataFrame(rows)
+        model_data["genotype"] = model_data["geno"]
+
+        categorical_fit = smf.mixedlm(
+            "value ~ C(wave_number)", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+        continuous_fit = smf.mixedlm(
+            "value ~ wave_number", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+
+        # Categorical: Intercept + one coefficient per non-reference level (3 total).
+        # Continuous: Intercept + a single slope coefficient (2 total).
+        assert len(categorical_fit.fe_params) == 3
+        assert len(continuous_fit.fe_params) == 2
+
+    def test_nan_in_fixed_effect_column_drops_row(self, heritability_data_known_h2):
+        """A NaN in a fixed_effects column drops that row only when included."""
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = "A"
+        df.loc[df.index[0], "experiment"] = np.nan
+        trait = "trait_high_h2"
+
+        with_fe = calculate_heritability_estimates(
+            df,
+            [trait],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["experiment"],
+        )
+        without_fe = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep", fixed_effects=None
+        )
+        assert (
+            with_fe[trait]["n_observations"] == without_fe[trait]["n_observations"] - 1
+        )
+
+    def test_batch_confounded_uncorrected_h2_exceeds_corrected(
+        self, heritability_data_batch_confounded
+    ):
+        """The core Tier 2 oracle: uncorrected H2 exceeds corrected H2."""
+        df, meta = heritability_data_batch_confounded
+        trait = meta["trait"]
+        result_uncorrected = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep"
+        )
+        result_corrected = calculate_heritability_estimates(
+            df,
+            [trait],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=[meta["batch_col"]],
+        )
+        h2_uncorrected = result_uncorrected[trait]["heritability"]
+        h2_corrected = result_corrected[trait]["heritability"]
+        assert h2_uncorrected - h2_corrected >= 0.05
+
+    def test_mixed_model_failure_with_fixed_effects_recorded_as_error(
+        self, heritability_data_known_h2
+    ):
+        """A raised exception during fit with fixed_effects set is recorded as a failure."""
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = ["A", "B"] * (len(df) // 2) + ["A"] * (len(df) % 2)
+        with patch("statsmodels.formula.api.mixedlm", side_effect=Exception("boom")):
+            result = calculate_heritability_estimates(
+                df,
+                ["trait_high_h2"],
+                genotype_col="geno",
+                replicate_col="rep",
+                fixed_effects=["experiment"],
+            )
+        entry = result["trait_high_h2"]
+        assert entry["model_type"] == "mixed_model_failed"
+        assert "blup" not in entry
+        assert "intercept" not in entry
+
+    def test_convergence_warning_treated_as_failure(self, heritability_data_known_h2):
+        """A ConvergenceWarning without a raised exception is treated as a failure."""
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = ["A", "B"] * (len(df) // 2) + ["A"] * (len(df) % 2)
+
+        real_mixedlm = smf.mixedlm
+
+        def warning_mixedlm(*args, **kwargs):
+            model = real_mixedlm(*args, **kwargs)
+            original_fit = model.fit
+
+            def fit_with_warning(*fit_args, **fit_kwargs):
+                warnings.warn("Test-induced convergence issue", ConvergenceWarning)
+                return original_fit(*fit_args, **fit_kwargs)
+
+            model.fit = fit_with_warning
+            return model
+
+        with patch("statsmodels.formula.api.mixedlm", side_effect=warning_mixedlm):
+            result = calculate_heritability_estimates(
+                df,
+                ["trait_high_h2"],
+                genotype_col="geno",
+                replicate_col="rep",
+                fixed_effects=["experiment"],
+            )
+        entry = result["trait_high_h2"]
+        assert entry["model_type"] == "mixed_model_failed"
+        assert "blup" not in entry
+        assert "intercept" not in entry
+
+    def test_unrelated_warning_during_fit_does_not_fail_trait(
+        self, heritability_data_known_h2
+    ):
+        """A non-ConvergenceWarning warning during fit does not fail the trait."""
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = ["A", "B"] * (len(df) // 2) + ["A"] * (len(df) % 2)
+
+        real_mixedlm = smf.mixedlm
+
+        def warning_mixedlm(*args, **kwargs):
+            model = real_mixedlm(*args, **kwargs)
+            original_fit = model.fit
+
+            def fit_with_warning(*fit_args, **fit_kwargs):
+                warnings.warn("Unrelated warning", UserWarning)
+                return original_fit(*fit_args, **fit_kwargs)
+
+            model.fit = fit_with_warning
+            return model
+
+        with patch("statsmodels.formula.api.mixedlm", side_effect=warning_mixedlm):
+            result = calculate_heritability_estimates(
+                df,
+                ["trait_high_h2"],
+                genotype_col="geno",
+                replicate_col="rep",
+                fixed_effects=["experiment"],
+            )
+        entry = result["trait_high_h2"]
+        assert entry["model_type"] == "mixed_model"
+        assert "error" not in entry
+        assert "blup" in entry
+        assert "intercept" in entry
+
+    def test_convergence_warning_not_caught_without_fixed_effects(
+        self, heritability_data_known_h2
+    ):
+        """The warning-capture gate is conditional on fixed_effects being set."""
+        df, _ = heritability_data_known_h2
+
+        real_mixedlm = smf.mixedlm
+
+        def warning_mixedlm(*args, **kwargs):
+            model = real_mixedlm(*args, **kwargs)
+            original_fit = model.fit
+
+            def fit_with_warning(*fit_args, **fit_kwargs):
+                warnings.warn("Test-induced convergence issue", ConvergenceWarning)
+                return original_fit(*fit_args, **fit_kwargs)
+
+            model.fit = fit_with_warning
+            return model
+
+        with patch("statsmodels.formula.api.mixedlm", side_effect=warning_mixedlm):
+            result = calculate_heritability_estimates(
+                df, ["trait_high_h2"], genotype_col="geno", replicate_col="rep"
+            )
+        entry = result["trait_high_h2"]
+        assert entry["model_type"] == "mixed_model"
+        assert "error" not in entry
+        assert "blup" in entry
+        assert "intercept" in entry
+
+    def test_fixed_effects_columns_excluded_from_low_h2_filtering(self):
+        """fixed_effects columns are never silently dropped by remove_low_h2=True.
+
+        Regression test (found in pre-merge review): without excluding
+        fixed_effects from the trait-column scan, get_trait_columns() (called
+        internally by remove_low_heritability_traits) has no way to know a
+        fixed_effects column isn't a candidate trait. Since it was never fit
+        as a trait_col, it has no entry in heritability_results and gets
+        silently removed from df_filtered with reason "No heritability
+        estimate available".
+        """
+        np.random.seed(0)
+        rows = []
+        for g in range(10):
+            effect = np.random.normal(0, 2.0)
+            for r in range(6):
+                block = "block_1" if r < 3 else "block_2"
+                shift = 3.0 if block == "block_2" else 0.0
+                rows.append(
+                    {
+                        "geno": f"G{g:02d}",
+                        "rep": r + 1,
+                        "trait1": 50 + effect + shift + np.random.normal(0, 1.0),
+                        "block": block,
+                    }
+                )
+        df = pd.DataFrame(rows)
+
+        _, df_filtered, removed_traits, _ = calculate_heritability_estimates(
+            df,
+            ["trait1"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["block"],
+            remove_low_h2=True,
+            h2_threshold=0.9,
+        )
+        assert "block" in df_filtered.columns
+        assert "block" not in removed_traits
+
+    def test_near_fully_confounded_fixed_effect_organic_behavior(self):
+        """Pins statsmodels' actual (organic, non-mocked) behavior on a fixed effect.
+
+        The fixed effect is a near-deterministic function of genotype. 18 of
+        20 genotypes appear in only one of two experiment batches; 2
+        genotypes split their reps 3/2 between batches as the only source
+        of within-genotype batch variation. Observed once (seed=0, this
+        platform) and pinned here: statsmodels fits without raising or
+        warning at all — neither 1.9's warn path nor 1.8's raise path
+        applies. If a future statsmodels version (or a different platform's
+        BLAS/LAPACK, for this near-singular fit) changes this qualitative
+        outcome (raises, or warns), this test will fail and should be
+        updated to match the new observed behavior rather than patched to
+        force the old one. The exact heritability value is deliberately NOT
+        pinned tightly (pre-merge review flagged this as CI-fragile, never
+        having run on the Ubuntu/Windows/macOS matrix) — only the
+        qualitative outcome (which of the three paths triggered) is the
+        point of this characterization test.
+        """
+        np.random.seed(0)
+        rows = []
+        for g in range(20):
+            geno = f"G{g:02d}"
+            effect = np.random.normal(0, 2.0)
+            if g < 18:
+                batches = ["A"] * 5 if g < 9 else ["B"] * 5
+            else:
+                batches = ["A", "A", "B", "B", "A"]
+            for r, batch in enumerate(batches):
+                shift = 8.0 if batch == "B" else 0.0
+                value = 50 + effect + shift + np.random.normal(0, 1.0)
+                rows.append(
+                    {
+                        "geno": geno,
+                        "rep": r + 1,
+                        "trait": value,
+                        "experiment": batch,
+                    }
+                )
+        df = pd.DataFrame(rows)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = calculate_heritability_estimates(
+                df,
+                ["trait"],
+                genotype_col="geno",
+                replicate_col="rep",
+                fixed_effects=["experiment"],
+            )
+
+        convergence_warnings = [
+            w for w in caught if issubclass(w.category, ConvergenceWarning)
+        ]
+        assert convergence_warnings == []
+        entry = result["trait"]
+        assert entry["model_type"] == "mixed_model"
+        assert "error" not in entry
+        # The exact value is platform/BLAS-sensitive for a near-singular fit;
+        # only confirm it's a valid, non-degenerate probability, not an exact
+        # decimal (see docstring).
+        assert 0.0 <= entry["heritability"] <= 1.0
+
+    def test_fixed_effects_with_anova_based_force_method(
+        self, heritability_data_batch_confounded
+    ):
+        """fixed_effects still applies row-filtering under force_method='anova_based'.
+
+        It is never used in that path's own variance-component computation.
+        """
+        df, meta = heritability_data_batch_confounded
+        trait = meta["trait"]
+        df = df.copy()
+        df.loc[df.index[0], meta["batch_col"]] = np.nan
+
+        result = calculate_heritability_estimates(
+            df,
+            [trait],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=[meta["batch_col"]],
+            force_method="anova_based",
+        )
+        entry = result[trait]
+        assert entry["model_type"] == "anova_based"
+        assert "blup" not in entry
+        assert "intercept" not in entry
+
+        result_no_nan_drop = calculate_heritability_estimates(
+            df,
+            [trait],
+            genotype_col="geno",
+            replicate_col="rep",
+            force_method="anova_based",
+        )
+        assert entry["n_observations"] == (
+            result_no_nan_drop[trait]["n_observations"] - 1
+        )
+
+    def test_repeat_convergence_warning_across_traits_both_fail(
+        self, heritability_data_known_h2
+    ):
+        """A repeat identical ConvergenceWarning fails every affected trait.
+
+        Not just the first -- exercises the simplefilter("always") requirement.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = ["A", "B"] * (len(df) // 2) + ["A"] * (len(df) % 2)
+
+        real_mixedlm = smf.mixedlm
+
+        def warning_mixedlm(*args, **kwargs):
+            model = real_mixedlm(*args, **kwargs)
+            original_fit = model.fit
+
+            def fit_with_warning(*fit_args, **fit_kwargs):
+                warnings.warn(
+                    "Repeated test-induced convergence issue", ConvergenceWarning
+                )
+                return original_fit(*fit_args, **fit_kwargs)
+
+            model.fit = fit_with_warning
+            return model
+
+        with patch("statsmodels.formula.api.mixedlm", side_effect=warning_mixedlm):
+            result = calculate_heritability_estimates(
+                df,
+                ["trait_high_h2", "trait_moderate_h2"],
+                genotype_col="geno",
+                replicate_col="rep",
+                fixed_effects=["experiment"],
+            )
+        for trait in ("trait_high_h2", "trait_moderate_h2"):
+            entry = result[trait]
+            assert (
+                entry["model_type"] == "mixed_model_failed"
+            ), f"{trait} should have failed due to the repeated warning"
+
+    def test_duplicate_fixed_effects_names_rejected(self, heritability_data_known_h2):
+        """A repeated name within fixed_effects is rejected with a clear error.
+
+        Regression test (PR #193 review, 7.6): without this check,
+        fixed_effects=["experiment", "experiment"] degrades to an obscure
+        patsy failure from a duplicate C(...) term in the formula, deep
+        inside the per-trait try/except, rather than a clear structural
+        error matching the existing missing-column/reused-name error shape.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = "A"
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["experiment", "experiment"],
+        )
+        assert "error" in result
+        assert "Duplicate fixed_effects" in result["error"]
+        assert "trait_high_h2" not in result
+
+    def test_single_level_fixed_effect_succeeds(self, heritability_data_known_h2):
+        """A single-level (zero variance) fixed_effects column fits successfully.
+
+        Regression test for 7.6: verified correct by hand-tracing in
+        pre-merge review (patsy's C(fe) term contributes zero non-reference
+        coefficients when there is only one level, so
+        _marginal_intercept's "exactly one unmatched level" identity check
+        still holds), but was previously untested.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["single_level"] = "only_value"
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait_high_h2"],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["single_level"],
+        )
+        entry = result["trait_high_h2"]
+        assert "error" not in entry
+        assert entry["model_type"] == "mixed_model"
+        assert "blup" in entry
+        assert isinstance(entry["intercept"], float)
+
+
+class TestConfoundWarning:
+    """Tests for the confound UserWarning heuristic (7.5).
+
+    The ConvergenceWarning-as-failure heuristic (task 1.9/1.11) has a
+    confirmed false-negative: a fixed effect near-deterministically
+    confounded with genotype can fit cleanly with zero warnings from
+    statsmodels itself (see task 1.10). This surfaces an independent,
+    cheap diagnostic instead of leaving that case silent: if any genotype's
+    observations are confined to a single level of a fixed effect that has
+    more than one level overall, that genotype contributes no
+    within-genotype information for separating the two effects.
+    """
+
+    def test_confounded_fixed_effect_emits_user_warning(self):
+        """A fixed effect fully confounded with genotype triggers the warning.
+
+        Every genotype sits in exactly one level of the fixed effect; the
+        trait must still succeed (this is diagnostic only, not a failure).
+        """
+        rng = np.random.default_rng(3)
+        rows = []
+        for g in range(10):
+            level = "A" if g < 5 else "B"
+            effect = rng.normal(0, 2.0)
+            shift = 3.0 if level == "B" else 0.0
+            for r in range(5):
+                rows.append(
+                    {
+                        "geno": f"G{g:02d}",
+                        "trait": 50 + effect + shift + rng.normal(0, 1.0),
+                        "experiment": level,
+                    }
+                )
+        df = pd.DataFrame(rows)
+
+        with pytest.warns(UserWarning, match="confound"):
+            result = calculate_heritability_estimates(
+                df,
+                ["trait"],
+                genotype_col="geno",
+                replicate_col=None,
+                fixed_effects=["experiment"],
+            )
+        entry = result["trait"]
+        assert "error" not in entry
+        assert entry["model_type"] == "mixed_model"
+
+    def test_unconfounded_fixed_effect_emits_no_user_warning(
+        self, heritability_data_known_h2
+    ):
+        """An unconfounded fixed effect does not trigger the warning.
+
+        False-positive guard: genotypes here span multiple levels.
+        """
+        df, _ = heritability_data_known_h2
+        df = df.copy()
+        df["experiment"] = ["A", "B"] * (len(df) // 2) + ["A"] * (len(df) % 2)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = calculate_heritability_estimates(
+                df,
+                ["trait_high_h2"],
+                genotype_col="geno",
+                replicate_col="rep",
+                fixed_effects=["experiment"],
+            )
+        confound_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert not confound_warnings
+        assert "error" not in result["trait_high_h2"]
+
+
+def _two_level_fixed_effect_fixture(seed=1, n_geno=10, n_reps=5, n_b=2):
+    """20/5-rep-style fixture with one fixed effect at a known, unequal split.
+
+    freq(experiment="B") = n_b / n_reps; freq(experiment="A") = 1 - that.
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    for g in range(n_geno):
+        effect = rng.normal(0, 2.0)
+        for r in range(n_reps):
+            level = "B" if r < n_b else "A"
+            shift = 3.0 if level == "B" else 0.0
+            rows.append(
+                {
+                    "geno": f"G{g:02d}",
+                    "trait": 50 + effect + shift + rng.normal(0, 1.0),
+                    "experiment": level,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _two_fixed_effect_fixture(seed=2, n_geno=10, n_reps=10):
+    """Fixture with two fixed effects, each at its own known split."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for g in range(n_geno):
+        effect = rng.normal(0, 2.0)
+        for r in range(n_reps):
+            experiment = "B" if r < 3 else "A"  # freq(B) = 0.3
+            block = "block2" if r in (2, 3, 6, 7) else "block1"  # freq(block2) = 0.4
+            shift = (3.0 if experiment == "B" else 0.0) + (
+                -1.5 if block == "block2" else 0.0
+            )
+            rows.append(
+                {
+                    "geno": f"G{g:02d}",
+                    "trait": 50 + effect + shift + rng.normal(0, 1.0),
+                    "experiment": experiment,
+                    "block": block,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _hand_computed_marginal_intercept(fitted_result, model_data, fixed_effects):
+    """Independent (non-production) hand computation for oracle comparison."""
+    intercept = float(fitted_result.fe_params["Intercept"])
+    for fe in fixed_effects:
+        freqs = model_data[fe].value_counts(normalize=True)
+        for level, freq in freqs.items():
+            key = f"C({fe})[T.{level}]"
+            if key in fitted_result.fe_params.index:
+                intercept += float(freq) * float(fitted_result.fe_params[key])
+    return intercept
+
+
+class TestMarginalIntercept:
+    """Tests for the empirical frequency-weighted intercept (#114)."""
+
+    def test_marginal_intercept_none_equals_plain_intercept(
+        self, heritability_data_known_h2
+    ):
+        """With fixed_effects=None, intercept is exactly fe_params['Intercept']."""
+        df, _ = heritability_data_known_h2
+        trait = "trait_high_h2"
+        result = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep"
+        )
+        model_data = df[[trait, "geno"]].copy()
+        model_data.columns = ["value", "genotype"]
+        expected = smf.mixedlm(
+            "value ~ 1", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+        assert result[trait]["intercept"] == pytest.approx(
+            float(expected.fe_params["Intercept"])
+        )
+
+    def test_marginal_intercept_matches_hand_computed_weighted_average(self):
+        """The returned intercept matches an independent hand computation."""
+        df = _two_level_fixed_effect_fixture()
+        model_data = df[["trait", "geno", "experiment"]].copy()
+        model_data.columns = ["value", "genotype", "experiment"]
+        independent_fit = smf.mixedlm(
+            "value ~ C(experiment)", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+        expected = _hand_computed_marginal_intercept(
+            independent_fit, model_data, ["experiment"]
+        )
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait"],
+            genotype_col="geno",
+            replicate_col=None,
+            fixed_effects=["experiment"],
+        )
+        assert result["trait"]["intercept"] == pytest.approx(expected, abs=1e-6)
+
+    def test_marginal_intercept_differs_from_reference_level_when_unbalanced(self):
+        """The empirical intercept differs from the raw reference-level Intercept."""
+        df = _two_level_fixed_effect_fixture()
+        model_data = df[["trait", "geno", "experiment"]].copy()
+        model_data.columns = ["value", "genotype", "experiment"]
+        independent_fit = smf.mixedlm(
+            "value ~ C(experiment)", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+        raw_reference_intercept = float(independent_fit.fe_params["Intercept"])
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait"],
+            genotype_col="geno",
+            replicate_col=None,
+            fixed_effects=["experiment"],
+        )
+        assert abs(result["trait"]["intercept"] - raw_reference_intercept) > 1e-3
+
+    def test_marginal_intercept_multiple_fixed_effects_independent(self):
+        """Two fixed effects contribute independently, without conflation."""
+        df = _two_fixed_effect_fixture()
+        model_data = df[["trait", "geno", "experiment", "block"]].copy()
+        model_data.columns = ["value", "genotype", "experiment", "block"]
+        independent_fit = smf.mixedlm(
+            "value ~ C(experiment) + C(block)",
+            model_data,
+            groups=model_data["genotype"],
+        ).fit(reml=True)
+        expected = _hand_computed_marginal_intercept(
+            independent_fit, model_data, ["experiment", "block"]
+        )
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait"],
+            genotype_col="geno",
+            replicate_col=None,
+            fixed_effects=["experiment", "block"],
+        )
+        assert result["trait"]["intercept"] == pytest.approx(expected, abs=1e-6)
+
+    def test_marginal_intercept_float_dtype_fixed_effect_column(self):
+        """A float64-typed fixed-effect column doesn't corrupt the coefficient lookup."""
+        rng = np.random.default_rng(3)
+        rows = []
+        for g in range(10):
+            effect = rng.normal(0, 2.0)
+            for wave in (1.0, 2.0, 3.0):
+                shift = {1.0: 0.0, 2.0: 4.0, 3.0: -2.0}[wave]
+                rows.append(
+                    {
+                        "geno": f"G{g:02d}",
+                        "trait": 50 + effect + shift + rng.normal(0, 1.0),
+                        "wave_number": wave,
+                    }
+                )
+        df = pd.DataFrame(rows)
+        assert df["wave_number"].dtype == np.float64
+
+        model_data = df[["trait", "geno", "wave_number"]].copy()
+        model_data.columns = ["value", "genotype", "wave_number"]
+        independent_fit = smf.mixedlm(
+            "value ~ C(wave_number)", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+        expected = _hand_computed_marginal_intercept(
+            independent_fit, model_data, ["wave_number"]
+        )
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait"],
+            genotype_col="geno",
+            replicate_col=None,
+            fixed_effects=["wave_number"],
+        )
+        assert result["trait"]["intercept"] == pytest.approx(expected, abs=1e-6)
+
+    def test_marginal_intercept_non_sorted_categorical_order(self):
+        """A non-default pd.Categorical order doesn't mispair frequencies."""
+        rng = np.random.default_rng(4)
+        rows = []
+        # Non-alphabetical, non-numeric declared order: reference = "high".
+        levels = ["high", "low", "mid"]
+        shifts = {"high": 0.0, "low": 5.0, "mid": -3.0}
+        for g in range(10):
+            effect = rng.normal(0, 2.0)
+            for level in levels:
+                rows.append(
+                    {
+                        "geno": f"G{g:02d}",
+                        "trait": 50 + effect + shifts[level] + rng.normal(0, 1.0),
+                        "tier": level,
+                    }
+                )
+        df = pd.DataFrame(rows)
+        df["tier"] = pd.Categorical(df["tier"], categories=levels)
+
+        model_data = df[["trait", "geno", "tier"]].copy()
+        model_data.columns = ["value", "genotype", "tier"]
+        independent_fit = smf.mixedlm(
+            "value ~ C(tier)", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+        # Confirm the reference level is really "high" (first declared category).
+        assert "C(tier)[T.high]" not in independent_fit.fe_params.index
+        assert "C(tier)[T.low]" in independent_fit.fe_params.index
+        assert "C(tier)[T.mid]" in independent_fit.fe_params.index
+        expected = _hand_computed_marginal_intercept(
+            independent_fit, model_data, ["tier"]
+        )
+
+        result = calculate_heritability_estimates(
+            df,
+            ["trait"],
+            genotype_col="geno",
+            replicate_col=None,
+            fixed_effects=["tier"],
+        )
+        assert result["trait"]["intercept"] == pytest.approx(expected, abs=1e-6)
+
+    def test_marginal_intercept_rejects_coefficient_key_not_in_observed_levels(self):
+        """_marginal_intercept's identity check catches an orphaned coefficient key.
+
+        Regression test (found in pre-merge review): the original guard only
+        checked that the *count* of recovered coefficients equaled
+        n_levels - 1, which can pass even when a real level's string failed
+        to match its own coefficient (silently defaulting to 0.0) while an
+        unrelated key happened to keep the count the same. This directly
+        unit-tests _marginal_intercept with a fabricated mismatch a real fit
+        would not organically produce, to exercise the identity check itself.
+        """
+
+        class _FakeResult:
+            fe_params = pd.Series(
+                {"Intercept": 10.0, "C(fe)[T.99]": 5.0},
+            )
+
+        model_data = pd.DataFrame({"fe": [1, 2, 3]})
+        with pytest.raises(ValueError, match="not found in the fitted data"):
+            _marginal_intercept(_FakeResult(), model_data, ["fe"])
+
+    def test_marginal_intercept_rejects_multiple_unmatched_levels(self):
+        """_marginal_intercept's identity check catches more than one apparent reference."""
+
+        class _FakeResult:
+            fe_params = pd.Series({"Intercept": 10.0})
+
+        model_data = pd.DataFrame({"fe": [1, 2, 3]})
+        with pytest.raises(ValueError, match="found 3"):
+            _marginal_intercept(_FakeResult(), model_data, ["fe"])
+
+
+class TestFieldBlockOracle:
+    """Field-block BLUP/shrinkage oracles for fixed_effects (#114)."""
+
+    def test_field_block_fixed_effect_changes_blup_adjusted_means(
+        self, heritability_data_field_block
+    ):
+        """BLUP-adjusted means differ between fixed_effects=None and ["block"]."""
+        df, meta = heritability_data_field_block
+        trait = meta["trait"]
+
+        result_none = calculate_heritability_estimates(
+            df, [trait], genotype_col="geno", replicate_col="rep"
+        )
+        result_block = calculate_heritability_estimates(
+            df,
+            [trait],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["block"],
+        )
+        table_none = extract_blup_table(result_none)
+        table_block = extract_blup_table(result_block)
+
+        max_diff = (table_none[trait] - table_block[trait]).abs().max()
+        assert max_diff > 1e-6
+
+    def test_shrinkage_scales_with_replication_under_fixed_effects(
+        self, heritability_data_field_block
+    ):
+        """Shrinkage still scales inversely with replication when fixed_effects is set.
+
+        The raw-mean reference point must be block-detrended, not naive --
+        the naive df.groupby(genotype)[trait].mean() is itself contaminated
+        by each genotype's own block composition, the exact thing the fixed
+        effect corrects for.
+        """
+        df, meta = heritability_data_field_block
+        trait = meta["trait"]
+
+        result = calculate_heritability_estimates(
+            df,
+            [trait],
+            genotype_col="geno",
+            replicate_col="rep",
+            fixed_effects=["block"],
+        )
+        blup = result[trait]["blup"]
+
+        # Independently re-fit to obtain the fitted C(block) coefficient for
+        # detrending, and the reference-level Intercept for centering.
+        #
+        # NOTE: this deliberately compares raw shrinkage against `blup[g]`
+        # directly (not `extract_blup_table()`'s already-summed
+        # adjusted_mean), centered on the *reference-level* Intercept from
+        # this independent re-fit -- not production's returned (marginal,
+        # frequency-weighted) `intercept`. `blup[g]` is a raw model output,
+        # entirely unaffected by which intercept convention is used to
+        # report the adjusted mean afterward. `raw_mean_detrended[g]` has no
+        # such dependency either -- it's derived purely from the data
+        # relative to the reference level. Mixing a reference-level quantity
+        # (blup) with a marginal-intercept-centered raw mean introduces a
+        # constant offset that does NOT cancel under the absolute-value
+        # shrinkage comparison (confirmed empirically: doing so broke this
+        # test for a subset of genotypes). Both sides of the comparison must
+        # share the same reference-level center.
+        model_data = df[[trait, "geno", "block"]].copy()
+        model_data.columns = ["value", "genotype", "block"]
+        independent_fit = smf.mixedlm(
+            "value ~ C(block)", model_data, groups=model_data["genotype"]
+        ).fit(reml=True)
+        reference_intercept = float(independent_fit.fe_params["Intercept"])
+        block_coef = {}
+        for key in independent_fit.fe_params.index:
+            if key != "Intercept":
+                match = key.split("[T.")[-1].rstrip("]")
+                block_coef[match] = float(independent_fit.fe_params[key])
+
+        df_detrended = df.copy()
+        df_detrended["detrended"] = df_detrended.apply(
+            lambda row: row[trait] - block_coef.get(row["block"], 0.0), axis=1
+        )
+        raw_mean_detrended = df_detrended.groupby("geno")["detrended"].mean()
+
+        low_rep_ratios = []
+        high_rep_ratios = []
+        for geno in meta["low_rep_genotypes"]:
+            raw_gap = abs(raw_mean_detrended[geno] - reference_intercept)
+            adjusted_gap = abs(blup[geno])
+            assert adjusted_gap <= raw_gap + 1e-6
+            low_rep_ratios.append(adjusted_gap / raw_gap)
+        for geno in meta["high_rep_genotypes"]:
+            raw_gap = abs(raw_mean_detrended[geno] - reference_intercept)
+            adjusted_gap = abs(blup[geno])
+            assert adjusted_gap <= raw_gap + 1e-6
             high_rep_ratios.append(adjusted_gap / raw_gap)
 
         assert np.mean(low_rep_ratios) < np.mean(high_rep_ratios)
