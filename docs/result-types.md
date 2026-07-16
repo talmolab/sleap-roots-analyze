@@ -72,6 +72,7 @@ exported as the constants `ALGORITHM_KMEANS` / `ALGORITHM_GMM` / `ALGORITHM_HIER
 | `HierarchicalResult` (subclass of `ClusterResult`) | `hierarchical_cluster_labels` dict | `ClusterResult.from_hierarchical_dict(d)` (no `random_state` — hierarchical is deterministic) |
 | `UMAPResult` | `perform_umap_analysis` dict | `UMAPResult.from_umap_dict(d, *, random_state=None)` |
 | `BLUPResult` | `extract_blup_table` DataFrame | `BLUPResult.from_blup_table(df, *, intercepts=None)` |
+| `CrossPlatformPredictionResult` (+ `TargetPrediction`) | `logo_cv_predict` outputs, one per prediction target | `CrossPlatformPredictionResult.from_logo_cv_results(*, source_platform, target_platform, predictor_source, reduction_method, logo_cv_results)` |
 
 All are exported from the top-level `sleap_roots_analyze` namespace and `__all__`.
 
@@ -100,6 +101,17 @@ plain model intercept — it can differ trait-to-trait and is not a
 population-typical value. `BLUPResult`/`from_blup_table` are unaware of
 `fixed_effects` and store whatever `intercept` float each trait's source dict
 carries, unchanged.
+
+**`CrossPlatformPredictionResult.predictor_source` is provenance metadata, not
+a validated guard (#194).** The field records which substrate (`"blup"` or
+`"genotype_means"`) produced the predictor matrix, but neither this type nor
+its adapter validates or branches on it — the actual pre-flight guard
+(rejecting an unresolvable BLUP path) belongs to Tier 3.5's `PredictionConfig`,
+not this result type. `TargetPrediction.rmse` is also not comparable across
+entries built from differently-scaled traits (a representative trait vs.
+`PC1`, or across platform pairs), and `spearman_p` is `scipy.stats.spearmanr`'s
+asymptotic approximation — descriptive, not hypothesis-test-grade, at this
+program's n≈19 genotypes.
 
 ## Backwards compatibility
 

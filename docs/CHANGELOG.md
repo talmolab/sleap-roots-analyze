@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `logo_cv_predict(X, y, genotypes, reduction_method="pls_latent",
+  representative_names=None)` and `fit_pca_on_fold(X_train, X_test,
+  n_components=1)` (#194): leave-one-genotype-out (LOGO) cross-validated
+  ridge/PLS prediction machinery, implementing the CV-hygiene contract (a
+  fresh `sklearn.Pipeline` fit inside each fold; `fit_pca_on_fold` fits PCA on
+  training data only, distinct from the pipeline-level `PCA` step, to avoid
+  leaking the held-out genotype's position into component loadings). Reports
+  aggregate R², RMSE, and Spearman ρ over concatenated leave-one-out
+  predictions. Three `reduction_method` values: `pls_latent` (default,
+  `PLSRegression(n_components=1)`, fixed rather than inner-CV-searched),
+  `representatives` (variance-based cluster representatives, selected once
+  before the fold loop), `pc1` (a per-fold principal-component score). Tier 3
+  of the cross-platform genotype-prediction program (Tier 1: #109, Tier 2:
+  #114) — reframes the wheat EDPIE cross-platform result from correlation to
+  predictability.
+- Serializable `CrossPlatformPredictionResult` / `TargetPrediction` dataclasses
+  and `CrossPlatformPredictionResult.from_logo_cv_results(...)` adapter
+  (#194): one result per (platform pair, reduction method), with one
+  `TargetPrediction` per prediction target (each cluster-representative trait,
+  plus `"PC1"`, reported as an independent entry, never averaged with the
+  representative-trait targets). Provides `to_dict()` / `to_json()` (strict
+  `allow_nan=False`).
 - `calculate_heritability_estimates(fixed_effects=...)` (#114): optional list of
   metadata-style covariate columns (experiment, wave, batch, scanner) added as
   fixed effects to the mixed model, changing the formula from `value ~ 1` to
