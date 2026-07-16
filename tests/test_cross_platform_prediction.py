@@ -6,6 +6,7 @@ acceptance-criteria oracles this test suite implements against.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -488,3 +489,150 @@ class TestLeakageRegression:
             for X, y, _ in cross_platform_pure_noise_fixture
         ]
         assert float(np.mean(r2_outside)) > float(np.mean(r2_inside))
+
+
+class TestTraitSetIdentityOracle:
+    """Reproduces the wheat EDPIE paper's Section 3.4 trait-set identity result.
+
+    Resolved via a 2026-07-16 handoff investigation (design.md Decision 2):
+    the real mechanism is cluster each platform independently -> correlate
+    every representative pair -> filter to |rho|>=0.55 -> count DISTINCT
+    traits per side among the surviving pairs. NOT raw per-platform
+    representative counts (that was the original, empirically-wrong design).
+    Runs the real production code (LoadCrossPlatformDataStep,
+    cluster_correlated_traits/select_cluster_representatives,
+    CalculateCrossPlatformCorrelationsStep) against the regenerated
+    root_core_vs_cylinder fixture (paper-vintage data) -- not a hardcoded
+    lookup of the committed CSV.
+    """
+
+    @pytest.fixture(scope="class")
+    def loaded_root_core_vs_cylinder(self, tmp_path_factory):
+        """Load + align the paper-vintage root_core_vs_cylinder fixture data."""
+        from sleap_roots_analyze.pipeline.config.utils import (
+            load_cross_platform_config,
+        )
+        from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
+            LoadCrossPlatformDataStep,
+        )
+
+        config_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "harness"
+            / "cross_platform"
+            / "cross_platform_rootcore_vs_cylinder_paper_vintage.yaml"
+        )
+        cfg = load_cross_platform_config(str(config_path))
+        run_dir = tmp_path_factory.mktemp("root_core_vs_cylinder_load")
+        result = LoadCrossPlatformDataStep().execute(
+            data=None, config=cfg, run_dir=run_dir, prev_result=None
+        )
+        return cfg, result
+
+    @pytest.fixture(scope="class")
+    def cluster_representatives(self, loaded_root_core_vs_cylinder):
+        """Cluster each platform's traits independently (threshold=0.8)."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            cluster_correlated_traits,
+            select_cluster_representatives,
+        )
+
+        cfg, result = loaded_root_core_vs_cylinder
+        exp1_df = result.data["exp1_df"]
+        exp2_df = result.data["exp2_df"]
+        exp1_trait_names = list(result.metadata["exp1_trait_names"])
+        exp2_trait_names = list(result.metadata["exp2_trait_names"])
+
+        trait_data1 = exp1_df.groupby("genotype")[exp1_trait_names].mean()
+        trait_data2 = exp2_df.groupby("genotype")[exp2_trait_names].mean()
+
+        clusters1 = cluster_correlated_traits(
+            trait_data1,
+            threshold=cfg.trait_clustering_threshold,
+            linkage=cfg.trait_clustering_linkage,
+        )
+        clusters2 = cluster_correlated_traits(
+            trait_data2,
+            threshold=cfg.trait_clustering_threshold,
+            linkage=cfg.trait_clustering_linkage,
+        )
+        reps1 = select_cluster_representatives(trait_data1, clusters1)
+        reps2 = select_cluster_representatives(trait_data2, clusters2)
+        return exp1_df, exp2_df, reps1, reps2
+
+    def test_cluster_and_correlate_reproduces_section_3_4_representative_counts(
+        self, cluster_representatives
+    ):
+        """Clustering each platform independently gives 22 field / 129 cylinder reps."""
+        _, _, reps1, reps2 = cluster_representatives
+        assert len(reps1) == 22
+        assert len(reps2) == 129
+
+    def test_cross_platform_correlation_filter_reproduces_section_3_4_trait_set(
+        self, loaded_root_core_vs_cylinder, cluster_representatives
+    ):
+        """Correlating representative pairs at |rho|>=0.55 reproduces 14/28 distinct traits."""
+        from sleap_roots_analyze.pipeline.core import StepResult
+        from sleap_roots_analyze.pipeline.steps.calculate_cross_platform_correlations import (
+            CalculateCrossPlatformCorrelationsStep,
+        )
+
+        cfg, load_result = loaded_root_core_vs_cylinder
+        exp1_df, exp2_df, reps1, reps2 = cluster_representatives
+
+        exp1_df_reduced = exp1_df[["genotype"] + reps1].copy()
+        exp2_df_reduced = exp2_df[["genotype"] + reps2].copy()
+
+        prev_result = StepResult(
+            data=load_result.data,
+            metadata={
+                **load_result.metadata,
+                "exp1_trait_names": reps1,
+                "exp2_trait_names": reps2,
+            },
+        )
+        corr_result = CalculateCrossPlatformCorrelationsStep().execute(
+            data={
+                "exp1_df": exp1_df_reduced,
+                "exp2_df": exp2_df_reduced,
+                "common_genotypes": load_result.data["common_genotypes"],
+            },
+            config=cfg,
+            run_dir=(
+                Path(load_result.files_generated[0]).parent
+                if load_result.files_generated
+                else Path(".")
+            ),
+            prev_result=prev_result,
+        )
+        correlation_df = corr_result.data["correlation_df"]
+
+        assert len(correlation_df) == 2838
+
+        hits = correlation_df[correlation_df["spearman_r"].abs() >= 0.55]
+        assert len(hits) == 36
+        assert hits["exp1_trait"].nunique() == 14
+        assert hits["exp2_trait"].nunique() == 28
+
+    def test_cluster_representatives_deterministic_given_same_input(
+        self, loaded_root_core_vs_cylinder
+    ):
+        """cluster_correlated_traits/select_cluster_representatives are deterministic."""
+        from sleap_roots_analyze.cross_experiment_analysis import (
+            cluster_correlated_traits,
+            select_cluster_representatives,
+        )
+
+        _, result = loaded_root_core_vs_cylinder
+        exp1_df = result.data["exp1_df"]
+        exp1_trait_names = list(result.metadata["exp1_trait_names"])
+        trait_data = exp1_df.groupby("genotype")[exp1_trait_names].mean()
+
+        clusters_a = cluster_correlated_traits(trait_data, threshold=0.8)
+        reps_a = select_cluster_representatives(trait_data, clusters_a)
+        clusters_b = cluster_correlated_traits(trait_data, threshold=0.8)
+        reps_b = select_cluster_representatives(trait_data, clusters_b)
+
+        assert clusters_a == clusters_b
+        assert reps_a == reps_b
