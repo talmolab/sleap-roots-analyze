@@ -97,11 +97,16 @@ Any other value of `reduction_method` SHALL raise `ValueError`.
 - **THEN** the same `representative_names` SHALL be used to reduce `X` in every fold — no
   per-fold re-selection
 
-#### Scenario: pc1 reduction calls fit_pca_on_fold once per fold with that fold's data only
+#### Scenario: pc1 reduction calls fit_pca_on_fold per fold with that fold's data only
 
 - **WHEN** `reduction_method="pc1"`
-- **THEN** `fit_pca_on_fold` SHALL be called once per fold with that fold's `X_train`/`X_test`
-  only — never with data spanning more than one fold's training set
+- **THEN** `fit_pca_on_fold` SHALL be called with that fold's `X_train`/`X_test` only — never
+  with data spanning more than one fold's training set. Per theory.md Section 3.1's documented
+  two-call pattern, `fit_pca_on_fold` is called twice per fold: once as
+  `fit_pca_on_fold(X_train, X_train, ...)` to reduce the training matrix, once as
+  `fit_pca_on_fold(X_train, X_test, ...)` to reduce the held-out genotype — both calls fit a
+  fresh `PCA` on the same `X_train` (deterministic, so this is a correctness-neutral, if
+  avoidable, double fit — not a leakage risk)
 
 #### Scenario: Output has one prediction per genotype, in input order
 

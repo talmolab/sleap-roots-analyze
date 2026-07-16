@@ -379,8 +379,51 @@ class TestLogoCvPredictInputValidation:
                 representative_names=None,
             )
 
+    def test_logo_cv_predict_representatives_rejects_empty_representative_names(self):
+        """representative_names=[] (empty, not None) also raises ValueError.
+
+        Found during pre-merge adversarial review: an empty list bypassed the
+        original `is None` check and failed later with a confusing sklearn
+        error ("0 feature(s)... minimum of 1 is required by StandardScaler")
+        instead of a clean upfront ValueError.
+        """
+        X, y, genotypes, _ = _build_simple_dataset(n_genotypes=6)
+        with pytest.raises(ValueError):
+            logo_cv_predict(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=[],
+            )
+
+    def test_logo_cv_predict_representatives_rejects_unknown_trait_name(self):
+        """A representative_names entry absent from X's columns raises ValueError.
+
+        Found during pre-merge adversarial review: this previously surfaced as
+        a raw pandas KeyError, not the clean ValueError the rest of this
+        function's input validation promises.
+        """
+        X, y, genotypes, _ = _build_simple_dataset(n_genotypes=6)
+        with pytest.raises(ValueError):
+            logo_cv_predict(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=["not_a_real_trait"],
+            )
+
     def test_logo_cv_predict_rejects_too_few_genotypes(self):
-        """Fewer than 2 genotypes raises ValueError (LOGO-CV needs a train fold)."""
+        """Fewer than 3 genotypes raises ValueError (LOGO-CV needs >=2 per training fold).
+
+        n=2 is the boundary that matters: found during pre-merge adversarial
+        review that `reduction_method="pls_latent"` (the default) previously
+        crashed deep inside the fold loop at n=2 with a raw, unrelated sklearn
+        error ("Found array with 1 sample(s)... minimum of 2 is required by
+        PLSRegression") rather than the clean upfront ValueError the original
+        `len(genotypes) < 2` check implied was the real boundary.
+        """
         X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=1)
         with pytest.raises(ValueError):
             logo_cv_predict(
@@ -390,6 +433,15 @@ class TestLogoCvPredictInputValidation:
                 reduction_method="representatives",
                 representative_names=rep_names,
             )
+
+        X2, y2, genotypes2, rep_names2 = _build_simple_dataset(n_genotypes=2)
+        for method_kwargs in (
+            {"reduction_method": "pls_latent"},
+            {"reduction_method": "representatives", "representative_names": rep_names2},
+            {"reduction_method": "pc1"},
+        ):
+            with pytest.raises(ValueError):
+                logo_cv_predict(X2, y2, genotypes2, **method_kwargs)
 
     def test_logo_cv_predict_constant_y_does_not_crash(self):
         """Zero-variance y does not raise (R2/rho may be degenerate)."""

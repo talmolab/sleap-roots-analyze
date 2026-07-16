@@ -953,6 +953,18 @@ class TargetPrediction:
         genotype_names: Genotype labels, same order as ``y_true``/``y_pred``.
         y_true: Observed target values, one per genotype.
         y_pred: Leave-one-genotype-out predicted values, one per genotype.
+
+    Note:
+        A zero-variance (constant) ``y`` is a legal ``logo_cv_predict()`` input
+        (it does not raise), but produces a non-finite ``spearman_rho``/
+        ``spearman_p`` (``scipy.stats.spearmanr`` returns ``nan`` for constant
+        input). Wrapping such a result in :class:`CrossPlatformPredictionResult`
+        and calling :meth:`CrossPlatformPredictionResult.to_json` will then
+        raise ``ValueError`` under this module's finite-floats contract
+        (``allow_nan=False``) -- both sides individually honor their own
+        documented behavior, but the combination is a real gap a caller
+        constructing a result from possibly-degenerate LOGO-CV output should
+        anticipate (e.g. by checking for non-finite fields before serializing).
     """
 
     target_name: str

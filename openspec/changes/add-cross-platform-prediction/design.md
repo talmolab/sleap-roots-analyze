@@ -546,3 +546,103 @@ documentation, git workflow) against this proposal before any implementation beg
   `pc_correlations` precedent at `__init__.py:362`) should be followed when adding the new names —
   noted in tasks.md 6.6/7.2 rather than as a design.md decision (purely a code-style pointer, not a
   design choice).
+
+## Pre-Merge Review (5-agent `/review-pr` team, pre-PR local diff)
+
+A 5-subagent adversarial review of the complete implementation (Code Quality, Testing,
+Statistical Rigor, Performance/Memory, Behavioural Correctness) against the local branch diff
+found no BLOCKING issues in code quality, statistical correctness, or performance, but surfaced
+one real BLOCKING bug (confirmed independently by 2 of the 5 reviewers) and several
+IMPORTANT/SUGGESTION items — all reconciled:
+
+- **BLOCKING (confirmed by 3 of 5 reviewers) — `logo_cv_predict` crashed for `n_genotypes=2` with
+  the default `reduction_method="pls_latent"`, contradicting the documented `len(genotypes) < 2`
+  boundary.** Each LOGO fold trains on `n-1` genotypes; at `n=2` that's 1 training sample, which
+  `PLSRegression.fit` itself rejects with a raw, unrelated sklearn error
+  ("Found array with 1 sample(s)... minimum of 2 is required by PLSRegression") surfacing deep
+  inside the fold loop rather than the clean upfront `ValueError` the function's own input
+  validation otherwise guarantees. `representatives`/`pc1` do NOT crash at `n=2` (Ridge/PCA
+  tolerate a 1-sample fold) but silently produce a statistically meaningless result — so this
+  wasn't a `pls_latent`-only quirk to special-case, it was evidence the real minimum is 3
+  genotypes, not 2, for LOGO-CV to mean anything at all (1 training genotype cannot support any
+  fit). Fixed: the upfront guard now requires `len(genotypes) >= 3` uniformly across all three
+  methods, with a docstring/spec update explaining why 2 looks superficially sufficient but isn't.
+  New test: `test_logo_cv_predict_rejects_too_few_genotypes` now exercises all three
+  `reduction_method` values at `n=2`, not just `representatives` at `n=1`.
+- **BLOCKING (confirmed by 2 of 5 reviewers) — hardcoded absolute Windows path in the new harness
+  config would fail on every CI runner.** `tests/fixtures/harness/cross_platform/
+  cross_platform_rootcore_vs_cylinder_paper_vintage.yaml`'s `exp1_data_path`/`exp2_data_path` used
+  `c:/repos/sleap-roots-analyze/...` — a path that only exists on the machine this tier was
+  developed on. GitHub-hosted CI runners checkout to `/home/runner/work/...` (Ubuntu),
+  `D:\a\...` (Windows), `/Users/runner/work/...` (macOS) — none matches. `TestTraitSetIdentityOracle`
+  loads this config unconditionally and carries no `@pytest.mark.integration` skip, so this was a
+  guaranteed 3-platform CI failure invisible in a local run from the affected machine (confirmed:
+  local `2694 passed / 0 failed` was a false-green signal). Fixed: both paths changed to
+  repo-root-relative (`"tests/fixtures/real/wheat_edpie/inputs/post_qc/..."`), matching the
+  existing convention already used by the sibling `cross_platform_field_vs_cylinder.yaml` in the
+  same directory (CI always invokes `pytest` from repo root, so this resolves correctly on all
+  three platforms). Re-ran `TestTraitSetIdentityOracle` after the fix: still 3/3 passing in 3.14s.
+- **IMPORTANT (confirmed by 3 of 5 reviewers) — `representative_names` validation gaps produced
+  raw, confusing exceptions instead of the clean `ValueError` contract the rest of the function's
+  input validation promises.** Two distinct gaps, both fixed together: (1) `representative_names=[]`
+  (empty, not `None`) bypassed the original `is None` check and failed later inside the fold loop
+  with `StandardScaler`'s "0 feature(s)... minimum of 1 is required" error; (2) a
+  `representative_names` entry absent from `X`'s columns raised a raw pandas `KeyError` rather
+  than a `ValueError`. Fixed: the upfront check now rejects a falsy (`None` or empty)
+  `representative_names`, and separately validates every name is present in `X.columns`, raising a
+  clean `ValueError` naming the unknown entries. New tests:
+  `test_logo_cv_predict_representatives_rejects_empty_representative_names`,
+  `test_logo_cv_predict_representatives_rejects_unknown_trait_name`.
+- **SUGGESTION, fixed anyway (cheap, same validation pass) — `X` with a non-numeric column raised
+  a confusing, unrelated `ValueError` from `X.to_numpy(dtype=float)`** instead of a message related
+  to the actual problem. Fixed: an explicit upfront dtype check now raises `ValueError` naming the
+  offending non-numeric column(s) before any numeric conversion is attempted.
+- **IMPORTANT, documented (not code-changed) — `CrossPlatformPredictionResult.to_json()` will raise
+  on a constant-`y` result.** `logo_cv_predict` correctly does not raise on zero-variance `y` (per
+  spec), but the resulting `spearman_rho`/`spearman_p` are `nan`, and `to_json()`'s finite-floats
+  contract (`allow_nan=False`, this module's established convention) will then raise when such a
+  result is serialized. Both sides individually honor their own documented contract; the
+  interaction is a real gap a future caller (Tier 3.5) should anticipate. Fixed via documentation:
+  a `Note:` added to `TargetPrediction`'s docstring, rather than a behavior change (changing either
+  side's contract — silently coercing `nan` to some sentinel, or having `logo_cv_predict` raise on
+  constant `y` — would contradict an already-adversarially-reviewed, deliberate design decision).
+- **IMPORTANT, spec-wording only (no behavior change) — the `pc1` scenario's "called once per fold"
+  wording was inaccurate.** The actual (correct, deliberately shipped, theory.md-matching) behavior
+  is two calls per fold — one to reduce `X_train` onto itself, one to reduce `X_test` — exactly as
+  the implementation's own test asserts (`len(calls) == 2 * len(genotypes)`). Code and test already
+  agreed with each other; only the spec's prose was wrong. Fixed: spec.md's scenario reworded to
+  state the two-call pattern explicitly, matching theory.md Section 3.1.
+- **Cosmetic, fixed — `LOGOCVResult.genotypes` was typed as bare `list` rather than `list[str]`**,
+  inconsistent with the same conceptual field one call-site downstream
+  (`TargetPrediction.genotype_names: list[str]`). Fixed.
+- **Noted, not fixed (deliberate, low-priority) — `pc1`'s per-fold double PCA fit.** Three of five
+  reviewers independently flagged that `fit_pca_on_fold` is called twice per fold with identical
+  `X_train` input, refitting an identical `PCA` from scratch each time, when one fit + two
+  `.transform()` calls would suffice. Confirmed harmless (deterministic, bit-identical output) and
+  already noted in this file's earlier Suggestions section. Not fixed now: theory.md Section 3.1
+  explicitly documents both the two-call and the single-fit-plus-transform forms as correct,
+  preferring the two-call form specifically "to keep the utility interface consistent" — changing
+  it would need a coordinated spec+test update (the `pc1` call-count test asserts exactly 2 calls
+  to the public `fit_pca_on_fold` function) for a performance win that's negligible at this tier's
+  n≈19 scale. Left as a candidate follow-up if Tier 4's permutation loop (~152,000 calls) makes it
+  measurably worth revisiting.
+- **Noted, not fixed (real limitation, flagged for awareness, no code change indicated) —
+  `pls_latent`'s overfitting risk at high trait-count (p in the tens-to-hundreds) is not exercised
+  by any fixture** (all three new fixtures use `n_traits=3`). Real EDPIE trait matrices are far
+  higher-dimensional (e.g. cylinder clusters 836 raw traits down to 129 representatives) — a single
+  learned PLS direction chosen from a much larger candidate space, fit on ~18 training genotypes,
+  is a materially more overfitting-prone regime than this tier's synthetic fixtures test. This is
+  exactly the kind of thing the manual real-data validation (Section 8, already run and signed off)
+  exists to catch in practice rather than via a synthetic proxy — no fixture redesign undertaken
+  here, since a synthetic fixture at real EDPIE dimensionality would need its own careful
+  calibration (per Decision 6's lesson) and the real-data check already covered this concern
+  directly. Recorded here so a future reader understands the fixture suite's scope boundary.
+- **Noted, not fixed (real observation, no action needed) — the leakage-detection ratio's margin
+  above its 1.10 threshold is thin (~1.14 actual, independently re-derived by two reviewers).** Not
+  a current defect, but worth re-verifying this specific ratio after any future scikit-learn
+  upgrade that could shift `Ridge`/`StandardScaler`'s numerics slightly, rather than assuming the
+  margin is permanently settled.
+
+Full `tests/test_cross_platform_prediction.py` suite re-run after all fixes: 38 passed (up from
+36 -- 3 new tests added, one pre-existing test's scope widened to cover the `n=2` boundary across
+all three reduction methods).

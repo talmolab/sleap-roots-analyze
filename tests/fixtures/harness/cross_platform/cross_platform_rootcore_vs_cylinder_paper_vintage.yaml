@@ -18,11 +18,11 @@
 # (external, not-committed-here) paths. See design.md Decision 2 (add-cross-platform-
 # prediction OpenSpec change) for the full investigation and rationale.
 
-exp1_data_path: "c:/repos/sleap-roots-analyze/tests/fixtures/real/wheat_edpie/inputs/post_qc/root_core_final_data_paper_vintage.csv"
+exp1_data_path: "tests/fixtures/real/wheat_edpie/inputs/post_qc/root_core_final_data_paper_vintage.csv"
 exp1_name: "Root Core EDPIE (QC'd)"
 exp1_genotype_col: "Genotype"
 
-exp2_data_path: "c:/repos/sleap-roots-analyze/tests/fixtures/real/wheat_edpie/inputs/post_qc/cylinder_final_data_paper_vintage.csv"
+exp2_data_path: "tests/fixtures/real/wheat_edpie/inputs/post_qc/cylinder_final_data_paper_vintage.csv"
 exp2_name: "Cylinder EDPIE (QC'd)"
 exp2_genotype_col: "Genotype"
 

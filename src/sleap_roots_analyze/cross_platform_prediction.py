@@ -89,7 +89,7 @@ class LOGOCVResult:
             descriptive, not hypothesis-test-grade, at this program's n~=19.
     """
 
-    genotypes: list
+    genotypes: list[str]
     y_true: np.ndarray
     y_pred: np.ndarray
     r2: float
@@ -133,8 +133,9 @@ def logo_cv_predict(
             via :func:`fit_pca_on_fold`, before a ``StandardScaler`` +
             ``Ridge()`` pipeline.
         representative_names: Trait (column) names to select when
-            ``reduction_method="representatives"``. Required (non-``None``)
-            for that method; ignored otherwise.
+            ``reduction_method="representatives"``. Required and must be
+            non-empty for that method, and every name must be present in
+            ``X``'s columns; ignored otherwise.
 
     Returns:
         A :class:`LOGOCVResult` with per-genotype predictions and aggregate
@@ -144,8 +145,13 @@ def logo_cv_predict(
         ValueError: If ``X``, ``y``, and ``genotypes`` have mismatched
             lengths; if ``reduction_method`` is not one of the three valid
             values; if ``reduction_method="representatives"`` and
-            ``representative_names`` is ``None``; if fewer than 2 genotypes
-            are provided; or if ``X`` contains any ``NaN`` value.
+            ``representative_names`` is ``None``/empty or contains a name
+            absent from ``X``'s columns; if fewer than 3 genotypes are
+            provided (each LOGO-CV fold's training set needs at least 2
+            genotypes -- ``PLSRegression``'s own minimum -- so 2 total
+            genotypes is not enough, even though it looks superficially
+            sufficient to form one fold); if ``X`` contains a non-numeric
+            column; or if ``X`` contains any ``NaN`` value.
     """
     if reduction_method not in _VALID_REDUCTION_METHODS:
         raise ValueError(
@@ -157,16 +163,31 @@ def logo_cv_predict(
             "X, y, and genotypes must have the same length: "
             f"got {len(X)}, {len(y)}, {len(genotypes)}"
         )
-    if len(genotypes) < 2:
+    if len(genotypes) < 3:
         raise ValueError(
-            "logo_cv_predict requires at least 2 genotypes for "
-            "leave-one-genotype-out cross-validation"
+            "logo_cv_predict requires at least 3 genotypes for "
+            "leave-one-genotype-out cross-validation: each fold's training "
+            "set must have at least 2 genotypes (PLSRegression's own minimum), "
+            "so 2 total genotypes (1 per training fold) is not enough"
         )
-    if reduction_method == "representatives" and representative_names is None:
-        raise ValueError(
-            "representative_names is required when "
-            "reduction_method='representatives'"
-        )
+    if reduction_method == "representatives":
+        if not representative_names:
+            raise ValueError(
+                "representative_names is required and must be non-empty when "
+                "reduction_method='representatives'"
+            )
+        unknown_names = [name for name in representative_names if name not in X.columns]
+        if unknown_names:
+            raise ValueError(
+                f"representative_names contains names not present in X's "
+                f"columns: {unknown_names}"
+            )
+
+    non_numeric_cols = [
+        col for col in X.columns if not pd.api.types.is_numeric_dtype(X[col])
+    ]
+    if non_numeric_cols:
+        raise ValueError(f"X contains non-numeric column(s): {non_numeric_cols}")
 
     X_values = X.to_numpy(dtype=float)
     y = np.asarray(y, dtype=float)
