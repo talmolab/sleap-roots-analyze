@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `calculate_heritability_estimates(fixed_effects=...)` (#114): optional list of
+  metadata-style covariate columns (experiment, wave, batch, scanner) added as
+  fixed effects to the mixed model, changing the formula from `value ~ 1` to
+  `value ~ C(fe_1) + C(fe_2) + ...` — every name is `C(...)`-wrapped
+  unconditionally (always categorical). Corrects a heritability-inflation bug
+  where a batch/experiment confound gets absorbed into the genotype term when
+  genotypes aren't balanced across batches. Default `None` reproduces
+  pre-existing behavior exactly. Tier 2 of the cross-platform
+  genotype-prediction program (Tier 1: #109).
+- `StatisticsConfig.fixed_effects` (default `None`): threads the above into the
+  QC/Viz pipeline's `StatisticalAnalysisStep`.
 - `extract_blup_table(heritability_results)` (#109): builds a genotype x trait
   BLUP-adjusted-means `pd.DataFrame` from a `calculate_heritability_estimates` result —
   `adjusted_mean = intercept + blup[genotype]` for each trait whose mixed model
@@ -33,6 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existing return shapes (plain dict, or the `remove_low_h2=True` 4-tuple) are
   unchanged. A trait solved via the ANOVA-based or no-variance path carries no such
   keys, since no fitted mixed-model result exists for those paths.
+- When `fixed_effects` is used (#114), the `intercept` key becomes an empirical,
+  sample frequency-weighted value instead of the raw model intercept — a
+  sample-composition-dependent quantity that can differ trait-to-trait, not a
+  population-typical value. A captured `ConvergenceWarning` during the fit (only
+  when `fixed_effects` is set) is now treated as a trait-level failure, since
+  `statsmodels` does not reliably raise on a fixed effect confounded with
+  genotype. No change when `fixed_effects` is unset.
 
 ## [0.1.0a5] - 2026-07-13 (Pre-release)
 

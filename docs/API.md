@@ -341,7 +341,8 @@ calculate_heritability_estimates(
     remove_low_h2: bool = False,
     h2_threshold: float = 0.3,
     barcode_col: str = "Barcode",
-    additional_exclude: Optional[List[str]] = None
+    additional_exclude: Optional[List[str]] = None,
+    fixed_effects: Optional[List[str]] = None
 ) -> Union[Dict, Tuple[Dict, pd.DataFrame, List[str], Dict]]
 ```
 
@@ -357,6 +358,10 @@ Calculate broad-sense heritability (H²) for traits using mixed models.
 - `h2_threshold`: Heritability threshold for filtering (default: 0.3)
 - `barcode_col`: Name of sample ID column for preservation
 - `additional_exclude`: Additional columns to exclude from filtering
+- `fixed_effects`: Optional list of metadata-style covariate columns (e.g.
+  experiment, wave, batch, scanner) to add as fixed effects, changing the
+  model formula from `value ~ 1` to `value ~ C(fe_1) + C(fe_2) + ...`
+  (issue #114). Default `None` reproduces pre-existing behavior exactly.
 
 **Returns:**
 - If `remove_low_h2=False`: Dictionary with heritability results
