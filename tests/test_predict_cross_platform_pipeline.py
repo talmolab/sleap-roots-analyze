@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from sleap_roots_analyze.pipeline.config.utils import load_cross_platform_config
@@ -131,11 +132,17 @@ def test_cross_platform_pipeline_backward_compat_disabled_by_default(tmp_path):
     config.yaml -- design.md Decision 9 -- and the other names in
     _EXCLUDED_FROM_BACKWARD_COMPAT_COMPARISON) against
     tests/fixtures/synthetic/cross_platform_prediction/backward_compat_snapshot/.
-    CSV/JSON content is compared exactly (pipeline_summary.json with known
-    non-deterministic fields normalized out first); PNG figures are compared
-    for presence only, matching this repo's existing convention that image
-    outputs are never byte-compared across environments (see that snapshot
-    directory's README.md).
+    CSV content is compared value-by-value with this repo's documented
+    cross-OS/BLAS tolerance (rtol=1e-6, atol=1e-9, docs/reproducibility.md) --
+    found via a real Ubuntu/macOS CI failure that exact-text comparison
+    doesn't survive, since correlation statistics (Spearman rho, CI bounds,
+    p-values) differ in their last significant digit(s) across BLAS
+    implementations, even though the underlying computation is otherwise
+    identical. pipeline_summary.json is compared with known non-deterministic
+    fields normalized out first; PNG figures are compared for presence only,
+    matching this repo's existing convention that image outputs are never
+    byte-compared across environments (see that snapshot directory's
+    README.md).
     """
     config = _prediction_config(enabled=False)
     pipeline = CrossPlatformPipeline(config=config, output_dir=tmp_path)
@@ -160,16 +167,21 @@ def test_cross_platform_pipeline_backward_compat_disabled_by_default(tmp_path):
             expected = _normalize_summary(json.loads(expected_path.read_text()))
             assert actual == expected
         else:
-            # CSV content, not raw bytes: pandas.to_csv() writes platform-native
-            # line endings (CRLF on Windows), while the committed snapshot is
-            # LF-normalized via .gitattributes (*.csv text eol=lf) -- a raw
-            # read_bytes() comparison would spuriously fail on Windows CI.
-            # Matches this repo's existing precedent (test_pipeline_reproduction.py)
-            # of comparing parsed/text content, never raw bytes, to stay
-            # encoding/line-ending agnostic.
-            actual_text = actual_path.read_text().replace("\r\n", "\n")
-            expected_text = expected_path.read_text().replace("\r\n", "\n")
-            assert actual_text == expected_text
+            # Parsed value comparison, not text/bytes: pandas.to_csv() writes
+            # platform-native line endings (CRLF on Windows) against an
+            # LF-normalized committed snapshot (.gitattributes: *.csv text
+            # eol=lf), so even a text comparison isn't enough on its own --
+            # and correlation statistics (Spearman rho, CI bounds, p-values)
+            # differ in their last significant digit(s) across BLAS
+            # implementations (confirmed via a real Ubuntu/macOS CI failure),
+            # so exact string equality doesn't survive cross-OS either.
+            # Matches this repo's documented rtol=1e-6/atol=1e-9 convention
+            # for cross-OS/BLAS numerical comparisons (docs/reproducibility.md).
+            actual_df = pd.read_csv(actual_path)
+            expected_df = pd.read_csv(expected_path)
+            pd.testing.assert_frame_equal(
+                actual_df, expected_df, check_exact=False, rtol=1e-6, atol=1e-9
+            )
 
 
 # =============================================================================
