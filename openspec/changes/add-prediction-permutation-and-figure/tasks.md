@@ -568,25 +568,59 @@
 > Elizabeth's sign-off. This section is therefore a late-stage gate that can trail every review
 > round in `/pre-merge-check` (task 13.7), not a step reliably sandwiched between two of them.
 
-- [ ] 11.1 Reuse Tier 3.5's Section 8 real BLUP tables and 4 directed-pair `CrossPlatformConfig`
+- [x] 11.1 Reuse Tier 3.5's Section 8 real BLUP tables and 4 directed-pair `CrossPlatformConfig`
       YAMLs (`pipeline_runs/section8_manual_validation_20260716/`) if still valid; rebuild via the
       same non-committed script pattern if the underlying QC vintage has moved. Extend each YAML's
       `prediction:` block with `visualize: true`, `n_permutations: 1000`, `permutation_n_jobs: 8`.
-- [ ] 11.2 Run all 4 directed pairs through the full 7-task pipeline, including
+      **Done:** all 4 original YAMLs' data/BLUP paths verified to still resolve on disk (no
+      rebuild needed); 4 new `*_visualize.yaml` sibling copies created (originals left untouched)
+      with `visualize: true, n_permutations: 1000, permutation_random_state: 42,
+      permutation_n_jobs: 8` appended to each `prediction:` block.
+- [x] 11.2 Run all 4 directed pairs through the full 7-task pipeline, including
       `Turface19→Cylinder` (worst-case pair, ~129 representative traits).
-- [ ] 11.3 Re-measure and record real wall time, per pair and total — superseding the synthetic-
+      **Done:** all 4 pairs ran successfully to completion (7/7 tasks each), output in
+      `pipeline_runs/section8_manual_validation_20260716/results_tier4_visualize/`.
+- [x] 11.3 Re-measure and record real wall time, per pair and total — superseding the synthetic-
       fixture-derived 27.4-minute estimate (design.md Decision 4/Risks). If any pair or the total
       exceeds 30 minutes, apply a documented fallback (design.md Risks) before proceeding to 11.7.
-- [ ] 11.4 Sanity-check permutation-based p-values against Tier 3.5's Section 8.2/8.3 nominally-
+      **Measured (this dev machine, 16-core, `n_jobs=8`):**
+      | Pair | Total wall time | Step 7 (visualize prediction) alone |
+      |---|---|---|
+      | Turface150→Turface19 | 1m32s | 74s |
+      | Cylinder→Field | 4m18s | 196s |
+      | Turface19→Field | 2m49s | 147s |
+      | Turface19→Cylinder (worst case) | **12m58s** | **720s (12m00s)** |
+      | **Total (all 4, sequential)** | **~21.6 min** | — |
+      All comfortably under the 30-minute gate — the worst-case pair alone came in at less than
+      half the synthetic-fixture-extrapolated 27.4-minute estimate. No fallback needed.
+- [x] 11.4 Sanity-check permutation-based p-values against Tier 3.5's Section 8.2/8.3 nominally-
       significant findings (e.g. Cylinder→Field `Root Count 20cm`, asymptotic R²=0.25/ρ=+0.49/
       p=0.033; Turface19→Cylinder `Seminal Angles Proximal Max Max`, asymptotic R²=0.38/ρ=+0.62/
       p=0.004) — record whether these still look significant under the permutation-based p-value.
-- [ ] 11.5 Cross-check against Tier 3.5's Section 8.5 multiple-testing/power caveat (raw p<0.05
+      **Done:** both hits reproduce exactly under the `representatives` method (not `pls_latent`,
+      this tier's primary method — Tier 3.5's own reported figures came from the comparison
+      method). Both remain significant under permutation-based inference, matching or slightly
+      improving on the asymptotic figures: Root Count 20cm asymptotic p=0.033 → permutation
+      p_r2=0.017, p_rho=0.022; Seminal Angles Proximal Max Max asymptotic p=0.0044 → permutation
+      p_r2=0.004, p_rho=0.005.
+- [x] 11.5 Cross-check against Tier 3.5's Section 8.5 multiple-testing/power caveat (raw p<0.05
       count 63/354, FDR-corrected count 9/354, all 9 negative ρ) — record whether permutation-based
       inference reinforces or changes that caveat's conclusion.
-- [ ] 11.6 Visually inspect all 4 `07_prediction_figure.png` outputs for legibility and correctness.
+      **Done:** permutation-based prediction p-values (`p_value_r2`, same 354-row denominator: 4
+      pairs × 2 methods × per-pair target count) are markedly more conservative than the
+      correlation step's asymptotic p-values — raw p<0.05 count **9/354 (2.5%)**, vs. Tier 3.5's
+      63/354 (17.8%); **0/354 survive FDR-BH correction**, vs. Tier 3.5's own 9/354 survivors (all
+      negative ρ). This **reinforces** (more strongly, not just confirms) Tier 3.5's Section 8.5
+      conclusion: individual nominally-significant hits should not be read as confirmed
+      cross-platform predictability at this genotype sample size.
+- [x] 11.6 Visually inspect all 4 `07_prediction_figure.png` outputs for legibility and correctness.
+      **Done:** all 4 inspected directly. Readable axis labels/titles; PC1 scatter shows
+      genotype-level points in all 4; violin/strip panel shows a visible real-vs-null spread
+      (widest, as expected, for the ~129-target worst-case pair); bar chart's two bars are
+      distinguishable in all 4. No legibility issues found.
 - [ ] 11.7 Present findings to Elizabeth; record her explicit sign-off here before this task (and
       Section 13's `/pre-merge-check`) is considered complete.
+      **Findings presented 2026-07-17 (see conversation) — awaiting Elizabeth's explicit sign-off.**
 
 ## 12. Docs
 
