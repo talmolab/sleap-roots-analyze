@@ -437,50 +437,47 @@ def test_visualize_prediction_step_parallel_vs_serial_results_agree_within_toler
     predict_serial = _run_predict_step(config_serial, tmp_path / "serial")
     predict_parallel = _run_predict_step(config_parallel, tmp_path / "parallel")
 
-    result_serial = VisualizePredictionStep().execute(
+    VisualizePredictionStep().execute(
         data=predict_serial.data,
         config=config_serial,
         run_dir=tmp_path / "serial",
         prev_result=predict_serial,
     )
-    result_parallel = VisualizePredictionStep().execute(
+    VisualizePredictionStep().execute(
         data=predict_parallel.data,
         config=config_parallel,
         run_dir=tmp_path / "parallel",
         prev_result=predict_parallel,
     )
 
-    for method in result_serial.data:
-        for target_name in result_serial.data[method]:
-            r_serial = result_serial.data[method][target_name]
-            r_parallel = result_parallel.data[method][target_name]
-            for field in (
-                "observed_r2",
-                "observed_rmse",
-                "observed_spearman_rho",
-                "observed_top_quartile_recovery",
-                "p_value_r2",
-                "p_value_rmse",
-                "p_value_spearman_rho",
-            ):
-                np.testing.assert_allclose(
-                    getattr(r_serial, field),
-                    getattr(r_parallel, field),
-                    rtol=1e-6,
-                    atol=1e-9,
-                )
-            for field in (
-                "null_r2",
-                "null_rmse",
-                "null_spearman_rho",
-                "null_top_quartile_recovery",
-            ):
-                np.testing.assert_allclose(
-                    getattr(r_serial, field),
-                    getattr(r_parallel, field),
-                    rtol=1e-6,
-                    atol=1e-9,
-                )
+    saved_serial = json.loads(
+        (tmp_path / "serial" / "07_permutation_pls_latent.json").read_text()
+    )
+    saved_parallel = json.loads(
+        (tmp_path / "parallel" / "07_permutation_pls_latent.json").read_text()
+    )
+    by_target_serial = {p["target_name"]: p for p in saved_serial["predictions"]}
+    by_target_parallel = {p["target_name"]: p for p in saved_parallel["predictions"]}
+    assert set(by_target_serial) == set(by_target_parallel)
+
+    for target_name, pred_serial in by_target_serial.items():
+        pred_parallel = by_target_parallel[target_name]
+        for field in (
+            "observed_r2",
+            "observed_rmse",
+            "observed_spearman_rho",
+            "observed_top_quartile_recovery",
+            "p_value_r2",
+            "p_value_rmse",
+            "p_value_spearman_rho",
+            "null_r2",
+            "null_rmse",
+            "null_spearman_rho",
+            "null_top_quartile_recovery",
+        ):
+            np.testing.assert_allclose(
+                pred_serial[field], pred_parallel[field], rtol=1e-6, atol=1e-9
+            )
 
 
 def test_visualize_prediction_step_handles_pc1_only_targets_via_joblib(tmp_path):
@@ -521,4 +518,200 @@ def test_visualize_prediction_step_handles_pc1_only_targets_via_joblib(tmp_path)
 
     assert set(result.data.keys()) == {"pls_latent", "representatives"}
     for method in result.data:
-        assert set(result.data[method].keys()) == {"PC1"}
+        target_names = {p["target_name"] for p in result.data[method]["predictions"]}
+        assert target_names == {"PC1"}
+
+
+# =============================================================================
+# 7c. JSON/figure output
+# =============================================================================
+
+
+def test_visualize_prediction_step_saves_one_json_per_method(tmp_path):
+    """K + 1 07_permutation_<method>.json files for reduction_method + K comparison_methods."""
+    config = _visualize_config(
+        tmp_path, reduction_method="pls_latent", comparison_methods=["representatives"]
+    )
+    predict_result = _run_predict_step(config, tmp_path)
+    step = VisualizePredictionStep()
+    step.execute(
+        data=predict_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=predict_result,
+    )
+
+    assert (tmp_path / "07_permutation_pls_latent.json").is_file()
+    assert (tmp_path / "07_permutation_representatives.json").is_file()
+
+
+def test_visualize_prediction_step_saves_one_json_when_comparison_methods_empty(
+    tmp_path,
+):
+    """With K=0, exactly 1 07_permutation_<method>.json file is saved, not 0."""
+    config = _visualize_config(
+        tmp_path, reduction_method="pls_latent", comparison_methods=[]
+    )
+    predict_result = _run_predict_step(config, tmp_path)
+    step = VisualizePredictionStep()
+    step.execute(
+        data=predict_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=predict_result,
+    )
+
+    json_files = sorted(tmp_path.glob("07_permutation_*.json"))
+    assert len(json_files) == 1
+    assert json_files[0].name == "07_permutation_pls_latent.json"
+
+
+def test_visualize_prediction_step_permutation_observed_matches_task6_prediction_exactly(
+    tmp_path,
+):
+    """Each target/method's observed_* exactly matches task 6's own reported values."""
+    config = _visualize_config(
+        tmp_path, reduction_method="pls_latent", comparison_methods=["representatives"]
+    )
+    predict_result = _run_predict_step(config, tmp_path)
+    step = VisualizePredictionStep()
+    step.execute(
+        data=predict_result.data,
+        config=config,
+        run_dir=tmp_path,
+        prev_result=predict_result,
+    )
+
+    for method in ("pls_latent", "representatives"):
+        task6_saved = json.loads(
+            (tmp_path / f"06_prediction_{method}.json").read_text()
+        )
+        permutation_saved = json.loads(
+            (tmp_path / f"07_permutation_{method}.json").read_text()
+        )
+        task6_by_target = {p["target_name"]: p for p in task6_saved["predictions"]}
+        permutation_by_target = {
+            p["target_name"]: p for p in permutation_saved["predictions"]
+        }
+        assert set(task6_by_target) == set(permutation_by_target)
+        for target_name, task6_pred in task6_by_target.items():
+            perm_pred = permutation_by_target[target_name]
+            assert perm_pred["observed_r2"] == pytest.approx(task6_pred["r2"])
+            assert perm_pred["observed_rmse"] == pytest.approx(task6_pred["rmse"])
+            assert perm_pred["observed_spearman_rho"] == pytest.approx(
+                task6_pred["spearman_rho"]
+            )
+
+
+def test_visualize_prediction_step_saves_one_figure_using_primary_method_only(
+    tmp_path,
+):
+    """Exactly one figure PNG, built only from the primary reduction_method's results."""
+    config = _visualize_config(
+        tmp_path, reduction_method="pls_latent", comparison_methods=["representatives"]
+    )
+    predict_result = _run_predict_step(config, tmp_path)
+    step = VisualizePredictionStep()
+
+    from sleap_roots_analyze.visualize_prediction import (
+        create_prediction_figure as real_create_prediction_figure,
+    )
+
+    captured = {}
+
+    def spy(target_predictions, permutation_results, **kwargs):
+        captured["permutation_results"] = list(permutation_results)
+        return real_create_prediction_figure(
+            target_predictions, permutation_results, **kwargs
+        )
+
+    with patch(
+        "sleap_roots_analyze.pipeline.steps.visualize_prediction.create_prediction_figure",
+        side_effect=spy,
+    ):
+        step.execute(
+            data=predict_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=predict_result,
+        )
+
+    figure_files = sorted(tmp_path.glob("07_prediction_figure*.png"))
+    assert len(figure_files) == 1
+    assert (tmp_path / "07_prediction_figure.png").is_file()
+
+    saved_pls = json.loads((tmp_path / "07_permutation_pls_latent.json").read_text())
+    expected_target_names = {p["target_name"] for p in saved_pls["predictions"]}
+    actual_target_names = {pr.target_name for pr in captured["permutation_results"]}
+    assert actual_target_names == expected_target_names
+
+
+def test_visualize_prediction_step_rejects_non_finite_permutation_result_with_named_error(
+    tmp_path,
+):
+    """A non-finite permutation result raises ValueError, before writing any JSON."""
+    config = _visualize_config(
+        tmp_path, reduction_method="pls_latent", comparison_methods=["representatives"]
+    )
+    predict_result = _run_predict_step(config, tmp_path)
+    step = VisualizePredictionStep()
+
+    def _broken(*args, **kwargs):
+        raise ValueError(
+            "Observed value(s) for metric(s) ['spearman_rho'] are non-finite "
+            "(permutation index 3)"
+        )
+
+    with patch(
+        "sleap_roots_analyze.pipeline.steps.visualize_prediction.permutation_test",
+        side_effect=_broken,
+    ):
+        with pytest.raises(ValueError, match="spearman_rho"):
+            step.execute(
+                data=predict_result.data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=predict_result,
+            )
+
+    assert not list(tmp_path.glob("07_permutation_*.json"))
+    assert not (tmp_path / "07_prediction_figure.png").exists()
+
+
+def test_visualize_prediction_step_writes_no_partial_json_files_when_any_combination_fails(
+    tmp_path,
+):
+    """One failing combination leaves zero 07_permutation_<method>.json files, all-or-nothing."""
+    config = _visualize_config(
+        tmp_path, reduction_method="pls_latent", comparison_methods=["representatives"]
+    )
+    predict_result = _run_predict_step(config, tmp_path)
+    step = VisualizePredictionStep()
+
+    from sleap_roots_analyze.cross_platform_prediction import (
+        permutation_test as real_permutation_test,
+    )
+
+    call_count = [0]
+
+    def _fail_on_third_call(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 3:
+            raise ValueError("injected failure for one combination")
+        return real_permutation_test(*args, **kwargs)
+
+    with patch(
+        "sleap_roots_analyze.pipeline.steps.visualize_prediction.permutation_test",
+        side_effect=_fail_on_third_call,
+    ):
+        with pytest.raises(ValueError, match="injected failure"):
+            step.execute(
+                data=predict_result.data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=predict_result,
+            )
+
+    # All-or-nothing: zero JSON files exist, including for methods whose own
+    # combinations (e.g. the first 2 calls) all individually succeeded.
+    assert not list(tmp_path.glob("07_permutation_*.json"))

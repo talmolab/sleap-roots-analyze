@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -12,6 +12,11 @@ from sklearn.preprocessing import StandardScaler
 from sleap_roots_analyze.cross_platform_prediction import permutation_test
 from sleap_roots_analyze.pca import fit_pca
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
+from sleap_roots_analyze.result_types import (
+    CrossPlatformPermutationResult,
+    TargetPrediction,
+)
+from sleap_roots_analyze.visualize_prediction import create_prediction_figure
 
 
 class VisualizePredictionStep(BaseStep):
@@ -128,15 +133,57 @@ class VisualizePredictionStep(BaseStep):
         # Parallelizes across independent (target, method) units, not across
         # individual permutation calls -- empirically measured slower than
         # serial at this workload's per-call cost (design.md Decision 4).
+        # joblib.Parallel(backend="loky") fails fast on the first worker
+        # exception, so collecting every result here before writing any
+        # output file below is a correct, simple all-or-nothing
+        # partial-failure contract -- no additional engineering needed.
         dispatched = Parallel(n_jobs=pcfg.permutation_n_jobs, backend="loky")(
             delayed(_run_unit)(method, target_name, seed)
             for (method, target_name), seed in zip(combinations, child_seeds)
         )
 
-        results_by_method: Dict[str, Dict[str, Any]] = {
+        permutation_test_results_by_method: Dict[str, Dict[str, Any]] = {
             method: {} for method in methods
         }
         for method, target_name, result in dispatched:
-            results_by_method[method][target_name] = result
+            permutation_test_results_by_method[method][target_name] = result
 
-        return StepResult(data=results_by_method, metadata={}, files_generated=[])
+        source_platform = prev_result.metadata["source_platform"]
+        target_platform = prev_result.metadata["target_platform"]
+
+        files_generated: List[Path] = []
+        results_by_method: Dict[str, Any] = {}
+        cp_results_by_method: Dict[str, CrossPlatformPermutationResult] = {}
+        for method in methods:
+            cp_result = CrossPlatformPermutationResult.from_permutation_test_results(
+                source_platform=source_platform,
+                target_platform=target_platform,
+                reduction_method=method,
+                permutation_test_results=permutation_test_results_by_method[method],
+            )
+            output_path = run_dir / f"07_permutation_{method}.json"
+            output_path.write_text(cp_result.to_json(indent=2))
+            files_generated.append(output_path)
+            results_by_method[method] = cp_result.to_dict()
+            cp_results_by_method[method] = cp_result
+
+        # Figure uses only the primary reduction_method's results (design.md
+        # Decision 9), built from task 6's observed CrossPlatformPredictionResult
+        # (for the PC1 obs-vs-pred scatter) and this step's own permutation
+        # results for the same method (for the R^2 violin / top-quartile bar).
+        primary_method = pcfg.reduction_method
+        target_predictions = [
+            TargetPrediction(**target_dict)
+            for target_dict in data[primary_method]["predictions"]
+        ]
+        fig = create_prediction_figure(
+            target_predictions=target_predictions,
+            permutation_results=cp_results_by_method[primary_method].predictions,
+        )
+        figure_path = run_dir / "07_prediction_figure.png"
+        fig.savefig(figure_path, dpi=300, bbox_inches="tight")
+        files_generated.append(figure_path)
+
+        return StepResult(
+            data=results_by_method, metadata={}, files_generated=files_generated
+        )

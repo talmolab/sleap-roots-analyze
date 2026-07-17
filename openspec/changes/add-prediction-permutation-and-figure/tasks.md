@@ -396,22 +396,22 @@
 
 **7c. JSON/figure output (red→green pair 3)**
 
-- [ ] 7c.1 Write failing test `test_visualize_prediction_step_saves_one_json_per_method`: `K + 1`
+- [x] 7c.1 Write failing test `test_visualize_prediction_step_saves_one_json_per_method`: `K + 1`
       `07_permutation_<method>.json` files for `reduction_method` + `K` `comparison_methods`.
-- [ ] 7c.2 Write failing test
+- [x] 7c.2 Write failing test
       `test_visualize_prediction_step_saves_one_json_when_comparison_methods_empty`: with `K=0`,
       exactly 1 `07_permutation_<method>.json` file is saved, not `0` (a distinct check from
       7c.1's general formula, guarding the `K=0` edge specifically).
-- [ ] 7c.3 Write failing test
+- [x] 7c.3 Write failing test
       `test_visualize_prediction_step_permutation_observed_matches_task6_prediction_exactly`: for
       each target/method, the permutation JSON's `observed_r2`/`observed_rmse`/
       `observed_spearman_rho` exactly matches task 6's `06_prediction_<method>.json`'s `r2`/
       `rmse`/`spearman_rho` for the same target.
-- [ ] 7c.4 Write failing test `test_visualize_prediction_step_saves_one_figure_using_primary_method_only`:
+- [x] 7c.4 Write failing test `test_visualize_prediction_step_saves_one_figure_using_primary_method_only`:
       exactly one `07_prediction_figure.png`, and (via a spy/mock on `create_prediction_figure`,
       Section 6) confirm it was called with only the primary `reduction_method`'s results, not
       `comparison_methods`'.
-- [ ] 7c.5 Write failing test
+- [x] 7c.5 Write failing test
       `test_visualize_prediction_step_rejects_non_finite_permutation_result_with_named_error`
       (`permutation_n_jobs=1`, per the mocking-across-process-boundary note at the top of Section
       7a — found during `/review-openspec` round 4 that this note originally scoped itself to
@@ -421,14 +421,14 @@
       calls) would produce a non-finite null value for one target/method, the step surfaces
       `ValueError` naming the target/method/permutation-index (propagated from `permutation_test`'s
       own guard, task 2.13a), before attempting to write any `07_permutation_<method>.json`.
-- [ ] 7c.6 Write failing test
+- [x] 7c.6 Write failing test
       `test_visualize_prediction_step_writes_no_partial_json_files_when_any_combination_fails`
       (`permutation_n_jobs=1`, same reason as 7c.5): one `(target, method)` combination fails (per
       7c.5) while every other combination for the pair would have individually succeeded — assert
       **zero** `07_permutation_<method>.json` files exist after the exception propagates, including
       for methods whose own combinations all succeeded (all-or-nothing per pair, not a partial
       write).
-- [ ] 7c.7 Extend `VisualizePredictionStep` to save one `CrossPlatformPermutationResult` JSON per
+- [x] 7c.7 Extend `VisualizePredictionStep` to save one `CrossPlatformPermutationResult` JSON per
       method (only after every combination for the pair has succeeded — 7c.6's all-or-nothing
       contract) and call `create_prediction_figure()` (Section 6) with the primary method's
       results only, saving `07_prediction_figure.png` with `dpi=300, bbox_inches="tight"` matching
