@@ -287,3 +287,43 @@ def test_predict_step_never_reads_task5_data(tmp_path):
 
     assert result.data.data is not None
     assert task1_result is not None
+
+
+# =============================================================================
+# Tier 4 (add-prediction-permutation-and-figure, #200), tasks.md 8.1/8.2 --
+# task presence/absence for VisualizePredictionStep (7th task).
+# =============================================================================
+
+
+def test_cross_platform_pipeline_appends_visualize_prediction_task_when_visualize_enabled():
+    """A 7th task, depending on task 6, is added when prediction.visualize=True (tasks.md 8.1)."""
+    config = load_cross_platform_config(
+        HARNESS_DIR / "cross_platform_prediction_wiring_visualize.yaml"
+    )
+    pipeline = CrossPlatformPipeline(config=config)
+
+    tasks = pipeline.create_tasks()
+
+    assert len(tasks) == 7
+    visualize_task = tasks[6]
+    assert visualize_task.name == "07_visualize_prediction"
+    assert set(visualize_task.depends_on) == {"06_predict_cross_platform"}
+
+
+def test_cross_platform_pipeline_omits_visualize_prediction_task_when_disabled():
+    """create_tasks() returns exactly 6 tasks when visualize=False (tasks.md 8.2).
+
+    Including when prediction.enabled=True alone (prediction with no
+    visualization).
+    """
+    config = load_cross_platform_config(
+        HARNESS_DIR / "cross_platform_prediction_wiring.yaml"
+    )
+    assert config.prediction.enabled is True
+    assert config.prediction.visualize is False
+    pipeline = CrossPlatformPipeline(config=config)
+
+    tasks = pipeline.create_tasks()
+
+    assert len(tasks) == 6
+    assert all(not t.name.startswith("07_") for t in tasks)

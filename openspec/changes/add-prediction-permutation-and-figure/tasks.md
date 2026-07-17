@@ -436,18 +436,18 @@
 
 ## 8. `CrossPlatformPipeline` task wiring (test-first)
 
-- [ ] 8.1 Write failing test `test_cross_platform_pipeline_appends_visualize_prediction_task_when_visualize_enabled`:
+- [x] 8.1 Write failing test `test_cross_platform_pipeline_appends_visualize_prediction_task_when_visualize_enabled`:
       `create_tasks()` includes a 7th task, `depends_on=["06_predict_cross_platform"]`, when
       `config.prediction.visualize=True`.
-- [ ] 8.2 Write failing test `test_cross_platform_pipeline_omits_visualize_prediction_task_when_disabled`:
+- [x] 8.2 Write failing test `test_cross_platform_pipeline_omits_visualize_prediction_task_when_disabled`:
       `create_tasks()` returns exactly 6 tasks when `config.prediction.visualize=False` (the
       default) — including when `config.prediction.enabled=True` (prediction alone, no
       visualization).
-- [ ] 8.3 Add `_run_visualize_prediction` runner method + the conditional `Task(...)` entry to
+- [x] 8.3 Add `_run_visualize_prediction` runner method + the conditional `Task(...)` entry to
       `CrossPlatformPipeline.create_tasks()`. Make 8.1-8.2 green.
-- [ ] 8.4 Write failing test `test_cli_cross_platform_dry_run_lists_visualize_prediction_step_when_enabled`
+- [x] 8.4 Write failing test `test_cli_cross_platform_dry_run_lists_visualize_prediction_step_when_enabled`
       and `test_cli_cross_platform_dry_run_omits_it_when_disabled` (mirroring Tier 3.5 tasks 7.1-7.2).
-- [ ] 8.5 Update `cli.py`'s dry-run steps list (conditional 7th entry) and docstring. Make 8.4 green.
+- [x] 8.5 Update `cli.py`'s dry-run steps list (conditional 7th entry) and docstring. Make 8.4 green.
 
 ## 9. Oracle tests (test-first, per design.md Decision 11)
 
