@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np
+from joblib import Parallel, delayed
 from sklearn.preprocessing import StandardScaler
 
 from sleap_roots_analyze.cross_platform_prediction import permutation_test
@@ -97,24 +99,44 @@ class VisualizePredictionStep(BaseStep):
         target_y["PC1"] = pc1_values
 
         methods = [pcfg.reduction_method] + list(pcfg.comparison_methods)
+        combinations = [
+            (method, target_name) for method in methods for target_name in target_names
+        ]
+
+        # Independent seed per (target, method) combination (design.md
+        # Decision 4, found during round 1's review): reusing one shared
+        # seed for every combination would correlate, not independently
+        # sample, the null draws the pooled violin panel (Section 6) later
+        # combines across targets.
+        seed_sequence = np.random.SeedSequence(pcfg.permutation_random_state)
+        child_seeds = seed_sequence.spawn(len(combinations))
+
+        def _run_unit(method: str, target_name: str, seed: np.random.SeedSequence):
+            result = permutation_test(
+                X=source_clean,
+                y=target_y[target_name],
+                genotypes=genotypes,
+                reduction_method=method,
+                representative_names=(
+                    source_representative_names if method == "representatives" else None
+                ),
+                n_permutations=pcfg.n_permutations,
+                random_state=seed,
+            )
+            return method, target_name, result
+
+        # Parallelizes across independent (target, method) units, not across
+        # individual permutation calls -- empirically measured slower than
+        # serial at this workload's per-call cost (design.md Decision 4).
+        dispatched = Parallel(n_jobs=pcfg.permutation_n_jobs, backend="loky")(
+            delayed(_run_unit)(method, target_name, seed)
+            for (method, target_name), seed in zip(combinations, child_seeds)
+        )
 
         results_by_method: Dict[str, Dict[str, Any]] = {
             method: {} for method in methods
         }
-        for method in methods:
-            for target_name in target_names:
-                results_by_method[method][target_name] = permutation_test(
-                    X=source_clean,
-                    y=target_y[target_name],
-                    genotypes=genotypes,
-                    reduction_method=method,
-                    representative_names=(
-                        source_representative_names
-                        if method == "representatives"
-                        else None
-                    ),
-                    n_permutations=pcfg.n_permutations,
-                    random_state=pcfg.permutation_random_state,
-                )
+        for method, target_name, result in dispatched:
+            results_by_method[method][target_name] = result
 
         return StepResult(data=results_by_method, metadata={}, files_generated=[])

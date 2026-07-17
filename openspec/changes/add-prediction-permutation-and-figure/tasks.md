@@ -345,29 +345,29 @@
 
 **7b. `joblib` parallelization across targets (red→green pair 2 — the riskiest, most novel piece)**
 
-- [ ] 7b.1 Write failing test
+- [x] 7b.1 Write failing test
       `test_visualize_prediction_step_parallelizes_across_target_method_units_not_within_one`:
       inspect the `joblib.Parallel`/`delayed` call structure (or the list of dispatched callables)
       to confirm one `delayed(...)` unit per `(target, method)` combination, not per permutation
       iteration.
-- [ ] 7b.2 Write failing test
+- [x] 7b.2 Write failing test
       `test_visualize_prediction_step_joblib_n_jobs_and_backend_match_config`:
       `joblib.Parallel` is constructed with `n_jobs=config.prediction.permutation_n_jobs,
       backend="loky"` (per the cross-platform-analysis spec's explicit backend choice).
-- [ ] 7b.3 Write failing test
+- [x] 7b.3 Write failing test
       `test_visualize_prediction_step_derives_independent_seed_per_target_method`: for `N`
       `(target, method)` combinations enumerated in the canonical order (7a.5), assert
       `numpy.random.SeedSequence(config.prediction.permutation_random_state).spawn(N)` derives `N`
       distinct seeds, the `i`-th child assigned to the `i`-th combination in that order — no two
       combinations receive the same seed, and re-running with the same `permutation_random_state`
       and the same combinations reproduces the same derived seeds.
-- [ ] 7b.4 Write failing test `test_visualize_prediction_step_permutation_test_receives_derived_seed`
+- [x] 7b.4 Write failing test `test_visualize_prediction_step_permutation_test_receives_derived_seed`
       (`permutation_n_jobs=1`, see the note at the top of Section 7a): spy on `permutation_test` to
       confirm each call's `random_state` argument is that combination's derived `SeedSequence`
       child from 7b.3 (passed through unchanged — no int-extraction step, per `default_rng`'s
       uniform acceptance of `SeedSequence`), not the raw
       `config.prediction.permutation_random_state`.
-- [ ] 7b.5 Write failing test
+- [x] 7b.5 Write failing test
       `test_visualize_prediction_step_parallel_vs_serial_results_agree_within_tolerance`: on a
       small fixture with an explicitly small, stated `n_permutations` (e.g. 50, to bound the
       elementwise-comparison surface and keep this test CI-fast), `permutation_n_jobs=1` and
@@ -379,10 +379,10 @@
       tolerance convention, independent of this step's own correctness). This test calls the real
       `permutation_test` (no mocking) at both `n_jobs` settings, so it is unaffected by the
       mocking-across-process-boundary note above.
-- [ ] 7b.6 Extend `VisualizePredictionStep` to dispatch the 7a.5 enumeration through
+- [x] 7b.6 Extend `VisualizePredictionStep` to dispatch the 7a.5 enumeration through
       `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs, backend="loky")`, deriving
       per-combination seeds via `SeedSequence.spawn(N)` (7b.3). Make 7b.1-7b.5 green.
-- [ ] 7b.7 Write failing test `test_visualize_prediction_step_handles_pc1_only_targets_via_joblib`:
+- [x] 7b.7 Write failing test `test_visualize_prediction_step_handles_pc1_only_targets_via_joblib`:
       re-run 7a.2's PC1-only (zero representative-trait) fixture at `permutation_n_jobs=4` (real
       multi-process dispatch, no mocking), asserting the step still runs successfully through the
       full `joblib.Parallel` dispatch with `N=1` total unit per method, producing a valid
