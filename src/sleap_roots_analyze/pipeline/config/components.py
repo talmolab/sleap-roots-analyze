@@ -6,7 +6,9 @@ pipelines. These are building blocks that pipelines use to create their configur
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from omegaconf import MISSING
@@ -830,6 +832,132 @@ class RootCoreConfig:
     core_qc: CoreQCConfig = field(default_factory=CoreQCConfig)
     merge_traits: Optional[MergeTraitsConfig] = None
     generate_depth_profiles: bool = True
+
+
+# Valid values shared by PredictionConfig.reduction_method and every entry in
+# comparison_methods (design.md Decision 6/7; proposal.md's "same 3-value set").
+_PREDICTION_REDUCTION_METHODS = ("pls_latent", "representatives", "pc1")
+_PREDICTION_PREDICTOR_SOURCES = ("blup", "genotype_means")
+# "heritability" is deliberately absent -- select_cluster_representatives has no
+# metric parameter to select by it in this tier (design.md Decision 7).
+_PREDICTION_REPRESENTATIVE_SELECTION_METRICS = ("variance",)
+
+
+@dataclass
+class PredictionConfig:
+    """Cross-platform genotype-effect prediction configuration (Tier 3.5, #196).
+
+    Nested as the ``prediction`` field on ``CrossPlatformConfig``, gating an
+    optional 6th ``PredictCrossPlatformStep`` task on ``CrossPlatformPipeline``.
+    See ``openspec/changes/add-prediction-pipeline-step/design.md`` for full
+    rationale (Decisions 1-17).
+
+    Attributes:
+        enabled: Whether to run the prediction step. Default False so every
+            existing CrossPlatformConfig YAML that predates this field is
+            unaffected -- when False, __post_init__ performs no validation
+            at all, not even structural checks on other fields (Decision 4).
+        predictor_source: Where the predictor matrix comes from -- "blup"
+            (genotype BLUP-adjusted means, read from source_blup_path) or
+            "genotype_means" (a plain per-genotype mean of task 1's own
+            raw, already exclude_cols-filtered trait data).
+        reduction_method: The primary dimensionality-reduction method passed
+            to logo_cv_predict: "pls_latent", "representatives", or "pc1".
+        comparison_methods: Additional reduction methods reported alongside
+            reduction_method, from the same 3-value set. Must not duplicate
+            reduction_method or contain a duplicate entry within itself --
+            either would silently overwrite one method's output JSON with
+            another's.
+        representative_selection_metric: Criterion select_cluster_representatives
+            selects by. Only "variance" is supported in this tier --
+            "heritability" is deferred (Decision 7).
+        platform_pairs: A single-entry [{"source": ..., "target": ...}] list
+            naming which of CrossPlatformConfig's exp1_name/exp2_name is the
+            predictor and which is predicted. Validated (cardinality and
+            direction) in CrossPlatformConfig.__post_init__, which alone can
+            see both self and self.prediction (Decision 3/10).
+        blup_refit_per_fold: Present in the schema for forward compatibility
+            with a future heritability-based representative_selection_metric,
+            but currently inert -- no valid representative_selection_metric
+            value triggers any auto-force or validation on it (Decision 7).
+        source_blup_path: Path to the source platform's BLUP-adjusted-means
+            CSV. Required and existence-checked on disk only when
+            enabled=True and predictor_source="blup".
+        target_blup_path: Path to the target platform's BLUP-adjusted-means
+            CSV. Same requirement as source_blup_path.
+    """
+
+    enabled: bool = False
+    predictor_source: str = "blup"
+    reduction_method: str = "pls_latent"
+    comparison_methods: List[str] = field(default_factory=lambda: ["representatives"])
+    representative_selection_metric: str = "variance"
+    platform_pairs: List[Dict[str, str]] = field(default_factory=list)
+    blup_refit_per_fold: bool = False
+    source_blup_path: Optional[str] = None
+    target_blup_path: Optional[str] = None
+
+    def __post_init__(self):
+        """Validate configuration parameters (full no-op when disabled)."""
+        if not self.enabled:
+            return
+
+        if self.predictor_source not in _PREDICTION_PREDICTOR_SOURCES:
+            raise ValueError(
+                f"predictor_source must be one of {_PREDICTION_PREDICTOR_SOURCES}, "
+                f"got {self.predictor_source!r}"
+            )
+
+        if self.reduction_method not in _PREDICTION_REDUCTION_METHODS:
+            raise ValueError(
+                f"reduction_method must be one of {_PREDICTION_REDUCTION_METHODS}, "
+                f"got {self.reduction_method!r}"
+            )
+
+        if (
+            self.representative_selection_metric
+            not in _PREDICTION_REPRESENTATIVE_SELECTION_METRICS
+        ):
+            raise ValueError(
+                "representative_selection_metric must be one of "
+                f"{_PREDICTION_REPRESENTATIVE_SELECTION_METRICS} (this tier does "
+                "not support heritability-based selection -- "
+                "select_cluster_representatives has no metric parameter to "
+                f"select by it), got {self.representative_selection_metric!r}"
+            )
+
+        invalid_comparison_methods = [
+            m for m in self.comparison_methods if m not in _PREDICTION_REDUCTION_METHODS
+        ]
+        if invalid_comparison_methods:
+            raise ValueError(
+                f"comparison_methods entries must each be one of "
+                f"{_PREDICTION_REDUCTION_METHODS}, got invalid entries: "
+                f"{invalid_comparison_methods}"
+            )
+
+        if self.reduction_method in self.comparison_methods:
+            raise ValueError(
+                f"comparison_methods must not duplicate reduction_method "
+                f"({self.reduction_method!r}) -- this would silently overwrite "
+                "one method's output JSON with the other's"
+            )
+
+        duplicate_counts = Counter(self.comparison_methods)
+        duplicated = sorted(m for m, count in duplicate_counts.items() if count > 1)
+        if duplicated:
+            raise ValueError(
+                f"comparison_methods contains duplicate entries: {duplicated}"
+            )
+
+        if self.predictor_source == "blup":
+            for path_attr in ("source_blup_path", "target_blup_path"):
+                path_value = getattr(self, path_attr)
+                if path_value is None or not Path(path_value).is_file():
+                    raise ValueError(
+                        f"{path_attr} must resolve to an existing file when "
+                        f"predictor_source='blup', got {path_value!r}"
+                    )
 
 
 @dataclass(frozen=True)

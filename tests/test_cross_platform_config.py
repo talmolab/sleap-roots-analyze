@@ -387,3 +387,132 @@ def test_config_rejects_invalid_reduction_target():
             trait_reduction_method="clustering",
             trait_reduction_target="invalid",
         )
+
+
+# =============================================================================
+# PredictionConfig tests (Tier 3.5, add-prediction-pipeline-step, #196)
+# tasks.md Section 2 -- PredictionConfig standalone (no CrossPlatformConfig
+# nesting assertions here; those live solely in Section 3, task 3.1, per
+# design.md's round-1 reconciliation).
+# =============================================================================
+
+
+def test_prediction_config_defaults_to_disabled():
+    """PredictionConfig() defaults to enabled=False (tasks.md 2.1)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    config = PredictionConfig()
+    assert config.enabled is False
+
+
+def test_prediction_config_validation_skipped_when_disabled():
+    """No validation runs at all when enabled=False (Decision 4, tasks.md 2.2)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    # Every field below is individually invalid; none of it should raise
+    # because enabled=False short-circuits __post_init__ entirely.
+    config = PredictionConfig(
+        enabled=False,
+        predictor_source="not_a_real_value",
+        source_blup_path="/does/not/exist",
+    )
+    assert config.predictor_source == "not_a_real_value"
+
+
+@pytest.mark.parametrize(
+    "field_name,invalid_value",
+    [
+        ("predictor_source", "not_a_real_value"),
+        ("reduction_method", "not_a_real_value"),
+        ("representative_selection_metric", "heritability"),
+        ("representative_selection_metric", "not_a_real_value"),
+    ],
+)
+def test_prediction_config_rejects_invalid_enum_fields(field_name, invalid_value):
+    """Invalid enum field values raise ValueError naming the field (tasks.md 2.3)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    kwargs = {
+        "enabled": True,
+        "predictor_source": "genotype_means",
+        field_name: invalid_value,
+    }
+    with pytest.raises(ValueError, match=field_name):
+        PredictionConfig(**kwargs)
+
+
+def test_prediction_config_rejects_invalid_comparison_methods_entry():
+    """An invalid entry inside comparison_methods raises ValueError (tasks.md 2.3)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="comparison_methods"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            reduction_method="pls_latent",
+            comparison_methods=["not_a_real_value"],
+        )
+
+
+def test_prediction_config_rejects_duplicate_method_in_comparison_methods():
+    """comparison_methods duplicating reduction_method raises ValueError (tasks.md 2.4)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="comparison_methods"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            reduction_method="pls_latent",
+            comparison_methods=["pls_latent"],
+        )
+
+
+def test_prediction_config_rejects_duplicate_entries_within_comparison_methods():
+    """A method listed twice within comparison_methods itself raises (tasks.md 2.4a)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="comparison_methods"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            reduction_method="pls_latent",
+            comparison_methods=["representatives", "representatives"],
+        )
+
+
+def test_prediction_config_blup_preflight_check_missing_path(tmp_path):
+    """A nonexistent source_blup_path/target_blup_path raises at construction (tasks.md 2.5)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    existing = tmp_path / "exists.csv"
+    existing.write_text("Genotype,trait_a\nG01,1.0\n")
+
+    with pytest.raises(ValueError, match="source_blup_path"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="blup",
+            source_blup_path=str(tmp_path / "does_not_exist.csv"),
+            target_blup_path=str(existing),
+        )
+
+    with pytest.raises(ValueError, match="target_blup_path"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="blup",
+            source_blup_path=str(existing),
+            target_blup_path=str(tmp_path / "does_not_exist.csv"),
+        )
+
+
+def test_prediction_config_genotype_means_does_not_require_blup_paths():
+    """predictor_source=genotype_means needs no BLUP paths (Decision 2, tasks.md 2.6)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    config = PredictionConfig(
+        enabled=True,
+        predictor_source="genotype_means",
+        source_blup_path=None,
+        target_blup_path=None,
+    )
+    assert config.source_blup_path is None
+    assert config.target_blup_path is None
