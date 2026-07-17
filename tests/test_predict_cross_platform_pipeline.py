@@ -108,11 +108,28 @@ def test_cross_platform_pipeline_omits_predict_task_when_disabled():
 # =============================================================================
 
 
+# Excluded from both the committed snapshot and this test's live-run comparison:
+# config.yaml (Decision 9 -- its content depends on the prediction field's mere
+# presence, not on enabled); pipeline.log (timestamps, never asserted anywhere in
+# this repo); and the two per-sample "loaded" intermediates, which this repo's
+# own pre-existing curation policy (tests/fixtures/README.md, enforced by
+# test_pipeline_reproduction.py::test_curation_excludes_non_assertable_artifacts)
+# forbids committing anywhere under tests/fixtures/, regardless of this tier's
+# own "capture the full file list" intent for Section 1.3's snapshot.
+_EXCLUDED_FROM_BACKWARD_COMPAT_COMPARISON = {
+    "config.yaml",
+    "pipeline.log",
+    "cross_platform_exp1_loaded.csv",
+    "cross_platform_exp2_loaded.csv",
+}
+
+
 def test_cross_platform_pipeline_backward_compat_disabled_by_default(tmp_path):
     """Disabled-by-default output matches the pre-Tier-3.5 golden snapshot (tasks.md 5.3).
 
     Compares the run's analysis output (file list + content, excluding
-    config.yaml -- design.md Decision 9) against
+    config.yaml -- design.md Decision 9 -- and the other names in
+    _EXCLUDED_FROM_BACKWARD_COMPAT_COMPARISON) against
     tests/fixtures/synthetic/cross_platform_prediction/backward_compat_snapshot/.
     CSV/JSON content is compared exactly (pipeline_summary.json with known
     non-deterministic fields normalized out first); PNG figures are compared
@@ -128,7 +145,7 @@ def test_cross_platform_pipeline_backward_compat_disabled_by_default(tmp_path):
     actual_files = {
         p.name
         for p in run_dir.iterdir()
-        if p.name not in ("config.yaml", "pipeline.log")
+        if p.name not in _EXCLUDED_FROM_BACKWARD_COMPAT_COMPARISON
     }
     expected_files = {p.name for p in SNAPSHOT_DIR.iterdir()}
     assert actual_files == expected_files

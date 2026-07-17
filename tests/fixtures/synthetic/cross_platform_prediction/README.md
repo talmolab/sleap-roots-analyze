@@ -13,11 +13,17 @@ wiring-correctness check, not a statistical signal-recovery claim (tasks.md Sect
 `CrossPlatformPipeline` against `cross_platform_prediction_wiring_baseline.yaml` (no
 `prediction:` key), captured before any `src/` change on this branch (tasks.md 1.3).
 Excludes `config.yaml` (its content depends on the new `prediction` field's mere
-presence, not on `enabled` -- design.md Decision 9) and `pipeline.log` (timestamps,
-never asserted anywhere in this repo). `pipeline_summary.json` retains genuinely
-non-deterministic fields (`start_time`/`end_time`/`elapsed_time`/`output_directory`);
-the regression test (`test_cross_platform_pipeline_backward_compat_disabled_by_default`
-in `tests/test_predict_cross_platform.py`) normalizes those out before comparing.
+presence, not on `enabled` -- design.md Decision 9), `pipeline.log` (timestamps,
+never asserted anywhere in this repo), and `cross_platform_exp{1,2}_loaded.csv` (this
+repo's own pre-existing curation policy, `tests/fixtures/README.md`, enforced by
+`test_pipeline_reproduction.py::test_curation_excludes_non_assertable_artifacts`,
+forbids committing these per-sample "loaded" intermediates anywhere under
+`tests/fixtures/` -- discovered when that repo-wide test failed against an earlier,
+more literal reading of "capture the full file list"). `pipeline_summary.json` retains
+genuinely non-deterministic fields (`start_time`/`end_time`/`elapsed_time`/
+`output_directory`); the regression test
+(`test_cross_platform_pipeline_backward_compat_disabled_by_default` in
+`tests/test_predict_cross_platform_pipeline.py`) normalizes those out before comparing.
 PNG figures are checked for presence only, not byte content -- matching this repo's
 existing convention (`docs/reproducibility.md`, `tests/fixtures/README.md`) that image
 outputs are environment-sensitive (fonts/rendering) and are never byte-compared, even
