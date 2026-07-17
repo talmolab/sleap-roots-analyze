@@ -469,12 +469,12 @@
 > are also counted, reduce `n_permutations` further and/or the
 > fixture count, rather than assuming the estimate above holds.
 
-- [ ] 9.1 Write failing test `test_permutation_test_p_values_are_uniform_under_null` (K-S
+- [x] 9.1 Write failing test `test_permutation_test_p_values_are_uniform_under_null` (K-S
       calibration oracle): run `permutation_test()` on all 40 pure-noise fixtures (task 1.2) with
       `n_permutations=200` (explicit, CI-fast — distinct from the `n_permutations=1000` production
       default), collect the resulting `p_value_r2`s, K-S-test against `Uniform(0,1)`, assert
       `p > 0.05`.
-- [ ] 9.1a Write failing test `test_permutation_test_p_value_rmse_is_uniform_under_null`: the same
+- [x] 9.1a Write failing test `test_permutation_test_p_value_rmse_is_uniform_under_null`: the same
       K-S calibration procedure as 9.1, but for `p_value_rmse` (found during `/review-openspec`
       round 3: no oracle anywhere previously checked `p_value_rmse`'s calibration at all — only
       `p_value_r2` was covered by 9.1). **This test verifies Type-I-error calibration only, not
@@ -485,21 +485,21 @@
       **Task 9.2a below, not this task, is what actually guards against the RMSE direction
       regression** (a genuinely low-RMSE *signal* result reads as significant only under the
       correct left-tail formula) — do not treat 9.1a passing as evidence the direction is correct.
-- [ ] 9.2 Write failing test `test_permutation_test_signal_r2_exceeds_its_own_null_median`: on the
+- [x] 9.2 Write failing test `test_permutation_test_signal_r2_exceeds_its_own_null_median`: on the
       N=20-seed planted-signal fixture (task 1.1), with `n_permutations=200` (explicit, CI-fast),
       the mean observed R² across seeds is comfortably above the mean permutation-null median
       across the same seeds.
-- [ ] 9.2a Write failing test `test_permutation_test_signal_p_value_rmse_reads_as_significant`: on
+- [x] 9.2a Write failing test `test_permutation_test_signal_p_value_rmse_reads_as_significant`: on
       the same planted-signal fixture, assert `p_value_rmse` is small (comfortably below `0.5`),
       proving the RMSE-specific left-tail formula is actually in effect for a genuinely good
       (low-RMSE) result — direct regression test for the "A good (low-RMSE) result does not read
       as non-significant" scenario, guarding against the exact directional-inversion bug found
       during `/review-openspec` round 3 (the naive R²/ρ-style right-tail formula would instead
       produce `p_value_rmse ≈ 1.0` here, reading as non-significant).
-- [ ] 9.3 Write failing test `test_permutation_test_noise_r2_falls_within_its_own_null_band`: on the
+- [x] 9.3 Write failing test `test_permutation_test_noise_r2_falls_within_its_own_null_band`: on the
       pure-noise fixture (task 1.1), with `n_permutations=200` (explicit, CI-fast), mean observed
       R² falls within mean-null-median ± 1σ.
-- [ ] 9.4a **Spike, not a test** — compute (via a real run, recorded here and in design.md's
+- [x] 9.4a **Spike, not a test** — compute (via a real run, recorded here and in design.md's
       Decision 11 note): the pure-noise fixture's actual mean null top-quartile-recovery value at
       `n_permutations=200`. Cross-check against the theoretical chance-level baseline `2q / n`
       (found during `/review-openspec` round 1: at `n=19, q=5`, `2q/n ≈ 52.6%`, not the roadmap's
@@ -508,16 +508,20 @@
       via the hypergeometric mean). This step produces a number to write a real assertion against
       in 9.4b; it is not itself a red/green TDD step (a value that doesn't exist yet cannot be
       asserted against).
-- [ ] 9.4b Write failing test `test_permutation_test_top_quartile_recovery_signal_vs_noise`, using
+      **Measured:** ≈44.3% (pooled mean, 20 seeds × 200 permutations = 4000 draws,
+      `reduction_method="pls_latent"`) — close to but measurably below the `2q/n ≈ 52.6%`
+      theoretical baseline (expected: the theoretical value assumes a uniformly random `y_pred`,
+      the empirical null instead reflects real LOGO-CV-fit predictions). See design.md Decision 11.
+- [x] 9.4b Write failing test `test_permutation_test_top_quartile_recovery_signal_vs_noise`, using
       9.4a's now-known empirical value (`n_permutations=200`, explicit, CI-fast): signal fixture's
       observed recovery ≥ 80%; noise fixture's observed recovery is comfortably separated from the
       signal's, close to the empirically-determined null value (not a blindly-pinned 25% or an
       untested theoretical `2q/n`).
-- [ ] 9.5 Write failing test `test_visualize_prediction_step_figure_provenance`: run the step
+- [x] 9.5 Write failing test `test_visualize_prediction_step_figure_provenance`: run the step
       twice (different input CSV content between runs, e.g. a perturbed fixture), assert the two
       resulting `07_prediction_figure.png` files differ (via content hash), and that a given run's
       figure's mtime is at or after its input CSVs' mtimes.
-- [ ] 9.6 Implement whatever `permutation_test()`/fixture adjustments are needed to make 9.1, 9.1a,
+- [x] 9.6 Implement whatever `permutation_test()`/fixture adjustments are needed to make 9.1, 9.1a,
       9.2, 9.2a, 9.3, and 9.4b-9.5 pass, recording the actual empirically-determined values from
       9.4a in this file and in `design.md`'s Decision 11 note (per this program's "verify, don't
       assume" convention). Also measure and record Section 9's actual total wall time per OS
@@ -528,6 +532,9 @@
       Section 9's tests land) on each of the 3 CI matrix OSes, once this section's tests are green
       on an open PR; record the 3 per-OS numbers here and compare against the ~8-minute serial
       estimate above (per the CI-timeout note's own "estimate, not measurement" framing).
+      **Local measurement (dev machine, Windows, serial):** 9m28s for
+      `TestPermutationOracles`'s 6 tests. Consistent with the ~9-minute estimate. Per-OS CI numbers
+      still pending -- to be recorded once this section is green on the open PR (13.7).
 
 ## 10. `theory.md` addendum
 

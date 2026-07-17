@@ -715,3 +715,49 @@ def test_visualize_prediction_step_writes_no_partial_json_files_when_any_combina
     # All-or-nothing: zero JSON files exist, including for methods whose own
     # combinations (e.g. the first 2 calls) all individually succeeded.
     assert not list(tmp_path.glob("07_permutation_*.json"))
+
+
+def test_visualize_prediction_step_figure_provenance(tmp_path):
+    """Two runs with different input CSVs produce different figures (tasks.md 9.5).
+
+    Also checks a given run's figure mtime is at or after its input CSVs'
+    mtimes -- confirming the figure was regenerated from the current run's
+    inputs, not stale from a prior run.
+    """
+    import hashlib
+
+    source_df_a, target_df_a, _ = _make_blup_tables(seed=0)
+    source_df_b, target_df_b, _ = _make_blup_tables(seed=1)
+
+    (tmp_path / "run_a").mkdir()
+    (tmp_path / "run_b").mkdir()
+    config_a = _visualize_config(tmp_path / "run_a", source_df_a, target_df_a)
+    config_b = _visualize_config(tmp_path / "run_b", source_df_b, target_df_b)
+
+    predict_a = _run_predict_step(config_a, tmp_path / "run_a")
+    predict_b = _run_predict_step(config_b, tmp_path / "run_b")
+
+    VisualizePredictionStep().execute(
+        data=predict_a.data,
+        config=config_a,
+        run_dir=tmp_path / "run_a",
+        prev_result=predict_a,
+    )
+    VisualizePredictionStep().execute(
+        data=predict_b.data,
+        config=config_b,
+        run_dir=tmp_path / "run_b",
+        prev_result=predict_b,
+    )
+
+    figure_a = tmp_path / "run_a" / "07_prediction_figure.png"
+    figure_b = tmp_path / "run_b" / "07_prediction_figure.png"
+    hash_a = hashlib.sha256(figure_a.read_bytes()).hexdigest()
+    hash_b = hashlib.sha256(figure_b.read_bytes()).hexdigest()
+    assert hash_a != hash_b
+
+    input_mtimes = [
+        (tmp_path / "run_a" / "source_blup.csv").stat().st_mtime,
+        (tmp_path / "run_a" / "target_blup.csv").stat().st_mtime,
+    ]
+    assert figure_a.stat().st_mtime >= max(input_mtimes)
