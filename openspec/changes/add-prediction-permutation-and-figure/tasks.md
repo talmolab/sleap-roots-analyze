@@ -265,23 +265,23 @@
 > `tests/test_step_visualize_prediction.py`, per proposal.md's naming-collision note (the two new
 > source files share the basename `visualize_prediction.py` in different subpackages).
 
-- [ ] 6.1 Write failing test `test_create_prediction_figure_scatter_panel_uses_pc1_target_only`:
+- [x] 6.1 Write failing test `test_create_prediction_figure_scatter_panel_uses_pc1_target_only`:
       given multiple targets' data, the obs-vs-pred scatter panel's plotted points correspond only
       to the `PC1` target's `y_true`/`y_pred`.
-- [ ] 6.2 Write failing test `test_create_prediction_figure_violin_panel_pools_all_targets_nulls`:
+- [x] 6.2 Write failing test `test_create_prediction_figure_violin_panel_pools_all_targets_nulls`:
       the violin/strip panel's null data is the concatenation of every target's `null_r2`, and its
       observed-points data is every target's `observed_r2` (one point per target).
-- [ ] 6.3 Write failing test `test_create_prediction_figure_bar_chart_shows_observed_vs_null_mean`:
+- [x] 6.3 Write failing test `test_create_prediction_figure_bar_chart_shows_observed_vs_null_mean`:
       the two bars' heights equal the mean observed and mean null top-quartile-recovery across all
       targets.
-- [ ] 6.4 Write failing test `test_create_prediction_figure_returns_a_figure_with_three_axes`.
-- [ ] 6.4a Write failing test `test_create_prediction_figure_handles_single_target`: given only one
+- [x] 6.4 Write failing test `test_create_prediction_figure_returns_a_figure_with_three_axes`.
+- [x] 6.4a Write failing test `test_create_prediction_figure_handles_single_target`: given only one
       target's data (e.g. the PC1-only degenerate case Section 7 also handles — found during
       `/review-openspec` round 3: task 7c.7 will call this function for that same fixture, and
       nothing previously verified the violin/bar-chart panels degrade gracefully to `N=1` target
       rather than erroring on a single-element distribution), assert the figure is still built
       successfully with all 3 panels present, not a crash.
-- [ ] 6.5 Implement `create_prediction_figure(...)` (and any supporting per-panel helper functions)
+- [x] 6.5 Implement `create_prediction_figure(...)` (and any supporting per-panel helper functions)
       in new `src/sleap_roots_analyze/visualize_prediction.py`, following
       `cross_experiment_analysis.py`'s plotting-function convention (pure functions returning a
       `matplotlib.Figure`, no file I/O). Make 6.1-6.4a green.
