@@ -45,6 +45,13 @@ class PredictCrossPlatformStep(BaseStep):
     traits are reported uses every genotype's own outcome data. This differs
     from the *source*-side "representatives" predictor selection, which
     never touches ``y`` at all and is unconditionally safe to fix pre-loop.
+
+    Note:
+        ``CrossPlatformSummaryGenerator``/``/cross-platform-summary`` does not
+        yet surface this step's ``06_prediction_<method>.json`` results --
+        tracked as follow-up
+        `#197 <https://github.com/talmolab/sleap-roots-analyze/issues/197>`_,
+        not fixed here.
     """
 
     def __init__(self):

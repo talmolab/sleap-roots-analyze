@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `PredictionConfig` (nested on `CrossPlatformConfig` as `prediction`, default
+  disabled) and `PredictCrossPlatformStep`, an optional 6th task on
+  `CrossPlatformPipeline` (#196): wires Tier 3's `logo_cv_predict`/
+  `CrossPlatformPredictionResult` into the same per-pair `cross-platform`
+  command already used for correlation, so prediction runs alongside
+  correlation for the same `exp1`/`exp2` pair rather than only being reachable
+  via direct Python calls. `predictor_source` selects `"blup"` (Tier 1's
+  `08_blup_adjusted_means.csv`) or `"genotype_means"` (a plain per-genotype
+  mean of the same raw data correlation already loads) as the predictor
+  matrix; `platform_pairs` names the predictor/predicted direction. No new CLI
+  command or flag — the existing `cross-platform` command's `--dry-run`
+  output lists the step when enabled. Byte-identical backward compatibility
+  when disabled (the default). Tier 3.5 of the cross-platform
+  genotype-prediction program (Tier 3: #194).
 - `logo_cv_predict(X, y, genotypes, reduction_method="pls_latent",
   representative_names=None)` and `fit_pca_on_fold(X_train, X_test,
   n_components=1)` (#194): leave-one-genotype-out (LOGO) cross-validated
