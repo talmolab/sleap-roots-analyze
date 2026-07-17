@@ -24,9 +24,14 @@ from sleap_roots_analyze.cross_platform_prediction import (
     LOGOCVResult,
     fit_pca_on_fold,
     logo_cv_predict,
+    permutation_test,
     top_quartile_recovery,
 )
-from sleap_roots_analyze.result_types import CrossPlatformPredictionResult
+from sleap_roots_analyze.result_types import (
+    CrossPlatformPredictionResult,
+    CrossPlatformPermutationResult,
+    PermutationResult,
+)
 
 
 class TestFitPcaOnFold:
@@ -932,6 +937,583 @@ class TestCrossPlatformPredictionResult:
         assert by_name["trait_a"].r2 in all_r2
 
 
+class TestPermutationTest:
+    """Tests for permutation_test() (design.md Decisions 1/4, tasks.md 2.5-2.14)."""
+
+    def test_permutation_test_observed_matches_direct_logo_cv_predict_call(self):
+        """observed_* fields exactly match an independent logo_cv_predict() call."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=1)
+        result = permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="representatives",
+            representative_names=rep_names,
+            n_permutations=3,
+            random_state=0,
+        )
+        direct = logo_cv_predict(
+            X,
+            y,
+            genotypes,
+            reduction_method="representatives",
+            representative_names=rep_names,
+        )
+        assert result.observed_r2 == pytest.approx(direct.r2)
+        assert result.observed_rmse == pytest.approx(direct.rmse)
+        assert result.observed_spearman_rho == pytest.approx(direct.spearman_rho)
+        assert result.observed_top_quartile_recovery == pytest.approx(
+            top_quartile_recovery(direct.y_true, direct.y_pred)
+        )
+
+    def test_permutation_test_null_distributions_have_length_n_permutations(self):
+        """null_r2/rmse/spearman_rho/top_quartile_recovery each have length N."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=2)
+        result = permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="representatives",
+            representative_names=rep_names,
+            n_permutations=5,
+            random_state=0,
+        )
+        assert len(result.null_r2) == 5
+        assert len(result.null_rmse) == 5
+        assert len(result.null_spearman_rho) == 5
+        assert len(result.null_top_quartile_recovery) == 5
+
+    def test_permutation_test_shuffles_y_not_x_or_genotypes(self):
+        """Each logo_cv_predict call's X/genotypes are unchanged; only y differs."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=3)
+        calls = []
+        original = logo_cv_predict
+
+        def spy(*args, **kwargs):
+            X_arg = args[0] if len(args) > 0 else kwargs["X"]
+            y_arg = args[1] if len(args) > 1 else kwargs["y"]
+            genotypes_arg = args[2] if len(args) > 2 else kwargs["genotypes"]
+            calls.append((X_arg, np.asarray(y_arg).copy(), list(genotypes_arg)))
+            return original(*args, **kwargs)
+
+        with patch(
+            "sleap_roots_analyze.cross_platform_prediction.logo_cv_predict",
+            side_effect=spy,
+        ):
+            permutation_test(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+                n_permutations=4,
+                random_state=0,
+            )
+
+        assert len(calls) == 1 + 4  # 1 observed call + 4 permutation calls
+        for X_arg, _y_arg, genotypes_arg in calls:
+            pd.testing.assert_frame_equal(X_arg, X)
+            assert genotypes_arg == list(genotypes)
+        permutation_ys = [y_arg for _, y_arg, _ in calls[1:]]
+        assert any(not np.array_equal(py, np.asarray(y)) for py in permutation_ys)
+
+    def test_permutation_test_deterministic_given_same_random_state(self):
+        """Two calls with identical args (incl. random_state) give bit-identical nulls.
+
+        Parametrized inline (not via @pytest.mark.parametrize) over random_state
+        being a plain int and a numpy.random.SeedSequence instance -- both must
+        work, since VisualizePredictionStep (Section 7) passes SeedSequence
+        children, not raw ints.
+        """
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=5)
+        for random_state_factory in (lambda: 7, lambda: np.random.SeedSequence(7)):
+            r1 = permutation_test(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+                n_permutations=5,
+                random_state=random_state_factory(),
+            )
+            r2 = permutation_test(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+                n_permutations=5,
+                random_state=random_state_factory(),
+            )
+            np.testing.assert_array_equal(r1.null_r2, r2.null_r2)
+            np.testing.assert_array_equal(r1.null_rmse, r2.null_rmse)
+
+    def test_permutation_test_different_random_state_differs(self):
+        """Two calls differing only in random_state produce different null_r2."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=4)
+        r1 = permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="representatives",
+            representative_names=rep_names,
+            n_permutations=5,
+            random_state=1,
+        )
+        r2 = permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="representatives",
+            representative_names=rep_names,
+            n_permutations=5,
+            random_state=2,
+        )
+        assert not np.array_equal(r1.null_r2, r2.null_r2)
+
+    def test_permutation_test_null_top_quartile_recovery_uses_shuffled_y_as_truth(self):
+        """The null top-quartile-recovery uses that permutation's shuffled y as truth."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=6)
+        captured = {}
+        original = logo_cv_predict
+
+        def spy(*args, **kwargs):
+            result = original(*args, **kwargs)
+            y_arg = args[1] if len(args) > 1 else kwargs["y"]
+            if not np.array_equal(np.asarray(y_arg), np.asarray(y)):
+                captured["y_shuffled"] = np.asarray(y_arg).copy()
+                captured["y_pred"] = result.y_pred.copy()
+            return result
+
+        with patch(
+            "sleap_roots_analyze.cross_platform_prediction.logo_cv_predict",
+            side_effect=spy,
+        ):
+            result = permutation_test(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+                n_permutations=1,
+                random_state=1,
+            )
+
+        expected_shuffled_truth = top_quartile_recovery(
+            captured["y_shuffled"], captured["y_pred"]
+        )
+        expected_original_truth = top_quartile_recovery(
+            np.asarray(y), captured["y_pred"]
+        )
+        # Sanity: the two hypotheses actually differ for this fixture/seed --
+        # otherwise this test wouldn't discriminate between them.
+        assert expected_shuffled_truth != pytest.approx(expected_original_truth)
+        assert result.null_top_quartile_recovery[0] == pytest.approx(
+            expected_shuffled_truth
+        )
+
+    def test_permutation_test_p_value_formula_r2_and_rho(self):
+        """p_value_r2/p_value_spearman_rho use the right-tail (higher is better) formula."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=4, seed=20)
+        genotypes = list(genotypes)
+        y_pred_fixture = np.array([1.1, 2.1, 2.9, 3.9])
+
+        def _mock_result(r2, rmse, spearman_rho):
+            return LOGOCVResult(
+                genotypes=genotypes,
+                y_true=np.asarray(y, dtype=float),
+                y_pred=y_pred_fixture,
+                r2=r2,
+                rmse=rmse,
+                spearman_rho=spearman_rho,
+                spearman_p=0.1,
+            )
+
+        # index 0 = observed; 1-4 = the 4 permutations.
+        mock_results = [
+            _mock_result(r2=0.5, rmse=1.0, spearman_rho=0.3),
+            _mock_result(r2=0.6, rmse=0.8, spearman_rho=0.5),
+            _mock_result(r2=0.4, rmse=1.2, spearman_rho=0.1),
+            _mock_result(r2=0.5, rmse=1.0, spearman_rho=0.3),  # tie w/ observed
+            _mock_result(r2=0.9, rmse=1.5, spearman_rho=0.9),
+        ]
+        call_count = [0]
+
+        def side_effect(*args, **kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return mock_results[idx]
+
+        with patch(
+            "sleap_roots_analyze.cross_platform_prediction.logo_cv_predict",
+            side_effect=side_effect,
+        ):
+            result = permutation_test(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+                n_permutations=4,
+                random_state=0,
+            )
+
+        # null_r2 = [0.6, 0.4, 0.5, 0.9], observed_r2=0.5 -> count(>=0.5)=3 -> (3+1)/5.
+        assert result.p_value_r2 == pytest.approx(0.8)
+        # null_spearman_rho = [0.5, 0.1, 0.3, 0.9], observed=0.3 -> count(>=0.3)=3 -> (3+1)/5.
+        assert result.p_value_spearman_rho == pytest.approx(0.8)
+
+    def test_permutation_test_p_value_formula_rmse(self):
+        """p_value_rmse uses the opposite (left-tail, lower is better) formula."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=4, seed=21)
+        genotypes = list(genotypes)
+        y_pred_fixture = np.array([1.1, 2.1, 2.9, 3.9])
+
+        def _mock_result(r2, rmse, spearman_rho):
+            return LOGOCVResult(
+                genotypes=genotypes,
+                y_true=np.asarray(y, dtype=float),
+                y_pred=y_pred_fixture,
+                r2=r2,
+                rmse=rmse,
+                spearman_rho=spearman_rho,
+                spearman_p=0.1,
+            )
+
+        mock_results = [
+            _mock_result(r2=0.5, rmse=1.0, spearman_rho=0.3),  # observed
+            _mock_result(r2=0.6, rmse=0.8, spearman_rho=0.5),
+            _mock_result(r2=0.4, rmse=1.2, spearman_rho=0.1),
+            _mock_result(r2=0.5, rmse=1.0, spearman_rho=0.3),  # tie w/ observed
+            _mock_result(r2=0.9, rmse=1.5, spearman_rho=0.9),
+        ]
+        call_count = [0]
+
+        def side_effect(*args, **kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            return mock_results[idx]
+
+        with patch(
+            "sleap_roots_analyze.cross_platform_prediction.logo_cv_predict",
+            side_effect=side_effect,
+        ):
+            result = permutation_test(
+                X,
+                y,
+                genotypes,
+                reduction_method="representatives",
+                representative_names=rep_names,
+                n_permutations=4,
+                random_state=0,
+            )
+
+        # null_rmse = [0.8, 1.2, 1.0, 1.5], observed_rmse=1.0 -> count(<=1.0)=2 -> (2+1)/5.
+        assert result.p_value_rmse == pytest.approx(0.6)
+
+    @pytest.mark.parametrize("n_permutations", [0, -1])
+    def test_permutation_test_rejects_non_positive_n_permutations(self, n_permutations):
+        """n_permutations=0 or -1 raises ValueError before any logo_cv_predict call."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=7)
+        with patch(
+            "sleap_roots_analyze.cross_platform_prediction.logo_cv_predict"
+        ) as mock_logo_cv:
+            with pytest.raises(ValueError, match="n_permutations"):
+                permutation_test(
+                    X,
+                    y,
+                    genotypes,
+                    reduction_method="representatives",
+                    representative_names=rep_names,
+                    n_permutations=n_permutations,
+                    random_state=0,
+                )
+            mock_logo_cv.assert_not_called()
+
+    def test_permutation_test_accepts_n_permutations_equal_1(self):
+        """n_permutations=1 does not raise; nulls have length 1; p-values degenerate."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=8)
+        result = permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="representatives",
+            representative_names=rep_names,
+            n_permutations=1,
+            random_state=0,
+        )
+        assert len(result.null_r2) == 1
+        assert len(result.null_rmse) == 1
+        assert len(result.null_spearman_rho) == 1
+        assert len(result.null_top_quartile_recovery) == 1
+        assert result.p_value_r2 == pytest.approx(
+            0.5
+        ) or result.p_value_r2 == pytest.approx(1.0)
+        assert result.p_value_rmse == pytest.approx(
+            0.5
+        ) or result.p_value_rmse == pytest.approx(1.0)
+
+    def test_permutation_test_surfaces_logo_cv_predict_validation_errors(self):
+        """An invalid reduction_method raises the same ValueError logo_cv_predict would."""
+        X, y, genotypes, _rep_names = _build_simple_dataset(n_genotypes=8, seed=9)
+        with pytest.raises(ValueError):
+            permutation_test(
+                X, y, genotypes, reduction_method="not_a_real_method", n_permutations=3
+            )
+
+    def test_permutation_test_rejects_non_finite_null_values_with_named_error(self):
+        """A non-finite null value raises ValueError naming the metric and index.
+
+        Raised only after all n_permutations calls complete (fail-fast on the
+        first occurrence was considered and rejected -- see design.md).
+        """
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=10)
+        n_permutations = 3
+        call_count = [0]
+        original = logo_cv_predict
+
+        def side_effect(*args, **kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            result = original(*args, **kwargs)
+            if (
+                idx == 2
+            ):  # 2nd permutation call (0-based perm index 1; idx 0 = observed)
+                result = LOGOCVResult(
+                    genotypes=result.genotypes,
+                    y_true=result.y_true,
+                    y_pred=result.y_pred,
+                    r2=result.r2,
+                    rmse=result.rmse,
+                    spearman_rho=float("nan"),
+                    spearman_p=result.spearman_p,
+                )
+            return result
+
+        with patch(
+            "sleap_roots_analyze.cross_platform_prediction.logo_cv_predict",
+            side_effect=side_effect,
+        ):
+            with pytest.raises(ValueError) as excinfo:
+                permutation_test(
+                    X,
+                    y,
+                    genotypes,
+                    reduction_method="representatives",
+                    representative_names=rep_names,
+                    n_permutations=n_permutations,
+                    random_state=0,
+                )
+        assert "spearman_rho" in str(excinfo.value)
+        assert "1" in str(
+            excinfo.value
+        )  # 0-based permutation index of the injected failure
+        # Complete-then-report: all n_permutations calls happened before raising.
+        assert call_count[0] == 1 + n_permutations
+
+    def test_permutation_test_rejects_non_finite_observed_values_before_permutations_run(
+        self,
+    ):
+        """A constant y produces a non-finite observed value -- rejected before shuffling."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=11)
+        constant_y = np.zeros(len(y))
+        with patch(
+            "sleap_roots_analyze.cross_platform_prediction.logo_cv_predict",
+            wraps=logo_cv_predict,
+        ) as mock_logo_cv:
+            with pytest.raises(ValueError, match="spearman_rho"):
+                permutation_test(
+                    X,
+                    constant_y,
+                    genotypes,
+                    reduction_method="representatives",
+                    representative_names=rep_names,
+                    n_permutations=5,
+                    random_state=0,
+                )
+            mock_logo_cv.assert_called_once()  # only the observed call, zero shuffled calls
+
+
+class TestPermutationResultTypes:
+    """Structural tests for PermutationResult/CrossPlatformPermutationResult (tasks.md 3.1-3.3a).
+
+    Dataclass-only tests -- no dependency on ``permutation_test()`` itself
+    (design.md's commit-boundary note: 3.1-3.4 can land before Section 2
+    finishes). The adapter (``from_permutation_test_results``, tasks.md
+    3.5-3.8) is tested separately, after ``permutation_test()`` exists.
+    """
+
+    @staticmethod
+    def _sample_permutation_result(n_permutations=5, target_name="trait_a"):
+        # PermutationResult is documented as a JSON-serializable contract type
+        # (like TargetPrediction) -- its own fields are always native Python
+        # types by construction; float()-casting raw numpy draws here mirrors
+        # what a valid caller (or the from_permutation_test_results adapter)
+        # is responsible for doing before constructing one directly.
+        rng = np.random.default_rng(0)
+        return PermutationResult(
+            target_name=target_name,
+            observed_r2=0.75,
+            observed_rmse=1.2,
+            observed_spearman_rho=0.8,
+            observed_top_quartile_recovery=0.9,
+            null_r2=[float(v) for v in rng.standard_normal(n_permutations)],
+            null_rmse=[float(v) for v in rng.uniform(0.5, 2.0, n_permutations)],
+            null_spearman_rho=[float(v) for v in rng.uniform(-1, 1, n_permutations)],
+            null_top_quartile_recovery=[
+                float(v) for v in rng.uniform(0, 1, n_permutations)
+            ],
+            p_value_r2=0.05,
+            p_value_rmse=0.04,
+            p_value_spearman_rho=0.06,
+            n_permutations=n_permutations,
+        )
+
+    def test_permutation_result_round_trips_through_json_as_native_types(self):
+        """json.dumps(asdict(result)) succeeds; numeric fields are native Python floats."""
+        result = CrossPlatformPermutationResult(
+            source_platform="Turface19",
+            target_platform="Cylinder",
+            reduction_method="pls_latent",
+            predictions=[self._sample_permutation_result()],
+        )
+        round_tripped = json.loads(result.to_json())
+        pred = round_tripped["predictions"][0]
+        for key in (
+            "observed_r2",
+            "observed_rmse",
+            "observed_spearman_rho",
+            "observed_top_quartile_recovery",
+            "p_value_r2",
+            "p_value_rmse",
+            "p_value_spearman_rho",
+        ):
+            assert isinstance(pred[key], float)
+        for key in (
+            "null_r2",
+            "null_rmse",
+            "null_spearman_rho",
+            "null_top_quartile_recovery",
+        ):
+            for v in pred[key]:
+                assert isinstance(v, float)
+
+    def test_permutation_result_null_lists_have_length_n_permutations(self):
+        """Every null_* list has exactly n_permutations elements."""
+        result = self._sample_permutation_result(n_permutations=7)
+        assert len(result.null_r2) == 7
+        assert len(result.null_rmse) == 7
+        assert len(result.null_spearman_rho) == 7
+        assert len(result.null_top_quartile_recovery) == 7
+
+    def test_cross_platform_prediction_result_has_no_permutation_result_field(self):
+        """CrossPlatformPredictionResult/TargetPrediction stay structurally independent."""
+        import dataclasses as dc
+
+        from sleap_roots_analyze.result_types import TargetPrediction
+
+        prediction_result_field_types = {
+            f.type for f in dc.fields(CrossPlatformPredictionResult)
+        }
+        target_prediction_field_types = {f.type for f in dc.fields(TargetPrediction)}
+        for field_type in prediction_result_field_types | target_prediction_field_types:
+            assert "PermutationResult" not in str(field_type)
+
+    def test_permutation_result_has_no_sklearn_or_numpy_object(self):
+        """dataclasses.asdict(result) contains only plain Python lists of float."""
+        import dataclasses as dc
+
+        result = self._sample_permutation_result()
+        as_dict = dc.asdict(result)
+
+        def _walk(obj):
+            if isinstance(obj, dict):
+                for v in obj.values():
+                    yield from _walk(v)
+            elif isinstance(obj, list):
+                for v in obj:
+                    yield from _walk(v)
+            else:
+                yield obj
+
+        for value in _walk(as_dict):
+            assert not isinstance(value, np.ndarray)
+            assert not isinstance(value, np.generic)
+
+    def test_cross_platform_permutation_result_adapter_maps_fields_from_real_output(
+        self,
+    ):
+        """The adapter maps every field from real permutation_test() outputs exactly."""
+        X, y, genotypes, rep_names = _build_simple_dataset(n_genotypes=8, seed=30)
+        X2, y2, genotypes2, rep_names2 = _build_simple_dataset(n_genotypes=8, seed=31)
+        result_a = permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="representatives",
+            representative_names=rep_names,
+            n_permutations=5,
+            random_state=0,
+        )
+        result_b = permutation_test(
+            X2,
+            y2,
+            genotypes2,
+            reduction_method="representatives",
+            representative_names=rep_names2,
+            n_permutations=5,
+            random_state=1,
+        )
+        results = {"trait_a": result_a, "PC1": result_b}
+
+        cp_result = CrossPlatformPermutationResult.from_permutation_test_results(
+            source_platform="Turface19",
+            target_platform="Cylinder",
+            reduction_method="representatives",
+            permutation_test_results=results,
+        )
+
+        assert cp_result.source_platform == "Turface19"
+        assert cp_result.target_platform == "Cylinder"
+        assert cp_result.reduction_method == "representatives"
+        by_name = {p.target_name: p for p in cp_result.predictions}
+        for name, source_result in results.items():
+            mapped = by_name[name]
+            assert mapped.observed_r2 == pytest.approx(source_result.observed_r2)
+            assert mapped.observed_rmse == pytest.approx(source_result.observed_rmse)
+            assert mapped.observed_spearman_rho == pytest.approx(
+                source_result.observed_spearman_rho
+            )
+            assert mapped.observed_top_quartile_recovery == pytest.approx(
+                source_result.observed_top_quartile_recovery
+            )
+            np.testing.assert_allclose(mapped.null_r2, source_result.null_r2)
+            np.testing.assert_allclose(mapped.null_rmse, source_result.null_rmse)
+            np.testing.assert_allclose(
+                mapped.null_spearman_rho, source_result.null_spearman_rho
+            )
+            np.testing.assert_allclose(
+                mapped.null_top_quartile_recovery,
+                source_result.null_top_quartile_recovery,
+            )
+            assert mapped.p_value_r2 == pytest.approx(source_result.p_value_r2)
+            assert mapped.p_value_rmse == pytest.approx(source_result.p_value_rmse)
+            assert mapped.p_value_spearman_rho == pytest.approx(
+                source_result.p_value_spearman_rho
+            )
+            assert mapped.n_permutations == source_result.n_permutations
+
+    def test_permutation_result_types_importable_from_package_root(self):
+        """CrossPlatformPermutationResult/PermutationResult are importable and in __all__."""
+        import sleap_roots_analyze as sra
+
+        assert sra.CrossPlatformPermutationResult is CrossPlatformPermutationResult
+        assert sra.PermutationResult is PermutationResult
+        assert "CrossPlatformPermutationResult" in sra.__all__
+        assert "PermutationResult" in sra.__all__
+        assert len(sra.__all__) == len(set(sra.__all__))
+
+
 class TestPublicApiExport:
     """Public package-root export (mirroring test_blup_result.py's precedent)."""
 
@@ -958,6 +1540,16 @@ class TestPublicApiExport:
         assert sra.logo_cv_predict is module_logo_cv_predict
         assert "fit_pca_on_fold" in sra.__all__
         assert "logo_cv_predict" in sra.__all__
+
+    def test_permutation_test_functions_importable_from_package_root(self):
+        """permutation_test/top_quartile_recovery are importable from the package root."""
+        import sleap_roots_analyze as sra
+
+        assert sra.permutation_test is permutation_test
+        assert sra.top_quartile_recovery is top_quartile_recovery
+        assert "permutation_test" in sra.__all__
+        assert "top_quartile_recovery" in sra.__all__
+        assert len(sra.__all__) == len(set(sra.__all__))
 
     def test_logo_cv_result_importable_from_package_root(self):
         """LOGOCVResult (logo_cv_predict's own return type) is importable and in __all__.

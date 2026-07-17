@@ -1095,3 +1095,165 @@ class CrossPlatformPredictionResult:
             reduction_method=reduction_method,
             predictions=predictions,
         )
+
+
+@dataclass(frozen=True)
+class PermutationResult:
+    """JSON-serializable permutation-null significance test for one prediction target.
+
+    One entry per prediction target within a
+    :class:`CrossPlatformPermutationResult` run (Tier 4, #200). Kept
+    **separate** from (not nested inside) :class:`TargetPrediction` --
+    permutation is an optional, substantially heavier concern than the
+    observed-result computation it wraps (design.md Decision 3).
+
+    Attributes:
+        target_name: Name of the predicted target -- a representative trait
+            name, or ``"PC1"``.
+        observed_r2: Aggregate R^2 from one ``logo_cv_predict()`` call on the
+            real (unshuffled) ``y``.
+        observed_rmse: Aggregate RMSE from the same observed call.
+        observed_spearman_rho: Aggregate Spearman rho from the same observed
+            call.
+        observed_top_quartile_recovery: ``top_quartile_recovery()`` computed
+            from the same observed call's predictions.
+        null_r2: R^2 for each of ``n_permutations`` shuffled-``y`` calls.
+        null_rmse: RMSE for each shuffled-``y`` call.
+        null_spearman_rho: Spearman rho for each shuffled-``y`` call.
+        null_top_quartile_recovery: ``top_quartile_recovery()`` for each
+            shuffled-``y`` call, using that permutation's own shuffled ``y``
+            as ground truth (not the original, unshuffled ``y``).
+        p_value_r2: One-sided p-value, right-tailed (higher R^2 is better):
+            ``(count(null_r2 >= observed_r2) + 1) / (n_permutations + 1)``.
+        p_value_rmse: One-sided p-value, **left-tailed** (lower RMSE is
+            better -- the opposite convention from R^2/rho):
+            ``(count(null_rmse <= observed_rmse) + 1) / (n_permutations + 1)``.
+            Do not read a low ``p_value_rmse`` as indicating a bad fit.
+        p_value_spearman_rho: One-sided p-value, right-tailed, same formula
+            as ``p_value_r2``.
+        n_permutations: Number of permutations run (length of every
+            ``null_*`` list).
+    """
+
+    target_name: str
+    observed_r2: float
+    observed_rmse: float
+    observed_spearman_rho: float
+    observed_top_quartile_recovery: float
+    null_r2: list[float]
+    null_rmse: list[float]
+    null_spearman_rho: list[float]
+    null_top_quartile_recovery: list[float]
+    p_value_r2: float
+    p_value_rmse: float
+    p_value_spearman_rho: float
+    n_permutations: int
+
+
+@dataclass(frozen=True)
+class CrossPlatformPermutationResult:
+    """JSON-serializable view of a cross-platform permutation-null test run.
+
+    Mirrors :class:`CrossPlatformPredictionResult`'s shape and
+    ``to_dict()``/``to_json()`` convention exactly, but is a new, independent
+    dataclass (Tier 4, #200) -- not new fields grafted onto
+    :class:`CrossPlatformPredictionResult`/:class:`TargetPrediction` (design.md
+    Decision 3). Holds one instance per (platform pair, reduction method)
+    combination; a nested :class:`PermutationResult` list covers every
+    prediction target.
+
+    Attributes:
+        source_platform: Name of the platform whose genotype effects are the
+            predictor.
+        target_platform: Name of the platform whose genotype effects are
+            being predicted.
+        reduction_method: The dimensionality-reduction method used for this
+            run (``"pls_latent"``, ``"representatives"``, or ``"pc1"``).
+        predictions: One :class:`PermutationResult` per prediction target.
+    """
+
+    source_platform: str
+    target_platform: str
+    reduction_method: str
+    predictions: list[PermutationResult] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain ``dict`` view via :func:`dataclasses.asdict`."""
+        return dataclasses.asdict(self)
+
+    def to_json(self, **kwargs: Any) -> str:
+        """Serialize to a strict-JSON string, enforcing the finite-floats contract.
+
+        Defaults to ``allow_nan=False`` so a non-finite value raises a
+        ``ValueError`` here rather than emitting the non-standard tokens a
+        strict JSON consumer (e.g. bloom-mcp) rejects. Extra keyword
+        arguments are forwarded to :func:`json.dumps`.
+
+        Raises:
+            ValueError: If any float field is non-finite (under the default
+                ``allow_nan=False``).
+        """
+        kwargs.setdefault("allow_nan", False)
+        return json.dumps(self.to_dict(), **kwargs)
+
+    @classmethod
+    def from_permutation_test_results(
+        cls,
+        *,
+        source_platform: str,
+        target_platform: str,
+        reduction_method: str,
+        permutation_test_results: dict[str, Any],
+    ) -> "CrossPlatformPermutationResult":
+        """Build a :class:`CrossPlatformPermutationResult` from permutation_test outputs.
+
+        Accepts any object exposing ``observed_r2``/``observed_rmse``/
+        ``observed_spearman_rho``/``observed_top_quartile_recovery``,
+        ``null_r2``/``null_rmse``/``null_spearman_rho``/
+        ``null_top_quartile_recovery``, ``p_value_r2``/``p_value_rmse``/
+        ``p_value_spearman_rho``, and ``n_permutations`` attributes
+        (duck-typed to ``cross_platform_prediction.permutation_test()``'s
+        return value without importing it -- this module imports nothing
+        from the analytical modules, keeping dependencies one-way). Does not
+        mutate its inputs.
+
+        Args:
+            source_platform: Name of the predictor platform.
+            target_platform: Name of the predicted platform.
+            reduction_method: The reduction method used for this run.
+            permutation_test_results: Mapping of target name (a
+                representative trait name, or ``"PC1"``) to its
+                ``permutation_test()`` result object.
+
+        Returns:
+            A frozen :class:`CrossPlatformPermutationResult` holding only
+            JSON-serializable science.
+        """
+        predictions = [
+            PermutationResult(
+                target_name=str(target_name),
+                observed_r2=float(result.observed_r2),
+                observed_rmse=float(result.observed_rmse),
+                observed_spearman_rho=float(result.observed_spearman_rho),
+                observed_top_quartile_recovery=float(
+                    result.observed_top_quartile_recovery
+                ),
+                null_r2=[float(v) for v in result.null_r2],
+                null_rmse=[float(v) for v in result.null_rmse],
+                null_spearman_rho=[float(v) for v in result.null_spearman_rho],
+                null_top_quartile_recovery=[
+                    float(v) for v in result.null_top_quartile_recovery
+                ],
+                p_value_r2=float(result.p_value_r2),
+                p_value_rmse=float(result.p_value_rmse),
+                p_value_spearman_rho=float(result.p_value_spearman_rho),
+                n_permutations=int(result.n_permutations),
+            )
+            for target_name, result in permutation_test_results.items()
+        ]
+        return cls(
+            source_platform=source_platform,
+            target_platform=target_platform,
+            reduction_method=reduction_method,
+            predictions=predictions,
+        )

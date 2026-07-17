@@ -87,7 +87,7 @@
 > natural standalone commit; 2.5 onward (`permutation_test`, which calls `top_quartile_recovery`)
 > is a second.
 
-- [ ] 2.5 Write failing test `test_permutation_test_observed_matches_direct_logo_cv_predict_call`:
+- [x] 2.5 Write failing test `test_permutation_test_observed_matches_direct_logo_cv_predict_call`:
       `permutation_test(X, y, genotypes, method).observed_r2` (etc.) exactly matches an
       independent `logo_cv_predict(X, y, genotypes, method)` call's `r2` (etc.) on the same inputs;
       `observed_top_quartile_recovery` exactly equals
@@ -95,47 +95,47 @@
       separately-shuffled or stale value (this metric has no `LOGOCVResult`/`TargetPrediction`
       analog to cross-check against, unlike the other three, so this test is its only wiring
       oracle).
-- [ ] 2.6 Write failing test `test_permutation_test_null_distributions_have_length_n_permutations`:
+- [x] 2.6 Write failing test `test_permutation_test_null_distributions_have_length_n_permutations`:
       `null_r2`/`null_rmse`/`null_spearman_rho`/`null_top_quartile_recovery` each have length `N`
       for `n_permutations=N`.
-- [ ] 2.7 Write failing test `test_permutation_test_shuffles_y_not_x_or_genotypes`: spy on
+- [x] 2.7 Write failing test `test_permutation_test_shuffles_y_not_x_or_genotypes`: spy on
       `logo_cv_predict` (or inspect its call arguments) to confirm each permutation iteration's `X`
       and `genotypes` arguments are unchanged from the original inputs, only `y` differs.
-- [ ] 2.8 Write failing test `test_permutation_test_deterministic_given_same_random_state`: two
+- [x] 2.8 Write failing test `test_permutation_test_deterministic_given_same_random_state`: two
       calls in the same process, with identical arguments (including `random_state`), produce
       bit-identical null arrays. Also parametrize over `random_state` being a plain `int` and a
       `numpy.random.SeedSequence` instance — both must work, since `VisualizePredictionStep`
       (Section 7) passes `SeedSequence` children, not raw ints.
-- [ ] 2.9 Write failing test `test_permutation_test_different_random_state_differs`: two calls
+- [x] 2.9 Write failing test `test_permutation_test_different_random_state_differs`: two calls
       differing only in `random_state` produce non-identical `null_r2` arrays.
-- [ ] 2.10 Write failing test
+- [x] 2.10 Write failing test
       `test_permutation_test_null_top_quartile_recovery_uses_shuffled_y_as_truth`: construct a
       case where using the *original* `y` as truth (instead of that permutation's shuffled `y`)
       would produce a detectably different recovery value — assert the shuffled-`y`-as-truth
       behavior (Decision 2 in design.md).
-- [ ] 2.11 Write failing test `test_permutation_test_p_value_formula_r2_and_rho`: for a
+- [x] 2.11 Write failing test `test_permutation_test_p_value_formula_r2_and_rho`: for a
       hand-constructed `null` array and `observed` value, assert `p_value_r2` **and**
       `p_value_spearman_rho` each equal `(count(v >= observed) + 1) / (n_permutations + 1)` exactly
       (right-tail — higher is better for both metrics).
-- [ ] 2.11a Write failing test `test_permutation_test_p_value_formula_rmse`: for a
+- [x] 2.11a Write failing test `test_permutation_test_p_value_formula_rmse`: for a
       hand-constructed `null` array and `observed` value, assert `p_value_rmse` equals
       `(count(v <= observed) + 1) / (n_permutations + 1)` exactly — the **opposite**-tail formula
       from 2.11 (lower RMSE is better), a separate task rather than folded into 2.11's "(etc.)" to
       prevent an implementer from generalizing the wrong (right-tail) formula to RMSE by pattern-
       matching alone (found during `/review-openspec` round 4: 2.11's original "(etc.)" wording,
       if taken literally, contradicts the corrected RMSE formula and 9.2a's own assertion).
-- [ ] 2.12 Write failing test `test_permutation_test_rejects_non_positive_n_permutations`:
+- [x] 2.12 Write failing test `test_permutation_test_rejects_non_positive_n_permutations`:
       `n_permutations=0` and `n_permutations=-1` both raise `ValueError`, before any
       `logo_cv_predict` call (spy to confirm zero calls made).
-- [ ] 2.12a Write failing test `test_permutation_test_accepts_n_permutations_equal_1`:
+- [x] 2.12a Write failing test `test_permutation_test_accepts_n_permutations_equal_1`:
       `n_permutations=1` does not raise; `null_r2`/etc. each have length exactly `1`; the resulting
       p-value formula degenerates correctly to `(count + 1) / 2` (either `0.5` or `1.0`) — a
       boundary distinct from the general `n_permutations<=0` rejection in 2.12.
-- [ ] 2.13 Write failing test `test_permutation_test_surfaces_logo_cv_predict_validation_errors`:
+- [x] 2.13 Write failing test `test_permutation_test_surfaces_logo_cv_predict_validation_errors`:
       an invalid `reduction_method` (or mismatched-length `X`/`y`/`genotypes`, or duplicate
       `genotypes`) raises the same `ValueError` `logo_cv_predict` itself would raise, from the
       observed-value call, before any permutation runs.
-- [ ] 2.13a Write failing test `test_permutation_test_rejects_non_finite_null_values_with_named_error`:
+- [x] 2.13a Write failing test `test_permutation_test_rejects_non_finite_null_values_with_named_error`:
       construct a permutation iteration whose LOGO-CV fold structure produces a non-finite
       `spearman_rho` (e.g. inject via a monkeypatched `logo_cv_predict` returning a degenerate
       result for one specific permutation index, independent of whether that permutation's
@@ -145,7 +145,7 @@
       expected to affect many permutations within one target, not a rare one-off, so failing fast
       saves little wall-clock time while complicating which-permutations-ran accounting), not a
       downstream `to_json()` crash with no indication of which permutation caused it.
-- [ ] 2.13b Write failing test `test_permutation_test_rejects_non_finite_observed_values_before_permutations_run`:
+- [x] 2.13b Write failing test `test_permutation_test_rejects_non_finite_observed_values_before_permutations_run`:
       a constant `y` (legal per `logo_cv_predict`'s own "Constant y does not raise" contract,
       reachable by a direct Python-API caller with no upstream pipeline guard — found during
       `/review-openspec` round 4: the non-finite guard from 2.13a only ever covered null values,
@@ -153,7 +153,7 @@
       immediately after the observed-value `logo_cv_predict` call and before any permutation is
       drawn (spy to confirm zero shuffled calls made), not after wastefully completing the full
       permutation loop on data already known to be unusable.
-- [ ] 2.14 Implement `permutation_test(X, y, genotypes, reduction_method="pls_latent",
+- [x] 2.14 Implement `permutation_test(X, y, genotypes, reduction_method="pls_latent",
       representative_names=None, n_permutations=1000, random_state=42)` in
       `cross_platform_prediction.py`, building its RNG via
       `numpy.random.default_rng(random_state)` (not `numpy.random.Generator(random_state)`
@@ -166,20 +166,20 @@
 
 ## 3. `PermutationResult`/`CrossPlatformPermutationResult` (test-first)
 
-- [ ] 3.1 Write failing test `test_permutation_result_round_trips_through_json_as_native_types`:
+- [x] 3.1 Write failing test `test_permutation_result_round_trips_through_json_as_native_types`:
       `json.dumps(dataclasses.asdict(result))` succeeds; parsed-back numeric fields (including
       every element of every null-distribution list) are Python `float`, not `np.float64`.
-- [ ] 3.2 Write failing test `test_permutation_result_null_lists_have_length_n_permutations`.
-- [ ] 3.3 Write failing test
+- [x] 3.2 Write failing test `test_permutation_result_null_lists_have_length_n_permutations`.
+- [x] 3.3 Write failing test
       `test_cross_platform_prediction_result_has_no_permutation_result_field`: inspect
       `dataclasses.fields(CrossPlatformPredictionResult)` and `TargetPrediction`, assert neither
       references `PermutationResult`/`CrossPlatformPermutationResult` (Decision 3 — types stay
       structurally independent).
-- [ ] 3.3a Write failing test `test_permutation_result_has_no_sklearn_or_numpy_object`:
+- [x] 3.3a Write failing test `test_permutation_result_has_no_sklearn_or_numpy_object`:
       `dataclasses.asdict(result)` contains no sklearn `Pipeline`/`PLSRegression`/`Ridge`/`PCA`/
       `StandardScaler` object and no raw `numpy.ndarray` — every null-distribution field is a
       plain Python `list` of `float`.
-- [ ] 3.4 Implement `PermutationResult`/`CrossPlatformPermutationResult` in `result_types.py`,
+- [x] 3.4 Implement `PermutationResult`/`CrossPlatformPermutationResult` in `result_types.py`,
       mirroring `TargetPrediction`/`CrossPlatformPredictionResult`'s `to_dict()`/`to_json()`
       pattern exactly. Make 3.1-3.3a green.
 
@@ -187,17 +187,17 @@
 > `permutation_test` and can land before Section 2 finishes; 3.5-3.8 (the adapter, which calls
 > `permutation_test` in its own test) must land after Section 2 is green.
 
-- [ ] 3.5 Write failing test
+- [x] 3.5 Write failing test
       `test_cross_platform_permutation_result_adapter_maps_fields_from_real_output`: build a
       `CrossPlatformPermutationResult` from real `permutation_test()` outputs for multiple targets,
       assert every field matches exactly.
-- [ ] 3.6 Implement the `from_permutation_test_results`-style adapter (naming to match
+- [x] 3.6 Implement the `from_permutation_test_results`-style adapter (naming to match
       `CrossPlatformPredictionResult.from_logo_cv_results`'s convention). Make 3.5 green.
-- [ ] 3.7 Write failing test
+- [x] 3.7 Write failing test
       `test_permutation_result_types_importable_from_package_root`:
       `from sleap_roots_analyze import CrossPlatformPermutationResult, PermutationResult`
       succeeds; both names in `__all__`, no duplicates.
-- [ ] 3.8 Add both names to `__init__.py`'s import block and `__all__` (grouped by comment header,
+- [x] 3.8 Add both names to `__init__.py`'s import block and `__all__` (grouped by comment header,
       matching the existing `pc_correlations`/cross-platform-prediction grouping convention). Make
       3.7 green.
 
