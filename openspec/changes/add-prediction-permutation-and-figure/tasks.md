@@ -618,9 +618,9 @@
       genotype-level points in all 4; violin/strip panel shows a visible real-vs-null spread
       (widest, as expected, for the ~129-target worst-case pair); bar chart's two bars are
       distinguishable in all 4. No legibility issues found.
-- [ ] 11.7 Present findings to Elizabeth; record her explicit sign-off here before this task (and
+- [x] 11.7 Present findings to Elizabeth; record her explicit sign-off here before this task (and
       Section 13's `/pre-merge-check`) is considered complete.
-      **Findings presented 2026-07-17 (see conversation) — awaiting Elizabeth's explicit sign-off.**
+      **Findings presented 2026-07-17; Elizabeth signed off the same day (see conversation).**
 
 ## 12. Docs
 
