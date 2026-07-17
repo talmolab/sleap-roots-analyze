@@ -340,7 +340,7 @@
 - [x] 7.3 Update `cli.py`'s `cross_platform()` dry-run steps list (conditional 6th tuple) and its
       docstring (mention prediction as an optional 6th step). Make 7.1-7.2 green.
 
-## 8. Manual real-data validation (non-CI, pre-merge gate) — **run 2026-07-16, pending Elizabeth's sign-off**
+## 8. Manual real-data validation (non-CI, pre-merge gate) — **DONE 2026-07-16, Elizabeth signed off**
 
 > **Correction to task 8.1's original assumption, found before this run:** Tier 3 Section 8's
 > BLUP tables are **not** reusable as-is. A dedicated vault investigation (`figures/README.md`'s
@@ -407,8 +407,7 @@
       conclusion.** **Conclusion stands: no discrepancy inconsistent with a pure
       wiring-bug/expected-data-difference explanation — Decision 6/12 do not need reopening.**
       Final summary (post-fix): `pipeline_runs/section8_prediction_summary.csv`. Presented to
-      Elizabeth for review 2026-07-16; **explicit sign-off still pending** (this checkbox tracks
-      "findings recorded," not the sign-off itself — see task 10.5).
+      Elizabeth for review 2026-07-16; **signed off 2026-07-16** (see task 10.5).
 - [x] 8.5 **(New — statistical-validity caveat, added during Elizabeth's review of 8.1-8.3.)**
       Checked whether n≈18-20 genotypes and hundreds of candidate traits impose a hard limit on
       what this analysis can detect, independent of any implementation question:
@@ -528,8 +527,9 @@
       available on request but not proactively recommended. This task is not satisfied until the
       user has reviewed and approved the fully-reconciled proposal — required before implementation
       (Sections 1-9) begins, per the roadmap's per-tier loop.
-- [ ] 10.5 Complete Section 8's manual EDPIE validation and get Elizabeth's explicit sign-off before
-      opening the PR.
+- [x] 10.5 Section 8's manual EDPIE validation complete (2026-07-16, including the data-vintage
+      correction, the `Computation.Time.s` fix, and the statistical-validity caveat in task 8.5).
+      **Elizabeth signed off 2026-07-16.**
 - [ ] 10.6 **Post-implementation code review** (found missing during `/review-openspec` round 3 —
       Tier 3's own two `/review-pr` passes, pre-PR and on-the-open-PR, caught its real implementation
       bugs: a CI path bug, input validation gaps, a mypy baseline violation): run `/pre-merge-check`
