@@ -160,7 +160,16 @@ def test_cross_platform_pipeline_backward_compat_disabled_by_default(tmp_path):
             expected = _normalize_summary(json.loads(expected_path.read_text()))
             assert actual == expected
         else:
-            assert actual_path.read_bytes() == expected_path.read_bytes()
+            # CSV content, not raw bytes: pandas.to_csv() writes platform-native
+            # line endings (CRLF on Windows), while the committed snapshot is
+            # LF-normalized via .gitattributes (*.csv text eol=lf) -- a raw
+            # read_bytes() comparison would spuriously fail on Windows CI.
+            # Matches this repo's existing precedent (test_pipeline_reproduction.py)
+            # of comparing parsed/text content, never raw bytes, to stay
+            # encoding/line-ending agnostic.
+            actual_text = actual_path.read_text().replace("\r\n", "\n")
+            expected_text = expected_path.read_text().replace("\r\n", "\n")
+            assert actual_text == expected_text
 
 
 # =============================================================================

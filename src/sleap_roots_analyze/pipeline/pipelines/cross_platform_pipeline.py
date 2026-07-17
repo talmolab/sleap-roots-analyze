@@ -258,12 +258,13 @@ class CrossPlatformPipeline(BasePipeline):
         before prediction runs) -- its ``data`` is never read here (Decision 15).
         """
         logger.info("Step 6/6: Predicting cross-platform genotype values...")
-        task1_result = kwargs["01_load_cross_platform_data"].data
+        prev_task_result = kwargs["01_load_cross_platform_data"]
+        prev_step_result = prev_task_result.data
         step = PredictCrossPlatformStep()
         result = step.execute(
-            data=task1_result.data,
+            data=prev_step_result.data,
             config=config,
             run_dir=run_dir,
-            prev_result=task1_result,
+            prev_result=prev_step_result,
         )
         return result

@@ -190,6 +190,26 @@ def test_predict_step_raises_clear_error_when_source_matrix_is_empty_after_nan_d
         step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
 
 
+def test_predict_step_raises_clear_error_when_target_matrix_is_empty_after_nan_drop(
+    tmp_path,
+):
+    """A target table with every trait column containing a NaN raises a clear ValueError.
+
+    Found during code review: unlike the source side (which already had this
+    guard), a zero-column target previously fell through to an opaque sklearn
+    error from fitting PCA (for the PC1 target) on a zero-feature array,
+    rather than a clear, step-level ValueError naming the target platform.
+    """
+    source_df, target_df, _ = _make_blup_tables()
+    target_df["trait_x"] = np.nan
+    target_df["trait_y"] = np.nan
+    config = _blup_config(tmp_path, source_df, target_df)
+    step = PredictCrossPlatformStep()
+
+    with pytest.raises(ValueError, match="[Tt]arget"):
+        step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
+
+
 def test_predict_step_resolves_blup_genotype_column_name(tmp_path):
     """BLUP genotype column resolves 'Genotype' then 'genotype'; else clear error (tasks.md 4.1b)."""
     source_df, target_df, _ = _make_blup_tables(genotype_col="Genotype")
@@ -273,6 +293,88 @@ def test_predict_step_builds_source_matrix_from_genotype_means_when_predictor_so
 
     assert set(result.metadata["source_trait_columns"]) == {"trait_a", "trait_b"}
     assert set(result.metadata["target_candidate_columns"]) == {"trait_x", "trait_y"}
+
+
+def test_predict_step_genotype_means_averages_multiple_replicates_per_genotype(
+    tmp_path,
+):
+    """genotype_means computes a genuine mean across >1 replicate, not an identity op.
+
+    Found during code review: every other genotype_means fixture in this file
+    uses exactly one replicate per genotype, so `.groupby("genotype").mean()`
+    is never actually exercised as an aggregation (a single-row mean is a
+    no-op). This test uses 3 replicates/genotype with distinct per-replicate
+    values and inspects the actual predictor matrix passed to
+    logo_cv_predict.
+    """
+    genotypes = ["G01", "G01", "G01", "G02", "G02", "G02", "G03", "G03", "G03"]
+    replicates = [1, 2, 3] * 3
+    trait_a_values = [1.0, 2.0, 3.0, 10.0, 20.0, 30.0, 100.0, 200.0, 300.0]
+    exp1_df = pd.DataFrame(
+        {"genotype": genotypes, "replicate": replicates, "trait_a": trait_a_values}
+    )
+    exp2_df = pd.DataFrame(
+        {
+            "genotype": genotypes,
+            "replicate": replicates,
+            # Varies per genotype (not constant): a constant target trait
+            # produces a non-finite spearman_rho/p (legal logo_cv_predict
+            # input, but CrossPlatformPredictionResult.to_json's finite-floats
+            # contract then raises) -- an unrelated edge case to this test.
+            "trait_x": [5.0, 6.0, 7.0, 15.0, 16.0, 17.0, 25.0, 26.0, 27.0],
+        }
+    )
+    prediction = PredictionConfig(
+        enabled=True,
+        predictor_source="genotype_means",
+        platform_pairs=[{"source": "SourcePlatform", "target": "TargetPlatform"}],
+    )
+    config = CrossPlatformConfig(
+        exp1_data_path="unused_exp1.csv",
+        exp1_name="SourcePlatform",
+        exp1_genotype_col="Genotype",
+        exp2_data_path="unused_exp2.csv",
+        exp2_name="TargetPlatform",
+        exp2_genotype_col="Genotype",
+        prediction=prediction,
+    )
+    data = {
+        "exp1_df": exp1_df,
+        "exp2_df": exp2_df,
+        "common_genotypes": ["G01", "G02", "G03"],
+    }
+    prev_result = StepResult(
+        data=data,
+        metadata={
+            "exp1_name": "SourcePlatform",
+            "exp2_name": "TargetPlatform",
+            "exp1_trait_names": ["trait_a"],
+            "exp2_trait_names": ["trait_x"],
+        },
+    )
+    step = PredictCrossPlatformStep()
+
+    captured_X = {}
+
+    def _capture(*args, **kwargs):
+        captured_X["X"] = kwargs["X"].copy()
+        return real_logo_cv_predict(*args, **kwargs)
+
+    from sleap_roots_analyze.cross_platform_prediction import (
+        logo_cv_predict as real_logo_cv_predict,
+    )
+
+    with patch(
+        "sleap_roots_analyze.pipeline.steps.predict_cross_platform.logo_cv_predict",
+        side_effect=_capture,
+    ):
+        step.execute(
+            data=data, config=config, run_dir=tmp_path, prev_result=prev_result
+        )
+
+    expected_means = {"G01": 2.0, "G02": 20.0, "G03": 200.0}
+    for genotype, expected in expected_means.items():
+        assert captured_X["X"].loc[genotype, "trait_a"] == pytest.approx(expected)
 
 
 def test_predict_step_genotype_means_excludes_metadata_columns(tmp_path):
@@ -460,7 +562,7 @@ def test_predict_step_raises_clear_error_when_common_genotypes_below_minimum(tmp
     config = _blup_config(tmp_path, source_df, target_df)
     step = PredictCrossPlatformStep()
 
-    with pytest.raises(ValueError, match="SourcePlatform.*TargetPlatform|common"):
+    with pytest.raises(ValueError, match="SourcePlatform.*TargetPlatform"):
         step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
 
 
@@ -473,7 +575,7 @@ def test_predict_step_raises_clear_error_when_zero_genotype_overlap(tmp_path):
     config = _blup_config(tmp_path, source_df, target_df)
     step = PredictCrossPlatformStep()
 
-    with pytest.raises(ValueError, match="SourcePlatform.*TargetPlatform|common"):
+    with pytest.raises(ValueError, match="SourcePlatform.*TargetPlatform"):
         step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
 
 

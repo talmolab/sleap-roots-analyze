@@ -1200,6 +1200,12 @@ class CrossPlatformConfig:
                     f"when prediction.enabled=True, got {len(platform_pairs)}"
                 )
             pair = platform_pairs[0]
+            if not isinstance(pair, dict):
+                raise ValueError(
+                    "prediction.platform_pairs' single entry must be a "
+                    f"{{'source': ..., 'target': ...}} dict, got {type(pair).__name__}: "
+                    f"{pair!r}"
+                )
             pair_names = {pair.get("source"), pair.get("target")}
             expected_names = {self.exp1_name, self.exp2_name}
             if pair_names != expected_names:

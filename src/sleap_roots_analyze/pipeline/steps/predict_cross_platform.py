@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List, Optional
 
-import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
@@ -13,14 +12,7 @@ from sleap_roots_analyze.cross_experiment_analysis import (
     cluster_correlated_traits,
     select_cluster_representatives,
 )
-from sleap_roots_analyze.cross_platform_prediction import (
-    fit_pca_on_fold,  # noqa: F401 -- imported for the docstring cross-reference below,
-    # never called directly: this step computes the PC1 *target* via pca.fit_pca()
-    # (whole-dataset, ground truth), while fit_pca_on_fold remains reserved for
-    # reducing the *source* predictor matrix per-fold inside logo_cv_predict's own
-    # "pc1" reduction_method branch (design.md Decision 6/12).
-    logo_cv_predict,
-)
+from sleap_roots_analyze.cross_platform_prediction import logo_cv_predict
 from sleap_roots_analyze.pca import fit_pca
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.result_types import CrossPlatformPredictionResult
@@ -45,6 +37,14 @@ class PredictCrossPlatformStep(BaseStep):
     traits are reported uses every genotype's own outcome data. This differs
     from the *source*-side "representatives" predictor selection, which
     never touches ``y`` at all and is unconditionally safe to fix pre-loop.
+
+    PC1-target vs. per-fold PC1-predictor (Decision 6/12): the ``"PC1"``
+    target's value is computed once, via ``pca.fit_pca()`` on the whole
+    common-genotype target matrix (ground truth, no leakage concern). This is
+    deliberately distinct from ``cross_platform_prediction.fit_pca_on_fold``,
+    which remains reserved for reducing the *source* predictor matrix
+    per-fold inside ``logo_cv_predict``'s own ``"pc1"`` ``reduction_method``
+    branch -- this step never calls ``fit_pca_on_fold`` directly.
 
     Note:
         ``CrossPlatformSummaryGenerator``/``/cross-platform-summary`` does not
@@ -133,11 +133,29 @@ class PredictCrossPlatformStep(BaseStep):
         # common-genotype set, on both sides, before further use.
         source_clean = source_aligned.dropna(axis=1, how="any")
         target_clean = target_aligned.dropna(axis=1, how="any")
+        source_dropped_columns = sorted(
+            set(source_aligned.columns) - set(source_clean.columns)
+        )
+        target_dropped_columns = sorted(
+            set(target_aligned.columns) - set(target_clean.columns)
+        )
         if source_clean.shape[1] == 0:
             raise ValueError(
                 f"Every trait column in the source ('{source_platform}') predictor "
                 "matrix contains at least one NaN value among the common "
                 "genotypes -- no usable predictor traits remain"
+            )
+        if target_clean.shape[1] == 0:
+            # Unlike the source side, the target has no fallback: PC1-as-target
+            # (below) is itself computed FROM target_clean, so a zero-column
+            # target leaves nothing to select representatives from or to fit
+            # PCA on -- a clear error here, not an opaque sklearn one from
+            # fitting PCA on a zero-feature array.
+            raise ValueError(
+                f"Every trait column in the target ('{target_platform}') matrix "
+                "contains at least one NaN value among the common genotypes -- "
+                "no usable target traits remain (not even for the PC1 target, "
+                "which is computed from this same matrix)"
             )
 
         # Target-side cluster-representative trait selection (Decision 6/11).
@@ -205,7 +223,23 @@ class PredictCrossPlatformStep(BaseStep):
                 logo_cv_results=logo_cv_results,
             )
             output_path = run_dir / f"06_prediction_{method}.json"
-            output_path.write_text(cp_result.to_json(indent=2))
+            try:
+                serialized = cp_result.to_json(indent=2)
+            except ValueError as e:
+                # CrossPlatformPredictionResult.to_json's own finite-floats
+                # contract (allow_nan=False) raises a bare ValueError with no
+                # indication of which method/target triggered it -- e.g. a
+                # constant (zero-variance) target trait, legal input to
+                # logo_cv_predict but producing a non-finite spearman_rho/p.
+                # Re-raise naming the method so this isn't an opaque JSON error.
+                raise ValueError(
+                    f"Failed to serialize prediction results for method "
+                    f"'{method}' ('{source_platform}' -> '{target_platform}'): "
+                    f"{e}. This usually means one target trait is constant "
+                    "(zero variance) among the common genotypes, producing a "
+                    "non-finite spearman_rho/spearman_p."
+                ) from e
+            output_path.write_text(serialized)
             files_generated.append(output_path)
             results_by_method[method] = cp_result.to_dict()
 
@@ -220,6 +254,8 @@ class PredictCrossPlatformStep(BaseStep):
             "source_trait_columns": list(source_clean.columns),
             "target_candidate_columns": list(target_clean.columns),
             "target_representative_traits": list(target_representatives),
+            "source_dropped_columns": source_dropped_columns,
+            "target_dropped_columns": target_dropped_columns,
         }
 
         return StepResult(

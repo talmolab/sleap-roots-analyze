@@ -643,3 +643,34 @@ def test_cross_platform_config_rejects_multiple_platform_pairs_entries():
                 ],
             ),
         )
+
+
+def test_cross_platform_config_rejects_non_dict_platform_pairs_entry():
+    """A single platform_pairs entry that isn't a dict raises ValueError, not AttributeError.
+
+    Found during code review: `platform_pairs: ["Cylinder"]` (a plausible
+    YAML-authoring mistake -- a bare string instead of a
+    {source, target} mapping) passed the cardinality check (exactly one
+    entry) and then crashed with an unhelpful `AttributeError` from
+    `pair.get("source")`, rather than the clean `ValueError` every other
+    validation failure in this config raises.
+    """
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=["Exp1"],
+            ),
+        )
