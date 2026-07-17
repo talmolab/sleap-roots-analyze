@@ -229,11 +229,11 @@
 
 ## 5. `PredictCrossPlatformStep` additive extension (test-first)
 
-- [ ] 5.1 Write failing test `test_predict_step_exposes_predictor_matrices_in_step_result_data`:
+- [x] 5.1 Write failing test `test_predict_step_exposes_predictor_matrices_in_step_result_data`:
       after a normal run, `StepResult.data["predictor_matrices"]` holds `source_clean`/
       `target_clean` (DataFrames matching the step's own internal computation) and
       `source_representative_names`/`target_representatives`.
-- [ ] 5.2 Write failing test
+- [x] 5.2 Write failing test
       `test_predict_step_existing_data_metadata_files_unchanged_by_predictor_matrices_addition`: a
       full backward-compat regression test — every existing key in `StepResult.data`/`metadata`
       and every path in `files_generated` is byte-for-byte/value-for-value identical to this step's
@@ -241,7 +241,7 @@
       Explicitly assert `set(result.data.keys()) - {"predictor_matrices"}` equals the exact
       pre-Tier-4 key set (method names only) — not just that pre-existing keys are unchanged, but
       that `"predictor_matrices"` is the *only* addition, catching any accidental extra key leakage.
-- [ ] 5.3 Extend `PredictCrossPlatformStep.execute()` in `predict_cross_platform.py` to populate
+- [x] 5.3 Extend `PredictCrossPlatformStep.execute()` in `predict_cross_platform.py` to populate
       `predictor_matrices`. Make 5.1-5.2 green.
 
 ## 5a. `joblib` dependency (must land before Section 7b)

@@ -730,3 +730,99 @@ def test_predict_step_blup_refit_per_fold_is_inert(tmp_path):
         (tmp_path / "false" / "06_prediction_pls_latent.json").read_text()
     )
     assert saved_true == saved_false
+
+
+# =============================================================================
+# Tier 4 (add-prediction-permutation-and-figure, #200): additive
+# `predictor_matrices` extension to StepResult.data (design.md Decision 6,
+# tasks.md Section 5). VisualizePredictionStep (Section 7) reuses these
+# already-computed matrices instead of rebuilding BLUP-loading/NaN-dropping/
+# alignment logic a second time.
+# =============================================================================
+
+
+def test_predict_step_exposes_predictor_matrices_in_step_result_data(tmp_path):
+    """StepResult.data["predictor_matrices"] holds the step's own computed matrices."""
+    source_df, target_df, _ = _make_blup_tables()
+    config = _blup_config(
+        tmp_path,
+        source_df,
+        target_df,
+        reduction_method="pls_latent",
+        comparison_methods=["representatives"],
+    )
+    step = PredictCrossPlatformStep()
+    result = step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
+
+    matrices = result.data["predictor_matrices"]
+    pd.testing.assert_frame_equal(
+        matrices["source_clean"], source_df.loc[result.metadata["common_genotypes"]]
+    )
+    pd.testing.assert_frame_equal(
+        matrices["target_clean"], target_df.loc[result.metadata["common_genotypes"]]
+    )
+    assert matrices["source_representative_names"]
+    assert set(matrices["source_representative_names"]) <= set(
+        matrices["source_clean"].columns
+    )
+    assert set(matrices["target_representatives"]) == set(
+        result.metadata["target_representative_traits"]
+    )
+
+
+def test_predict_step_existing_data_metadata_files_unchanged_by_predictor_matrices_addition(
+    tmp_path,
+):
+    """The predictor_matrices addition changes nothing else -- full backward-compat check.
+
+    Guards Decision 6's additive-only promise: every pre-Tier-4 `data` key
+    (method names only), every `metadata` key/value, and every
+    `files_generated` path must be identical to this step's pre-Tier-4
+    behavior on the same fixture -- and `"predictor_matrices"` must be the
+    *only* addition to `data`'s key set (catching any accidental extra key
+    leakage), not just that pre-existing keys are individually unchanged.
+    """
+    source_df, target_df, _ = _make_blup_tables()
+    config = _blup_config(
+        tmp_path,
+        source_df,
+        target_df,
+        reduction_method="pls_latent",
+        comparison_methods=["representatives"],
+    )
+    step = PredictCrossPlatformStep()
+    result = step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
+
+    # Pre-Tier-4, StepResult.data was keyed by method name only.
+    assert set(result.data.keys()) - {"predictor_matrices"} == {
+        "pls_latent",
+        "representatives",
+    }
+    assert "predictor_matrices" in result.data
+
+    pls_saved = json.loads((tmp_path / "06_prediction_pls_latent.json").read_text())
+    rep_saved = json.loads(
+        (tmp_path / "06_prediction_representatives.json").read_text()
+    )
+    assert result.data["pls_latent"] == pls_saved
+    assert result.data["representatives"] == rep_saved
+
+    expected_metadata_keys = {
+        "source_platform",
+        "target_platform",
+        "predictor_source",
+        "methods",
+        "target_names",
+        "common_genotypes",
+        "n_common_genotypes",
+        "source_trait_columns",
+        "target_candidate_columns",
+        "target_representative_traits",
+        "source_dropped_columns",
+        "target_dropped_columns",
+    }
+    assert set(result.metadata.keys()) == expected_metadata_keys
+    assert [p.name for p in result.files_generated] == [
+        "06_prediction_pls_latent.json",
+        "06_prediction_representatives.json",
+    ]
