@@ -523,6 +523,9 @@ def cross_platform(
     - Load and align data from two experiments
     - Calculate correlations between all trait pairs (Cartesian product)
     - Generate correlation visualizations
+    - Optionally, predict cross-platform genotype values via LOGO-CV, as a
+      6th step, when the config's `prediction.enabled` is true (no new flag
+      -- set it in the config's `prediction:` block)
 
     This pipeline is designed to compare traits across different experimental
     platforms or conditions to identify which traits capture similar biological
@@ -579,6 +582,15 @@ def cross_platform(
                     f"Generate {cfg.top_n_correlations} top correlation visualizations",
                 ),
             ]
+
+            if cfg.prediction.enabled:
+                steps.append(
+                    (
+                        "6",
+                        "PredictCrossPlatform",
+                        "Predict cross-platform genotype values via LOGO-CV",
+                    )
+                )
 
             for num, name, desc in steps:
                 console.print(f"  {num}. [cyan]{name}[/cyan] - {desc}")
