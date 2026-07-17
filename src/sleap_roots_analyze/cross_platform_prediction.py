@@ -293,3 +293,56 @@ def logo_cv_predict(
         spearman_rho=float(spearman_rho),
         spearman_p=float(spearman_p),
     )
+
+
+def top_quartile_recovery(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    q: Optional[int] = None,
+) -> float:
+    """Fraction of the true top-``q`` genotypes recovered in the predicted top-``2q``.
+
+    Tier 4 (#200) metric: ranks genotypes by ``y_true`` and by ``y_pred``
+    independently, then measures what fraction of the true top-``q`` set
+    (by ``y_true``) also appears in the *predicted* top-``2q`` set (by
+    ``y_pred``) -- a wider predicted window than the true one, since a
+    ranking-based recovery metric at n~=19 is too noisy to expect exact
+    top-``q``-for-top-``q`` agreement.
+
+    Chance-level (random ``y_pred``) expected recovery is ``2*q/n`` by
+    linearity of expectation, not a fixed "25%" -- see design.md Decision 11
+    for the derivation. Used both for the observed value (real ``y``, real
+    LOGO-CV predictions) and, once per permutation inside
+    :func:`permutation_test`, for the null distribution.
+
+    Args:
+        y_true: Observed target values, one per genotype.
+        y_pred: Predicted target values, same order as ``y_true``.
+        q: Size of the true top-quartile set. Defaults to
+            ``max(1, round(len(y_true) / 4))`` -- clamped to at least 1 so a
+            small ``n`` never produces a vacuous, zero-size window. An
+            explicitly-supplied ``q`` is validated strictly (must be
+            positive and satisfy ``2 * q <= len(y_true)``); the computed
+            default is never invalid at this program's real n>=3 scale.
+
+    Returns:
+        The fraction (in ``[0, 1]``) of the true top-``q`` genotypes present
+        in the predicted top-``2q`` genotypes.
+
+    Raises:
+        ValueError: If an explicitly-supplied ``q`` is not positive, or if
+            ``2 * q`` exceeds ``len(y_true)``.
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    n = len(y_true)
+    if q is None:
+        q = max(1, round(n / 4))
+    elif q <= 0 or 2 * q > n:
+        raise ValueError(
+            f"q must be a positive integer with 2*q <= len(y_true) ({n}), " f"got q={q}"
+        )
+
+    top_q_true = set(np.argsort(-y_true, kind="stable")[:q])
+    top_2q_pred = set(np.argsort(-y_pred, kind="stable")[: 2 * q])
+    return len(top_q_true & top_2q_pred) / q

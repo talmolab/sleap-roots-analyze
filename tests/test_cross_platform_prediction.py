@@ -24,6 +24,7 @@ from sleap_roots_analyze.cross_platform_prediction import (
     LOGOCVResult,
     fit_pca_on_fold,
     logo_cv_predict,
+    top_quartile_recovery,
 )
 from sleap_roots_analyze.result_types import CrossPlatformPredictionResult
 
@@ -970,3 +971,60 @@ class TestPublicApiExport:
 
         assert sra.LOGOCVResult is LOGOCVResult
         assert "LOGOCVResult" in sra.__all__
+
+
+# =============================================================================
+# Tier 4 (add-prediction-permutation-and-figure, #200): permutation_test() /
+# top_quartile_recovery(). See design.md Decisions 1-2 and the
+# `cross-platform-prediction` spec delta for full rationale.
+# =============================================================================
+
+
+class TestTopQuartileRecovery:
+    """Unit tests for top_quartile_recovery() (design.md Decision 2, tasks.md 2.1-2.4)."""
+
+    def test_top_quartile_recovery_perfect_prediction_recovers_all(self):
+        """A strictly monotonic y_pred (== y_true) recovers all of the top quartile."""
+        y_true = np.array([5.0, 3.0, 1.0, 4.0, 2.0, 0.0, 6.0, 7.0])
+        y_pred = y_true.copy()
+        assert top_quartile_recovery(y_true, y_pred) == pytest.approx(1.0)
+
+    def test_top_quartile_recovery_uses_top_2q_predicted_set(self):
+        """True top-q genotypes absent from predicted top-q but present in top-2q count."""
+        # n=8, explicit q=2. True top-2 (by y_true): indices 0, 1 (values 10, 9).
+        y_true = np.array([10.0, 9.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        # Predicted ranking (desc): idx6 (10), idx7 (9), idx1 (6), idx0 (5), ...
+        # -> predicted top-2 = {6, 7} (excludes true top-2 entirely);
+        #    predicted top-4 = {6, 7, 1, 0} (includes both of true top-2).
+        y_pred = np.array([5.0, 6.0, 0.5, 0.6, 0.7, 0.8, 10.0, 9.0])
+        assert top_quartile_recovery(y_true, y_pred, q=2) == pytest.approx(1.0)
+
+    def test_top_quartile_recovery_default_q_is_quarter_of_n(self):
+        """With len(y_true)=19 and q omitted, the effective q used is round(19/4)=5."""
+        rng = np.random.default_rng(123)
+        y_true = rng.standard_normal(19)
+        y_pred = rng.standard_normal(19)
+        default_result = top_quartile_recovery(y_true, y_pred)
+        explicit_q5_result = top_quartile_recovery(y_true, y_pred, q=5)
+        assert default_result == pytest.approx(explicit_q5_result)
+
+    def test_top_quartile_recovery_small_n_gives_at_least_one_and_not_over_n(self):
+        """At n=3 (this program's smallest real scale), default q is >=1 and 2*q<=n."""
+        y_true = np.array([3.0, 1.0, 2.0])
+        y_pred = np.array([1.0, 3.0, 2.0])
+        default_result = top_quartile_recovery(y_true, y_pred)
+        # The only valid q satisfying q>=1 and 2*q<=3 is q=1.
+        assert default_result == pytest.approx(
+            top_quartile_recovery(y_true, y_pred, q=1)
+        )
+
+    def test_top_quartile_recovery_rejects_explicit_invalid_q(self):
+        """An explicit q=0, negative q, or 2*q > len(y_true) raises ValueError."""
+        y_true = np.array([1.0, 2.0, 3.0])
+        y_pred = np.array([1.0, 2.0, 3.0])
+        with pytest.raises(ValueError, match="q=0"):
+            top_quartile_recovery(y_true, y_pred, q=0)
+        with pytest.raises(ValueError, match="q=-1"):
+            top_quartile_recovery(y_true, y_pred, q=-1)
+        with pytest.raises(ValueError, match="q=2"):
+            top_quartile_recovery(y_true, y_pred, q=2)  # 2*2=4 > len(y_true)=3

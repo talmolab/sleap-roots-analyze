@@ -33,11 +33,14 @@
 
 ## 1. Fixtures (test-first)
 
-- [ ] 1.1 Reuse Tier 3's N=20-seed-averaged planted-signal fixture (`n_genotypes=19, n_traits=3,
+- [x] 1.1 Reuse Tier 3's N=20-seed-averaged planted-signal fixture (`n_genotypes=19, n_traits=3,
       signal_strength=0.8`, seeds `1..20`) and its pure-noise counterpart, per Tier 3 Decision 6 —
       do not re-derive from `theory.md`'s single-seed recipe. Confirm these fixtures (or a thin
       wrapper reusing their generator function) are importable from this tier's test module.
-- [ ] 1.2 Add a small set of independent pure-noise fixtures (real, non-degenerate `X`; `y`
+      **Confirmed:** `cross_platform_planted_signal_fixture`/`cross_platform_pure_noise_fixture`
+      (`tests/fixtures.py`) are registered via `conftest.py`'s `from tests.fixtures import *` —
+      importable as ordinary pytest fixtures with no change needed.
+- [x] 1.2 Add a small set of independent pure-noise fixtures (real, non-degenerate `X`; `y`
       independently drawn, no planted relationship) for the K-S permutation-calibration oracle —
       **exactly 40** independent realizations (pinned to one exact number, not "~30-50", per
       `/review-openspec` round 3's request for exact, measurable quantities), each with a **fixed,
@@ -46,31 +49,38 @@
       other fixtures' scale). Pinning both to literals makes task 9.1's K-S test a deterministic
       golden check rather than a live stochastic
       draw with an intrinsic ~5%+ false-failure rate across 3 OSes × every PR.
-- [ ] 1.3 Add a small 2-platform synthetic BLUP fixture pair with `prediction.visualize: true`
+      **Implemented:** `cross_platform_permutation_calibration_fixture` (`tests/fixtures.py`),
+      seed offset +30000 (seeds 1..40), same (19, 3) shape as the primary fixtures.
+- [x] 1.3 Add a small 2-platform synthetic BLUP fixture pair with `prediction.visualize: true`
       wired into a harness YAML (extending Tier 3.5's own harness fixture at
       `tests/fixtures/harness/cross_platform/`, or a sibling file) — used for wiring-correctness
       tests in Sections 6-8, not for statistical oracle assertions (mirrors Tier 3.5 task 1.1/1.2's
       "wiring correctness, not statistical claim" framing).
+      **Implemented:** `cross_platform_prediction_wiring_visualize.yaml`, extending Tier 3.5's
+      `cross_platform_prediction_wiring.yaml` with `visualize: true, n_permutations: 20,
+      permutation_random_state: 42, permutation_n_jobs: 1` (wiring-test default; individual tests
+      override `n_jobs` on the loaded, non-frozen `PredictionConfig` object when real
+      `joblib.Parallel` dispatch is needed).
 
 ## 2. `permutation_test()`/`top_quartile_recovery()` (test-first)
 
-- [ ] 2.1 Write failing test `test_top_quartile_recovery_perfect_prediction_recovers_all`: a
+- [x] 2.1 Write failing test `test_top_quartile_recovery_perfect_prediction_recovers_all`: a
       strictly monotonic `y_pred` (e.g. `y_pred == y_true`) gives `top_quartile_recovery == 1.0`.
-- [ ] 2.2 Write failing test `test_top_quartile_recovery_uses_top_2q_predicted_set`: construct a
+- [x] 2.2 Write failing test `test_top_quartile_recovery_uses_top_2q_predicted_set`: construct a
       case where the true top-`Q` genotypes are NOT in the predicted top-`Q` but ARE in the
       predicted top-`2Q` — assert full recovery (proves the `2Q` window, not `Q`, is used).
-- [ ] 2.3 Write failing test `test_top_quartile_recovery_default_q_is_quarter_of_n`: with
+- [x] 2.3 Write failing test `test_top_quartile_recovery_default_q_is_quarter_of_n`: with
       `len(y_true) == 19` and `q` omitted, assert the effective `q` used equals `round(19 / 4)`
       (inspect via a case constructed so a wrong `q` produces a different recovery fraction).
-- [ ] 2.3a Write failing test `test_top_quartile_recovery_small_n_gives_at_least_one_and_not_over_n`:
+- [x] 2.3a Write failing test `test_top_quartile_recovery_small_n_gives_at_least_one_and_not_over_n`:
       at `len(y_true)=3` (this program's smallest real scale), assert the effective *default* `q`
       used is `>= 1` and `2 * q <= len(y_true)` (guards against a vacuous `q=0` or an out-of-range
       window).
-- [ ] 2.3b Write failing test `test_top_quartile_recovery_rejects_explicit_invalid_q`: a caller-
+- [x] 2.3b Write failing test `test_top_quartile_recovery_rejects_explicit_invalid_q`: a caller-
       supplied `q=0`, a negative `q`, or a `q` with `2 * q > len(y_true)` raises `ValueError` naming
       the invalid `q` and `len(y_true)` — a stricter contract than 2.3a's *default*-`q` case, which
       the function itself computes and guarantees valid.
-- [ ] 2.4 Implement `top_quartile_recovery(y_true, y_pred, q=None)` in
+- [x] 2.4 Implement `top_quartile_recovery(y_true, y_pred, q=None)` in
       `cross_platform_prediction.py`. Make 2.1-2.3b green.
 
 > **Commit boundary**: 2.1-2.4 (`top_quartile_recovery`, no dependency on `permutation_test`) is a
@@ -632,8 +642,8 @@
       NOT yet the case after round 2 here, which found 2 new BLOCKING + several IMPORTANT; a
       further round is warranted before this is a natural stopping point). Reconcile literally
       into `design.md`.
-- [ ] 13.5 Wait for Elizabeth's explicit approval of the fully-reconciled proposal before starting
-      implementation (Sections 1-10).
+- [x] 13.5 Wait for Elizabeth's explicit approval of the fully-reconciled proposal before starting
+      implementation (Sections 1-10). **Approved 2026-07-17.**
 - [ ] 13.6 Section 11's manual real-data validation gate, complete with sign-off.
 - [ ] 13.7 Post-implementation code review: `/pre-merge-check` including a 5-subagent `/review-pr`
       self-review pass before the PR opens, and a second fresh pass once CI runs on the open PR
