@@ -13,7 +13,16 @@ SHALL accept anything `numpy.random.default_rng()` itself accepts — an `int`, 
 requirement) derives per-`(target, method)` seeds as `numpy.random.SeedSequence` children via
 `SeedSequence(...).spawn(N)`, not as plain integers, and passes each child through unchanged
 (`numpy.random.default_rng` accepts a `SeedSequence` directly — no int-extraction step exists or
-is needed).
+is needed). **Reproducibility caveat, `int`/`SeedSequence` vs. `Generator`:** `int` and
+`SeedSequence` are stateless value-seeds — reusing the same value across two calls always
+reproduces the same null draws (the "Same random_state produces identical null distributions"
+scenario below). A `Generator` instance is **mutable and stateful**
+(`numpy.random.default_rng(existing_generator)` returns that exact instance unaltered, per numpy's
+own documented behavior) — passing the *same* `Generator` instance to two separate
+`permutation_test()` calls advances its internal state between calls and will **not** reproduce
+the same null draws the second time. This function accepts a `Generator` for flexibility, but only
+`int`/`SeedSequence` inputs carry a reproducibility guarantee; `VisualizePredictionStep` never
+passes a bare `Generator` for exactly this reason (only `SeedSequence` children).
 
 The function SHALL first call `logo_cv_predict(X, y, genotypes, reduction_method,
 representative_names)` once, on the real (unshuffled) `y`, to obtain the observed R², RMSE,
@@ -28,8 +37,16 @@ leave-one-genotype-out predictions.
 
 The function SHALL return a `PermutationResult` (see the `serializable-result-types` capability)
 holding the observed values, the four null distributions (each of length `n_permutations`), and
-one-sided p-values for R², RMSE, and Spearman ρ, computed as
-`(count(null >= observed) + 1) / (n_permutations + 1)`.
+one-sided p-values for R², RMSE, and Spearman ρ — **not the same formula for all three**, since
+"more extreme" points in opposite directions for RMSE than for R²/ρ:
+- **R² and Spearman ρ** (higher is better prediction): `p = (count(null >= observed) + 1) /
+  (n_permutations + 1)` — an observed value in the right tail of the null is evidence of real
+  signal.
+- **RMSE** (lower is better prediction): `p = (count(null <= observed) + 1) / (n_permutations +
+  1)` — an observed value in the *left* tail of the null is evidence of real signal. Using the
+  R²/ρ-style formula for RMSE would invert the result: a genuinely good (low-RMSE) model would
+  read as non-significant (`p ≈ 1`), and a genuinely bad (high-RMSE) model would read as highly
+  significant (`p ≈ 0`).
 
 A permutation's LOGO-CV fold structure can independently produce a non-finite `spearman_rho` (e.g.
 a degenerate fold whose predictions are constant) even when that permutation's shuffled `y` is
@@ -70,15 +87,19 @@ that matters, while complicating the accounting of *which* permutations were and
 - **THEN** `X` and `genotypes` SHALL be passed to that iteration's `logo_cv_predict()` call
   unmodified, and only `y`'s association with `genotypes`/`X`'s rows SHALL be shuffled
 
-#### Scenario: Same random_state produces identical null distributions
+#### Scenario: Same int or SeedSequence random_state produces identical null distributions
 
 - **WHEN** `permutation_test(X, y, genotypes, reduction_method, n_permutations=N,
-  random_state=S)` is called twice, in the same process, with identical arguments
+  random_state=S)` is called twice, in the same process, with identical arguments, where `S` is
+  either a plain `int` or a `numpy.random.SeedSequence` value (parametrize both)
 - **THEN** both calls SHALL produce bit-identical `null_r2`/`null_rmse`/`null_spearman_rho`/
   `null_top_quartile_recovery` arrays — this in-process determinism guarantee is distinct from the
   `cross-platform-analysis` capability's cross-`joblib`-worker-process tolerance requirement
   (`assert_allclose(rtol=1e-6, atol=1e-9)`, not bit-identical), which concerns a different variable
-  (worker-process BLAS thread count), not this function's own determinism
+  (worker-process BLAS thread count), not this function's own determinism. **Not tested for a bare
+  `Generator` input**, which is stateful and does not carry this guarantee (see the requirement
+  body's reproducibility caveat above) — passing the same `Generator` instance twice is expected to
+  produce *different* results, not identical ones.
 
 #### Scenario: Different random_state produces different null distributions
 
@@ -94,11 +115,22 @@ that matters, while complicating the accounting of *which* permutations were and
   `top_quartile_recovery(y_shuffled, y_pred_shuffled)`, not
   `top_quartile_recovery(y, y_pred_shuffled)` (the original, unshuffled `y`)
 
-#### Scenario: One-sided p-values follow the standard permutation-test formula
+#### Scenario: One-sided p-values follow the standard permutation-test formula, per metric direction
 
 - **WHEN** `permutation_test()` completes with observed value `obs` and null distribution `null`
-  of length `N` for a given metric
+  of length `N`, for R² or Spearman ρ (higher is better)
 - **THEN** that metric's p-value SHALL equal `(count(v >= obs for v in null) + 1) / (N + 1)`
+- **WHEN** the same completes for RMSE (lower is better)
+- **THEN** `p_value_rmse` SHALL equal `(count(v <= obs for v in null) + 1) / (N + 1)` — the
+  opposite-tail formula, not the R²/ρ formula
+
+#### Scenario: A good (low-RMSE) result does not read as non-significant
+
+- **GIVEN** a planted-signal fixture where the observed RMSE is comfortably below the bulk of the
+  null RMSE distribution (a genuinely good model)
+- **WHEN** `permutation_test()` computes `p_value_rmse`
+- **THEN** `p_value_rmse` SHALL be small (comfortably below `0.5`), not large — proving the
+  left-tail formula is actually in effect, not the right-tail formula silently inverted
 
 #### Scenario: Non-finite null values are rejected with a named, actionable error
 
@@ -123,8 +155,10 @@ supplied.
 Under a random (uninformative) `y_pred`, the expected recovery is `2q / len(y_true)` by linearity
 of expectation (a fixed top-`q` set has, in expectation, a `2q / len(y_true)` fraction of its
 members appear in a randomly-drawn top-`2q` set) — at this program's real scale
-(`len(y_true) ≈ 15-24`, `q = round(len(y_true) / 4)`), this is **≈45-53%**, not the roadmap's
-originally-estimated "≈25%". The permutation null's actual mean recovery under
+(`len(y_true) ≈ 15-24`, `q = round(len(y_true) / 4)`), this ranges **≈44-55%** depending on `n` and
+Python's banker's rounding (e.g. `n=18 → q=4 → 44.4%`; `n=19 → q=5 → 52.6%`; `n=22 → q=6 → 54.5%`
+— computed directly for every `n` in this range, not a single illustrative figure), not the
+roadmap's originally-estimated "≈25%". The permutation null's actual mean recovery under
 `permutation_test()` (see the Permutation Test requirement's oracle tests) SHALL be verified
 empirically against this `2q / n` expectation during implementation, not assumed from the
 roadmap's earlier, unverified estimate.

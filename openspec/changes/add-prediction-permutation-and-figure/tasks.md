@@ -39,10 +39,12 @@
       wrapper reusing their generator function) are importable from this tier's test module.
 - [ ] 1.2 Add a small set of independent pure-noise fixtures (real, non-degenerate `X`; `y`
       independently drawn, no planted relationship) for the K-S permutation-calibration oracle —
-      ~30-50 independent realizations, each with a **fixed, committed literal seed** (not
-      regenerated per test run) and a **fixed, committed literal `permutation_test` `random_state`**
-      for the oracle itself, `n_genotypes=19` (matches the other fixtures' scale). Pinning both to
-      literals makes task 9.1's K-S test a deterministic golden check rather than a live stochastic
+      **exactly 40** independent realizations (pinned to one exact number, not "~30-50", per
+      `/review-openspec` round 3's request for exact, measurable quantities), each with a **fixed,
+      committed literal seed** (not regenerated per test run) and a **fixed, committed literal
+      `permutation_test` `random_state`** for the oracle itself, `n_genotypes=19` (matches the
+      other fixtures' scale). Pinning both to literals makes task 9.1's K-S test a deterministic
+      golden check rather than a live stochastic
       draw with an intrinsic ~5%+ false-failure rate across 3 OSes × every PR.
 - [ ] 1.3 Add a small 2-platform synthetic BLUP fixture pair with `prediction.visualize: true`
       wired into a harness YAML (extending Tier 3.5's own harness fixture at
@@ -215,13 +217,17 @@
 - [ ] 5.3 Extend `PredictCrossPlatformStep.execute()` in `predict_cross_platform.py` to populate
       `predictor_matrices`. Make 5.1-5.2 green.
 
-## 5a. `joblib` dependency (must land before Section 6)
+## 5a. `joblib` dependency (must land before Section 7b)
 
 - [ ] 5a.1 Add `joblib` to `pyproject.toml`'s direct dependencies (design.md Decision 5), pinned to
-      the version already resolved transitively via `scikit-learn` in this environment's lockfile
-      — moved ahead of Section 6, which imports `joblib.Parallel` directly at module level; adding
-      the dependency after that import would exist is backwards (found during `/review-openspec`
-      round 1).
+      the version already resolved transitively via `scikit-learn` in this environment's lockfile,
+      and regenerate `uv.lock` accordingly (found during `/review-openspec` round 3: the original
+      task didn't mention the lockfile needs regenerating alongside the `pyproject.toml` edit) —
+      ordered ahead of Section 7b, which imports `joblib.Parallel` directly at module level (this
+      task was originally worded around "Section 6," which meant `VisualizePredictionStep` before
+      round 2's Section 6/7 restructuring moved the step to Section 7 and made Section 6 the
+      figure-content module instead, which does not import `joblib` — corrected during round 3).
+      Adding the dependency after that import would exist is backwards.
 
 ## 6. Figure content: `visualize_prediction.py` module (test-first)
 
@@ -239,10 +245,16 @@
       the two bars' heights equal the mean observed and mean null top-quartile-recovery across all
       targets.
 - [ ] 6.4 Write failing test `test_create_prediction_figure_returns_a_figure_with_three_axes`.
+- [ ] 6.4a Write failing test `test_create_prediction_figure_handles_single_target`: given only one
+      target's data (e.g. the PC1-only degenerate case Section 7 also handles — found during
+      `/review-openspec` round 3: task 7c.7 will call this function for that same fixture, and
+      nothing previously verified the violin/bar-chart panels degrade gracefully to `N=1` target
+      rather than erroring on a single-element distribution), assert the figure is still built
+      successfully with all 3 panels present, not a crash.
 - [ ] 6.5 Implement `create_prediction_figure(...)` (and any supporting per-panel helper functions)
       in new `src/sleap_roots_analyze/visualize_prediction.py`, following
       `cross_experiment_analysis.py`'s plotting-function convention (pure functions returning a
-      `matplotlib.Figure`, no file I/O). Make 6.1-6.4 green.
+      `matplotlib.Figure`, no file I/O). Make 6.1-6.4a green.
 
 ## 7. `VisualizePredictionStep` (test-first)
 
@@ -254,22 +266,39 @@
 
 **7a. Wiring and predictor-matrix reuse (red→green pair 1)**
 
-- [ ] 7a.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`: spy
-      on any BLUP-loading/genotype-mean-aggregation function to confirm zero calls when
-      `predictor_matrices` is supplied via `kwargs["06_predict_cross_platform"]`.
+> **Mocking-across-process-boundary note (found during `/review-openspec` round 3):** every test
+> below that mocks/spies on `permutation_test` or a BLUP-loading/aggregation function MUST fix
+> `config.prediction.permutation_n_jobs=1` in its fixture. `joblib.Parallel(n_jobs=1)` runs
+> sequentially in-process (never touching the `loky` backend), so a `unittest.mock.patch` in the
+> test process stays valid; at `n_jobs>1`, `loky` dispatches to separate worker processes where a
+> parent-process mock is invisible (the worker calls the real, unmocked function, or a spy
+> implemented as a non-picklable `Mock` raises `PicklingError`) — either way the test would stop
+> testing what it claims, or break outright, the moment real parallelization is exercised. This
+> applies to 7a.1, 7a.3, 7a.4, and 7b.4 below; 7b.1/7b.2 avoid the issue by inspecting the
+> `joblib.Parallel`/`delayed` construction itself rather than mocking `permutation_test`.
+
+- [ ] 7a.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`
+      (`permutation_n_jobs=1`, see note above): spy on any BLUP-loading/genotype-mean-aggregation
+      function to confirm zero calls when `predictor_matrices` is supplied via
+      `kwargs["06_predict_cross_platform"]`.
 - [ ] 7a.2 Write failing test `test_visualize_prediction_step_handles_pc1_only_targets`: with zero
       representative-trait targets (only `target_name="PC1"` present, e.g. a fixture where
       `select_cluster_representatives` returned empty — Tier 3.5's own documented degenerate case),
       the step's target/method enumeration produces exactly `N=1` unit per method, not a crash.
+      This test only exercises the pre-`joblib` serial path built in 7a.5 — task 7b.7 below
+      re-verifies this same PC1-only fixture through the real `joblib.Parallel` dispatch added in
+      7b.6, since the "Step still runs with only the PC1 target" scenario explicitly requires the
+      degenerate case to work when *dispatched through `joblib.Parallel`*, not merely when called
+      serially.
 - [ ] 7a.3 Write failing test
-      `test_visualize_prediction_step_calls_permutation_test_once_per_target_per_method`: for `N`
-      targets × `M` methods (`reduction_method` + `comparison_methods`), `permutation_test` is
-      called exactly `N * M` times (serial call, `n_jobs=1`, for this red→green pair — parallel
-      dispatch is Section 7b's concern).
+      `test_visualize_prediction_step_calls_permutation_test_once_per_target_per_method`
+      (`permutation_n_jobs=1`, see note above): for `N` targets × `M` methods (`reduction_method` +
+      `comparison_methods`), `permutation_test` is called exactly `N * M` times.
 - [ ] 7a.4 Write failing test
-      `test_visualize_prediction_step_calls_permutation_test_n_times_when_comparison_methods_empty`:
-      with `comparison_methods=[]` (`K=0`), `permutation_test` is called exactly `N` times (`N`
-      targets × 1 method) — an explicit `K=0` case, not just the general `N * M` formula in 7a.3.
+      `test_visualize_prediction_step_calls_permutation_test_n_times_when_comparison_methods_empty`
+      (`permutation_n_jobs=1`, see note above): with `comparison_methods=[]` (`K=0`),
+      `permutation_test` is called exactly `N` times (`N` targets × 1 method) — an explicit `K=0`
+      case, not just the general `N * M` formula in 7a.3.
 - [ ] 7a.5 Implement a minimal `VisualizePredictionStep(BaseStep)` in new
       `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py`: reads `predictor_matrices`
       and task 6's results, enumerates `(target_name, method)` combinations in the canonical order
@@ -296,10 +325,11 @@
       distinct seeds, the `i`-th child assigned to the `i`-th combination in that order — no two
       combinations receive the same seed, and re-running with the same `permutation_random_state`
       and the same combinations reproduces the same derived seeds.
-- [ ] 7b.4 Write failing test `test_visualize_prediction_step_permutation_test_receives_derived_seed`:
-      spy on `permutation_test` to confirm each call's `random_state` argument is that
-      combination's derived `SeedSequence` child from 7b.3 (passed through unchanged — no
-      int-extraction step, per `default_rng`'s uniform acceptance of `SeedSequence`), not the raw
+- [ ] 7b.4 Write failing test `test_visualize_prediction_step_permutation_test_receives_derived_seed`
+      (`permutation_n_jobs=1`, see the note at the top of Section 7a): spy on `permutation_test` to
+      confirm each call's `random_state` argument is that combination's derived `SeedSequence`
+      child from 7b.3 (passed through unchanged — no int-extraction step, per `default_rng`'s
+      uniform acceptance of `SeedSequence`), not the raw
       `config.prediction.permutation_random_state`.
 - [ ] 7b.5 Write failing test
       `test_visualize_prediction_step_parallel_vs_serial_results_agree_within_tolerance`: on a
@@ -310,10 +340,23 @@
       every element of every null distribution — **not bit-identical** (loky worker processes may
       resolve a different default BLAS thread count than the main process, a documented source of
       ULP-level floating-point differences per `docs/reproducibility.md`'s established cross-BLAS
-      tolerance convention, independent of this step's own correctness).
+      tolerance convention, independent of this step's own correctness). This test calls the real
+      `permutation_test` (no mocking) at both `n_jobs` settings, so it is unaffected by the
+      mocking-across-process-boundary note above.
 - [ ] 7b.6 Extend `VisualizePredictionStep` to dispatch the 7a.5 enumeration through
       `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs, backend="loky")`, deriving
       per-combination seeds via `SeedSequence.spawn(N)` (7b.3). Make 7b.1-7b.5 green.
+- [ ] 7b.7 Write failing test `test_visualize_prediction_step_handles_pc1_only_targets_via_joblib`:
+      re-run 7a.2's PC1-only (zero representative-trait) fixture at `permutation_n_jobs=4` (real
+      multi-process dispatch, no mocking), asserting the step still runs successfully through the
+      full `joblib.Parallel` dispatch with `N=1` total unit per method, producing a valid
+      `CrossPlatformPermutationResult` — not a crash. Required per the `cross-platform-analysis`
+      spec's "Step still runs with only the PC1 target when zero representative traits are
+      selected" scenario, which explicitly requires this to work when dispatched through
+      `joblib.Parallel`, not merely when called serially (found during `/review-openspec` round 3:
+      7a.2 alone only tests the pre-`joblib` serial path built in 7a.5, never re-verified after
+      real parallelization is wired in by 7b.6). Make green (should already pass once 7b.6 lands;
+      this is a regression/completeness check, not new production code).
 
 **7c. JSON/figure output (red→green pair 3)**
 
@@ -369,19 +412,41 @@
 
 > **CI-timeout note (found during `/review-openspec` round 2):** every oracle test below MUST
 > state an explicit, small `n_permutations` for CI — at the production default (`1000`) across
-> the N=20-seed fixture (9.2/9.3) or 30-50-fixture set (9.1), several of these would individually
+> the N=20-seed fixture (9.2/9.3) or the 40-fixture set (9.1), several of these would individually
 > cost minutes and collectively threaten the shared 30-minute CI job budget across 3 OSes. Only
 > 9.1 stated this explicitly in an earlier draft; 9.2/9.3/9.4b now do too.
+>
+> **Estimated (not yet measured) total added CI time (found during `/review-openspec` round 3):**
+> ~8 minutes serial, at ~20ms/`logo_cv_predict` call, `n_permutations=200`, across 9.1 (40 fixtures
+> × 201 calls) + 9.2 + 9.3 + 9.4b (20-seed fixture, ×201 calls each). This is an estimate, not a
+> measurement — task 9.6 MUST record the actual measured wall time for Section 9's test suite (per
+> OS, since Windows runners are typically slower for process/import-heavy work) and, if it
+> meaningfully threatens the shared 30-minute budget once Sections 2-8's other new tests and 7b.5's
+> real multi-process `loky` test are also counted, reduce `n_permutations` further and/or the
+> fixture count, rather than assuming the estimate above holds.
 
 - [ ] 9.1 Write failing test `test_permutation_test_p_values_are_uniform_under_null` (K-S
-      calibration oracle): run `permutation_test()` on ~30-50 independent pure-noise fixtures
-      (task 1.2) with `n_permutations=200` (explicit, CI-fast — distinct from the
-      `n_permutations=1000` production default), collect the resulting `p_value_r2`s, K-S-test
-      against `Uniform(0,1)`, assert `p > 0.05`.
+      calibration oracle): run `permutation_test()` on all 40 pure-noise fixtures (task 1.2) with
+      `n_permutations=200` (explicit, CI-fast — distinct from the `n_permutations=1000` production
+      default), collect the resulting `p_value_r2`s, K-S-test against `Uniform(0,1)`, assert
+      `p > 0.05`.
+- [ ] 9.1a Write failing test `test_permutation_test_p_value_rmse_is_uniform_under_null`: the same
+      K-S calibration procedure as 9.1, but for `p_value_rmse` — a separate, explicit check that
+      the RMSE-specific left-tail p-value formula (per the Permutation Test requirement's
+      per-metric-direction scenario) is itself correctly calibrated, not just correctly directed
+      (found during `/review-openspec` round 3: no oracle anywhere previously checked
+      `p_value_rmse`'s calibration or direction — only `p_value_r2` was covered by 9.1).
 - [ ] 9.2 Write failing test `test_permutation_test_signal_r2_exceeds_its_own_null_median`: on the
       N=20-seed planted-signal fixture (task 1.1), with `n_permutations=200` (explicit, CI-fast),
       the mean observed R² across seeds is comfortably above the mean permutation-null median
       across the same seeds.
+- [ ] 9.2a Write failing test `test_permutation_test_signal_p_value_rmse_reads_as_significant`: on
+      the same planted-signal fixture, assert `p_value_rmse` is small (comfortably below `0.5`),
+      proving the RMSE-specific left-tail formula is actually in effect for a genuinely good
+      (low-RMSE) result — direct regression test for the "A good (low-RMSE) result does not read
+      as non-significant" scenario, guarding against the exact directional-inversion bug found
+      during `/review-openspec` round 3 (the naive R²/ρ-style right-tail formula would instead
+      produce `p_value_rmse ≈ 1.0` here, reading as non-significant).
 - [ ] 9.3 Write failing test `test_permutation_test_noise_r2_falls_within_its_own_null_band`: on the
       pure-noise fixture (task 1.1), with `n_permutations=200` (explicit, CI-fast), mean observed
       R² falls within mean-null-median ± 1σ.
@@ -403,13 +468,15 @@
       twice (different input CSV content between runs, e.g. a perturbed fixture), assert the two
       resulting `07_prediction_figure.png` files differ (via content hash), and that a given run's
       figure's mtime is at or after its input CSVs' mtimes.
-- [ ] 9.6 Implement whatever `permutation_test()`/fixture adjustments are needed to make 9.1-9.3
-      and 9.4b-9.5 pass, recording the actual empirically-determined values from 9.4a in this file
-      and in `design.md`'s Decision 11 note (per this program's "verify, don't assume" convention).
+- [ ] 9.6 Implement whatever `permutation_test()`/fixture adjustments are needed to make 9.1, 9.1a,
+      9.2, 9.2a, 9.3, and 9.4b-9.5 pass, recording the actual empirically-determined values from
+      9.4a in this file and in `design.md`'s Decision 11 note (per this program's "verify, don't
+      assume" convention), and measuring and recording Section 9's actual total wall time per OS
+      (per the CI-timeout note above) here.
 
 ## 10. `theory.md` addendum
 
-> `joblib` dependency addition lives in Section 5a (must precede Section 6, which imports it).
+> `joblib` dependency addition lives in Section 5a (must precede Section 7b, which imports it).
 
 - [ ] 10.1 Add a permutation-null pseudo-code section to
       `c:\vaults\sleap-roots\wheat-edpie-paper\cross-platform-prediction\theory.md` (external

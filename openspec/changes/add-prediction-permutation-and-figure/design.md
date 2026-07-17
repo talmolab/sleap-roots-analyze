@@ -407,12 +407,13 @@ implementation began. 5 BLOCKING and 11 IMPORTANT findings, reconciled as follow
   every fixture seed and the oracle's own `random_state` are pinned to committed literals (a K-S
   test against `Uniform(0,1)` on ~30-50 samples has a real, non-negligible false-failure rate by
   chance). Fixed: tasks.md 1.2 now requires fixed, committed literal seeds throughout.
-- **IMPORTANT — tasks.md 6.5's "bit-identical parallel vs. serial" claim conflicted with real
-  `joblib`/BLAS behavior.** `loky` worker processes may resolve a different default BLAS thread
-  count than the main process — a documented source of ULP-level floating-point differences,
-  independent of this step's own correctness (this codebase already has an established convention
-  for exactly this class of cross-BLAS difference, `rtol=1e-6, atol=1e-9`,
-  `docs/reproducibility.md`). Fixed: the `cross-platform-analysis` spec and tasks.md 6.5 now assert
+- **IMPORTANT — the "bit-identical parallel vs. serial" claim (task numbered 6.5 at the time of
+  this fix; renumbered to 7b.5 by round 2's Section 6/7 restructuring, see below) conflicted with
+  real `joblib`/BLAS behavior.** `loky` worker processes may resolve a different default BLAS
+  thread count than the main process — a documented source of ULP-level floating-point
+  differences, independent of this step's own correctness (this codebase already has an
+  established convention for exactly this class of cross-BLAS difference, `rtol=1e-6, atol=1e-9`,
+  `docs/reproducibility.md`). Fixed: the `cross-platform-analysis` spec and that task now assert
   `numpy.testing.assert_allclose` at that established tolerance, not bit-identical equality; the
   `joblib` backend (`loky`) is now stated explicitly rather than left unspecified.
 - **IMPORTANT — the additive `predictor_matrices` key relies on an unstated invariant** (no valid
@@ -420,7 +421,10 @@ implementation began. 5 BLOCKING and 11 IMPORTANT findings, reconciled as follow
   `"predictor_matrices"`). Fixed: Decision 6 and the `cross-platform-analysis` spec now state this
   explicitly, with a corresponding scenario.
 - **IMPORTANT — `joblib`'s dependency addition (originally task 10.1) was numbered *after* Section
-  6, which imports it.** Fixed: moved to a new Section 5a, explicitly ordered before Section 6.
+  6, which imported it at the time** (Section 6 was `VisualizePredictionStep` before round 2's
+  restructuring; the step is now Section 7, specifically 7b, and Section 6 is the figure-content
+  module, which does not import `joblib`). Fixed: moved to a new Section 5a, ordered before every
+  section that could plausibly need it.
 - **IMPORTANT — task 9.4 conflated an empirical spike with "write failing test".** You cannot
   write a meaningful assertion against a value that hasn't been computed yet. Fixed: split into
   9.4a (a spike, explicitly not a red/green TDD step) and 9.4b (the actual test, written against
@@ -428,8 +432,11 @@ implementation began. 5 BLOCKING and 11 IMPORTANT findings, reconciled as follow
 - **IMPORTANT — missing edge-case tests**: `n_permutations=1` boundary, an explicit
   `comparison_methods=[]` (`K=0`) case, `VisualizePredictionStep` with zero representative-trait
   (PC1-only) targets under `joblib.Parallel`, and 5.2's regression test not explicitly asserting
-  `predictor_matrices` is the *only* new key. Fixed: tasks.md 2.12a, 6.2a, 6.1a, and an explicit
-  key-set assertion added to 5.2, respectively.
+  `predictor_matrices` is the *only* new key. Fixed: tasks.md 2.12a and an explicit key-set
+  assertion added to 5.2 at the time (the `K=0` and PC1-only cases were tasks numbered 6.2a/6.1a at
+  the time of this fix; renumbered to 7a.4/7a.2 by round 2's Section 6/7 restructuring, see below —
+  and round 3 found the PC1-only case still needs re-verification under real `joblib` dispatch, not
+  just the pre-parallelization serial path these renumbered tasks actually test).
 - **IMPORTANT — Section 11's timing relative to the PR lifecycle was ambiguous.** Tier 3.5's own
   real commit history (PR #199) shows manual validation running *between* two rounds of PR-review
   fix commits, not strictly pre-PR-open. Fixed: tasks.md Section 11 now states this explicitly.
@@ -464,8 +471,9 @@ But it also found 2 new BLOCKING issues — both real implementation-blocking bu
 a further batch of IMPORTANT gaps:
 
 - **BLOCKING (new) — round 1's own RNG fix was itself invalid.** `numpy.random.Generator(random_state)`
-  requires a `BitGenerator` instance and raises `TypeError` on a bare `int` — the exact API round 1's
-  fix specified. Separately, the `SeedSequence.spawn(N)` → `permutation_test(random_state=...)`
+  requires a `BitGenerator` instance and raises (empirically confirmed: `AttributeError`, since an
+  `int` has no `.capsule` attribute — not `TypeError`, corrected during round 3) on a bare `int` —
+  the exact API round 1's fix specified. Separately, the `SeedSequence.spawn(N)` → `permutation_test(random_state=...)`
   handoff (also introduced in round 1) was left completely unspecified: `spawn()` returns
   `SeedSequence` objects, not ints, and `permutation_test`'s signature was still typed as a plain
   `int`. Fixed: `permutation_test` now builds its RNG via `numpy.random.default_rng(random_state)`,
@@ -568,3 +576,101 @@ a further batch of IMPORTANT gaps:
 Full re-validation (`openspec validate add-prediction-permutation-and-figure --strict`) passes
 after all round-2 fixes (94 tasks, up from 88 — 2 new BLOCKING fixes and the Section 6/7
 restructuring account for most of the growth).
+
+## Adversarial Review Reconciliation (round 3)
+
+A third, independent round of the same 5-agent review (run fresh, with no memory of rounds 1-2)
+re-verified nearly everything from both prior rounds directly (the restored 20-scenario MODIFIED
+requirement re-counted a third time with no drift found; the `2q/n` math re-derived independently
+and confirmed correct including the small-`n=3` edge case; `numpy.random.default_rng`'s accepted-
+input claim confirmed against real numpy behavior; the `predictor_matrices` collision invariant
+re-checked against current source; Tier 3.5's manual-validation timing claim re-verified against
+real commit timestamps a second time). But it also found 1 new BLOCKING issue — a genuine
+statistical bug that both prior rounds missed entirely — plus a real, concrete implementation risk
+in the round-2 restructuring, and several smaller staleness/precision gaps this proposal's own
+churn across two rounds had introduced:
+
+- **BLOCKING (new) — the RMSE p-value formula was directionally inverted.** The R²/ρ formula
+  (`count(null >= observed)`, right-tail — correct, since higher R²/ρ means better prediction) was
+  applied uniformly to RMSE too, where *lower* is better prediction — meaning a genuinely good
+  (low-RMSE) result would read as non-significant (`p ≈ 1`) and a genuinely bad (high-RMSE) result
+  would read as highly significant (`p ≈ 0`), exactly backwards. Verified by direct simulation
+  during the review. Neither round 1 nor round 2 caught this, and no planned oracle test would have
+  either — 9.1's K-S calibration only checked `p_value_r2`; 9.2/9.3 only checked mean R². Fixed:
+  the Permutation Test requirement now states the correct, metric-specific formula (right-tail for
+  R²/ρ, **left-tail**, `count(null <= observed)`, for RMSE), with two new scenarios and two new
+  oracle tests (9.1a: RMSE-specific K-S calibration; 9.2a: a direct regression test that a good
+  low-RMSE planted-signal result reads as significant, not the reverse).
+- **BLOCKING (new) — mock-based spy tests (7a.1/7a.3/7a.4/7b.4) would silently break or stop
+  testing anything once real `joblib` multi-process dispatch is wired in by 7b.6.** `loky` dispatches
+  work to separate worker *processes*; a `unittest.mock.patch` applied in the parent/test process
+  is invisible inside a worker — the worker either calls the real, unmocked function (silently
+  defeating the spy) or a non-picklable `Mock` raises `PicklingError`. This is concretely avoidable
+  only because `joblib.Parallel(n_jobs=1)` is documented to run sequentially in-process, never
+  touching `loky` — but nothing in the original task text said these tests must pin
+  `permutation_n_jobs=1` to rely on that fast path. Fixed: an explicit note added at the top of
+  Section 7a stating this requirement for 7a.1/7a.3/7a.4/7b.4, and clarifying that 7b.1/7b.2 (which
+  inspect the `joblib.Parallel`/`delayed` construction directly, not `permutation_test`) and 7b.5
+  (which calls the real function, no mocking) are unaffected.
+- **IMPORTANT (new) — 7a.2's PC1-only-targets test only exercises the pre-`joblib` serial path**,
+  never re-verified after 7b.6 wires in real parallel dispatch, despite the `cross-platform-
+  analysis` spec's own scenario text requiring this degenerate case to work "dispatching `N=1`...
+  through `joblib.Parallel`." Fixed: new task 7b.7 re-runs the same fixture through real
+  `joblib.Parallel(n_jobs=4)` (no mocking) as a completeness/regression check.
+- **IMPORTANT (new) — `create_prediction_figure()` (Section 6) had no test for a single-target
+  input**, even though 7c.7 will call it for exactly the PC1-only degenerate case Section 7 already
+  handles at the step level — an untested risk that the violin/bar-chart panels might not degrade
+  gracefully to `N=1`. Fixed: task 6.4a.
+- **IMPORTANT (new) — the "`default_rng` accepts `int`/`SeedSequence`/`Generator` uniformly" claim
+  overclaimed semantic equivalence.** `numpy.random.default_rng(existing_generator)` returns that
+  *exact instance*, unaltered — unlike `int`/`SeedSequence` (stateless value-seeds, always
+  reproduce the same stream), a `Generator` is mutable and stateful, so reusing the *same instance*
+  across two `permutation_test()` calls does **not** reproduce the same null arrays the second
+  time (its state has advanced). This silently contradicted the "Same random_state produces
+  identical null distributions" scenario for a caller who (reasonably, per the original claim)
+  passed a `Generator`. Fixed: the requirement body now states this caveat explicitly (only
+  `int`/`SeedSequence` carry the reproducibility guarantee; `VisualizePredictionStep` never passes
+  a bare `Generator` for exactly this reason), and the determinism scenario is now scoped to
+  `int`/`SeedSequence` only, explicitly noting it is not tested (or expected to hold) for a bare
+  `Generator`.
+- **IMPORTANT (new, self-referential) — this proposal's own round-1 reconciliation text had gone
+  stale after round 2's Section 6/7 renumbering**, still citing "tasks.md 6.5," "6.2a," "6.1a," and
+  "Section 6, which imports `joblib`" for things now at 7b.5, 7a.4, 7a.2, and Section 7b
+  respectively — the exact "stale reference after renumbering" trap this review brief warned
+  about, missed by round 2's own restructuring pass. Fixed: round 1's bullets above annotated
+  in-place with the current locations; `tasks.md`'s 5a.1 and Section 10's header corrected from
+  "Section 6" to "Section 7b."
+- **IMPORTANT (new) — CI timing for Section 9's oracle tests was asserted (`n_permutations=200`
+  is "CI-fast"), never actually measured**, and the K-S calibration fixture count was left as
+  "~30-50" rather than an exact, reproducible number. Fixed: pinned to exactly 40 fixtures (task
+  1.2/9.1); task 9.6 now requires recording Section 9's actual measured wall time per OS, not
+  trusting the ~8-minute estimate.
+- **SUGGESTION (new) — the top-quartile-recovery chance-level range ("≈45-53%") was slightly too
+  narrow** given Python's banker's rounding across the real `n=15-24` scale (actual range ≈44.4%
+  at `n=18` to ≈54.5% at `n=22`). Fixed: widened to "≈44-55%," with the exact per-`n` figures shown.
+- **SUGGESTION (new) — the claimed exception type for `numpy.random.Generator(int)` was wrong**
+  (stated as `TypeError`; numpy actually raises `AttributeError`). Fixed, cosmetic only — the
+  underlying design conclusion (avoid this constructor, use `default_rng`) was already correct.
+- **SUGGESTION (new) — the two new same-basename files
+  (`visualize_prediction.py` in two different subpackages) had no explicit acknowledgment anywhere
+  that this was a deliberate, considered naming choice.** Fixed: one clarifying note added to
+  `proposal.md`, plus disambiguating test-file names (`test_step_visualize_prediction.py` vs.
+  `test_visualize_prediction.py`, matching this repo's existing `test_step_visualize_cross_platform.py`
+  convention for step tests).
+- **Verified clean, no action needed:** `SeedSequence.spawn(N)`'s determinism is a real, numpy-
+  documented stream-stability guarantee, not an assumption; the non-finite-null scan's memory
+  footprint is negligible (thousands of floats, not gigabytes) even for the worst-case Cylinder
+  pair; `joblib.Parallel(backend="loky")`'s fail-fast-on-first-exception behavior (confirmed
+  empirically during the review) means "collect all results in memory, write JSON only after
+  `Parallel(...)` returns" is a correct, simple implementation of the all-or-nothing partial-
+  failure contract, with no additional engineering needed; 7b.5's small `n_permutations=50` is a
+  determinism check, not a statistical-power check, so a small `N` doesn't weaken it the way it
+  would for a calibration oracle.
+
+Full re-validation (`openspec validate add-prediction-permutation-and-figure --strict`) passes
+after all round-3 fixes (98 tasks, up from 94). Given the pattern across three rounds — round 1:
+5 BLOCKING; round 2: 2 new BLOCKING; round 3: 1 new BLOCKING (a genuine, previously-undetected
+statistical bug) + 1 new BLOCKING-adjacent implementation risk — severity has **not** cleanly
+diminished round-over-round the way Tiers 3/3.5's own review history did. Each round has still
+found at least one substantive, non-cosmetic defect. A fourth round is recommended before treating
+this as settled, rather than stopping here on volume alone.

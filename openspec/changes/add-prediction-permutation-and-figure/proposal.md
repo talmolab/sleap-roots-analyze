@@ -101,7 +101,14 @@ No changes to `logo_cv_predict`, `fit_pca_on_fold`, `CrossPlatformPredictionResu
 - `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py` (new) —
   `VisualizePredictionStep`.
 - `src/sleap_roots_analyze/visualize_prediction.py` (new) — `create_prediction_figure()` and
-  supporting plotting functions.
+  supporting plotting functions. **Naming note**: this repo already has an analogous pair —
+  `pipeline/steps/visualize_cross_platform.py` (the step) vs. `cross_experiment_analysis.py` (the
+  plotting functions it calls, under a different name) — but this tier's two new files share the
+  same basename (`visualize_prediction.py`) in two different subpackages. Full import paths never
+  collide (`sleap_roots_analyze.visualize_prediction` vs.
+  `sleap_roots_analyze.pipeline.steps.visualize_prediction`), but a bare `grep -r
+  visualize_prediction.py` or an IDE "go to file" will surface both — test files are named to
+  disambiguate (see below), and each module's own docstring notes the other's existence and path.
 - `src/sleap_roots_analyze/pipeline/config/components.py` — 4 new `PredictionConfig` fields;
   extended `CrossPlatformConfig.__post_init__` cross-check.
 - `src/sleap_roots_analyze/pipeline/pipelines/cross_platform_pipeline.py` — conditional 7th task.
@@ -110,8 +117,12 @@ No changes to `logo_cv_predict`, `fit_pca_on_fold`, `CrossPlatformPredictionResu
 - `tests/fixtures.py` / `tests/fixtures/` — new synthetic fixtures (planted-signal/noise reuse
   from Tier 3, pure-noise fixtures for the K-S calibration test).
 - `tests/test_cross_platform_prediction.py` (extended), `tests/test_result_types.py` (extended),
-  `tests/test_predict_cross_platform.py` (extended), `tests/test_visualize_prediction.py` (new),
-  `tests/test_cross_platform_config.py` (extended).
+  `tests/test_predict_cross_platform.py` (extended), `tests/test_cross_platform_config.py`
+  (extended), and two new test files matching the naming-note above's disambiguation:
+  `tests/test_step_visualize_prediction.py` (new, `VisualizePredictionStep` — matching this repo's
+  existing `test_step_visualize_cross_platform.py` convention for step tests) and
+  `tests/test_visualize_prediction.py` (new, `create_prediction_figure()` and its plotting
+  helpers).
 - `docs/API.md`, `docs/CHANGELOG.md`, `docs/CROSS_PLATFORM_ANALYSIS.md` — new function/step/config
   entries.
 - `c:\vaults\sleap-roots\wheat-edpie-paper\cross-platform-prediction\theory.md` (external vault) —
