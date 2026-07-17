@@ -313,11 +313,11 @@
 > `permutation_test`; 7b.5, 7b.7, and 7c's other tests call the real, unmocked functions and are
 > likewise unaffected.
 
-- [ ] 7a.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`
+- [x] 7a.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`
       (`permutation_n_jobs=1`, see note above): spy on any BLUP-loading/genotype-mean-aggregation
       function to confirm zero calls when `predictor_matrices` is supplied via
       `kwargs["06_predict_cross_platform"]`.
-- [ ] 7a.2 Write failing test `test_visualize_prediction_step_handles_pc1_only_targets`: with zero
+- [x] 7a.2 Write failing test `test_visualize_prediction_step_handles_pc1_only_targets`: with zero
       representative-trait targets (only `target_name="PC1"` present, e.g. a fixture where
       `select_cluster_representatives` returned empty — Tier 3.5's own documented degenerate case),
       the step's target/method enumeration produces exactly `N=1` unit per method, not a crash.
@@ -326,16 +326,16 @@
       7b.6, since the "Step still runs with only the PC1 target" scenario explicitly requires the
       degenerate case to work when *dispatched through `joblib.Parallel`*, not merely when called
       serially.
-- [ ] 7a.3 Write failing test
+- [x] 7a.3 Write failing test
       `test_visualize_prediction_step_calls_permutation_test_once_per_target_per_method`
       (`permutation_n_jobs=1`, see note above): for `N` targets × `M` methods (`reduction_method` +
       `comparison_methods`), `permutation_test` is called exactly `N * M` times.
-- [ ] 7a.4 Write failing test
+- [x] 7a.4 Write failing test
       `test_visualize_prediction_step_calls_permutation_test_n_times_when_comparison_methods_empty`
       (`permutation_n_jobs=1`, see note above): with `comparison_methods=[]` (`K=0`),
       `permutation_test` is called exactly `N` times (`N` targets × 1 method) — an explicit `K=0`
       case, not just the general `N * M` formula in 7a.3.
-- [ ] 7a.5 Implement a minimal `VisualizePredictionStep(BaseStep)` in new
+- [x] 7a.5 Implement a minimal `VisualizePredictionStep(BaseStep)` in new
       `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py`: reads `predictor_matrices`
       and task 6's results, enumerates `(target_name, method)` combinations in the canonical order
       (methods first, `[reduction_method] + comparison_methods`; then `target_names` in task 6's
