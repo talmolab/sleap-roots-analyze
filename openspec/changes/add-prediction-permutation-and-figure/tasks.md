@@ -540,7 +540,7 @@
 
 > `joblib` dependency addition lives in Section 5a (must precede Section 7b, which imports it).
 
-- [ ] 10.1 Add a permutation-null pseudo-code section to
+- [x] 10.1 Add a permutation-null pseudo-code section to
       `c:\vaults\sleap-roots\wheat-edpie-paper\cross-platform-prediction\theory.md` (external
       vault), matching its existing LOGO-CV/per-fold-PCA pseudo-code style, including the
       per-target (not per-permutation) `joblib.Parallel` lesson from this tier's benchmark
@@ -551,6 +551,11 @@
       see this change there. No pointer to this addendum exists anywhere in this repo (confirmed
       during `/review-openspec` round 2: it would be discoverable only via archived OpenSpec
       history or vault access) — accepted as a known, non-blocking gap, not fixed in this tier.
+      **Done:** committed separately in the vault's own repo (commit `4535d35`, "docs: add
+      permutation-null pseudo-code addendum") -- new theory.md Section 6 (shuffle-and-refit
+      pseudo-code, the RMSE tail-direction footgun, the per-target parallelization lesson, the
+      2q/n chance-level baseline) plus a Tier 4 subsection added to the renumbered Section 7
+      reviewer checklist. Not part of this repo's diff, as expected.
 
 ## 11. Manual real-data validation gate (non-CI, pre-merge, sign-off required)
 
