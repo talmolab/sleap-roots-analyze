@@ -246,7 +246,7 @@
 
 ## 5a. `joblib` dependency (must land before Section 7b)
 
-- [ ] 5a.1 Add `joblib` to `pyproject.toml`'s direct dependencies (design.md Decision 5), pinned to
+- [x] 5a.1 Add `joblib` to `pyproject.toml`'s direct dependencies (design.md Decision 5), pinned to
       the version already resolved transitively via `scikit-learn` in this environment's lockfile,
       and regenerate `uv.lock` accordingly (found during `/review-openspec` round 3: the original
       task didn't mention the lockfile needs regenerating alongside the `pyproject.toml` edit) —
