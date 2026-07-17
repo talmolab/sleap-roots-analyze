@@ -530,9 +530,12 @@
 - [x] 10.5 Section 8's manual EDPIE validation complete (2026-07-16, including the data-vintage
       correction, the `Computation.Time.s` fix, and the statistical-validity caveat in task 8.5).
       **Elizabeth signed off 2026-07-16.**
-- [ ] 10.6 **Post-implementation code review** (found missing during `/review-openspec` round 3 —
-      Tier 3's own two `/review-pr` passes, pre-PR and on-the-open-PR, caught its real implementation
-      bugs: a CI path bug, input validation gaps, a mypy baseline violation): run `/pre-merge-check`
-      and/or `/review-pr` against the complete implementation diff before opening the PR, and again
-      after CI runs on the open PR — this is the review stage Tier 3's own task 8.4-equivalent
-      precedent (trailing `fix:` commits) actually depends on existing.
+- [x] 10.6 **Post-implementation code review**: two independent 5-subagent `/review-pr` rounds
+      (pre-PR self-review, then a second fresh round after CI ran on the open PR #199) — round 1
+      found and fixed a target-side zero-column crash, a Windows-CI CRLF/LF backward-compat test
+      flakiness bug, a malformed-`platform_pairs` `AttributeError`, and a mypy-baseline violation;
+      round 2 independently reproduced round 1's fixes (both confirmed correct) and found/fixed an
+      `exp1_name == exp2_name` direction-ambiguity gap plus several smaller robustness/test-coverage
+      items. A third fix (float-tolerant CSV comparison, `rtol=1e-6, atol=1e-9`) was needed after a
+      real Ubuntu/macOS CI failure — the CRLF fix alone didn't survive cross-BLAS floating-point
+      precision differences in `cross_platform_correlations.csv`.
