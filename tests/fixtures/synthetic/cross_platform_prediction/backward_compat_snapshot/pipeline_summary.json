@@ -1,0 +1,213 @@
+{
+  "pipeline_name": "cross_platform_SourcePlatform_vs_TargetPlatform",
+  "version": "1.0",
+  "start_time": "2026-07-16T18:25:28.483549",
+  "end_time": "2026-07-16T18:25:34.997572",
+  "total_elapsed_time": 6.514023,
+  "status": "success",
+  "steps": [
+    {
+      "name": "01_load_cross_platform_data",
+      "description": "Load and align SourcePlatform vs TargetPlatform",
+      "status": "success",
+      "elapsed_time": 0.015326738357543945,
+      "files_generated": [],
+      "metadata": {
+        "elapsed_time": 0.015326738357543945,
+        "task_name": "01_load_cross_platform_data",
+        "exp1_name": "SourcePlatform",
+        "exp2_name": "TargetPlatform",
+        "exp1_samples": 19,
+        "exp2_samples": 19,
+        "exp1_traits": 3,
+        "exp2_traits": 3,
+        "exp1_trait_names": [
+          "trait_a",
+          "trait_b",
+          "trait_c"
+        ],
+        "exp2_trait_names": [
+          "trait_x",
+          "trait_y",
+          "trait_z"
+        ],
+        "common_genotypes": 19,
+        "min_samples_per_genotype": 1
+      },
+      "error": null
+    },
+    {
+      "name": "02_reduce_trait_redundancy",
+      "description": "Reduce trait redundancy (none)",
+      "status": "success",
+      "elapsed_time": 0.0,
+      "files_generated": [],
+      "metadata": {
+        "elapsed_time": 0.0,
+        "task_name": "02_reduce_trait_redundancy",
+        "exp1_name": "SourcePlatform",
+        "exp2_name": "TargetPlatform",
+        "exp1_samples": 19,
+        "exp2_samples": 19,
+        "exp1_traits": 3,
+        "exp2_traits": 3,
+        "exp1_trait_names": [
+          "trait_a",
+          "trait_b",
+          "trait_c"
+        ],
+        "exp2_trait_names": [
+          "trait_x",
+          "trait_y",
+          "trait_z"
+        ],
+        "common_genotypes": 19,
+        "min_samples_per_genotype": 1,
+        "trait_reduction_method": "none",
+        "trait_reduction_target": null,
+        "exp1_original_traits": 3,
+        "exp1_reduced_traits": 3,
+        "exp2_original_traits": 3,
+        "exp2_reduced_traits": 3
+      },
+      "error": null
+    },
+    {
+      "name": "03_calculate_correlations",
+      "description": "Calculate correlations using spearman",
+      "status": "success",
+      "elapsed_time": 0.012028694152832031,
+      "files_generated": [],
+      "metadata": {
+        "elapsed_time": 0.012028694152832031,
+        "task_name": "03_calculate_correlations",
+        "total_correlations": 9,
+        "correlation_method": "spearman",
+        "fdr_correction_method": "fdr_by",
+        "significance_level": 0.05,
+        "confidence_level": 0.95,
+        "significant_correlations": 1,
+        "exp1_traits": 3,
+        "exp2_traits": 3,
+        "exp1_trait_names": [
+          "trait_a",
+          "trait_b",
+          "trait_c"
+        ],
+        "exp2_trait_names": [
+          "trait_x",
+          "trait_y",
+          "trait_z"
+        ],
+        "exp1_name": "SourcePlatform",
+        "exp2_name": "TargetPlatform",
+        "min_genotypes_for_correlation": 10,
+        "n_correlations_filtered_low_n": 0,
+        "power_analysis_alpha": 0.05,
+        "power_analysis_power": 0.8,
+        "minimum_detectable_r": 0.6046192670424827,
+        "modal_n_genotypes": 19
+      },
+      "error": null
+    },
+    {
+      "name": "04_calculate_trait_enrichment",
+      "description": "Binomial enrichment on nominal significance (enabled=False)",
+      "status": "success",
+      "elapsed_time": 0.0,
+      "files_generated": [],
+      "metadata": {
+        "elapsed_time": 0.0,
+        "task_name": "04_calculate_trait_enrichment",
+        "total_correlations": 9,
+        "correlation_method": "spearman",
+        "fdr_correction_method": "fdr_by",
+        "significance_level": 0.05,
+        "confidence_level": 0.95,
+        "significant_correlations": 1,
+        "exp1_traits": 3,
+        "exp2_traits": 3,
+        "exp1_trait_names": [
+          "trait_a",
+          "trait_b",
+          "trait_c"
+        ],
+        "exp2_trait_names": [
+          "trait_x",
+          "trait_y",
+          "trait_z"
+        ],
+        "exp1_name": "SourcePlatform",
+        "exp2_name": "TargetPlatform",
+        "min_genotypes_for_correlation": 10,
+        "n_correlations_filtered_low_n": 0,
+        "power_analysis_alpha": 0.05,
+        "power_analysis_power": 0.8,
+        "minimum_detectable_r": 0.6046192670424827,
+        "modal_n_genotypes": 19,
+        "enrichment_enabled": false
+      },
+      "error": null
+    },
+    {
+      "name": "05_visualize_cross_platform",
+      "description": "Generate correlation visualizations",
+      "status": "success",
+      "elapsed_time": 6.481280088424683,
+      "files_generated": [],
+      "metadata": {
+        "elapsed_time": 6.481280088424683,
+        "task_name": "05_visualize_cross_platform",
+        "plots_generated": 13,
+        "summary_plots": 1,
+        "joint_plots": 6,
+        "boxplots": 6,
+        "representative_heatmap": false
+      },
+      "error": null
+    }
+  ],
+  "config": {
+    "exp1_data_path": "tests/fixtures/synthetic/cross_platform_prediction/source_blup.csv",
+    "exp1_name": "SourcePlatform",
+    "exp1_genotype_col": "Genotype",
+    "exp2_data_path": "tests/fixtures/synthetic/cross_platform_prediction/target_blup.csv",
+    "exp2_name": "TargetPlatform",
+    "exp2_genotype_col": "Genotype",
+    "correlation_method": "spearman",
+    "min_samples_per_genotype": 1,
+    "significance_level": 0.05,
+    "fdr_correction_method": "fdr_by",
+    "confidence_level": 0.95,
+    "min_genotypes_for_correlation": 10,
+    "power_analysis_alpha": 0.05,
+    "power_analysis_power": 0.8,
+    "top_n_correlations": 20,
+    "top_n_joint_plots": 6,
+    "top_n_boxplots": 6,
+    "figsize_summary": [
+      14,
+      12
+    ],
+    "figsize_joint": [
+      10,
+      10
+    ],
+    "figsize_boxplot": [
+      14,
+      6
+    ],
+    "exp1_exclude_cols": null,
+    "exp2_exclude_cols": null,
+    "trait_reduction_method": "none",
+    "trait_reduction_target": null,
+    "trait_clustering_threshold": 0.8,
+    "trait_clustering_linkage": "complete",
+    "enrichment_enabled": false,
+    "enrichment_p_value_column": "spearman_p",
+    "validate_input": "warn"
+  },
+  "environment": {},
+  "output_directory": "/tmp/predict_snapshot_run/cross_platform_SourcePlatform_vs_TargetPlatform_20260716_182528",
+  "data_source": ""
+}
