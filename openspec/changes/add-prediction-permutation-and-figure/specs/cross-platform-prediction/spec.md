@@ -22,6 +22,17 @@ holding the observed values, the four null distributions (each of length `n_perm
 one-sided p-values for R², RMSE, and Spearman ρ, computed as
 `(count(null >= observed) + 1) / (n_permutations + 1)`.
 
+A permutation's LOGO-CV fold structure can independently produce a non-finite `spearman_rho` (e.g.
+a degenerate fold whose predictions are constant) even when that permutation's shuffled `y` is
+itself non-constant — this is a model-degeneracy event distinct from, and not ruled out by, the
+data-degeneracy check `PredictCrossPlatformStep` already performs on *observed* values before this
+function is ever called. The function SHALL therefore scan every null distribution
+(`null_r2`/`null_rmse`/`null_spearman_rho`/`null_top_quartile_recovery`) for non-finite entries
+before returning, and SHALL raise `ValueError` naming both the offending metric and the
+0-indexed permutation number(s) at which it occurred, rather than allowing a non-finite value to
+propagate into `PermutationResult`/`CrossPlatformPermutationResult.to_json()`'s
+`allow_nan=False` contract as an unnamed failure deep inside a long-running `joblib.Parallel` loop.
+
 #### Scenario: Observed value matches a direct logo_cv_predict call on the unshuffled y
 
 - **WHEN** `permutation_test(X, y, genotypes, reduction_method)` is called
@@ -68,6 +79,18 @@ one-sided p-values for R², RMSE, and Spearman ρ, computed as
   of length `N` for a given metric
 - **THEN** that metric's p-value SHALL equal `(count(v >= obs for v in null) + 1) / (N + 1)`
 
+#### Scenario: Non-finite null values are rejected with a named, actionable error
+
+- **GIVEN** a permutation iteration whose LOGO-CV fold structure produces a non-finite
+  `spearman_rho` (e.g. a degenerate fold with constant predictions), independent of whether that
+  permutation's shuffled `y` was itself constant
+- **WHEN** `permutation_test()` finishes drawing all `n_permutations` null values
+- **THEN** it SHALL raise `ValueError` naming the offending metric (`r2`/`rmse`/`spearman_rho`/
+  `top_quartile_recovery`) and the permutation index/indices at which a non-finite value occurred,
+  rather than returning a `PermutationResult` that would later fail
+  `CrossPlatformPermutationResult.to_json()`'s finite-floats contract with no indication of which
+  permutation caused it
+
 ### Requirement: Top-Quartile Recovery Metric
 
 The package SHALL provide `top_quartile_recovery(y_true, y_pred, q=None)` in
@@ -75,6 +98,15 @@ The package SHALL provide `top_quartile_recovery(y_true, y_pred, q=None)` in
 top-`q` genotypes (ranked by `y_true`, descending) that appear among the predicted top-`2q`
 genotypes (ranked by `y_pred`, descending). `q` SHALL default to `round(len(y_true) / 4)` when not
 supplied.
+
+Under a random (uninformative) `y_pred`, the expected recovery is `2q / len(y_true)` by linearity
+of expectation (a fixed top-`q` set has, in expectation, a `2q / len(y_true)` fraction of its
+members appear in a randomly-drawn top-`2q` set) — at this program's real scale
+(`len(y_true) ≈ 15-24`, `q = round(len(y_true) / 4)`), this is **≈45-53%**, not the roadmap's
+originally-estimated "≈25%". The permutation null's actual mean recovery under
+`permutation_test()` (see the Permutation Test requirement's oracle tests) SHALL be verified
+empirically against this `2q / n` expectation during implementation, not assumed from the
+roadmap's earlier, unverified estimate.
 
 #### Scenario: Perfect prediction recovers all top-q genotypes
 
@@ -93,6 +125,13 @@ supplied.
 - **WHEN** `top_quartile_recovery(y_true, y_pred)` is called with `q` omitted and
   `len(y_true) == 19`
 - **THEN** the effective `q` used SHALL equal `round(19 / 4)` (`5`)
+
+#### Scenario: Small n does not produce a zero or degenerate q
+
+- **WHEN** `top_quartile_recovery(y_true, y_pred)` is called with `q` omitted and `len(y_true)` at
+  this program's smallest real scale (`n=3`, `logo_cv_predict`'s own minimum)
+- **THEN** the effective `q` used SHALL be at least `1` (not `0`, which would make the metric
+  vacuously `0/0`-undefined), and `2q` SHALL NOT exceed `len(y_true)`
 
 ### Requirement: Permutation Test Input Validation
 

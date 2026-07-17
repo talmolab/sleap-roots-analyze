@@ -12,8 +12,11 @@
       wrapper reusing their generator function) are importable from this tier's test module.
 - [ ] 1.2 Add a small set of independent pure-noise fixtures (real, non-degenerate `X`; `y`
       independently drawn, no planted relationship) for the K-S permutation-calibration oracle —
-      ~30-50 independent realizations, each with a distinct seed, `n_genotypes=19` (matches the
-      other fixtures' scale).
+      ~30-50 independent realizations, each with a **fixed, committed literal seed** (not
+      regenerated per test run) and a **fixed, committed literal `permutation_test` `random_state`**
+      for the oracle itself, `n_genotypes=19` (matches the other fixtures' scale). Pinning both to
+      literals makes task 9.1's K-S test a deterministic golden check rather than a live stochastic
+      draw with an intrinsic ~5%+ false-failure rate across 3 OSes × every PR.
 - [ ] 1.3 Add a small 2-platform synthetic BLUP fixture pair with `prediction.visualize: true`
       wired into a harness YAML (extending Tier 3.5's own harness fixture at
       `tests/fixtures/harness/cross_platform/`, or a sibling file) — used for wiring-correctness
@@ -30,8 +33,16 @@
 - [ ] 2.3 Write failing test `test_top_quartile_recovery_default_q_is_quarter_of_n`: with
       `len(y_true) == 19` and `q` omitted, assert the effective `q` used equals `round(19 / 4)`
       (inspect via a case constructed so a wrong `q` produces a different recovery fraction).
+- [ ] 2.3a Write failing test `test_top_quartile_recovery_small_n_gives_at_least_one_and_not_over_n`:
+      at `len(y_true)=3` (this program's smallest real scale), assert the effective `q` used is
+      `>= 1` and `2 * q <= len(y_true)` (guards against a vacuous `q=0` or an out-of-range window).
 - [ ] 2.4 Implement `top_quartile_recovery(y_true, y_pred, q=None)` in
-      `cross_platform_prediction.py`. Make 2.1-2.3 green.
+      `cross_platform_prediction.py`. Make 2.1-2.3a green.
+
+> **Commit boundary**: 2.1-2.4 (`top_quartile_recovery`, no dependency on `permutation_test`) is a
+> natural standalone commit; 2.5 onward (`permutation_test`, which calls `top_quartile_recovery`)
+> is a second.
+
 - [ ] 2.5 Write failing test `test_permutation_test_observed_matches_direct_logo_cv_predict_call`:
       `permutation_test(X, y, genotypes, method).observed_r2` (etc.) exactly matches an
       independent `logo_cv_predict(X, y, genotypes, method)` call's `r2` (etc.) on the same inputs.
@@ -56,14 +67,26 @@
 - [ ] 2.12 Write failing test `test_permutation_test_rejects_non_positive_n_permutations`:
       `n_permutations=0` and `n_permutations=-1` both raise `ValueError`, before any
       `logo_cv_predict` call (spy to confirm zero calls made).
+- [ ] 2.12a Write failing test `test_permutation_test_accepts_n_permutations_equal_1`:
+      `n_permutations=1` does not raise; `null_r2`/etc. each have length exactly `1`; the resulting
+      p-value formula degenerates correctly to `(count + 1) / 2` (either `0.5` or `1.0`) — a
+      boundary distinct from the general `n_permutations<=0` rejection in 2.12.
 - [ ] 2.13 Write failing test `test_permutation_test_surfaces_logo_cv_predict_validation_errors`:
       an invalid `reduction_method` (or mismatched-length `X`/`y`/`genotypes`, or duplicate
       `genotypes`) raises the same `ValueError` `logo_cv_predict` itself would raise, from the
       observed-value call, before any permutation runs.
+- [ ] 2.13a Write failing test `test_permutation_test_rejects_non_finite_null_values_with_named_error`:
+      construct a permutation iteration whose LOGO-CV fold structure produces a non-finite
+      `spearman_rho` (e.g. inject via a monkeypatched `logo_cv_predict` returning a degenerate
+      result for one specific permutation index, independent of whether that permutation's
+      shuffled `y` was itself constant) — assert `ValueError` naming both the offending metric and
+      the permutation index, not a downstream `to_json()` crash with no indication of which
+      permutation caused it (per the cross-platform-prediction spec's "Non-finite null values are
+      rejected" scenario).
 - [ ] 2.14 Implement `permutation_test(X, y, genotypes, reduction_method="pls_latent",
       representative_names=None, n_permutations=1000, random_state=42)` in
-      `cross_platform_prediction.py`, returning a `PermutationResult` (Section 3). Make 2.5-2.13
-      green.
+      `cross_platform_prediction.py`, returning a `PermutationResult` (Section 3), including the
+      non-finite-null scan from 2.13a. Make 2.5-2.13a green.
 
 ## 3. `PermutationResult`/`CrossPlatformPermutationResult` (test-first)
 
@@ -76,9 +99,18 @@
       `dataclasses.fields(CrossPlatformPredictionResult)` and `TargetPrediction`, assert neither
       references `PermutationResult`/`CrossPlatformPermutationResult` (Decision 3 — types stay
       structurally independent).
+- [ ] 3.3a Write failing test `test_permutation_result_has_no_sklearn_or_numpy_object`:
+      `dataclasses.asdict(result)` contains no sklearn `Pipeline`/`PLSRegression`/`Ridge`/`PCA`/
+      `StandardScaler` object and no raw `numpy.ndarray` — every null-distribution field is a
+      plain Python `list` of `float`.
 - [ ] 3.4 Implement `PermutationResult`/`CrossPlatformPermutationResult` in `result_types.py`,
       mirroring `TargetPrediction`/`CrossPlatformPredictionResult`'s `to_dict()`/`to_json()`
-      pattern exactly. Make 3.1-3.3 green.
+      pattern exactly. Make 3.1-3.3a green.
+
+> **Commit boundary**: 3.1-3.4 (the dataclasses themselves) have no import-time dependency on
+> `permutation_test` and can land before Section 2 finishes; 3.5-3.8 (the adapter, which calls
+> `permutation_test` in its own test) must land after Section 2 is green.
+
 - [ ] 3.5 Write failing test
       `test_cross_platform_permutation_result_adapter_maps_fields_from_real_output`: build a
       `CrossPlatformPermutationResult` from real `permutation_test()` outputs for multiple targets,
@@ -121,30 +153,72 @@
       full backward-compat regression test — every existing key in `StepResult.data`/`metadata`
       and every path in `files_generated` is byte-for-byte/value-for-value identical to this step's
       pre-Tier-4 behavior on the same fixture (guards against Decision 6's additive-only promise).
+      Explicitly assert `set(result.data.keys()) - {"predictor_matrices"}` equals the exact
+      pre-Tier-4 key set (method names only) — not just that pre-existing keys are unchanged, but
+      that `"predictor_matrices"` is the *only* addition, catching any accidental extra key leakage.
 - [ ] 5.3 Extend `PredictCrossPlatformStep.execute()` in `predict_cross_platform.py` to populate
       `predictor_matrices`. Make 5.1-5.2 green.
 
+## 5a. `joblib` dependency (must land before Section 6)
+
+- [ ] 5a.1 Add `joblib` to `pyproject.toml`'s direct dependencies (design.md Decision 5), pinned to
+      the version already resolved transitively via `scikit-learn` in this environment's lockfile
+      — moved ahead of Section 6, which imports `joblib.Parallel` directly at module level; adding
+      the dependency after that import would exist is backwards (found during `/review-openspec`
+      round 1).
+
 ## 6. `VisualizePredictionStep` (test-first)
+
+> Split into three commits (found during `/review-openspec` round 1: one implementation task for
+> 8 tests was too coarse-grained relative to this program's established per-commit granularity):
+> 6.1-6.2 (wiring/reuse), 6.3-6.5a (joblib parallelization — the riskiest, most novel piece, worth
+> isolated review), 6.6-6.8a (JSON/figure I/O).
 
 - [ ] 6.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`: spy
       on any BLUP-loading/genotype-mean-aggregation function to confirm zero calls when
       `predictor_matrices` is supplied via `kwargs["06_predict_cross_platform"]`.
+- [ ] 6.1a Write failing test `test_visualize_prediction_step_handles_pc1_only_targets`: with zero
+      representative-trait targets (only `target_name="PC1"` present, e.g. a fixture where
+      `select_cluster_representatives` returned empty — Tier 3.5's own documented degenerate case),
+      the step runs successfully through the full `joblib.Parallel` dispatch with `N=1` total
+      `(target, method)` unit, producing a valid `CrossPlatformPermutationResult`, not a crash.
 - [ ] 6.2 Write failing test
       `test_visualize_prediction_step_calls_permutation_test_once_per_target_per_method`: for `N`
       targets × `M` methods (`reduction_method` + `comparison_methods`), `permutation_test` is
       called exactly `N * M` times.
+- [ ] 6.2a Write failing test
+      `test_visualize_prediction_step_calls_permutation_test_n_times_when_comparison_methods_empty`:
+      with `comparison_methods=[]` (`K=0`), `permutation_test` is called exactly `N` times (`N`
+      targets × 1 method) — an explicit `K=0` case, not just the general `N * M` formula in 6.2.
 - [ ] 6.3 Write failing test
       `test_visualize_prediction_step_parallelizes_across_target_method_units_not_within_one`:
       inspect the `joblib.Parallel`/`delayed` call structure (or the list of dispatched callables)
       to confirm one `delayed(...)` unit per `(target, method)` combination, not per permutation
       iteration.
 - [ ] 6.4 Write failing test
-      `test_visualize_prediction_step_joblib_n_jobs_matches_config`:
-      `joblib.Parallel` is constructed with `n_jobs=config.prediction.permutation_n_jobs`.
+      `test_visualize_prediction_step_joblib_n_jobs_and_backend_match_config`:
+      `joblib.Parallel` is constructed with `n_jobs=config.prediction.permutation_n_jobs,
+      backend="loky"` (per the cross-platform-analysis spec's explicit backend choice).
+- [ ] 6.4a Write failing test
+      `test_visualize_prediction_step_derives_independent_seed_per_target_method`: for `N`
+      `(target, method)` combinations, assert `numpy.random.SeedSequence(
+      config.prediction.permutation_random_state).spawn(N)` is used to derive `N` distinct seeds,
+      one passed to each `permutation_test()` call — no two combinations receive the same seed,
+      and re-running with the same `permutation_random_state` reproduces the same derived seeds
+      (per design.md Decision 4's finding that reusing one seed across all targets would
+      correlate, not independently sample, the pooled-null figure panel's null draws).
 - [ ] 6.5 Write failing test
-      `test_visualize_prediction_step_produces_identical_results_parallel_vs_serial`: on a small
-      fixture, `permutation_n_jobs=1` and `permutation_n_jobs=4` produce bit-identical
-      `CrossPlatformPermutationResult`s (parallelization must not change results, only wall time).
+      `test_visualize_prediction_step_parallel_vs_serial_results_agree_within_tolerance`: on a
+      small fixture, `permutation_n_jobs=1` and `permutation_n_jobs=4` produce
+      `CrossPlatformPermutationResult`s that agree via `numpy.testing.assert_allclose(...,
+      rtol=1e-6, atol=1e-9)` — **not bit-identical** (loky worker processes may resolve a
+      different default BLAS thread count than the main process, a documented source of
+      ULP-level floating-point differences per `docs/reproducibility.md`'s established
+      cross-BLAS tolerance convention, independent of this step's own correctness).
+- [ ] 6.5a Write failing test `test_visualize_prediction_step_permutation_test_receives_derived_seed`:
+      spy on `permutation_test` to confirm each call's `random_state` argument matches that
+      combination's derived seed from 6.4a, not the raw `config.prediction.permutation_random_state`
+      passed through unchanged.
 - [ ] 6.6 Write failing test `test_visualize_prediction_step_saves_one_json_per_method`: `K + 1`
       `07_permutation_<method>.json` files for `reduction_method` + `K` `comparison_methods`.
 - [ ] 6.7 Write failing test
@@ -156,8 +230,14 @@
       exactly one `07_prediction_figure.png`, and (via a spy/mock on the figure-building function)
       confirm it was called with only the primary `reduction_method`'s results, not
       `comparison_methods`'.
+- [ ] 6.8a Write failing test
+      `test_visualize_prediction_step_rejects_non_finite_permutation_result_with_named_error`:
+      when `permutation_test` (or its underlying `logo_cv_predict` calls) would produce a
+      non-finite null value for one target/method, the step surfaces `ValueError` naming the
+      target/method/permutation-index (propagated from `permutation_test`'s own guard, task
+      2.13a), before attempting to write any `07_permutation_<method>.json`.
 - [ ] 6.9 Implement `VisualizePredictionStep(BaseStep)` in new
-      `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py`. Make 6.1-6.8 green.
+      `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py`. Make 6.1-6.8a green.
 
 ## 7. `CrossPlatformPipeline` task wiring (test-first)
 
@@ -204,36 +284,49 @@
       comfortably above the mean permutation-null median across the same seeds.
 - [ ] 9.3 Write failing test `test_permutation_test_noise_r2_falls_within_its_own_null_band`: on the
       pure-noise fixture (task 1.1), mean observed R² falls within mean-null-median ± 1σ.
-- [ ] 9.4 **Empirically determine** (via a real computation, run and recorded during
-      implementation — not assumed from the roadmap's "≈25%" estimate) the pure-noise fixture's
-      actual mean null top-quartile-recovery value. Write failing test
-      `test_permutation_test_top_quartile_recovery_signal_vs_noise`: signal fixture's observed
-      recovery ≥ 80%; noise fixture's observed recovery is comfortably separated from the
-      signal's, near the empirically-determined null value (not a blindly-pinned 25%).
+- [ ] 9.4a **Spike, not a test** — compute (via a real run, recorded here and in design.md's
+      Decision 11 note): the pure-noise fixture's actual mean null top-quartile-recovery value.
+      Cross-check against the theoretical chance-level baseline `2q / n` (found during
+      `/review-openspec` round 1: at `n=19, q=5`, `2q/n ≈ 52.6%`, not the roadmap's originally-
+      estimated "≈25%" — the roadmap's number was never verified against the actual `top-q`-in-
+      `top-2q` window definition). This step produces a number to write a real assertion against
+      in 9.4b; it is not itself a red/green TDD step (a value that doesn't exist yet cannot be
+      asserted against).
+- [ ] 9.4b Write failing test `test_permutation_test_top_quartile_recovery_signal_vs_noise`, using
+      9.4a's now-known empirical value: signal fixture's observed recovery ≥ 80%; noise fixture's
+      observed recovery is comfortably separated from the signal's, close to the empirically-
+      determined null value (not a blindly-pinned 25% or an untested theoretical `2q/n`).
 - [ ] 9.5 Write failing test `test_visualize_prediction_step_figure_provenance`: run the step
       twice (different input CSV content between runs, e.g. a perturbed fixture), assert the two
       resulting `07_prediction_figure.png` files differ (via content hash), and that a given run's
       figure's mtime is at or after its input CSVs' mtimes.
-- [ ] 9.6 Implement whatever `permutation_test()`/fixture adjustments are needed to make 9.1-9.5
-      pass, recording the actual empirically-determined values from 9.4 in this file and in
-      `design.md`'s Decision 11 note (per this program's "verify, don't assume" convention).
+- [ ] 9.6 Implement whatever `permutation_test()`/fixture adjustments are needed to make 9.1-9.3
+      and 9.4b-9.5 pass, recording the actual empirically-determined values from 9.4a in this file
+      and in `design.md`'s Decision 11 note (per this program's "verify, don't assume" convention).
 
-## 10. Dependency + `theory.md` addendum
+## 10. `theory.md` addendum
 
-- [ ] 10.1 Add `joblib` to `pyproject.toml`'s direct dependencies (Decision 5), pinned to the
-      version already resolved transitively via `scikit-learn` in this environment's lockfile.
-- [ ] 10.2 Add a permutation-null pseudo-code section to
+> `joblib` dependency addition moved to Section 5a (must precede Section 6, which imports it).
+
+- [ ] 10.1 Add a permutation-null pseudo-code section to
       `c:\vaults\sleap-roots\wheat-edpie-paper\cross-platform-prediction\theory.md` (external
       vault), matching its existing LOGO-CV/per-fold-PCA pseudo-code style, including the
       per-target (not per-permutation) `joblib.Parallel` lesson from this tier's benchmark
       (Decision 4) as a documented erratum/addendum for any future tier that loops
-      `logo_cv_predict`.
+      `logo_cv_predict`. **This file lives in a separate external repository/git history from
+      `sleap-roots-analyze`** — it is committed separately, in the vault's own repo, and will NOT
+      appear in this repo's PR diff; a reviewer of the sleap-roots-analyze PR should not expect to
+      see this change there.
 
 ## 11. Manual real-data validation gate (non-CI, pre-merge, sign-off required)
 
 > Mirrors Tier 3/3.5's Section 8 exactly — see design.md Section 5 for full rationale. Not
 > complete until Elizabeth has reviewed the findings and explicitly signed off; a green CI run is
-> necessary but not sufficient.
+> necessary but not sufficient. **Timing**: per Tier 3.5's actual precedent (PR #199's real commit
+> history — validation commits landed *between* two rounds of PR-review fix commits, not
+> exclusively before the PR opened), this section runs on the already-open PR branch, after the
+> first 5-subagent self-review pass (task 13.7's pre-PR-open round) and before the second,
+> CI-triggered review pass — not necessarily a strict pre-PR-open gate.
 
 - [ ] 11.1 Reuse Tier 3.5's Section 8 real BLUP tables and 4 directed-pair `CrossPlatformConfig`
       YAMLs (`pipeline_runs/section8_manual_validation_20260716/`) if still valid; rebuild via the
@@ -253,19 +346,38 @@
       inference reinforces or changes that caveat's conclusion.
 - [ ] 11.6 Visually inspect all 4 `07_prediction_figure.png` outputs for legibility and correctness.
 - [ ] 11.7 Present findings to Elizabeth; record her explicit sign-off here before this task (and
-      Section 12's `/pre-merge-check`) is considered complete.
+      Section 13's `/pre-merge-check`) is considered complete.
 
 ## 12. Docs
 
 - [ ] 12.1 Add a `docs/CHANGELOG.md` `[Unreleased]` `### Added` entry.
 - [ ] 12.2 Extend `docs/CROSS_PLATFORM_ANALYSIS.md`'s existing `## Cross-Platform Genotype-Effect
       Prediction` section (Tier 3.5 already extended it once) with a new `###` subsection covering
-      `permutation_test()`, `VisualizePredictionStep`, the new `PredictionConfig` fields, and a
-      concrete YAML example with `visualize: true`.
-- [ ] 12.3 No `docs/API.md` entry — `PermutationResult`/`CrossPlatformPermutationResult` follow
-      the same `__all__`-driven pattern as their siblings and DO get an entry there (unlike
-      Configs/Steps, per Tier 3.5 task 9.1's finding); confirm and add if the existing
-      `CrossPlatformPredictionResult`/`TargetPrediction` entries set that precedent.
+      `permutation_test()` **and `top_quartile_recovery()`** (found during `/review-openspec`
+      round 1: the latter was missing from this task's original list), `VisualizePredictionStep`,
+      the new `PredictionConfig` fields, and a concrete YAML example with `visualize: true`. State
+      usage (what/how) only — cross-reference `design.md`'s Decisions for benchmark/rationale
+      detail (the 105.5min→27.4min parallelization benchmark, the figure-scope rationale) rather
+      than restating it (DRY). Also:
+      - **Correct the existing section's stale closing sentence** (found during round 1: it
+        currently reads "The permutation null and its figures (Tier 4) remain a separate, later
+        change" — stale now that this change *is* Tier 4).
+      - **Document the new output-file naming convention** (`07_permutation_<method>.json`,
+        `07_prediction_figure.png`) in an "Output:" paragraph, mirroring the existing section's own
+        precedent for Tier 3.5's `06_prediction_<method>.json` — currently this naming exists only
+        in `proposal.md`/`design.md`, neither of which is shipped documentation.
+      - **Add a one-line note to the `### Current Limitations` subsection** that
+        `CrossPlatformSummaryGenerator` does not yet surface permutation/visualization output
+        either (follow-up #197's scope has grown with this tier's new outputs, not fixed here).
+- [ ] 12.3 **No `docs/API.md` entry.** Verified directly (found during `/review-openspec` round 1
+      that the original task's premise was backwards): `LOGOCVResult`/`CrossPlatformPredictionResult`/
+      `TargetPrediction` are all in `__all__`, but **none** has an `API.md` entry — the
+      `cross_platform_prediction` module section documents only its two functions
+      (`fit_pca_on_fold`, `logo_cv_predict`); `__all__` membership does not predict `API.md`
+      inclusion for these dataclasses. `PermutationResult`/`CrossPlatformPermutationResult` follow
+      that same (undocumented-dataclass) precedent — no `API.md` change needed. `permutation_test`/
+      `top_quartile_recovery` DO get entries in the `cross_platform_prediction` module section,
+      alongside the existing two functions.
 
 ## 13. Validation
 

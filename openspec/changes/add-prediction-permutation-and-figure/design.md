@@ -61,6 +61,16 @@ iteration, no shared mutable state across iterations) and calls `logo_cv_predict
 shuffle, collecting the four metrics' null distributions and computing one-sided p-values
 (`p = (#null >= observed + 1) / (n_permutations + 1)`) for R², RMSE, and Spearman ρ.
 
+**Added during `/review-openspec` round 1:** a permutation's LOGO-CV fold structure can
+independently produce a non-finite `spearman_rho` (a model-degeneracy event — e.g. a degenerate
+fold with constant predictions) even when that permutation's shuffled `y` is itself non-constant;
+this is distinct from, and not ruled out by, the data-degeneracy check `PredictCrossPlatformStep`
+already performs on *observed* values before `permutation_test()` is ever called. The function
+therefore scans every null distribution for non-finite entries before returning, raising
+`ValueError` naming both the offending metric and the permutation index — otherwise a single
+degenerate fold, buried inside a ~27-minute parallel run, would surface as an unnamed crash deep
+inside `CrossPlatformPermutationResult.to_json()`'s `allow_nan=False` contract.
+
 **Why:** A caller using the Python API directly (this tier's explicit design goal — permutation
 testing is Python-API-only, not pipeline-only) should get a complete, self-describing result from
 one call, without first calling `logo_cv_predict()` separately purely to obtain the observed value
@@ -119,10 +129,17 @@ untouched by this tier, satisfying the Non-Goals above literally.
 ### Decision 4: `joblib.Parallel` parallelizes across targets, not across individual permutation calls — empirically verified, not assumed
 
 **What:** `VisualizePredictionStep` (not `permutation_test()` itself, which stays internally
-serial) calls `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs)` over the full list of
-`(target_name, method)` units for a pair, each invoking one complete `permutation_test()` call
-(its own internal `n_permutations`-length loop stays serial, single-process).
-`PredictionConfig.permutation_n_jobs: int = 8` (not `-1`/all-cores).
+serial) calls `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs, backend="loky")` over
+the full list of `(target_name, method)` units for a pair, each invoking one complete
+`permutation_test()` call (its own internal `n_permutations`-length loop stays serial,
+single-process). `PredictionConfig.permutation_n_jobs: int = 8` (not `-1`/all-cores).
+
+**Added during `/review-openspec` round 1:** each `(target_name, method)` combination is given an
+independently-derived `random_state`, via `numpy.random.SeedSequence(permutation_random_state)
+.spawn(N)` (`N` = the total combination count), rather than reusing the single configured seed
+identically for every combination. Results across different `permutation_n_jobs` values are
+verified via `numpy.testing.assert_allclose(rtol=1e-6, atol=1e-9)`, not bit-identical — see the
+round-1 reconciliation below for why both of these were originally wrong.
 
 **Why:** Measured this session (design doc Section 2, reproduced above in Context): parallelizing
 individual `logo_cv_predict` calls (~16-27ms each) via `joblib.Parallel` is **slower than serial**
@@ -170,6 +187,15 @@ in a future version, outside this package's control) for a direct import is frag
 `source_representative_names`/`target_representatives` (all computed during the step's own
 execution, previously discarded after use). Every existing `data`/`metadata`/`files_generated` key
 is unchanged in shape and content.
+
+**Added during `/review-openspec` round 1:** `StepResult.data` is, concretely, a plain dict keyed
+by method name (`results_by_method`, one entry per `reduction_method`/`comparison_methods` value).
+Adding a sibling `"predictor_matrices"` key is safe *only* because no valid `reduction_method`/
+`comparison_methods` value can itself equal `"predictor_matrices"` — both are constrained to
+`{"pls_latent", "representatives", "pc1"}`. This is a load-bearing invariant on the reduction-method
+enum, not an incidental fact; it is now stated explicitly in the `cross-platform-analysis` spec
+delta and covered by a test, so a future change extending that enum can't silently collide with
+this key.
 
 **Why:** `VisualizePredictionStep` needs the same source/target predictor matrices
 `PredictCrossPlatformStep` already builds (BLUP loading, NaN-column dropping, canonical-genotype
@@ -270,7 +296,14 @@ filename pattern is a direct, unmodified precedent from Tier 3.5.
 - **Top-quartile-recovery oracle:** same fixtures; asserts ≥80% (signal) vs. an **empirically
   verified** null expectation — the roadmap's "≈25%" is a starting estimate, not a value to pin
   blind; the real number is computed and recorded during implementation, the same discipline that
-  caught Tier 3 Decision 6's wrong assumed single-seed R².
+  caught Tier 3 Decision 6's wrong assumed single-seed R². **Added during `/review-openspec` round
+  1:** the roadmap's "≈25%" is not just unverified but arithmetically wrong at this program's real
+  scale. Under a random (uninformative) `y_pred`, the expected recovery of a fixed top-`q` set in a
+  randomly-drawn top-`2q` set is `2q / n` by linearity of expectation — at `n=19, q=5`, that's
+  `10/19 ≈ 52.6%`, not `25%`. This must be stated explicitly (now in the `cross-platform-prediction`
+  spec's Top-Quartile Recovery Metric requirement) so the empirical measurement in tasks.md 9.4a is
+  correctly interpreted against the right theoretical baseline, not "sanity-checked" against a
+  wrong number that happens to sound plausible.
 - **Figure provenance oracle:** PNG exists, non-empty, and a hash/timestamp check confirms it was
   regenerated from the current run's input CSVs, following Tier 3.5's golden-fixture-snapshot
   pattern.
@@ -315,7 +348,102 @@ conditionally-included task. No existing function, CLI flag, or config field cha
 
 ## Open Questions
 
-None blocking prior to `/review-openspec`. Carried forward, not this tier's job: `#197`
-(`CrossPlatformSummaryGenerator` not surfacing prediction/permutation results — this tier's new
-figures/JSON outputs increase the pressure to fix this, worth flagging again, not fixing here) and
-`#198` (`/configure-run-all`/`/dry-run`/`/validate-config` coverage gaps, pre-existing).
+None blocking after `/review-openspec` round 1's reconciliation (see below). Carried forward, not
+this tier's job: `#197` (`CrossPlatformSummaryGenerator` not surfacing prediction/permutation
+results — this tier's new figures/JSON outputs increase the pressure to fix this, worth flagging
+again, not fixing here) and `#198` (`/configure-run-all`/`/dry-run`/`/validate-config` coverage
+gaps, pre-existing).
+
+## Adversarial Review Reconciliation (round 1)
+
+`/review-openspec` ran 5 parallel reviewers (spec quality, TDD/testing, pipeline architecture &
+statistical correctness, documentation, git workflow) against this proposal before any
+implementation began. 5 BLOCKING and 11 IMPORTANT findings, reconciled as follows:
+
+- **BLOCKING — the MODIFIED "Predict Cross-Platform Genotype Values Pipeline Step" requirement
+  silently dropped 7 of the current spec's 19 scenarios.** My own initial read of the current spec
+  (to build the MODIFIED delta) cut off partway through the requirement (line 1560 of 1615) without
+  my noticing — a mechanical transcription error, not a judgment call. Per `openspec/AGENTS.md`'s
+  own explicit warning ("the archiver will replace the entire requirement with what you provide
+  here; partial deltas will drop previous details"), archiving as-is would have permanently deleted
+  7 real acceptance criteria, including the backward-compatibility byte-identical guarantee and
+  both dry-run scenarios — directly contradicting this proposal's own "all extensions are additive"
+  claim. Fixed: the full original 19 scenarios restored verbatim, in original order, plus this
+  tier's 1 new scenario.
+- **BLOCKING — no finiteness guard on the permutation null distributions before
+  `to_json(allow_nan=False)`.** A permutation's LOGO-CV fold structure can independently produce a
+  non-finite `spearman_rho` even when that permutation's shuffled `y` is non-constant (a
+  model-degeneracy event, distinct from the data-degeneracy check `PredictCrossPlatformStep`
+  already performs on observed values) — previously unaddressed, would have surfaced as an unnamed
+  crash deep inside a ~27-minute parallel run. Fixed: Decision 1 and the `cross-platform-prediction`
+  spec's Permutation Test requirement now specify a proactive non-finite scan naming both the
+  offending metric and the permutation index, with a corresponding test (tasks.md 2.13a).
+- **BLOCKING — `top_quartile_recovery`'s null baseline is `2q/n` ≈ 52.6% at real scale
+  (`n=19, q=5`), not the roadmap's unverified "≈25%".** Arithmetic (expected recovery of a random
+  top-`2q` draw), not opinion. Fixed: Decision 11 and the `cross-platform-prediction` spec's
+  Top-Quartile Recovery Metric requirement now state this explicitly, so tasks.md 9.4a's empirical
+  measurement is checked against the correct theoretical baseline, not a plausible-sounding wrong
+  number.
+- **BLOCKING — task 12.3's premise was factually backwards.** Verified directly:
+  `CrossPlatformPredictionResult`/`TargetPrediction` are in `__all__` but have **no** `docs/API.md`
+  entries. Fixed: task 12.3 rewritten to state the verified truth (no `API.md` change for the new
+  dataclasses either; `permutation_test`/`top_quartile_recovery` do get entries, matching
+  `logo_cv_predict`/`fit_pca_on_fold`'s precedent).
+- **BLOCKING — task 12.2 missed correcting a stale forward-reference** in
+  `docs/CROSS_PLATFORM_ANALYSIS.md` calling this tier "a separate, later change" — exactly the trap
+  Tier 3.5's own review caught and fixed once already for a different sentence. Fixed: task 12.2
+  now explicitly includes this correction, plus the missing `top_quartile_recovery` doc mention,
+  the new output-file-naming documentation, and a `#197`-pressure note.
+- **IMPORTANT — every target/method reused one `permutation_random_state`**, correlating (not
+  independently sampling) the null draws Decision 9's pooled violin panel combines across targets.
+  Fixed: Decision 4 and the `cross-platform-analysis` spec now derive one independent seed per
+  `(target, method)` combination via `numpy.random.SeedSequence(...).spawn(N)`.
+- **IMPORTANT — the K-S calibration test (tasks.md 9.1) was an intrinsically flaky CI gate** unless
+  every fixture seed and the oracle's own `random_state` are pinned to committed literals (a K-S
+  test against `Uniform(0,1)` on ~30-50 samples has a real, non-negligible false-failure rate by
+  chance). Fixed: tasks.md 1.2 now requires fixed, committed literal seeds throughout.
+- **IMPORTANT — tasks.md 6.5's "bit-identical parallel vs. serial" claim conflicted with real
+  `joblib`/BLAS behavior.** `loky` worker processes may resolve a different default BLAS thread
+  count than the main process — a documented source of ULP-level floating-point differences,
+  independent of this step's own correctness (this codebase already has an established convention
+  for exactly this class of cross-BLAS difference, `rtol=1e-6, atol=1e-9`,
+  `docs/reproducibility.md`). Fixed: the `cross-platform-analysis` spec and tasks.md 6.5 now assert
+  `numpy.testing.assert_allclose` at that established tolerance, not bit-identical equality; the
+  `joblib` backend (`loky`) is now stated explicitly rather than left unspecified.
+- **IMPORTANT — the additive `predictor_matrices` key relies on an unstated invariant** (no valid
+  `reduction_method`/`comparison_methods` value can collide with the string
+  `"predictor_matrices"`). Fixed: Decision 6 and the `cross-platform-analysis` spec now state this
+  explicitly, with a corresponding scenario.
+- **IMPORTANT — `joblib`'s dependency addition (originally task 10.1) was numbered *after* Section
+  6, which imports it.** Fixed: moved to a new Section 5a, explicitly ordered before Section 6.
+- **IMPORTANT — task 9.4 conflated an empirical spike with "write failing test".** You cannot
+  write a meaningful assertion against a value that hasn't been computed yet. Fixed: split into
+  9.4a (a spike, explicitly not a red/green TDD step) and 9.4b (the actual test, written against
+  9.4a's now-known value).
+- **IMPORTANT — missing edge-case tests**: `n_permutations=1` boundary, an explicit
+  `comparison_methods=[]` (`K=0`) case, `VisualizePredictionStep` with zero representative-trait
+  (PC1-only) targets under `joblib.Parallel`, and 5.2's regression test not explicitly asserting
+  `predictor_matrices` is the *only* new key. Fixed: tasks.md 2.12a, 6.2a, 6.1a, and an explicit
+  key-set assertion added to 5.2, respectively.
+- **IMPORTANT — Section 11's timing relative to the PR lifecycle was ambiguous.** Tier 3.5's own
+  real commit history (PR #199) shows manual validation running *between* two rounds of PR-review
+  fix commits, not strictly pre-PR-open. Fixed: tasks.md Section 11 now states this explicitly.
+- **IMPORTANT — task 10.2 (now 10.1) didn't state `theory.md` lives in a separate external git
+  repository**, so a PR reviewer might expect to find it in this repo's diff. Fixed: stated
+  explicitly.
+- **IMPORTANT — `CrossPlatformPermutationResult`'s requirement was missing the "no sklearn/numpy
+  object" parity scenario** its sibling `CrossPlatformPredictionResult` requirement has. Fixed:
+  added to the `serializable-result-types` spec delta, with a corresponding test (tasks.md 3.3a).
+- **SUGGESTION — Section 2 (14 tasks) and Section 6 (8 tasks) were too coarse for this program's
+  established per-commit granularity.** Fixed: both split, with explicit commit-boundary notes
+  (Section 2: `top_quartile_recovery` vs. `permutation_test`; Section 6: wiring/reuse →
+  parallelization → JSON/figure I/O).
+- **SUGGESTION — no boundary scenario for `top_quartile_recovery` when `q` rounds to 0 or exceeds
+  `n/2`.** Fixed: added to the `cross-platform-prediction` spec, with a corresponding test
+  (tasks.md 2.3a).
+- **SUGGESTION — doc tasks risked restating `design.md`'s benchmark/rationale prose (DRY).**
+  Fixed: task 12.2 now explicitly scopes to usage documentation, cross-referencing `design.md`'s
+  Decisions for rationale detail.
+
+Full re-validation (`openspec validate add-prediction-permutation-and-figure --strict`) passes
+after all round-1 fixes.

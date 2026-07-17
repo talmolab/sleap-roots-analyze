@@ -41,6 +41,13 @@ entry per prediction target (mirroring `CrossPlatformPredictionResult`'s `predic
 - **THEN** it SHALL contain no field referencing `PermutationResult` or
   `CrossPlatformPermutationResult` — the two result families remain structurally independent
 
+#### Scenario: No sklearn or numpy object is present in the clean view
+
+- **WHEN** `dataclasses.asdict(result)` is inspected for a `CrossPlatformPermutationResult`
+- **THEN** it SHALL contain no sklearn `Pipeline`/`PLSRegression`/`Ridge`/`PCA`/`StandardScaler`
+  object, and no raw `numpy.ndarray` — every null-distribution list SHALL be a plain Python `list`
+  of `float`, matching `CrossPlatformPredictionResult`'s equivalent scenario
+
 ### Requirement: CrossPlatformPermutationResult Adapter From permutation_test Output
 
 The package SHALL provide an adapter that maps one or more `permutation_test()` return values,

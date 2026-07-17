@@ -254,14 +254,78 @@ and SHALL NOT list it when disabled. No new CLI command or flag SHALL be introdu
 - **WHEN** the step runs for each
 - **THEN** the resulting `CrossPlatformPredictionResult`s SHALL be identical
 
+#### Scenario: logo_cv_predict called once per target trait per method
+
+- **GIVEN** N target traits (representatives + PC1) and M methods (`reduction_method` +
+  `comparison_methods`)
+- **WHEN** the step runs
+- **THEN** `logo_cv_predict` SHALL be called exactly N × M times
+
+#### Scenario: One JSON result file saved per method
+
+- **WHEN** the step completes
+- **THEN** one `CrossPlatformPredictionResult` JSON file SHALL be written to the run directory per
+  method, with no filename collisions (guaranteed by `comparison_methods` never duplicating
+  `reduction_method`)
+
+#### Scenario: Clear error when common genotypes are below the minimum
+
+- **WHEN** the source and target predictor matrices share fewer common genotypes than
+  `logo_cv_predict` requires (including zero overlap)
+- **THEN** the step SHALL raise `ValueError` naming the source/target platforms and the
+  common-genotype count, not a bare pass-through of `logo_cv_predict`'s generic message
+
+#### Scenario: Backward compatible when disabled
+
+- **GIVEN** an existing `CrossPlatformConfig` YAML with no `prediction:` key
+- **WHEN** `CrossPlatformPipeline` runs
+- **THEN** the run's analysis output (file list and content for the 5 existing steps — correlation
+  CSVs, alignment summary, figures, `pipeline_summary.json`) SHALL be byte-identical to the same run
+  before this requirement existed
+- **AND** `config.yaml` is exempted from this comparison: it SHALL gain a new `prediction: {...}`
+  block reflecting the `prediction` field's existence, regardless of `enabled`, since the pipeline's
+  config-provenance serialization (`cli-pipeline`'s "Pipeline Run Config Provenance" requirement)
+  serializes every field of the resolved config, including nested dataclasses at their default
+  values — this is an expected, harmless side effect, not a behavior change
+
+#### Scenario: PC1 target uses whole-dataset PCA, not per-fold
+
+- **WHEN** the step computes the `target_name="PC1"` value
+- **THEN** it SHALL use `pca.fit_pca()` (with `StandardScaler` applied first, `random_state=42`
+  fixed) on the full common-genotype set
+- **AND** `fit_pca_on_fold` SHALL NOT be called for this purpose
+- **AND** the computed values SHALL match an independently-computed
+  `pca.fit_pca(StandardScaler().fit_transform(X), n_components=1, random_state=42)` on the same data
+
+#### Scenario: Dry-run lists the prediction step when enabled
+
+- **WHEN** `sleap-roots-analyze cross-platform <config> --dry-run` runs with
+  `config.prediction.enabled=True`
+- **THEN** the printed step list SHALL include a 6th entry for the prediction step
+
+#### Scenario: Dry-run omits the prediction step when disabled
+
+- **WHEN** `sleap-roots-analyze cross-platform <config> --dry-run` runs with
+  `config.prediction.enabled=False` (or the `prediction:` key absent)
+- **THEN** the printed step list SHALL contain exactly the existing 5 entries
+
 #### Scenario: predictor_matrices is exposed for downstream reuse without changing existing outputs
+
+`StepResult.data` is a plain dict keyed by method name (one `CrossPlatformPredictionResult.to_dict()`
+per `reduction_method`/`comparison_methods` entry). Adding a sibling `"predictor_matrices"` key is
+safe only because no valid `reduction_method`/`comparison_methods` value can itself equal
+`"predictor_matrices"` (both are constrained to `{"pls_latent", "representatives", "pc1"}`) — this
+is a load-bearing invariant on the reduction-method enum, not an incidental fact.
 
 - **WHEN** the step runs to completion
 - **THEN** `StepResult.data["predictor_matrices"]` SHALL hold the `source_clean`/`target_clean`
   DataFrames and `source_representative_names`/`target_representatives` computed during this run
-- **AND** every other key in `StepResult.data`, `StepResult.metadata`, and
-  `StepResult.files_generated` SHALL be unchanged in shape and content relative to this step's
-  behavior before this key was added
+- **AND** every method-keyed entry in `StepResult.data` (one per `reduction_method`/
+  `comparison_methods` value) SHALL be unchanged in shape and content relative to this step's
+  behavior before this key was added, and `StepResult.metadata`/`StepResult.files_generated` SHALL
+  likewise be unchanged
+- **AND** `"predictor_matrices"` SHALL NOT collide with any valid `reduction_method`/
+  `comparison_methods` value, now or if that enum is ever extended by a future change
 
 ## ADDED Requirements
 
@@ -277,16 +341,32 @@ step never runs without task 6 having already run in the same pipeline.
 For a given directed pair, the step SHALL:
 1. Read `predictor_matrices` and the observed `CrossPlatformPredictionResult`(s) from task 6's
    `StepResult.data`.
-2. For every `(target_name, method)` combination present in task 6's results (both
+2. Derive one independent `random_state` per `(target_name, method)` combination from
+   `config.prediction.permutation_random_state` via
+   `numpy.random.SeedSequence(permutation_random_state).spawn(N)` (`N` = the total number of
+   `(target_name, method)` combinations for this pair), rather than reusing the single configured
+   seed identically for every combination — reusing one seed would make every target draw the
+   identical permutation-index sequence, correlating (not independently sampling) the null draws
+   this step later pools across targets into one figure panel (see the pooled-violin scenario
+   below). The whole run remains deterministic given `permutation_random_state`, since
+   `SeedSequence.spawn` is itself deterministic.
+3. For every `(target_name, method)` combination present in task 6's results (both
    `reduction_method` and every `comparison_methods` entry), run `permutation_test()`
-   (`cross_platform_prediction.py`) with `n_permutations=config.prediction.n_permutations`,
-   `random_state=config.prediction.permutation_random_state`. These calls SHALL be parallelized
-   via `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs)`, with each parallel unit of
-   work being one complete `(target_name, method)` permutation test (not individual permutation
-   iterations within one test).
-3. Save one `CrossPlatformPermutationResult` per method as JSON to the run directory:
+   (`cross_platform_prediction.py`) with `n_permutations=config.prediction.n_permutations` and that
+   combination's derived `random_state` (step 2). These calls SHALL be parallelized via
+   `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs, backend="loky")`, with each
+   parallel unit of work being one complete `(target_name, method)` permutation test (not
+   individual permutation iterations within one test). Because each `permutation_test()` call is a
+   pure function of its own arguments with no shared mutable state, `loky`'s process-based
+   isolation cannot introduce cross-call RNG interference or change *which* values are computed —
+   results at different `permutation_n_jobs` settings SHALL agree within this codebase's
+   established cross-BLAS numerical tolerance (`rtol=1e-6, atol=1e-9`, `docs/reproducibility.md`),
+   not necessarily bit-for-bit, since `loky` worker processes may resolve a different default BLAS
+   thread count than the main process, a documented source of ULP-level floating-point differences
+   independent of this step's own logic.
+4. Save one `CrossPlatformPermutationResult` per method as JSON to the run directory:
    `07_permutation_<method>.json`.
-4. Build one composite figure per pair (not per method) using only the primary
+5. Build one composite figure per pair (not per method) using only the primary
    `reduction_method`'s results: a PC1 observed-vs-predicted scatter, an all-targets observed-R²-
    vs-pooled-permutation-null strip/violin plot, and an aggregate top-quartile-recovery bar chart
    (observed mean vs. null mean). Save as `07_prediction_figure.png`.
@@ -310,6 +390,16 @@ For a given directed pair, the step SHALL:
 - **THEN** `joblib.Parallel` SHALL distribute the `N` combinations across
   `config.prediction.permutation_n_jobs` workers, with each worker running one combination's
   complete, internally-serial `permutation_test()` call
+
+#### Scenario: Each (target, method) combination draws an independent permutation seed
+
+- **GIVEN** `N` `(target_name, method)` combinations for a pair
+- **WHEN** task 7 derives each combination's `random_state` via
+  `numpy.random.SeedSequence(config.prediction.permutation_random_state).spawn(N)`
+- **THEN** no two combinations SHALL receive the same derived seed
+- **AND** re-running the step with the same `permutation_random_state` and the same `N`
+  combinations (same order) SHALL reproduce identical derived seeds, and therefore identical
+  results, for every combination
 
 #### Scenario: One permutation JSON per method
 
