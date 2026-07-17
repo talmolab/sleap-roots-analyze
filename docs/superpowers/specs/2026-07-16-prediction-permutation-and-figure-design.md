@@ -212,6 +212,47 @@ paper's numeric tables/appendix, just not their own PNG.
   available in the `07_permutation_<method>.json` files for anyone who needs it; the figure is a
   summary view, not the complete record.
 
+## Section 5: Manual real-data validation gate (non-CI, pre-merge, sign-off required)
+
+Following Tier 3's Section 8 and Tier 3.5's Section 8 precedent exactly: a non-CI validation task
+against real EDPIE data, required before merge, with Elizabeth's explicit sign-off — not merely a
+CI-green signal. This is also where this design's biggest open risk (the 27.4-minute estimate,
+Section 2/Risks) gets resolved with real numbers instead of a synthetic-fixture extrapolation.
+
+1. **Build/reuse real inputs.** Reuse Tier 3.5's Section 8 real BLUP tables and 4 directed-pair
+   `CrossPlatformConfig` YAMLs (`pipeline_runs/section8_manual_validation_20260716/`) if still
+   valid; rebuild via the same non-committed script pattern if the underlying QC vintage has moved.
+   Extend each YAML's `prediction:` block with `visualize: true`, `n_permutations: 1000`,
+   `permutation_n_jobs: 8` (the design defaults — no per-run override needed unless the timing
+   check below says otherwise).
+2. **Run all 4 directed pairs** through the full 7-task pipeline (`sleap-roots-analyze
+   cross-platform <config>.yaml`), including `Turface19→Cylinder` — the worst-case pair (Cylinder
+   as target, ~129 representative traits per Tier 3.5's own Section 8 finding).
+3. **Re-measure real wall time**, per pair and total, and record it here (superseding the
+   synthetic-fixture-derived 27.4-minute estimate). If any pair — or the total — exceeds the
+   roadmap's 30-minute gate, apply one of the documented fallbacks (Risks section) *before*
+   proceeding to sign-off, not after.
+4. **Sanity-check permutation-based p-values against Tier 3.5's Section 8.2/8.3 findings**, which
+   used `scipy.stats.spearmanr`'s asymptotic p-value (documented, per Tier 3 Decision 9, as
+   imprecise below n≈20-30 — exactly the gap Tier 4's permutation null exists to close). In
+   particular: do the handful of nominally-significant real hits Tier 3.5 found (e.g.
+   Cylinder→Field `Root Count 20cm`, asymptotic R²=0.25/ρ=+0.49/p=0.033; Turface19→Cylinder
+   `Seminal Angles Proximal Max Max`, asymptotic R²=0.38/ρ=+0.62/p=0.004) still look significant
+   under the permutation-based p-value? A large divergence between asymptotic and permutation
+   p-values on these specific, already-flagged targets would be a meaningful finding for the paper,
+   not just a sanity check.
+5. **Cross-check against Tier 3.5's Section 8.5 multiple-testing/power caveat** (raw p<0.05 count
+   63/354, FDR-corrected count 9/354, all 9 negative ρ). Does permutation-based inference reinforce
+   or change that caveat's conclusion? Record the answer — this is the kind of finding this
+   program's own Section 8 process has surfaced before (Tier 3.5's own vintage-correction and
+   `Computation.Time.s`-exclusion fixes both came from exactly this kind of close manual look).
+6. **Visually inspect all 4 `07_prediction_figure.png` outputs** for legibility and correctness
+   (readable axis labels/titles, PC1 scatter shows genotype-level points, violin/strip panel shows
+   a visible real-vs-null gap or lack thereof, bar chart's two bars are distinguishable).
+7. **Sign-off requirement:** findings presented to Elizabeth; this task is not complete until she
+   has reviewed and explicitly signed off, mirroring Tier 3/3.5's `/pre-merge-check` gate — a green
+   CI run is necessary but not sufficient.
+
 ## Testing Plan (outline — full breakdown belongs in tasks.md)
 
 1. `permutation_test()`/`top_quartile_recovery()` unit tests (input validation, determinism given
@@ -228,5 +269,4 @@ paper's numeric tables/appendix, just not their own PNG.
    `PermutationResult`'s `observed_*` fields exactly reproduce task 6's already-reported
    `TargetPrediction` values for the same target/method).
 6. `CrossPlatformPipeline` task-list tests (7th task present/absent).
-7. Manual, non-CI, real-EDPIE-data validation (Section-8-equivalent) — including the real-scale
-   runtime re-measurement flagged in Risks, before merge.
+7. Section 5's manual real-data validation gate, non-CI, before merge — see above.
