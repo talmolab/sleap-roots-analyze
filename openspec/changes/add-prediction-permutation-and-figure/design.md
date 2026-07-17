@@ -446,10 +446,12 @@ implementation began. 5 BLOCKING and 11 IMPORTANT findings, reconciled as follow
 - **IMPORTANT — `CrossPlatformPermutationResult`'s requirement was missing the "no sklearn/numpy
   object" parity scenario** its sibling `CrossPlatformPredictionResult` requirement has. Fixed:
   added to the `serializable-result-types` spec delta, with a corresponding test (tasks.md 3.3a).
-- **SUGGESTION — Section 2 (14 tasks) and Section 6 (8 tasks) were too coarse for this program's
-  established per-commit granularity.** Fixed: both split, with explicit commit-boundary notes
-  (Section 2: `top_quartile_recovery` vs. `permutation_test`; Section 6: wiring/reuse →
-  parallelization → JSON/figure I/O).
+- **SUGGESTION — Section 2 (14 tasks) and the step section (8 tasks; numbered 6 at the time of
+  this fix, renumbered to 7 — specifically 7a/7b/7c — by round 2's Section 6/7 restructuring; this
+  cross-reference itself went stale and was corrected during round 4's own staleness sweep) were
+  too coarse for this program's established per-commit granularity.** Fixed: both split, with
+  explicit commit-boundary notes (Section 2: `top_quartile_recovery` vs. `permutation_test`; the
+  step section: wiring/reuse → parallelization → JSON/figure I/O).
 - **SUGGESTION — no boundary scenario for `top_quartile_recovery` when `q` rounds to 0 or exceeds
   `n/2`.** Fixed: added to the `cross-platform-prediction` spec, with a corresponding test
   (tasks.md 2.3a).
@@ -674,3 +676,93 @@ statistical bug) + 1 new BLOCKING-adjacent implementation risk — severity has 
 diminished round-over-round the way Tiers 3/3.5's own review history did. Each round has still
 found at least one substantive, non-cosmetic defect. A fourth round is recommended before treating
 this as settled, rather than stopping here on volume alone.
+
+## Adversarial Review Reconciliation (round 4)
+
+A fourth, independent round of the same 5-agent review (run fresh, with no memory of rounds 1-3)
+independently re-derived and re-confirmed round 3's RMSE fix from first principles (two reviewers
+worked a concrete numeric example — a good low-RMSE result under the correct left-tail formula
+gives `p≈0.09`; under the buggy right-tail formula it gives `p≈1.0` — and both concluded the fixed
+spec is now statistically correct), re-verified the 20-scenario MODIFIED requirement a 4th time
+with zero drift, re-confirmed the `Generator` reproducibility caveat against real numpy behavior a
+second time, and found **no new regressions** in anything fixed by rounds 1-3. But two reviewers
+**independently** surfaced the same new, real gap — the strongest possible corroboration signal
+this program's process has produced — plus two reviewers independently found that one of round 3's
+own new oracle tests doesn't actually test what its own description claims:
+
+- **IMPORTANT (new, corroborated independently by 2 of 5 reviewers) — the non-finite-value guard
+  covered only null values, never the observed value.** `permutation_test()`'s entire design
+  premise (Decision 1) is that it's self-contained for direct Python-API use, with no upstream
+  pipeline guard to rely on — but a caller passing a constant `y` (legal per `logo_cv_predict`'s
+  own documented contract) would get a non-finite `observed_spearman_rho` that was never scanned,
+  crashing unnamed at `to_json()` — the exact failure mode the null-side guard (round 1) was built
+  to prevent, just on the other side of the same function. Fixed: the Permutation Test requirement
+  now scans observed values first (cheap, fails immediately, before wasting `n_permutations` calls
+  on unusable input), then the null distributions as before; a new scenario and task (2.13b) cover
+  it.
+- **IMPORTANT (new, corroborated independently by 2 of 5 reviewers) — task 9.1a's K-S calibration
+  test for `p_value_rmse` has zero detection power for the exact regression it was added to guard.**
+  Both reviewers independently derived the same symmetry argument: under a pure-noise null, the
+  observed value's rank among the null draws is uniform regardless of which tail the p-value
+  formula uses, so a correct left-tail formula and an incorrectly-reverted right-tail formula both
+  pass a K-S-against-`Uniform(0,1)` test identically — pure noise has no asymmetry for either
+  formula to get wrong. Only 9.2a (a genuinely low-RMSE *signal* result must read as significant)
+  actually depends on the tail direction. Fixed: 9.1a's task text now states explicitly that it
+  verifies calibration only, not direction, and points to 9.2a as the real direction guard — so a
+  future maintainer doesn't mistake 9.1a passing as evidence the direction is still correct.
+- **IMPORTANT (new) — task 2.11's "(etc.)" wording, if implemented literally, would test the wrong
+  (right-tail) formula for RMSE**, directly contradicting the fixed spec and 9.2a. Fixed: split
+  into 2.11 (R²/ρ, right-tail) and 2.11a (RMSE, explicit left-tail), removing the "(etc.)"
+  generalization that caused the ambiguity.
+- **IMPORTANT (new) — the Section 7a `permutation_n_jobs=1` mocking-across-process-boundary note
+  (added round 3) didn't cover 7c.5/7c.6**, which also monkeypatch `logo_cv_predict`/
+  `permutation_test` to inject a failing result, the same pattern the note was written to protect
+  against. Fixed: both tasks now explicitly require the same pinning; the Section 7a note's
+  applies-to list extended to include them.
+- **IMPORTANT (new) — task 9.6's "measure and record wall time" named an outcome with no concrete
+  mechanism**, risking the same kind of vague, unfalsifiable instruction this program's own
+  process exists to catch. Fixed: pinned to reading the `tests` CI job's own `pytest --durations`
+  output per OS — no new tooling needed, already part of the standard `uv run pytest` invocation.
+- **SUGGESTION (new) — the CI-time estimate note (added round 3) didn't fold 9.1a/9.2a into its
+  arithmetic**, understating the total by roughly one test's worth of compute. Fixed: recomputed
+  to ~9 minutes (from ~8), noting 9.2a adds no extra `permutation_test` calls of its own (it reads
+  an already-computed value from 9.2's fixture run).
+- **SUGGESTION (new) — one stale "Section 6" cross-reference survived round 3's own staleness
+  sweep** (a round-1 SUGGESTION bullet about commit granularity). Fixed in place, with a note
+  explaining the cross-reference itself needed correcting — the same class of finding round 3
+  fixed for its neighboring bullets, just missed for this one.
+- **SUGGESTION (new, documentation) — the RMSE tail-direction and `Generator`-statefulness caveats
+  existed only in the OpenSpec proposal, which is not shipped documentation and moves to
+  `openspec/changes/archive/...` on merge.** Both are genuine Python-API footguns subtle enough to
+  have taken multiple internal review rounds to catch — a future direct caller deserves the same
+  warning. Fixed: task 12.3 now requires both stated explicitly in `permutation_test`'s own
+  docstring and its `API.md` entry, not just internally in this proposal.
+- **SUGGESTION (new, documentation) — the shipped-doc `2q/n` example (task 12.2) still showed only
+  a single-point figure ("≈52.6% at n=19"),** not round 3's own corrected range, risking a reader
+  treating that single number as a fixed constant rather than an n-dependent range. Fixed: widened
+  to state the full ≈44-55% range across this program's real n=15-24 scale, with the single-point
+  figure kept only as one worked example within that range.
+- **SUGGESTION (new, documentation) — tasks.md's Section 6/7 headers never stated which test file
+  each section's tests land in**, leaving the two disambiguating test-file names
+  (`test_visualize_prediction.py` vs. `test_step_visualize_prediction.py`, added in proposal.md
+  during round 3) only inferable from that separate file, not stated where an implementer would
+  actually be reading task-by-task. Fixed: both section headers now name their test file directly.
+- **Verified clean, no action needed:** the RMSE formula's correctness itself (re-derived twice,
+  independently, from first principles, with a concrete numeric walkthrough both times); all four
+  metrics' directions (R², Spearman ρ, RMSE, top-quartile recovery — the last of which has no
+  p-value at all, so no direction-inversion is even possible for it); the `Generator`
+  reproducibility caveat (re-verified against real numpy behavior a second time); the 20-scenario
+  MODIFIED requirement (re-counted a 4th time, zero drift); `SeedSequence.spawn` determinism;
+  task 7b.7's positioning (hardcodes `permutation_n_jobs=4` in its own task text, so it can't
+  accidentally degrade to the in-process fast path and fail to test real parallel dispatch); task
+  6.4a's positioning (correctly ordered before 6.5, which must make it green).
+
+Full re-validation (`openspec validate add-prediction-permutation-and-figure --strict`) passes
+after all round-4 fixes (100 tasks, up from 98). Round-over-round severity: round 1: 5 BLOCKING;
+round 2: 2 new BLOCKING; round 3: 1 new BLOCKING + 1 BLOCKING-adjacent; round 4: **0 new BLOCKING**
+— every round-4 finding was IMPORTANT-or-lower, and the two most substantive findings (the missing
+observed-value guard, the toothless 9.1a test) were each independently corroborated by 2 of 5
+reviewers rather than surfacing fresh, previously-unseen defect categories. This is the first round
+showing a genuine severity drop, consistent with (though not yet as clean as) Tiers 3/3.5's own
+convergence pattern — a reasonable point to bring to Elizabeth for a decision on whether a 5th
+round is warranted or this is ready for approval.

@@ -51,14 +51,23 @@ one-sided p-values for R², RMSE, and Spearman ρ — **not the same formula for
 A permutation's LOGO-CV fold structure can independently produce a non-finite `spearman_rho` (e.g.
 a degenerate fold whose predictions are constant) even when that permutation's shuffled `y` is
 itself non-constant — this is a model-degeneracy event distinct from, and not ruled out by, the
-data-degeneracy check `PredictCrossPlatformStep` already performs on *observed* values before this
-function is ever called. The function SHALL therefore scan every null distribution
-(`null_r2`/`null_rmse`/`null_spearman_rho`/`null_top_quartile_recovery`) for non-finite entries
-before returning, and SHALL raise `ValueError` naming both the offending metric and the
-0-indexed permutation number(s) at which it occurred, rather than allowing a non-finite value to
-propagate into `PermutationResult`/`CrossPlatformPermutationResult.to_json()`'s
-`allow_nan=False` contract as an unnamed failure deep inside a long-running `joblib.Parallel` loop.
-This scan runs **after** all `n_permutations` calls complete, not fail-fast on the first
+data-degeneracy check `PredictCrossPlatformStep` already performs on *observed* values **before
+that pipeline step calls this function**. That upstream guard does not exist for a direct
+Python-API caller (Decision 1's own explicit design goal — this function is Python-API-only, not
+pipeline-only, and is self-contained precisely so a caller doesn't need a separate upstream check):
+a caller passing data with a constant `y` or a model that degenerates to constant predictions on
+the real, unshuffled call gets exactly the same non-finite-`spearman_rho`/`r2` risk, on the
+*observed* side, that this requirement already addresses for the null side. The function SHALL
+therefore scan **both** the observed values (`observed_r2`/`observed_rmse`/`observed_spearman_rho`)
+**and** every null distribution (`null_r2`/`null_rmse`/`null_spearman_rho`/
+`null_top_quartile_recovery`) for non-finite entries before returning, and SHALL raise `ValueError`
+naming the offending metric and, for a null-side failure, the 0-indexed permutation number(s) at
+which it occurred (for an observed-side failure, naming that it is the observed value, not a
+permutation index) — rather than allowing a non-finite value to propagate into
+`PermutationResult`/`CrossPlatformPermutationResult.to_json()`'s `allow_nan=False` contract as an
+unnamed failure. The observed-side check SHALL run first (cheap, one call, fails immediately
+rather than after `n_permutations` further calls that would be wasted on unusable input); the
+null-side scan runs **after** all `n_permutations` calls complete, not fail-fast on the first
 occurrence — chosen for implementation simplicity (one deterministic pass reporting every
 offending index at once, rather than a per-iteration check that changes the function's control
 flow) and because a genuinely non-finite-producing bug is expected to affect many permutations
@@ -143,6 +152,17 @@ that matters, while complicating the accounting of *which* permutations were and
   rather than returning a `PermutationResult` that would later fail
   `CrossPlatformPermutationResult.to_json()`'s finite-floats contract with no indication of which
   permutation caused it
+
+#### Scenario: Non-finite observed values are rejected before any permutation runs
+
+- **GIVEN** `y` is constant (zero variance), or the observed `logo_cv_predict` call otherwise
+  produces a non-finite `spearman_rho` — a legal `logo_cv_predict` input/output (per that
+  function's own "Constant y does not raise" contract), reachable by a direct Python-API caller
+  with no upstream pipeline guard
+- **WHEN** `permutation_test()` runs
+- **THEN** it SHALL raise `ValueError` naming the offending observed metric, immediately after the
+  observed-value call and before drawing any of the `n_permutations` null values (not after
+  wastefully completing the full permutation loop on data already known to be unusable)
 
 ### Requirement: Top-Quartile Recovery Metric
 

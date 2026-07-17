@@ -103,9 +103,17 @@
       case where using the *original* `y` as truth (instead of that permutation's shuffled `y`)
       would produce a detectably different recovery value — assert the shuffled-`y`-as-truth
       behavior (Decision 2 in design.md).
-- [ ] 2.11 Write failing test `test_permutation_test_p_value_formula`: for a hand-constructed
-      `null` array and `observed` value, assert `p_value_r2` (etc.) equals
-      `(count(v >= observed) + 1) / (n_permutations + 1)` exactly.
+- [ ] 2.11 Write failing test `test_permutation_test_p_value_formula_r2_and_rho`: for a
+      hand-constructed `null` array and `observed` value, assert `p_value_r2` **and**
+      `p_value_spearman_rho` each equal `(count(v >= observed) + 1) / (n_permutations + 1)` exactly
+      (right-tail — higher is better for both metrics).
+- [ ] 2.11a Write failing test `test_permutation_test_p_value_formula_rmse`: for a
+      hand-constructed `null` array and `observed` value, assert `p_value_rmse` equals
+      `(count(v <= observed) + 1) / (n_permutations + 1)` exactly — the **opposite**-tail formula
+      from 2.11 (lower RMSE is better), a separate task rather than folded into 2.11's "(etc.)" to
+      prevent an implementer from generalizing the wrong (right-tail) formula to RMSE by pattern-
+      matching alone (found during `/review-openspec` round 4: 2.11's original "(etc.)" wording,
+      if taken literally, contradicts the corrected RMSE formula and 9.2a's own assertion).
 - [ ] 2.12 Write failing test `test_permutation_test_rejects_non_positive_n_permutations`:
       `n_permutations=0` and `n_permutations=-1` both raise `ValueError`, before any
       `logo_cv_predict` call (spy to confirm zero calls made).
@@ -127,6 +135,14 @@
       expected to affect many permutations within one target, not a rare one-off, so failing fast
       saves little wall-clock time while complicating which-permutations-ran accounting), not a
       downstream `to_json()` crash with no indication of which permutation caused it.
+- [ ] 2.13b Write failing test `test_permutation_test_rejects_non_finite_observed_values_before_permutations_run`:
+      a constant `y` (legal per `logo_cv_predict`'s own "Constant y does not raise" contract,
+      reachable by a direct Python-API caller with no upstream pipeline guard — found during
+      `/review-openspec` round 4: the non-finite guard from 2.13a only ever covered null values,
+      never the observed call) — assert `ValueError` naming the offending observed metric, raised
+      immediately after the observed-value `logo_cv_predict` call and before any permutation is
+      drawn (spy to confirm zero shuffled calls made), not after wastefully completing the full
+      permutation loop on data already known to be unusable.
 - [ ] 2.14 Implement `permutation_test(X, y, genotypes, reduction_method="pls_latent",
       representative_names=None, n_permutations=1000, random_state=42)` in
       `cross_platform_prediction.py`, building its RNG via
@@ -134,8 +150,9 @@
       directly, which requires a `BitGenerator` instance and rejects a bare `int` — `default_rng`
       accepts `int`/`SeedSequence`/`Generator` uniformly, which is what makes 2.8's parametrized
       `SeedSequence` case and Section 7's per-target `SeedSequence` children both work with no
-      int-extraction step). Returns a `PermutationResult` (Section 3), including the non-finite-
-      null scan from 2.13a. Make 2.5-2.13a green.
+      int-extraction step). Returns a `PermutationResult` (Section 3), including the observed-value
+      non-finite check from 2.13b (runs first) and the non-finite null scan from 2.13a (runs after
+      all permutations complete). Make 2.5-2.13b green.
 
 ## 3. `PermutationResult`/`CrossPlatformPermutationResult` (test-first)
 
@@ -229,11 +246,14 @@
       figure-content module instead, which does not import `joblib` — corrected during round 3).
       Adding the dependency after that import would exist is backwards.
 
-## 6. Figure content: `visualize_prediction.py` module (test-first)
+## 6. Figure content: `src/sleap_roots_analyze/visualize_prediction.py` module (test-first)
 
 > **Moved ahead of the step that consumes it** (found during `/review-openspec` round 2: the
 > step's own tests mock/call `create_prediction_figure`, which didn't exist yet when this section
-> was numbered after the step — a real sequencing bug, not just a stylistic reordering).
+> was numbered after the step — a real sequencing bug, not just a stylistic reordering). Tests
+> land in `tests/test_visualize_prediction.py` — distinct from Section 7's
+> `tests/test_step_visualize_prediction.py`, per proposal.md's naming-collision note (the two new
+> source files share the basename `visualize_prediction.py` in different subpackages).
 
 - [ ] 6.1 Write failing test `test_create_prediction_figure_scatter_panel_uses_pc1_target_only`:
       given multiple targets' data, the obs-vs-pred scatter panel's plotted points correspond only
@@ -256,13 +276,15 @@
       `cross_experiment_analysis.py`'s plotting-function convention (pure functions returning a
       `matplotlib.Figure`, no file I/O). Make 6.1-6.4a green.
 
-## 7. `VisualizePredictionStep` (test-first)
+## 7. `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py` — `VisualizePredictionStep` (test-first)
 
 > Restructured during `/review-openspec` round 2: round 1's "3 test-group commits, 1 implementation
 > commit at the end" pattern doesn't achieve real atomicity — each test-only commit would leave
 > `uv run pytest` red until the final implementation commit lands (verified against Tier 3.5's own
 > real commit history, which never split tests from implementation this way). Restructured into 3
-> genuine red→green pairs, each landing its own working implementation increment.
+> genuine red→green pairs, each landing its own working implementation increment. Tests land in
+> `tests/test_step_visualize_prediction.py` — distinct from Section 6's
+> `tests/test_visualize_prediction.py` (see that section's own note).
 
 **7a. Wiring and predictor-matrix reuse (red→green pair 1)**
 
@@ -274,8 +296,12 @@
 > parent-process mock is invisible (the worker calls the real, unmocked function, or a spy
 > implemented as a non-picklable `Mock` raises `PicklingError`) — either way the test would stop
 > testing what it claims, or break outright, the moment real parallelization is exercised. This
-> applies to 7a.1, 7a.3, 7a.4, and 7b.4 below; 7b.1/7b.2 avoid the issue by inspecting the
-> `joblib.Parallel`/`delayed` construction itself rather than mocking `permutation_test`.
+> applies to 7a.1, 7a.3, 7a.4, 7b.4, **and 7c.5/7c.6** (added during `/review-openspec` round 4 —
+> the original note missed these two, which also need to monkeypatch `logo_cv_predict`/
+> `permutation_test` to inject a non-finite/failing result) below; 7b.1/7b.2 avoid the issue by
+> inspecting the `joblib.Parallel`/`delayed` construction itself rather than mocking
+> `permutation_test`; 7b.5, 7b.7, and 7c's other tests call the real, unmocked functions and are
+> likewise unaffected.
 
 - [ ] 7a.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`
       (`permutation_n_jobs=1`, see note above): spy on any BLUP-loading/genotype-mean-aggregation
@@ -376,17 +402,22 @@
       Section 6) confirm it was called with only the primary `reduction_method`'s results, not
       `comparison_methods`'.
 - [ ] 7c.5 Write failing test
-      `test_visualize_prediction_step_rejects_non_finite_permutation_result_with_named_error`:
-      when `permutation_test` (or its underlying `logo_cv_predict` calls) would produce a
-      non-finite null value for one target/method, the step surfaces `ValueError` naming the
-      target/method/permutation-index (propagated from `permutation_test`'s own guard, task
-      2.13a), before attempting to write any `07_permutation_<method>.json`.
+      `test_visualize_prediction_step_rejects_non_finite_permutation_result_with_named_error`
+      (`permutation_n_jobs=1`, per the mocking-across-process-boundary note at the top of Section
+      7a — found during `/review-openspec` round 4 that this note originally scoped itself to
+      7a.1/7a.3/7a.4/7b.4 only and missed this test, which needs the identical pinning since
+      injecting the non-finite result requires monkeypatching `logo_cv_predict`/`permutation_test`
+      the same way task 2.13a does): when `permutation_test` (or its underlying `logo_cv_predict`
+      calls) would produce a non-finite null value for one target/method, the step surfaces
+      `ValueError` naming the target/method/permutation-index (propagated from `permutation_test`'s
+      own guard, task 2.13a), before attempting to write any `07_permutation_<method>.json`.
 - [ ] 7c.6 Write failing test
-      `test_visualize_prediction_step_writes_no_partial_json_files_when_any_combination_fails`:
-      one `(target, method)` combination fails (per 7c.5) while every other combination for the
-      pair would have individually succeeded — assert **zero** `07_permutation_<method>.json`
-      files exist after the exception propagates, including for methods whose own combinations all
-      succeeded (all-or-nothing per pair, not a partial write).
+      `test_visualize_prediction_step_writes_no_partial_json_files_when_any_combination_fails`
+      (`permutation_n_jobs=1`, same reason as 7c.5): one `(target, method)` combination fails (per
+      7c.5) while every other combination for the pair would have individually succeeded — assert
+      **zero** `07_permutation_<method>.json` files exist after the exception propagates, including
+      for methods whose own combinations all succeeded (all-or-nothing per pair, not a partial
+      write).
 - [ ] 7c.7 Extend `VisualizePredictionStep` to save one `CrossPlatformPermutationResult` JSON per
       method (only after every combination for the pair has succeeded — 7c.6's all-or-nothing
       contract) and call `create_prediction_figure()` (Section 6) with the primary method's
@@ -416,13 +447,16 @@
 > cost minutes and collectively threaten the shared 30-minute CI job budget across 3 OSes. Only
 > 9.1 stated this explicitly in an earlier draft; 9.2/9.3/9.4b now do too.
 >
-> **Estimated (not yet measured) total added CI time (found during `/review-openspec` round 3):**
-> ~8 minutes serial, at ~20ms/`logo_cv_predict` call, `n_permutations=200`, across 9.1 (40 fixtures
-> × 201 calls) + 9.2 + 9.3 + 9.4b (20-seed fixture, ×201 calls each). This is an estimate, not a
-> measurement — task 9.6 MUST record the actual measured wall time for Section 9's test suite (per
-> OS, since Windows runners are typically slower for process/import-heavy work) and, if it
-> meaningfully threatens the shared 30-minute budget once Sections 2-8's other new tests and 7b.5's
-> real multi-process `loky` test are also counted, reduce `n_permutations` further and/or the
+> **Estimated (not yet measured) total added CI time (found during `/review-openspec` round 3,
+> arithmetic corrected round 4 to include 9.1a/9.2a):** ~9 minutes serial, at ~20ms/
+> `logo_cv_predict` call, `n_permutations=200`, across 9.1 (40 fixtures × 201 calls) + 9.1a (same
+> 40 fixtures, ×201 calls, for `p_value_rmse`) + 9.2 + 9.2a (same signal fixture, no extra
+> `permutation_test` calls — reads an already-computed `p_value_rmse`) + 9.3 + 9.4b (20-seed
+> fixture, ×201 calls each). This is an estimate, not a measurement — task 9.6 MUST record the
+> actual measured wall time for Section 9's test suite (per OS, since Windows runners are
+> typically slower for process/import-heavy work) and, if it meaningfully threatens the shared
+> 30-minute budget once Sections 2-8's other new tests and 7b.5's real multi-process `loky` test
+> are also counted, reduce `n_permutations` further and/or the
 > fixture count, rather than assuming the estimate above holds.
 
 - [ ] 9.1 Write failing test `test_permutation_test_p_values_are_uniform_under_null` (K-S
@@ -431,11 +465,16 @@
       default), collect the resulting `p_value_r2`s, K-S-test against `Uniform(0,1)`, assert
       `p > 0.05`.
 - [ ] 9.1a Write failing test `test_permutation_test_p_value_rmse_is_uniform_under_null`: the same
-      K-S calibration procedure as 9.1, but for `p_value_rmse` — a separate, explicit check that
-      the RMSE-specific left-tail p-value formula (per the Permutation Test requirement's
-      per-metric-direction scenario) is itself correctly calibrated, not just correctly directed
-      (found during `/review-openspec` round 3: no oracle anywhere previously checked
-      `p_value_rmse`'s calibration or direction — only `p_value_r2` was covered by 9.1).
+      K-S calibration procedure as 9.1, but for `p_value_rmse` (found during `/review-openspec`
+      round 3: no oracle anywhere previously checked `p_value_rmse`'s calibration at all — only
+      `p_value_r2` was covered by 9.1). **This test verifies Type-I-error calibration only, not
+      direction** (found during `/review-openspec` round 4: under a pure-noise null, the observed
+      value's rank among the `N` null draws is uniform regardless of which tail the p-value formula
+      uses — both the correct left-tail and an incorrectly-reverted right-tail RMSE formula pass
+      this K-S test identically, since pure noise has no asymmetry for either formula to get wrong).
+      **Task 9.2a below, not this task, is what actually guards against the RMSE direction
+      regression** (a genuinely low-RMSE *signal* result reads as significant only under the
+      correct left-tail formula) — do not treat 9.1a passing as evidence the direction is correct.
 - [ ] 9.2 Write failing test `test_permutation_test_signal_r2_exceeds_its_own_null_median`: on the
       N=20-seed planted-signal fixture (task 1.1), with `n_permutations=200` (explicit, CI-fast),
       the mean observed R² across seeds is comfortably above the mean permutation-null median
@@ -471,8 +510,14 @@
 - [ ] 9.6 Implement whatever `permutation_test()`/fixture adjustments are needed to make 9.1, 9.1a,
       9.2, 9.2a, 9.3, and 9.4b-9.5 pass, recording the actual empirically-determined values from
       9.4a in this file and in `design.md`'s Decision 11 note (per this program's "verify, don't
-      assume" convention), and measuring and recording Section 9's actual total wall time per OS
-      (per the CI-timeout note above) here.
+      assume" convention). Also measure and record Section 9's actual total wall time per OS
+      (found during `/review-openspec` round 4: the original wording of this task named an outcome
+      with no concrete mechanism) — concretely: read the `tests` CI job's own `pytest --durations`
+      output (already part of this repo's standard `uv run pytest` invocation, no new tooling
+      needed) for `tests/test_cross_platform_prediction.py::TestPermutationOracles` (or wherever
+      Section 9's tests land) on each of the 3 CI matrix OSes, once this section's tests are green
+      on an open PR; record the 3 per-OS numbers here and compare against the ~8-minute serial
+      estimate above (per the CI-timeout note's own "estimate, not measurement" framing).
 
 ## 10. `theory.md` addendum
 
@@ -540,8 +585,11 @@
         targets, verified against real EDPIE data — see Section 11's findings for the actual
         measured number").
       - The `2q/n` chance-level baseline for top-quartile recovery (e.g. "chance-level recovery is
-        `2q/n`, not 25% — ≈52.6% at n=19, q=5" — found during round 2 that this math previously
-        existed only in the OpenSpec proposal, not any shipped doc a user would actually see).
+        `2q/n`, not 25% — varying ≈44-55% across this program's real n=15-24 scale, e.g. ≈52.6% at
+        n=19, q=5" — found during round 2 that this math previously existed only in the OpenSpec
+        proposal, not any shipped doc a user would actually see; range widened during round 4 from
+        an earlier single-point "≈52.6%" example that risked reading as a fixed constant rather
+        than an n-dependent range).
       Also:
       - **Correct the existing section's stale closing sentence** (found during round 1: it
         currently reads "The permutation null and its figures (Tier 4) remain a separate, later
@@ -552,16 +600,25 @@
       - **Extend the existing `### Current Limitations` subsection's #197 bullet in place** (found
         during round 2: a separate new bullet would read as a near-duplicate) to also note that
         `CrossPlatformSummaryGenerator` doesn't surface permutation/visualization output either.
-- [ ] 12.3 **No `docs/API.md` entry.** Verified directly (found during `/review-openspec` round 1
-      that the original task's premise was backwards): `LOGOCVResult`/`CrossPlatformPredictionResult`/
-      `TargetPrediction` are all in `__all__`, but **none** has an `API.md` entry — the
-      `cross_platform_prediction` module section documents only its two functions
-      (`fit_pca_on_fold`, `logo_cv_predict`); `__all__` membership does not predict `API.md`
-      inclusion for these dataclasses. `PermutationResult`/`CrossPlatformPermutationResult` follow
-      that same (undocumented-dataclass) precedent — no `API.md` change needed. `permutation_test`/
+- [ ] 12.3 **No `docs/API.md` entry** for `PermutationResult`/`CrossPlatformPermutationResult`.
+      Verified directly (found during `/review-openspec` round 1 that the original task's premise
+      was backwards): `LOGOCVResult`/`CrossPlatformPredictionResult`/`TargetPrediction` are all in
+      `__all__`, but **none** has an `API.md` entry — the `cross_platform_prediction` module
+      section documents only its two functions (`fit_pca_on_fold`, `logo_cv_predict`); `__all__`
+      membership does not predict `API.md` inclusion for these dataclasses. `permutation_test`/
       `top_quartile_recovery` DO get entries in the `cross_platform_prediction` module section,
       matching the existing `fit_pca_on_fold`/`logo_cv_predict` entries' heading/signature/prose
-      format exactly.
+      format exactly. **Both `permutation_test`'s own docstring and its `API.md` entry MUST state**
+      (found during `/review-openspec` round 4: these are genuine Python-API footguns, subtle
+      enough that each took multiple internal review rounds to catch, and neither the docstring nor
+      any shipped doc mentioned them — the OpenSpec proposal itself moves to
+      `openspec/changes/archive/...` on archival and won't be visible to a future caller):
+      - `p_value_r2` and `p_value_spearman_rho` are right-tailed (higher is better); `p_value_rmse`
+        is **left-tailed**, the opposite convention (lower is better) — do not read a low
+        `p_value_rmse` as indicating a bad fit.
+      - `random_state` accepts `int`/`SeedSequence` reproducibly (same input always reproduces the
+        same null draws), but a passed-in `numpy.random.Generator` instance is stateful — reusing
+        the *same* `Generator` instance across two calls will **not** reproduce identical results.
 
 ## 13. Validation
 
