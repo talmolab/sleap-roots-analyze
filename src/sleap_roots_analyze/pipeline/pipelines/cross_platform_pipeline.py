@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, List
 
 from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
 from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
@@ -29,6 +30,9 @@ from sleap_roots_analyze.pipeline.steps.calculate_trait_enrichment import (
 from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
     VisualizeCrossPlatformStep,
 )
+from sleap_roots_analyze.pipeline.steps.predict_cross_platform import (
+    PredictCrossPlatformStep,
+)
 
 
 class CrossPlatformPipeline(BasePipeline):
@@ -40,6 +44,7 @@ class CrossPlatformPipeline(BasePipeline):
     3. Calculate correlations between all trait pairs
     4. Trait-level binomial enrichment (optional, config-gated)
     5. Generate visualizations of correlations
+    6. Predict cross-platform genotype values via LOGO-CV (optional, config-gated)
 
     The pipeline is designed to compare traits across different experimental
     platforms or conditions to identify which traits capture similar biological
@@ -95,7 +100,7 @@ class CrossPlatformPipeline(BasePipeline):
         return sanitized
 
     def create_tasks(self) -> List[Task]:
-        """Create the cross-platform analysis task graph with 5 steps.
+        """Create the cross-platform analysis task graph with 5 or 6 steps.
 
         Returns:
             List of Tasks defining the pipeline DAG:
@@ -104,6 +109,9 @@ class CrossPlatformPipeline(BasePipeline):
                 - Step 3: CalculateCrossPlatformCorrelations
                 - Step 4: CalculateTraitEnrichment (optional, based on config)
                 - Step 5: VisualizeCrossPlatform
+                - Step 6: PredictCrossPlatform (optional, based on
+                  config.prediction.enabled -- entirely absent, not merely
+                  skipped, when disabled)
         """
         tasks = []
 
@@ -159,6 +167,21 @@ class CrossPlatformPipeline(BasePipeline):
                 description="Generate correlation visualizations",
             )
         )
+
+        # Step 6: Predict cross-platform genotype values (optional, config-gated;
+        # entirely absent -- not merely skipped -- when disabled, per Decision 1).
+        if self.config.prediction.enabled:
+            tasks.append(
+                Task(
+                    func=self._run_predict_cross_platform,
+                    name="06_predict_cross_platform",
+                    depends_on=[
+                        "01_load_cross_platform_data",
+                        "05_visualize_cross_platform",
+                    ],
+                    description="Predict cross-platform genotype values via LOGO-CV",
+                )
+            )
 
         return tasks
 
@@ -224,6 +247,27 @@ class CrossPlatformPipeline(BasePipeline):
         prev_task_result = kwargs.get("04_calculate_trait_enrichment")
         prev_step_result = prev_task_result.data
         step = VisualizeCrossPlatformStep()
+        result = step.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_predict_cross_platform(
+        self, config: Any, run_dir: Path, logger: Any, **kwargs: Any
+    ) -> StepResult:
+        """Execute Step 6: Predict Cross-Platform Genotype Values (optional).
+
+        Reads data from task 1's result only. ``kwargs["05_visualize_cross_platform"]``
+        is depended-upon solely to guarantee DAG ordering (steps 1-5 complete
+        before prediction runs) -- its ``data`` is never read here (Decision 15).
+        """
+        logger.info("Step 6/6: Predicting cross-platform genotype values...")
+        prev_task_result = kwargs["01_load_cross_platform_data"]
+        prev_step_result = prev_task_result.data
+        step = PredictCrossPlatformStep()
         result = step.execute(
             data=prev_step_result.data,
             config=config,

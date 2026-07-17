@@ -387,3 +387,322 @@ def test_config_rejects_invalid_reduction_target():
             trait_reduction_method="clustering",
             trait_reduction_target="invalid",
         )
+
+
+# =============================================================================
+# PredictionConfig tests (Tier 3.5, add-prediction-pipeline-step, #196)
+# tasks.md Section 2 -- PredictionConfig standalone (no CrossPlatformConfig
+# nesting assertions here; those live solely in Section 3, task 3.1, per
+# design.md's round-1 reconciliation).
+# =============================================================================
+
+
+def test_prediction_config_defaults_to_disabled():
+    """PredictionConfig() defaults to enabled=False (tasks.md 2.1)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    config = PredictionConfig()
+    assert config.enabled is False
+
+
+def test_prediction_config_validation_skipped_when_disabled():
+    """No validation runs at all when enabled=False (Decision 4, tasks.md 2.2)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    # Every field below is individually invalid; none of it should raise
+    # because enabled=False short-circuits __post_init__ entirely.
+    config = PredictionConfig(
+        enabled=False,
+        predictor_source="not_a_real_value",
+        source_blup_path="/does/not/exist",
+    )
+    assert config.predictor_source == "not_a_real_value"
+
+
+@pytest.mark.parametrize(
+    "field_name,invalid_value",
+    [
+        ("predictor_source", "not_a_real_value"),
+        ("reduction_method", "not_a_real_value"),
+        ("representative_selection_metric", "heritability"),
+        ("representative_selection_metric", "not_a_real_value"),
+    ],
+)
+def test_prediction_config_rejects_invalid_enum_fields(field_name, invalid_value):
+    """Invalid enum field values raise ValueError naming the field (tasks.md 2.3)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    kwargs = {
+        "enabled": True,
+        "predictor_source": "genotype_means",
+        field_name: invalid_value,
+    }
+    with pytest.raises(ValueError, match=field_name):
+        PredictionConfig(**kwargs)
+
+
+def test_prediction_config_rejects_invalid_comparison_methods_entry():
+    """An invalid entry inside comparison_methods raises ValueError (tasks.md 2.3)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="comparison_methods"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            reduction_method="pls_latent",
+            comparison_methods=["not_a_real_value"],
+        )
+
+
+def test_prediction_config_rejects_duplicate_method_in_comparison_methods():
+    """comparison_methods duplicating reduction_method raises ValueError (tasks.md 2.4)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="comparison_methods"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            reduction_method="pls_latent",
+            comparison_methods=["pls_latent"],
+        )
+
+
+def test_prediction_config_rejects_duplicate_entries_within_comparison_methods():
+    """A method listed twice within comparison_methods itself raises (tasks.md 2.4a)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="comparison_methods"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            reduction_method="pls_latent",
+            comparison_methods=["representatives", "representatives"],
+        )
+
+
+def test_prediction_config_blup_preflight_check_missing_path(tmp_path):
+    """A nonexistent source_blup_path/target_blup_path raises at construction (tasks.md 2.5)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    existing = tmp_path / "exists.csv"
+    existing.write_text("Genotype,trait_a\nG01,1.0\n")
+
+    with pytest.raises(ValueError, match="source_blup_path"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="blup",
+            source_blup_path=str(tmp_path / "does_not_exist.csv"),
+            target_blup_path=str(existing),
+        )
+
+    with pytest.raises(ValueError, match="target_blup_path"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="blup",
+            source_blup_path=str(existing),
+            target_blup_path=str(tmp_path / "does_not_exist.csv"),
+        )
+
+
+def test_prediction_config_genotype_means_does_not_require_blup_paths():
+    """predictor_source=genotype_means needs no BLUP paths (Decision 2, tasks.md 2.6)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    config = PredictionConfig(
+        enabled=True,
+        predictor_source="genotype_means",
+        source_blup_path=None,
+        target_blup_path=None,
+    )
+    assert config.source_blup_path is None
+    assert config.target_blup_path is None
+
+
+# =============================================================================
+# CrossPlatformConfig <-> PredictionConfig wiring tests (tasks.md Section 3)
+# =============================================================================
+
+
+def test_cross_platform_config_gains_prediction_field():
+    """CrossPlatformConfig().prediction is a default PredictionConfig (tasks.md 3.1)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="exp1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno1",
+        exp2_data_path="exp2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno2",
+    )
+    assert isinstance(config.prediction, PredictionConfig)
+    assert config.prediction == PredictionConfig()
+
+
+def test_cross_platform_config_validates_platform_pairs_direction_against_exp_names():
+    """A platform_pairs entry not matching exp1_name/exp2_name raises (tasks.md 3.2)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[{"source": "not_exp1_or_exp2", "target": "also_not"}],
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    "source_name,target_name",
+    [("Exp1", "Exp2"), ("Exp2", "Exp1")],
+)
+def test_cross_platform_config_accepts_valid_platform_pairs_direction(
+    source_name, target_name
+):
+    """platform_pairs direction is accepted in either order (tasks.md 3.3)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="exp1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno1",
+        exp2_data_path="exp2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno2",
+        prediction=PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            platform_pairs=[{"source": source_name, "target": target_name}],
+        ),
+    )
+    assert config.prediction.platform_pairs == [
+        {"source": source_name, "target": target_name}
+    ]
+
+
+def test_cross_platform_config_rejects_empty_platform_pairs_when_enabled():
+    """prediction.enabled=True with the default empty platform_pairs raises (tasks.md 3.3a)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[],
+            ),
+        )
+
+
+def test_cross_platform_config_rejects_multiple_platform_pairs_entries():
+    """prediction.enabled=True with 2 platform_pairs entries raises (tasks.md 3.3b)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[
+                    {"source": "Exp1", "target": "Exp2"},
+                    {"source": "Exp2", "target": "Exp1"},
+                ],
+            ),
+        )
+
+
+def test_cross_platform_config_rejects_non_dict_platform_pairs_entry():
+    """A single platform_pairs entry that isn't a dict raises ValueError, not AttributeError.
+
+    Found during code review: `platform_pairs: ["Cylinder"]` (a plausible
+    YAML-authoring mistake -- a bare string instead of a
+    {source, target} mapping) passed the cardinality check (exactly one
+    entry) and then crashed with an unhelpful `AttributeError` from
+    `pair.get("source")`, rather than the clean `ValueError` every other
+    validation failure in this config raises.
+    """
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=["Exp1"],
+            ),
+        )
+
+
+def test_cross_platform_config_rejects_prediction_when_exp_names_are_equal():
+    """prediction.enabled=True with exp1_name == exp2_name raises ValueError.
+
+    Found during code review (round 2): prediction is inherently directional
+    (which platform is the predictor vs. the predicted), but exp1_name ==
+    exp2_name collapses {exp1_name, exp2_name} to a single-element set,
+    making the platform_pairs direction check vacuous -- and, for
+    predictor_source="genotype_means", making
+    `source_is_exp1 = source_platform == config.exp1_name` always True,
+    silently ignoring whatever direction platform_pairs actually states.
+    """
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="exp1_name and exp2_name"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="SamePlatform",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="SamePlatform",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[{"source": "SamePlatform", "target": "SamePlatform"}],
+            ),
+        )

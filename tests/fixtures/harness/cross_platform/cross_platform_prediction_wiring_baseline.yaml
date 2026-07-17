@@ -1,0 +1,20 @@
+# Tier 3.5 (add-prediction-pipeline-step, #196) backward-compat baseline.
+#
+# Identical to cross_platform_prediction_wiring.yaml's exp1/exp2 fields, but
+# with NO `prediction:` key at all -- this is the "existing CrossPlatformConfig
+# YAML that never mentions prediction:" case the backward-compat oracle
+# (design.md Decision 4/9, tasks.md 1.3/5.3) diffs a fresh run of THIS file
+# against a pre-Tier-3.5 snapshot committed under
+# tests/fixtures/synthetic/cross_platform_prediction/backward_compat_snapshot/.
+# Do not add a `prediction:` block here -- that would defeat the point of
+# this specific fixture.
+
+exp1_data_path: tests/fixtures/synthetic/cross_platform_prediction/source_blup.csv
+exp1_name: SourcePlatform
+exp1_genotype_col: Genotype
+exp2_data_path: tests/fixtures/synthetic/cross_platform_prediction/target_blup.csv
+exp2_name: TargetPlatform
+exp2_genotype_col: Genotype
+correlation_method: spearman
+min_samples_per_genotype: 1
+trait_reduction_method: none

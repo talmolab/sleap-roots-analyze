@@ -972,6 +972,73 @@ verified against the real `cluster_correlated_traits`/
 hardcoded lookup — see `tests/test_cross_platform_prediction.py`'s
 `TestTraitSetIdentityOracle`.
 
-This tier ships the statistical machinery only — `PredictionConfig` and a
-`PredictCrossPlatformStep` pipeline wiring (Tier 3.5) and the permutation null
-(Tier 4) are separate, later changes.
+Tier 3.5 (issue #196) wires this machinery into `CrossPlatformPipeline` itself, as
+an optional 6th step — `PredictCrossPlatformStep` — on the same per-pair
+`cross-platform` command already used for correlation. The permutation null and
+its figures (Tier 4) remain a separate, later change.
+
+### Configuration
+
+Prediction is disabled by default (`enabled: false`), so no existing
+`CrossPlatformConfig` YAML is affected. To enable it for a directed pair, add a
+`prediction:` block to that pair's existing YAML and rerun the same
+`cross-platform` command — one run directory then contains both correlation and
+predictability numbers for the same pair:
+
+```yaml
+exp1_data_path: "path/to/turface19_qc.csv"
+exp1_name: "Turface19"
+exp1_genotype_col: "Genotype"
+exp2_data_path: "path/to/cylinder_qc.csv"
+exp2_name: "Cylinder"
+exp2_genotype_col: "Genotype"
+
+prediction:
+  enabled: true
+  predictor_source: "blup"          # "blup" (default) or "genotype_means"
+  reduction_method: "pls_latent"    # "pls_latent" (default), "representatives", "pc1"
+  comparison_methods: ["representatives"]  # additional methods reported alongside
+  representative_selection_metric: "variance"  # only "variance" is supported
+  platform_pairs:
+    - source: "Turface19"           # must equal exp1_name or exp2_name
+      target: "Cylinder"            # the other one
+  source_blup_path: "path/to/turface19_08_blup_adjusted_means.csv"
+  target_blup_path: "path/to/cylinder_08_blup_adjusted_means.csv"
+```
+
+`source_blup_path`/`target_blup_path` (Tier 1's `08_blup_adjusted_means.csv`
+output, one row per genotype) are only required when `predictor_source="blup"`;
+`predictor_source="genotype_means"` instead aggregates the same raw per-sample
+data `exp1_data_path`/`exp2_data_path` already load for correlation, via a plain
+per-genotype mean — a "full raw-data ablation" against the BLUP-based predictor.
+`platform_pairs` takes exactly one entry, naming which of `exp1_name`/`exp2_name`
+is the predictor (`source`) and which is predicted (`target`) — prediction is
+directional (Turface19→Cylinder is a different model from Cylinder→Turface19),
+unlike correlation.
+
+Output: one `06_prediction_<method>.json` file per method (`reduction_method`
+plus each of `comparison_methods`), holding a `CrossPlatformPredictionResult`
+with one entry per prediction target — the target platform's cluster-
+representative traits, plus a `PC1` entry.
+
+### Current Limitations
+
+- The `PC1` target's computation (`sklearn.decomposition.PCA` via
+  `pca.fit_pca()`, with `StandardScaler` applied first and `random_state=42`
+  fixed) is **not user-configurable** in this tier — no `PCAConfig` exists on
+  this pipeline.
+- `representative_selection_metric` only supports `"variance"` in this tier;
+  `"heritability"`-based representative selection is not yet implemented
+  (`select_cluster_representatives` has no metric parameter to select by it).
+- `blup_refit_per_fold` is present in the config schema (for forward
+  compatibility with a future heritability-based
+  `representative_selection_metric`) but is currently inert — no valid
+  `representative_selection_metric` value triggers any behavior from it.
+- Only genotypes common to **both** the source and target BLUP/genotype-mean
+  tables are used for prediction. Genotypes present in only one side are
+  silently excluded from the result (not merely from an error path) — check
+  `06_prediction_<method>.json`'s genotype count against each platform's own
+  genotype count if this matters for your analysis.
+- `CrossPlatformSummaryGenerator`/`/cross-platform-summary` does not yet
+  surface prediction results — tracked as follow-up
+  [#197](https://github.com/talmolab/sleap-roots-analyze/issues/197).

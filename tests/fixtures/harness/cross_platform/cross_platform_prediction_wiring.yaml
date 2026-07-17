@@ -1,0 +1,37 @@
+# Tier 3.5 (add-prediction-pipeline-step, #196) CI-fast wiring fixture.
+#
+# A small, fully synthetic, deterministic BLUP-shaped fixture pair (19
+# genotypes, 3 traits each side) reused as BOTH the raw per-sample
+# exp1/exp2 data (steps 1-5, unchanged correlation path) AND the BLUP
+# tables (source_blup_path/target_blup_path) for the new prediction step.
+# Its job is a wiring-correctness check (pipeline output matches a direct
+# logo_cv_predict() call on the same data), not a statistical
+# signal-recovery claim -- see tasks.md Section 1.1/6.1.
+#
+# min_samples_per_genotype is 1 because each genotype appears exactly once
+# in this genotype-indexed BLUP-shaped table (no replicate dimension).
+# Paths are repo-root-relative (a hardcoded absolute path fails on every CI
+# runner -- Tier 3's own round-1 pre-merge lesson).
+
+exp1_data_path: tests/fixtures/synthetic/cross_platform_prediction/source_blup.csv
+exp1_name: SourcePlatform
+exp1_genotype_col: Genotype
+exp2_data_path: tests/fixtures/synthetic/cross_platform_prediction/target_blup.csv
+exp2_name: TargetPlatform
+exp2_genotype_col: Genotype
+correlation_method: spearman
+min_samples_per_genotype: 1
+trait_reduction_method: none
+
+prediction:
+  enabled: true
+  predictor_source: blup
+  reduction_method: pls_latent
+  comparison_methods:
+    - representatives
+  representative_selection_metric: variance
+  platform_pairs:
+    - source: SourcePlatform
+      target: TargetPlatform
+  source_blup_path: tests/fixtures/synthetic/cross_platform_prediction/source_blup.csv
+  target_blup_path: tests/fixtures/synthetic/cross_platform_prediction/target_blup.csv
