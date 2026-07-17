@@ -340,38 +340,109 @@
 - [x] 7.3 Update `cli.py`'s `cross_platform()` dry-run steps list (conditional 6th tuple) and its
       docstring (mention prediction as an optional 6th step). Make 7.1-7.2 green.
 
-## 8. Manual real-data validation (non-CI, pre-merge gate)
+## 8. Manual real-data validation (non-CI, pre-merge gate) — **run 2026-07-16, pending Elizabeth's sign-off**
 
-- [ ] 8.1 **Manual, not part of `pytest`.** Using real `08_blup_adjusted_means.csv` outputs for all
-      4 EDPIE platforms (Turface19, Turface150, Cylinder, Field) — reuse Tier 3 Section 8's already-
-      built tables if still available, else regenerate via `extract_blup_table()` against the same
-      post-QC inputs — build 4 `CrossPlatformConfig` YAMLs (one per directed pair:
-      Turface19→Cylinder, Turface19→Field, Cylinder→Field, Turface150→Turface19) with
-      `prediction.enabled=true` pointing at the real BLUP paths, and run
-      `sleap-roots-analyze cross-platform <config>.yaml` for each.
-- [ ] 8.2 **Manual, not part of `pytest`.** Sanity-check the resulting R²/RMSE/ρ per pair against
-      Tier 3 Section 8's already-recorded findings on the identical real data (e.g. named-pair
-      recovery R²=+0.41/+0.08/+0.05; full-trait-matrix/PC1 results noisier, 2 of 4 pairs showing a
-      significant negative y_pred-vs-y_true ρ). Reworded during `/review-openspec` round 1 to not
-      foreclose the alternative outcome: determine **whether** any material discrepancy between this
-      pipeline run's numbers and Tier 3's direct-API numbers on the same data is (a) a wiring bug
-      (most likely, given both should call `logo_cv_predict` identically), or (b) evidence that a
-      design decision made *in this tier* — most plausibly Decision 6/12's target-construction or
-      PC1-as-target computation — needs revisiting, since Tier 3's own Section 8 exercised the
-      direct Python API only and may not have exercised target-construction the same way this tier's
-      pipeline step now does.
-- [ ] 8.3 **Manual, not part of `pytest`.** Record findings. Requires Elizabeth's local platform
-      configs — gated the same way as Tier 3 Section 8: explicit sign-off required before merge,
-      not a pytest test.
-- [ ] 8.4 **If 8.2 finds a discrepancy inconsistent with a pure wiring-bug explanation:** reopen the
-      relevant `design.md` Decision (most likely 6 or 12), revise it and the affected sections'
-      tests, and re-run Sections 4-6 before requesting sign-off — do not treat 8.3's sign-off gate
-      as reachable only via "found a bug, fixed it, done." Commit any resulting changes as **new
-      `fix:` commit(s) appended to the branch — do not amend any prior section's commits** (broadened
-      during `/review-openspec` round 3 from an incomplete "Sections 2-7" enumeration; matching Tier
-      3 PR #195's own precedent for late-discovered findings; pinned during round 2, since this was
-      previously unspecified and Section 8 runs before the PR opens per task 10.5, i.e. pre-PR on
-      the local branch, not against an already-open PR).
+> **Correction to task 8.1's original assumption, found before this run:** Tier 3 Section 8's
+> BLUP tables are **not** reusable as-is. A dedicated vault investigation (`figures/README.md`'s
+> "Pipeline Provenance" section, `scripts/figures/style.py`'s `PIPELINE_RUN`/`FIELD_PIPELINE_RUN`
+> constants, and `scripts/figures/fig10_11_plan.md`, all in the external `wheat-edpie-paper`
+> vault) established that Tier 3 used the **wrong data vintage for Turface19/Turface150** — the
+> repo's already-committed Feb-12 fixture, chosen for convenience, not the paper's actual vintage.
+> The explicit, written provenance record states the paper's real Turface19/Turface150/Cylinder
+> figures all come from **`pipeline_run_20260319/2026-03-20_132531`** ("the one used for all paper
+> figures," per `fig10_11_plan.md`); only the two Field/Root_Core-involving comparisons were
+> rerun on Mar-30 (`pipeline_run_field_v2`/`cross_platform_field_v2`) — Cylinder's own QC data was
+> never rerun and is byte-identical between the Mar-20 batch and the already-committed
+> `cylinder_final_data_paper_vintage.csv` (confirmed: both are shape `(124, 880)`, identical
+> columns). So this run rebuilt all 4 BLUP tables fresh from the *correct* vintage per platform:
+> Turface19/Turface150/Cylinder from Mar-20 QC output (`07_data_outliers_removed.csv`), Field from
+> the already-committed Mar-30 `root_core_final_data_paper_vintage.csv` — rather than reusing any
+> of Tier 3's artifacts.
+
+- [x] 8.1 Built real BLUP tables for all 4 EDPIE platforms via direct `extract_blup_table()` calls
+      (script: `pipeline_runs/section8_manual_validation_20260716/build_blup_tables.py`, not
+      committed — matches Tier 3's own precedent of non-committed manual-validation artifacts).
+      `trait_cols` per platform = all columns minus that platform's real correlation-config
+      exclude list (confirmed identical across every pairing that platform appears in) minus the
+      `Genotype`/`Replicate`/`Barcode`/`Geno_rep` identifier columns. Result: Turface19 (19
+      genotypes × 19 traits), Turface150 (156 genotypes × 16 traits), Cylinder (19 genotypes × 836
+      traits), Field (20 genotypes × 24 traits) — zero all-NaN trait columns in any table. Built 4
+      `CrossPlatformConfig` YAMLs (`pipeline_runs/section8_manual_validation_20260716/configs/`),
+      each with `exp1`/`exp2_data_path`/`exclude_cols` copied verbatim from that pair's real
+      correlation config (Mar-20 or Mar-30 vintage as established above) plus a `prediction:` block
+      (`predictor_source=blup`, `reduction_method=pls_latent`,
+      `comparison_methods=[representatives]`, `platform_pairs` naming the directed source/target).
+      Ran `sleap-roots-analyze cross-platform <config>.yaml` for all 4 pairs — all completed
+      successfully (6/6 tasks each, including the new `06_predict_cross_platform` task), 19 common
+      genotypes found in every pair.
+- [x] 8.2 Sanity-checked the resulting R²/RMSE/ρ (354 total target/method/pair rows,
+      `pipeline_runs/section8_prediction_summary.csv`) against Tier 3 Section 8's pattern. No
+      wiring bug found: **the qualitative pattern matches Tier 3's own finding independently, on
+      corrected data.** Full-trait-matrix/PC1 predictions are noisy and mostly negative-R² across
+      all 4 pairs (e.g. Cylinder→Field PC1, `pls_latent`: R²=-0.72, ρ=-0.59, p=0.0072 — same sign
+      and comparable magnitude to Tier 3's own Cylinder→Field finding of ρ=-0.48, p=0.038, on data
+      that didn't change vintage between the two runs). Turface19→Cylinder's PC1 result changed
+      from Tier 3's ρ=-0.62 (p=0.005, wrong Turface vintage) to this run's ρ=-0.37 (p=0.12, correct
+      vintage) — an expected, explained divergence (different underlying Turface19 data), not a
+      wiring bug. A handful of individual representative-trait targets recover genuine positive
+      signal (e.g. Cylinder→Field `representatives`, target `Root Count 20cm`: R²=0.25, ρ=+0.49,
+      p=0.033; Turface19→Cylinder `representatives`, target `Seminal Angles Proximal Max Max`:
+      R²=0.38, ρ=+0.62, p=0.004) — consistent with Tier 3's own qualitative conclusion that the
+      full multi-trait predictor matrix is a curse-of-dimensionality problem at n≈19, while
+      individual well-correlated traits still carry recoverable signal. No exceptions, crashes, or
+      NaN-propagation across all 4 pairs × 2 methods × ~40-130 targets each.
+- [x] 8.3 Findings recorded above. **Correction found during review (prompted by Elizabeth's own
+      question about trait counts):** the BLUP-extraction script's exclude list missed
+      `Computation.Time.s` — pipeline-generated processing-time metadata present in the raw
+      Turface19/Turface150 QC CSVs, not a biological trait — so the first-pass Turface19/Turface150
+      BLUP tables had 19/16 columns instead of the correct 18/15 (confirmed against the actual
+      pipeline's own `ReduceTraitRedundancy` clustering-step input counts, which correctly excluded
+      it throughout). Cylinder and Field's BLUP tables were unaffected (no such column present).
+      Fixed the script, rebuilt both tables, and reran the 3 pairs where Turface19/Turface150 is
+      the *source* platform (Turface19→Cylinder, Turface19→Field, Turface150→Turface19 — the only
+      ones where this predictor-side contamination could reach `pls_latent`'s full-trait-matrix
+      fit; Cylinder→Field is unaffected, no Turface involved). Effect: small, expected numeric
+      shifts (e.g. Turface19→Cylinder PC1 R²: -0.480→-0.419; a handful of individual targets moved
+      in/out of the p<0.05 threshold by noise-level margins) — **no change to the qualitative
+      conclusion.** **Conclusion stands: no discrepancy inconsistent with a pure
+      wiring-bug/expected-data-difference explanation — Decision 6/12 do not need reopening.**
+      Final summary (post-fix): `pipeline_runs/section8_prediction_summary.csv`. Presented to
+      Elizabeth for review 2026-07-16; **explicit sign-off still pending** (this checkbox tracks
+      "findings recorded," not the sign-off itself — see task 10.5).
+- [x] 8.5 **(New — statistical-validity caveat, added during Elizabeth's review of 8.1-8.3.)**
+      Checked whether n≈18-20 genotypes and hundreds of candidate traits impose a hard limit on
+      what this analysis can detect, independent of any implementation question:
+      - **Power.** At n=18 (most Turface/Cylinder pairs), a two-sided Spearman/Pearson test at
+        α=0.05 needs |r|≥0.62 for 80% power (Fisher-z calculation); at n=20 (Field), ≥0.59; at
+        n=24, ≥0.55. Cross-checked against the real correlation output
+        (`cross_platform_correlations.csv`, Turface19-vs-Cylinder, 1,290 pairs, n=18): median
+        achieved power at the *observed* effect size is **8.8%**; only **4 of 1,290 pairs (0.3%)**
+        reach |r|≥0.62; **zero** survive FDR correction. This is a property of sample size, not of
+        any specific model choice — no reduction method or statistical test recovers detection
+        power the sample size doesn't have.
+      - **Multiple testing.** Applying BH-FDR correction to the 354 target/method/pair predictions
+        from 8.1/8.2: raw uncorrected p<0.05 count = **63**; FDR-corrected count = **9**. The 9
+        survivors all have *negative* Spearman ρ (predictions anti-correlated with truth, not
+        correlated) — none of the positive-R² targets highlighted in 8.2's writeup survive
+        correction, so they should be read as exploratory, not as confirmed findings.
+      - **Single-realization CV-R² variance.** Independent of significance testing, this
+        program's own Decision 6 (design.md, this tier's parent Tier 3 change) already
+        empirically demonstrated that a single LOGO-CV run's R² at this sample size has very
+        high variance even for a *known, planted* signal (single-seed R² ranged from -0.67 to
+        +0.87 across seeds of the same synthetic signal strength). This means individual R²/ρ
+        values from 8.1/8.2, taken alone, are not yet a validated statement about cross-platform
+        predictability — that inferential step is exactly what Tier 4's (not-yet-built)
+        permutation null is for, per Wolfgang's original ask (`roadmap.md` Goal section), which
+        explicitly required a permutation null alongside R²/RMSE/ρ.
+      - **Conclusion:** none of this invalidates Section 8's actual purpose — confirming the
+        `PredictCrossPlatformStep`/config-driven wiring runs correctly and produces statistically
+        sane small-sample behavior (matching Tier 3's own findings independently). But Section 8's
+        R²/RMSE/ρ numbers should not be read as validated claims about real cross-platform
+        predictability until Tier 4 exists; that limitation is inherent to n≈19, not a defect in
+        this tier's implementation.
+- [ ] 8.4 **Not triggered** — 8.2 found no discrepancy inconsistent with a wiring-bug/expected-
+      data-difference explanation; no `design.md` Decision reopened, no additional `fix:` commit
+      needed as a result of this section.
 
 ## 9. Docs
 
