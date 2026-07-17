@@ -29,6 +29,9 @@ from sleap_roots_analyze.pipeline.steps.calculate_trait_enrichment import (
 from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
     VisualizeCrossPlatformStep,
 )
+from sleap_roots_analyze.pipeline.steps.predict_cross_platform import (
+    PredictCrossPlatformStep,
+)
 
 
 class CrossPlatformPipeline(BasePipeline):
@@ -160,6 +163,21 @@ class CrossPlatformPipeline(BasePipeline):
             )
         )
 
+        # Step 6: Predict cross-platform genotype values (optional, config-gated;
+        # entirely absent -- not merely skipped -- when disabled, per Decision 1).
+        if self.config.prediction.enabled:
+            tasks.append(
+                Task(
+                    func=self._run_predict_cross_platform,
+                    name="06_predict_cross_platform",
+                    depends_on=[
+                        "01_load_cross_platform_data",
+                        "05_visualize_cross_platform",
+                    ],
+                    description="Predict cross-platform genotype values via LOGO-CV",
+                )
+            )
+
         return tasks
 
     def _run_load_cross_platform_data(self, config, run_dir, logger, **kwargs):
@@ -229,5 +247,23 @@ class CrossPlatformPipeline(BasePipeline):
             config=config,
             run_dir=run_dir,
             prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_predict_cross_platform(self, config, run_dir, logger, **kwargs):
+        """Execute Step 6: Predict Cross-Platform Genotype Values (optional).
+
+        Reads data from task 1's result only. ``kwargs["05_visualize_cross_platform"]``
+        is depended-upon solely to guarantee DAG ordering (steps 1-5 complete
+        before prediction runs) -- its ``data`` is never read here (Decision 15).
+        """
+        logger.info("Step 6/6: Predicting cross-platform genotype values...")
+        task1_result = kwargs["01_load_cross_platform_data"].data
+        step = PredictCrossPlatformStep()
+        result = step.execute(
+            data=task1_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=task1_result,
         )
         return result
