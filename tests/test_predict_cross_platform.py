@@ -174,6 +174,11 @@ def test_predict_step_drops_trait_columns_containing_any_nan(tmp_path):
 
     assert "failed_trait" not in result.metadata["source_trait_columns"]
     assert "failed_trait" not in result.metadata["target_candidate_columns"]
+    # Found during code review (round 2): the dropped-column names themselves
+    # (added for audit purposes) were never asserted, only their absence from
+    # the surviving-column lists above.
+    assert result.metadata["source_dropped_columns"] == ["failed_trait"]
+    assert result.metadata["target_dropped_columns"] == ["failed_trait"]
 
 
 def test_predict_step_raises_clear_error_when_source_matrix_is_empty_after_nan_drop(
@@ -186,7 +191,7 @@ def test_predict_step_raises_clear_error_when_source_matrix_is_empty_after_nan_d
     config = _blup_config(tmp_path, source_df, target_df)
     step = PredictCrossPlatformStep()
 
-    with pytest.raises(ValueError, match="[Ss]ource"):
+    with pytest.raises(ValueError, match=r"source \('SourcePlatform'\)"):
         step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
 
 
@@ -206,7 +211,28 @@ def test_predict_step_raises_clear_error_when_target_matrix_is_empty_after_nan_d
     config = _blup_config(tmp_path, source_df, target_df)
     step = PredictCrossPlatformStep()
 
-    with pytest.raises(ValueError, match="[Tt]arget"):
+    with pytest.raises(ValueError, match=r"target \('TargetPlatform'\)"):
+        step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
+
+
+def test_predict_step_raises_clear_error_for_constant_target_trait(tmp_path):
+    """A constant (zero-variance) target trait raises a clear ValueError naming it.
+
+    Found during code review (round 2): a constant target trait is legal
+    logo_cv_predict input but produces a non-finite spearman_rho/spearman_p
+    (scipy.stats.spearmanr on constant input). Previously this only surfaced
+    as an opaque ValueError from CrossPlatformPredictionResult.to_json's
+    finite-floats contract, with no indication of which method/target caused
+    it. cluster_correlated_traits places a constant trait in its own
+    singleton cluster (its docstring), so it always becomes its own
+    representative target here.
+    """
+    source_df, target_df, _ = _make_blup_tables()
+    target_df["trait_y"] = 5.0  # constant across all genotypes
+    config = _blup_config(tmp_path, source_df, target_df)
+    step = PredictCrossPlatformStep()
+
+    with pytest.raises(ValueError, match=r"pls_latent.*trait_y"):
         step.execute(data=None, config=config, run_dir=tmp_path, prev_result=None)
 
 

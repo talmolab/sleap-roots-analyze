@@ -1193,6 +1193,20 @@ class CrossPlatformConfig:
         # PredictionConfig.__post_init__. Cardinality (Decision 10) is checked
         # before the direction-match content check.
         if self.prediction.enabled:
+            if self.exp1_name == self.exp2_name:
+                # Found during code review: prediction is inherently directional
+                # (Decision 3), but exp1_name == exp2_name collapses
+                # {exp1_name, exp2_name} to a single-element set, making the
+                # source/target direction check vacuous and, for
+                # predictor_source="genotype_means", making
+                # `source_is_exp1 = source_platform == config.exp1_name`
+                # always True regardless of platform_pairs' stated direction.
+                raise ValueError(
+                    "prediction.enabled=True requires exp1_name and exp2_name "
+                    f"to be distinct (both are {self.exp1_name!r}) -- prediction "
+                    "direction (which platform is the predictor vs. the "
+                    "predicted) is otherwise ambiguous"
+                )
             platform_pairs = self.prediction.platform_pairs
             if len(platform_pairs) != 1:
                 raise ValueError(

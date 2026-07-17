@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -94,11 +95,12 @@ class PredictCrossPlatformStep(BaseStep):
             source_raw = self._load_blup_table(pcfg.source_blup_path)
             target_raw = self._load_blup_table(pcfg.target_blup_path)
         else:
-            assert prev_result is not None, (
-                "prev_result (task 1's StepResult) is required when "
-                "predictor_source='genotype_means', to supply "
-                "exp1_trait_names/exp2_trait_names"
-            )
+            if prev_result is None:
+                raise ValueError(
+                    "prev_result (task 1's StepResult) is required when "
+                    "predictor_source='genotype_means', to supply "
+                    "exp1_trait_names/exp2_trait_names"
+                )
             source_is_exp1 = source_platform == config.exp1_name
             source_df = data["exp1_df"] if source_is_exp1 else data["exp2_df"]
             target_df = data["exp2_df"] if source_is_exp1 else data["exp1_df"]
@@ -220,6 +222,34 @@ class PredictCrossPlatformStep(BaseStep):
                         else None
                     ),
                 )
+            # CrossPlatformPredictionResult.to_json's finite-floats contract
+            # (allow_nan=False) would otherwise raise a bare ValueError with
+            # no indication of which target triggered it -- e.g. a constant
+            # (zero-variance) target trait, legal input to logo_cv_predict but
+            # producing a non-finite spearman_rho/p. Check proactively and
+            # name the offending target(s) directly, rather than catching
+            # and guessing after the fact.
+            non_finite_targets = sorted(
+                name
+                for name, result in logo_cv_results.items()
+                if not all(
+                    math.isfinite(v)
+                    for v in (
+                        result.r2,
+                        result.rmse,
+                        result.spearman_rho,
+                        result.spearman_p,
+                    )
+                )
+            )
+            if non_finite_targets:
+                raise ValueError(
+                    f"Method '{method}' ('{source_platform}' -> "
+                    f"'{target_platform}') produced non-finite result(s) for "
+                    f"target(s) {non_finite_targets} -- likely a constant "
+                    "(zero variance) target trait among the common genotypes, "
+                    "which produces a non-finite spearman_rho/spearman_p"
+                )
             cp_result = CrossPlatformPredictionResult.from_logo_cv_results(
                 source_platform=source_platform,
                 target_platform=target_platform,
@@ -228,23 +258,7 @@ class PredictCrossPlatformStep(BaseStep):
                 logo_cv_results=logo_cv_results,
             )
             output_path = run_dir / f"06_prediction_{method}.json"
-            try:
-                serialized = cp_result.to_json(indent=2)
-            except ValueError as e:
-                # CrossPlatformPredictionResult.to_json's own finite-floats
-                # contract (allow_nan=False) raises a bare ValueError with no
-                # indication of which method/target triggered it -- e.g. a
-                # constant (zero-variance) target trait, legal input to
-                # logo_cv_predict but producing a non-finite spearman_rho/p.
-                # Re-raise naming the method so this isn't an opaque JSON error.
-                raise ValueError(
-                    f"Failed to serialize prediction results for method "
-                    f"'{method}' ('{source_platform}' -> '{target_platform}'): "
-                    f"{e}. This usually means one target trait is constant "
-                    "(zero variance) among the common genotypes, producing a "
-                    "non-finite spearman_rho/spearman_p."
-                ) from e
-            output_path.write_text(serialized)
+            output_path.write_text(cp_result.to_json(indent=2))
             files_generated.append(output_path)
             results_by_method[method] = cp_result.to_dict()
 

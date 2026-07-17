@@ -674,3 +674,35 @@ def test_cross_platform_config_rejects_non_dict_platform_pairs_entry():
                 platform_pairs=["Exp1"],
             ),
         )
+
+
+def test_cross_platform_config_rejects_prediction_when_exp_names_are_equal():
+    """prediction.enabled=True with exp1_name == exp2_name raises ValueError.
+
+    Found during code review (round 2): prediction is inherently directional
+    (which platform is the predictor vs. the predicted), but exp1_name ==
+    exp2_name collapses {exp1_name, exp2_name} to a single-element set,
+    making the platform_pairs direction check vacuous -- and, for
+    predictor_source="genotype_means", making
+    `source_is_exp1 = source_platform == config.exp1_name` always True,
+    silently ignoring whatever direction platform_pairs actually states.
+    """
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="exp1_name and exp2_name"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="SamePlatform",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="SamePlatform",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[{"source": "SamePlatform", "target": "SamePlatform"}],
+            ),
+        )

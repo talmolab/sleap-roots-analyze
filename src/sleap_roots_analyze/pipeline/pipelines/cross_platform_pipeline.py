@@ -44,6 +44,7 @@ class CrossPlatformPipeline(BasePipeline):
     3. Calculate correlations between all trait pairs
     4. Trait-level binomial enrichment (optional, config-gated)
     5. Generate visualizations of correlations
+    6. Predict cross-platform genotype values via LOGO-CV (optional, config-gated)
 
     The pipeline is designed to compare traits across different experimental
     platforms or conditions to identify which traits capture similar biological
@@ -99,7 +100,7 @@ class CrossPlatformPipeline(BasePipeline):
         return sanitized
 
     def create_tasks(self) -> List[Task]:
-        """Create the cross-platform analysis task graph with 5 steps.
+        """Create the cross-platform analysis task graph with 5 or 6 steps.
 
         Returns:
             List of Tasks defining the pipeline DAG:
@@ -108,6 +109,9 @@ class CrossPlatformPipeline(BasePipeline):
                 - Step 3: CalculateCrossPlatformCorrelations
                 - Step 4: CalculateTraitEnrichment (optional, based on config)
                 - Step 5: VisualizeCrossPlatform
+                - Step 6: PredictCrossPlatform (optional, based on
+                  config.prediction.enabled -- entirely absent, not merely
+                  skipped, when disabled)
         """
         tasks = []
 
