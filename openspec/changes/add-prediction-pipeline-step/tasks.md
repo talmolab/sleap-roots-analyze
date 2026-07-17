@@ -47,7 +47,7 @@
 
 ## 1. Fixtures (test-first)
 
-- [ ] 1.1 Add a 2-platform synthetic BLUP CSV fixture pair (`tests/fixtures/` or `tests/fixtures.py`
+- [x] 1.1 Add a 2-platform synthetic BLUP CSV fixture pair (`tests/fixtures/` or `tests/fixtures.py`
       — decide during implementation which convention this repo's existing fixture files follow for
       on-disk CSV fixtures vs. in-memory ones): two small genotype-indexed trait tables (~19
       genotypes, a handful of traits), shaped exactly like `extract_blup_table()`'s
@@ -56,11 +56,11 @@
       design.md's earlier Decision 6 in the archived Tier 3 proposal) — this fixture's job is a
       wiring-correctness equality check between the pipeline's output and a direct
       `logo_cv_predict()` call on the same data, not a statistical signal-recovery claim.
-- [ ] 1.2 Add a harness YAML (`tests/fixtures/harness/cross_platform/...`) wiring the two CSVs as
+- [x] 1.2 Add a harness YAML (`tests/fixtures/harness/cross_platform/...`) wiring the two CSVs as
       `exp1_data_path`/`exp2_data_path` (steps 1-5, unchanged) **and** as `source_blup_path`/
       `target_blup_path` with `prediction.enabled: true`. Repo-root-relative paths only (Tier 3's
       round-1 pre-merge lesson: a hardcoded absolute path fails on every CI runner).
-- [ ] 1.3 **Hard gate — do this before any other change on this branch touches `src/`.** A curated
+- [x] 1.3 **Hard gate — do this before any other change on this branch touches `src/`.** A curated
       `CrossPlatformPipeline` golden fixture already exists
       (`tests/fixtures/real/wheat_edpie/expected/cross_platform/<pairing>/`), but per Tier 3's own
       tasks.md (task 1.4, step 4) it is a deliberately curated subset — `config.yaml`,
@@ -82,41 +82,41 @@
 
 ## 2. `PredictionConfig` (test-first)
 
-- [ ] 2.1 Write failing test `test_prediction_config_defaults_to_disabled`: `PredictionConfig()` has
+- [x] 2.1 Write failing test `test_prediction_config_defaults_to_disabled`: `PredictionConfig()` has
       `enabled=False`. (Scoped to `PredictionConfig` alone — the nested-on-`CrossPlatformConfig`
       assertion lives solely in task 3.1, since `CrossPlatformConfig.prediction` doesn't exist until
       Section 3; testing it here too made this task unpassable on Section 2's implementation alone,
       found during `/review-openspec` round 1.)
-- [ ] 2.2 Write failing test `test_prediction_config_validation_skipped_when_disabled`:
+- [x] 2.2 Write failing test `test_prediction_config_validation_skipped_when_disabled`:
       `PredictionConfig(enabled=False, predictor_source="not_a_real_value",
       source_blup_path="/does/not/exist")` does not raise (Decision 4 — validation is a full no-op
       when disabled).
-- [ ] 2.3 Write failing test `test_prediction_config_rejects_invalid_enum_fields` (parametrized over
+- [x] 2.3 Write failing test `test_prediction_config_rejects_invalid_enum_fields` (parametrized over
       `predictor_source` (`{blup, genotype_means}`), `reduction_method` (`{pls_latent,
       representatives, pc1}`), `representative_selection_metric` (`{variance}` only for this tier —
       including an explicit `"heritability"` case, which SHALL now be rejected as invalid, not
       accepted, per Decision 7), and an invalid entry inside `comparison_methods` (same 3-value set
       as `reduction_method`)), all with `enabled=True`: assert `ValueError` naming the invalid
       field/value.
-- [ ] 2.4 Write failing test `test_prediction_config_rejects_duplicate_method_in_comparison_methods`:
+- [x] 2.4 Write failing test `test_prediction_config_rejects_duplicate_method_in_comparison_methods`:
       `reduction_method="pls_latent"`, `comparison_methods=["pls_latent"]` (same method repeated) —
       assert `ValueError` at construction time (prevents a silent output-JSON overwrite in Section 4,
       found during `/review-openspec` round 1).
-- [ ] 2.4a Write failing test
+- [x] 2.4a Write failing test
       `test_prediction_config_rejects_duplicate_entries_within_comparison_methods`:
       `comparison_methods=["representatives", "representatives"]` (same method listed twice within
       the list itself, distinct from 2.4's cross-field case) — assert `ValueError` (same silent
       output-overwrite bug class, missed by 2.4 alone; found during `/review-openspec` round 2).
-- [ ] 2.5 Write failing test `test_prediction_config_blup_preflight_check_missing_path`:
+- [x] 2.5 Write failing test `test_prediction_config_blup_preflight_check_missing_path`:
       `enabled=True, predictor_source="blup"`, `source_blup_path` (or `target_blup_path`) pointing
       at a nonexistent file — assert `ValueError` raised at construction time, before any pipeline
       step exists to run.
-- [ ] 2.6 Write failing test
+- [x] 2.6 Write failing test
       `test_prediction_config_genotype_means_does_not_require_blup_paths`:
       `predictor_source="genotype_means"` with `source_blup_path=None`/`target_blup_path=None` does
       not raise (Decision 2 — this branch reuses task 1's already-loaded raw data instead, per
       Decision 8).
-- [ ] 2.7 Implement `PredictionConfig` in `pipeline/config/components.py` (plain, mutable
+- [x] 2.7 Implement `PredictionConfig` in `pipeline/config/components.py` (plain, mutable
       `@dataclass`, per Decisions 2/4/5/7) with the field list from `proposal.md`.
       `blup_refit_per_fold: bool = False` stays in the schema (roadmap's settled field list) with no
       auto-force validation (Decision 7 — currently inert, no metric value triggers it). Use a
@@ -125,35 +125,35 @@
 
 ## 3. `CrossPlatformConfig` wiring (test-first)
 
-- [ ] 3.1 Write failing test `test_cross_platform_config_gains_prediction_field`:
+- [x] 3.1 Write failing test `test_cross_platform_config_gains_prediction_field`:
       `CrossPlatformConfig(...)` (existing required fields only, no `prediction:`) has
       `.prediction` as a `PredictionConfig` instance with all defaults.
-- [ ] 3.2 Write failing test
+- [x] 3.2 Write failing test
       `test_cross_platform_config_validates_platform_pairs_direction_against_exp_names`:
       `prediction.enabled=True` with `platform_pairs=[{"source": "not_exp1_or_exp2", "target":
       "also_not"}]` — assert `ValueError` naming the mismatch, raised from
       `CrossPlatformConfig.__post_init__` (Decision 3 — `PredictionConfig` alone can't see
       `exp1_name`/`exp2_name`).
-- [ ] 3.3 Write failing test `test_cross_platform_config_accepts_valid_platform_pairs_direction`:
+- [x] 3.3 Write failing test `test_cross_platform_config_accepts_valid_platform_pairs_direction`:
       `platform_pairs=[{"source": exp1_name, "target": exp2_name}]` (or the reverse direction) does
       not raise.
-- [ ] 3.3a Write failing test `test_cross_platform_config_rejects_empty_platform_pairs_when_enabled`:
+- [x] 3.3a Write failing test `test_cross_platform_config_rejects_empty_platform_pairs_when_enabled`:
       `prediction.enabled=True` with `platform_pairs=[]` (the default) — assert `ValueError` stating
       exactly one entry is required, not an undocumented `IndexError` deep in validation code
       (Decision 10, found during `/review-openspec` round 1 by 3 of 5 reviewers independently).
-- [ ] 3.3b Write failing test
+- [x] 3.3b Write failing test
       `test_cross_platform_config_rejects_multiple_platform_pairs_entries`:
       `prediction.enabled=True` with `platform_pairs` holding 2 entries — assert `ValueError` (same
       Decision 10 cardinality check).
-- [ ] 3.4 Extend `CrossPlatformConfig.__post_init__` with the 3.2/3.3/3.3a/3.3b cross-checks —
+- [x] 3.4 Extend `CrossPlatformConfig.__post_init__` with the 3.2/3.3/3.3a/3.3b cross-checks —
       cardinality (Decision 10) validated before the direction-match check. Make 3.1-3.3b green.
 
 ## 4. `PredictCrossPlatformStep` (test-first)
 
-- [ ] 4.1 Write failing test
+- [x] 4.1 Write failing test
       `test_predict_step_builds_source_matrix_from_blup_when_predictor_source_blup`: loads
       `source_blup_path` as the predictor matrix `X`.
-- [ ] 4.1a Write failing test `test_predict_step_drops_trait_columns_containing_any_nan`
+- [x] 4.1a Write failing test `test_predict_step_drops_trait_columns_containing_any_nan`
       (Decision 16, found during `/review-openspec` round 3 — real `08_blup_adjusted_means.csv`
       files routinely contain NaN columns for failed model fits, per Tier 1's own documented
       contract, and `logo_cv_predict` hard-rejects any NaN): a BLUP CSV fixture with one trait
@@ -164,7 +164,7 @@
       BLUP CSV where every trait column contains at least one NaN — assert a clear `ValueError`
       (distinct from, and stricter than, task 4.3a's zero-target-representative-traits case, which
       still has PC1 to fall back on; the source side has no equivalent fallback).
-- [ ] 4.1b Write failing test `test_predict_step_resolves_blup_genotype_column_name` (Decision 17,
+- [x] 4.1b Write failing test `test_predict_step_resolves_blup_genotype_column_name` (Decision 17,
       found during `/review-openspec` round 3 — no prior task specified how the BLUP CSV's genotype
       column is identified): a BLUP CSV fixture with its genotype column named `"Genotype"`
       (capitalized — the real, shipped convention from `extract_blup_table()`/
@@ -173,7 +173,7 @@
       `ValueError` naming both attempted column names, not a bare pandas `KeyError`. Explicitly NOT
       `exp1_genotype_col`/`exp2_genotype_col` (those govern the unrelated raw per-sample CSVs for
       steps 1-5).
-- [ ] 4.2 Write failing test
+- [x] 4.2 Write failing test
       `test_predict_step_builds_source_matrix_from_genotype_means_when_predictor_source_genotype_means`:
       reuses **task 1's own result** (`kwargs["01_load_cross_platform_data"]` — see Decision 8; the
       step's `depends_on` includes `"01_load_cross_platform_data"` directly, not just
@@ -183,7 +183,7 @@
       aggregating via `.groupby(genotype_col).mean()` — not a bare groupby-mean over every column in
       task 1's raw `exp1_df`/`exp2_df`, which still contains `genotype`, `replicate`, and other
       metadata columns.
-- [ ] 4.2a Write failing test
+- [x] 4.2a Write failing test
       `test_predict_step_genotype_means_uses_full_raw_trait_set_even_when_trait_reduction_clustering_enabled`
       (regression test for the bug found during `/review-openspec` round 1, Decision 8, and
       corrected during round 2 per Decision 13):
@@ -195,7 +195,7 @@
       etc. excluded). Confirms task 6 reads task 1's data directly and trait-filters it correctly,
       rather than being contaminated by either an intermediate step's own trait reduction or by
       skipping trait filtering entirely.
-- [ ] 4.2b Write failing test `test_predict_step_genotype_means_excludes_metadata_columns`
+- [x] 4.2b Write failing test `test_predict_step_genotype_means_excludes_metadata_columns`
       (tightened during `/review-openspec` round 3 — the original name was disjunctive
       ("crashes_cleanly_or_excludes"), inviting an uncontrolled crash to count as a pass; only one
       outcome is actually accepted): task 1's raw `exp1_df`/`exp2_df` with a non-numeric metadata
@@ -204,20 +204,20 @@
       selection actually excludes it; `get_trait_columns()` already substring-excludes
       notes/date-like columns), not that the step raises an unrelated `TypeError` from `.mean()` on
       a non-numeric column.
-- [ ] 4.3 Write failing test `test_predict_step_selects_target_representative_traits`: the
+- [x] 4.3 Write failing test `test_predict_step_selects_target_representative_traits`: the
       **target** platform's cluster-representative traits (via `cluster_correlated_traits`/
       `select_cluster_representatives`, reused as-is, `representative_selection_metric="variance"`
       per Decision 7) become the primary prediction targets.
-- [ ] 4.3a Write failing test `test_predict_step_handles_zero_target_representative_traits`: when
+- [x] 4.3a Write failing test `test_predict_step_handles_zero_target_representative_traits`: when
       `select_cluster_representatives` returns an empty list for the target platform (a plausible
       degenerate case at small/CI-fixture scale), assert the step still runs successfully with only
       the PC1 target (`N=1`), not a crash.
-- [ ] 4.4 Write failing test `test_predict_step_computes_target_pc1_via_whole_dataset_pca_not_per_fold`
+- [x] 4.4 Write failing test `test_predict_step_computes_target_pc1_via_whole_dataset_pca_not_per_fold`
       (Decision 6/12): the `target_name="PC1"` value is computed via `pca.fit_pca()` (with
       `StandardScaler` applied first, `random_state=42`), fit once on the full common-genotype
       set — assert `fit_pca_on_fold` is **not** called for this purpose (spy/mock), reserving it for
       the source-side per-fold reduction when `reduction_method="pc1"` (4.6 below).
-- [ ] 4.4a Write failing test `test_predict_step_target_pc1_values_match_independent_whole_dataset_pca`
+- [x] 4.4a Write failing test `test_predict_step_target_pc1_values_match_independent_whole_dataset_pca`
       (positive value check, added per `/review-openspec` round 1 — 4.4's mock alone only proves
       `fit_pca_on_fold` wasn't called, never that the computed values are actually correct): build a
       small synthetic target matrix with a known structure; independently compute
@@ -225,9 +225,9 @@
       in the test; assert the resulting `CrossPlatformPredictionResult`'s
       `TargetPrediction(target_name="PC1").y_true` matches that independent computation for every
       genotype within `pytest.approx`.
-- [ ] 4.5 Write failing test `test_predict_step_aligns_to_common_genotypes`: genotypes present in
+- [x] 4.5 Write failing test `test_predict_step_aligns_to_common_genotypes`: genotypes present in
       only one of source/target are excluded before calling `logo_cv_predict`.
-- [ ] 4.5a Write failing test
+- [x] 4.5a Write failing test
       `test_predict_step_raises_clear_error_when_common_genotypes_below_minimum`: source/target
       predictor matrices with fewer than 3 genotypes in common (including the zero-overlap case) —
       assert a clear, step-level `ValueError` naming the pair (source/target platform names) and the
@@ -237,7 +237,7 @@
       `load_cross_platform_data.py:127-131`, not a literal mirror of it — that precedent's message
       doesn't itself name platform/pair identifiers either, corrected during `/review-openspec`
       round 2.)
-- [ ] 4.5b Write failing test `test_predict_step_derives_X_y_genotypes_from_one_canonical_index`
+- [x] 4.5b Write failing test `test_predict_step_derives_X_y_genotypes_from_one_canonical_index`
       (Decision 14, found during `/review-openspec` round 2 — `logo_cv_predict` treats row-order
       alignment between `X`/`y`/`genotypes` as an unenforced caller precondition; mechanism pinned
       during round 3, since no existing fixture pattern for this exists in this repo): build the
@@ -249,20 +249,20 @@
       shuffled input, since 4.4a's value-correctness check uses an already-well-ordered matrix),
       checked against an independently-computed, explicitly-`.loc[]`-indexed reference pairing —
       not a silently mis-paired result from incidental row-order assumptions.
-- [ ] 4.6 Write failing test `test_predict_step_calls_logo_cv_predict_once_per_target_per_method`:
+- [x] 4.6 Write failing test `test_predict_step_calls_logo_cv_predict_once_per_target_per_method`:
       for `N` target traits (representatives + PC1) × `M` methods (`reduction_method` +
       `comparison_methods`, guaranteed distinct per task 2.4's config validation), `logo_cv_predict`
       is called `N * M` times, each with the expected `reduction_method` and (for
       `"representatives"`) `representative_names` drawn from the **source** platform's own
       cluster-representative selection (a separate application from 4.3's target-side selection).
-- [ ] 4.7 Write failing test `test_predict_step_builds_one_result_per_method`: one
+- [x] 4.7 Write failing test `test_predict_step_builds_one_result_per_method`: one
       `CrossPlatformPredictionResult` per method, each holding all `N` targets' `TargetPrediction`
       entries (Tier 3's existing shape, reused unchanged).
-- [ ] 4.8 Write failing test `test_predict_step_saves_json_output_per_method`: one JSON file per
+- [x] 4.8 Write failing test `test_predict_step_saves_json_output_per_method`: one JSON file per
       method written to `run_dir` (naming convention decided during implementation, e.g.
       `06_prediction_<method>.json`) — safe from collision since 2.4 already rejects
       `comparison_methods` duplicating `reduction_method`.
-- [ ] 4.9 Implement `PredictCrossPlatformStep(BaseStep)` in new
+- [x] 4.9 Implement `PredictCrossPlatformStep(BaseStep)` in new
       `src/sleap_roots_analyze/pipeline/steps/predict_cross_platform.py`, consuming
       `logo_cv_predict`/`fit_pca_on_fold`/`CrossPlatformPredictionResult` unchanged, plus `pca.fit_pca`
       directly for the PC1 target (Decision 12 — no new `PCAConfig`). Read `exp1_trait_names`/
@@ -274,7 +274,7 @@
       never for data (Decision 15). Docstring documents the selection-bias note from Decision 11
       (target-trait selection uses full-outcome data — a distinct concern from fit-time leakage).
       Make 4.1-4.8 (incl. 4.1a/4.1b/4.2a/4.2b/4.3a/4.4a/4.5a/4.5b) green.
-- [ ] 4.9a Write failing test `test_predict_step_blup_refit_per_fold_is_inert`: an otherwise-identical
+- [x] 4.9a Write failing test `test_predict_step_blup_refit_per_fold_is_inert`: an otherwise-identical
       config with `blup_refit_per_fold=True` vs. `blup_refit_per_fold=False` (both valid, since
       `representative_selection_metric="variance"` never triggers this field) — assert the resulting
       `CrossPlatformPredictionResult`s are identical (found during `/review-openspec` round 2 — the
@@ -285,7 +285,7 @@
       cannot be driven red without first injecting a bug): expect it to pass immediately upon
       writing, once 4.9 is implemented — if it ever fails, the implementation has accidentally wired
       the field to something and Decision 7 needs revisiting before proceeding.
-- [ ] 4.9b Write failing test `test_predict_step_never_reads_task5_data` (Decision 15, found during
+- [x] 4.9b Write failing test `test_predict_step_never_reads_task5_data` (Decision 15, found during
       `/review-openspec` round 3 — the "ordering-only, not data" claim had no enforcing test): spy on
       `kwargs["05_visualize_cross_platform"]`, e.g. by passing a sentinel/corrupted `TaskResult` as
       that dependency's value while providing a normal, valid `kwargs["01_load_cross_platform_data"]`
@@ -294,19 +294,19 @@
 
 ## 5. `CrossPlatformPipeline` task wiring (test-first)
 
-- [ ] 5.1 Write failing test `test_cross_platform_pipeline_appends_predict_task_when_enabled`:
+- [x] 5.1 Write failing test `test_cross_platform_pipeline_appends_predict_task_when_enabled`:
       `CrossPlatformPipeline(config).create_tasks()` includes a 6th task,
       `depends_on=["01_load_cross_platform_data", "05_visualize_cross_platform"]` (both — Decision
       8), when `config.prediction.enabled=True`.
-- [ ] 5.2 Write failing test `test_cross_platform_pipeline_omits_predict_task_when_disabled`:
+- [x] 5.2 Write failing test `test_cross_platform_pipeline_omits_predict_task_when_disabled`:
       `create_tasks()` returns exactly the existing 5 tasks when `config.prediction.enabled=False`
       (the default) — no 6th task constructed at all, not merely skipped at run time.
-- [ ] 5.3 Write failing test `test_cross_platform_pipeline_backward_compat_disabled_by_default`:
+- [x] 5.3 Write failing test `test_cross_platform_pipeline_backward_compat_disabled_by_default`:
       running `CrossPlatformPipeline` against the Section 1.3 fresh golden-fixture snapshot's config
       (no `prediction:` block) produces byte-identical **analysis** output (file list + content,
       excluding `config.yaml` — Decision 9, since that file's content depends on the field's mere
       presence, not on `enabled`) to that snapshot — the CI backward-compat oracle from issue #196.
-- [ ] 5.4 Add `_run_predict_cross_platform` runner method (reading `kwargs["01_load_cross_platform_data"]`
+- [x] 5.4 Add `_run_predict_cross_platform` runner method (reading `kwargs["01_load_cross_platform_data"]`
       and `kwargs["05_visualize_cross_platform"]`) + the conditional `Task(...)` entry (both
       `depends_on` names) to `CrossPlatformPipeline.create_tasks()`. Make 5.1-5.3 green.
 
@@ -316,7 +316,7 @@
 > meaningfully** (found during `/review-openspec` round 1) — it exercises the complete pipeline
 > path (config, validation, step, task wiring), not any single unit in isolation.
 
-- [ ] 6.1 Write failing test `test_predict_cross_platform_pipeline_matches_direct_logo_cv_predict_call`:
+- [x] 6.1 Write failing test `test_predict_cross_platform_pipeline_matches_direct_logo_cv_predict_call`:
       run `CrossPlatformPipeline` against the Section 1.1/1.2 harness fixture
       (`prediction.enabled=True`); independently load the same two BLUP CSVs in the test and call
       `logo_cv_predict` directly with the same `reduction_method`/target trait; assert the
@@ -331,13 +331,13 @@
 
 ## 7. CLI wiring (test-first)
 
-- [ ] 7.1 Write failing test `test_cli_cross_platform_dry_run_lists_prediction_step_when_enabled`:
+- [x] 7.1 Write failing test `test_cli_cross_platform_dry_run_lists_prediction_step_when_enabled`:
       `sleap-roots-analyze cross-platform <config with prediction.enabled=True> --dry-run` output
       includes a 6th step line.
-- [ ] 7.2 Write failing test `test_cli_cross_platform_dry_run_omits_prediction_step_when_disabled`:
+- [x] 7.2 Write failing test `test_cli_cross_platform_dry_run_omits_prediction_step_when_disabled`:
       same command with `prediction.enabled=False` (or the `prediction:` block absent entirely) —
       dry-run output has exactly the existing 5 steps, unchanged from today.
-- [ ] 7.3 Update `cli.py`'s `cross_platform()` dry-run steps list (conditional 6th tuple) and its
+- [x] 7.3 Update `cli.py`'s `cross_platform()` dry-run steps list (conditional 6th tuple) and its
       docstring (mention prediction as an optional 6th step). Make 7.1-7.2 green.
 
 ## 8. Manual real-data validation (non-CI, pre-merge gate)
@@ -375,7 +375,7 @@
 
 ## 9. Docs
 
-- [ ] 9.1 **No `docs/API.md` entry.** Corrected during `/review-openspec` round 1: `API.md`'s `##`
+- [x] 9.1 **No `docs/API.md` entry.** Corrected during `/review-openspec` round 1: `API.md`'s `##`
       sections mirror `sleap_roots_analyze.__all__` (confirmed neither `CrossPlatformConfig` nor any
       existing pipeline Step class is in `__all__` — Configs/Steps are documented in guide docs, not
       the `__all__`-driven API reference). `PredictionConfig`/`PredictCrossPlatformStep` follow that
@@ -383,8 +383,8 @@
       was also a broadened paraphrase of Tier 3's actual finding — the real invariant is "every `##`
       *module* heading," not "every `##` heading"; `API.md` already has 3 non-module `##` headings
       with no TOC entries, e.g. `Error Handling`.)
-- [ ] 9.2 Add a `docs/CHANGELOG.md` `[Unreleased]` `### Added` entry.
-- [ ] 9.3 **Extend the existing section, don't add a new one.** `docs/CROSS_PLATFORM_ANALYSIS.md`
+- [x] 9.2 Add a `docs/CHANGELOG.md` `[Unreleased]` `### Added` entry.
+- [x] 9.3 **Extend the existing section, don't add a new one.** `docs/CROSS_PLATFORM_ANALYSIS.md`
       already has a `## Cross-Platform Genotype-Effect Prediction` section (shipped by Tier 3),
       closing with: *"This tier ships the statistical machinery only — `PredictionConfig` and a
       `PredictCrossPlatformStep` pipeline wiring (Tier 3.5)... are separate, later changes."* Extend
@@ -396,25 +396,25 @@
       elsewhere. Split per round 3's finding that this task had become an unsplit compound of 5
       distinct asks, inconsistent with this file's own one-assertion-per-checkbox convention used
       everywhere else (2.4/2.4a, 3.3/3.3a/3.3b, etc.):
-- [ ] 9.3a Correct the stale closing sentence; add a `### Configuration` subheading with a concrete
+- [x] 9.3a Correct the stale closing sentence; add a `### Configuration` subheading with a concrete
       YAML example showing a `prediction:` block (`enabled`, `predictor_source`, `reduction_method`,
       `comparison_methods`, `representative_selection_metric`, `platform_pairs`,
       `source_blup_path`/`target_blup_path`) added to an existing `CrossPlatformConfig` YAML — the
       only way a user can actually learn this feature's YAML syntax, since `proposal.md`/`spec.md`
       are internal planning artifacts, not shipped docs (found insufficient in round 1, added round
       2).
-- [ ] 9.3b Add a `### Current Limitations` subheading (or similar) noting: PC1-as-target's
+- [x] 9.3b Add a `### Current Limitations` subheading (or similar) noting: PC1-as-target's
       computation (`pca.fit_pca()` with `StandardScaler` pre-applied, `random_state=42` fixed) is
       **not user-configurable** in this tier; `representative_selection_metric="heritability"` is
       not yet supported (only `"variance"`); `blup_refit_per_fold` is present in the schema but
       currently inert (found round 2 for the first two notes; the third added round 3, since it had
       the same "internal-doc-only" gap as the other two but was missed).
-- [ ] 9.3c Add a one-line note (same subheading) that only genotypes common to **both** source and
+- [x] 9.3c Add a one-line note (same subheading) that only genotypes common to **both** source and
       target BLUP/genotype-mean tables are used for prediction — genotypes present in only one side
       are silently excluded from the result, not merely from an error path (found during
       `/review-openspec` round 3: above the hard-error minimum-genotype-count threshold, this
       set-intersection behavior was previously undocumented anywhere a user would see it).
-- [ ] 9.4 Add a docstring cross-reference (not a behavior change) on `PredictCrossPlatformStep`
+- [x] 9.4 Add a docstring cross-reference (not a behavior change) on `PredictCrossPlatformStep`
       itself, not on `CrossPlatformSummaryGenerator`/`cross_platform_summary.py` (pinned during
       `/review-openspec` round 1 to stay clear of follow-up #197's territory even for a
       comment-only edit) — noting that `CrossPlatformSummaryGenerator` does not yet surface
@@ -427,11 +427,11 @@
 
 ## 10. Validation
 
-- [ ] 10.1 `openspec validate add-prediction-pipeline-step --strict` — resolve every reported issue.
-- [ ] 10.2 `/lint` (black + ruff) on all changed files.
-- [ ] 10.3 Full `uv run pytest --cov --cov-branch` — no regressions, all new tests (Sections 2-7)
+- [x] 10.1 `openspec validate add-prediction-pipeline-step --strict` — resolve every reported issue.
+- [x] 10.2 `/lint` (black + ruff) on all changed files.
+- [x] 10.3 Full `uv run pytest --cov --cov-branch` — no regressions, all new tests (Sections 2-7)
       green.
-- [ ] 10.4 `/review-openspec` — adversarial proposal review, ≥1 round, reconcile literally into
+- [x] 10.4 `/review-openspec` — adversarial proposal review, ≥1 round, reconcile literally into
       `design.md`. **Round 1 complete** (5 parallel reviewers; 5 BLOCKING + ~14 IMPORTANT findings,
       reconciled into `design.md`'s "Adversarial Review Reconciliation (round 1)" section, this
       file, and `proposal.md` — see Decisions 7-12). **Round 2 complete** (a second, independent
