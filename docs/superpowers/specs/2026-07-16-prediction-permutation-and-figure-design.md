@@ -42,11 +42,25 @@ step, soft-depends on Tier 3.5) that renders a 3-panel figure per directed pair.
   shuffle per iteration), calling `logo_cv_predict()` once per shuffle (each call already runs the
   internal 19-fold LOGO-CV loop — "N=1000 permutations" means 1000 `logo_cv_predict` calls, not
   1000×19). Returns the full null distributions for R², RMSE, and Spearman ρ, plus one-sided
-  p-values for each (`p = (#null ≥ observed + 1) / (n_permutations + 1)`).
+  p-values for each (`p = (#null ≥ observed + 1) / (n_permutations + 1)`). Each permutation's
+  `top_quartile_recovery` null value (see below) is computed with that permutation's *shuffled* `y`
+  as ground truth against that same call's LOGO-CV predictions — not the original, unshuffled `y`
+  — so the null reflects chance-level recovery under the shuffled labeling, not recovery of the
+  real ranking.
 - **`top_quartile_recovery(y_true, y_pred, q=None) -> float`.** The roadmap's settled metric:
   fraction of the true top-`q` genotypes (by `y_true`) that appear in the predicted top-`2q` (by
   `y_pred`). `q` defaults to `round(n / 4)`. Used for both the observed value (on real LOGO-CV
   predictions) and, per-permutation, the null distribution.
+
+`permutation_test()` is self-contained: given the *real* (unshuffled) `y`, it first calls
+`logo_cv_predict(X, y, genotypes, reduction_method, representative_names)` once to populate
+`observed_r2`/`rmse`/`spearman_rho`/`top_quartile_recovery`, then runs the `n_permutations` shuffled
+calls for the null distributions — a caller gets a complete result from one call, without needing
+a separate `logo_cv_predict()` call first for convenience. In `VisualizePredictionStep`, this
+observed value is expected to exactly reproduce task 6's already-reported `TargetPrediction`
+(both call `logo_cv_predict` with identical inputs) — the wiring test in the Testing Plan below
+cross-checks this, the same "wiring correctness, not just existence" pattern as Tier 3.5's own
+Section 6 oracle.
 
 `result_types.py` gains:
 
@@ -210,7 +224,9 @@ paper's numeric tables/appendix, just not their own PNG.
    regression test confirming existing `data`/`metadata`/`files_generated` keys are unchanged.
 5. `VisualizePredictionStep` wiring tests (task presence/absence gated by `visualize`,
    `visualize=True` + `enabled=False` rejected, joblib parallelization produces identical results
-   to a serial reference run for a small fixture, JSON + PNG both produced).
+   to a serial reference run for a small fixture, JSON + PNG both produced, and each
+   `PermutationResult`'s `observed_*` fields exactly reproduce task 6's already-reported
+   `TargetPrediction` values for the same target/method).
 6. `CrossPlatformPipeline` task-list tests (7th task present/absent).
 7. Manual, non-CI, real-EDPIE-data validation (Section-8-equivalent) — including the real-scale
    runtime re-measurement flagged in Risks, before merge.
