@@ -974,8 +974,10 @@ hardcoded lookup — see `tests/test_cross_platform_prediction.py`'s
 
 Tier 3.5 (issue #196) wires this machinery into `CrossPlatformPipeline` itself, as
 an optional 6th step — `PredictCrossPlatformStep` — on the same per-pair
-`cross-platform` command already used for correlation. The permutation null and
-its figures (Tier 4) remain a separate, later change.
+`cross-platform` command already used for correlation. Tier 4 (issue #200) adds
+a permutation-null significance test and a summary figure — see
+[Permutation-Null Significance Test & Figure](#permutation-null-significance-test--figure)
+below.
 
 ### Configuration
 
@@ -1021,6 +1023,88 @@ plus each of `comparison_methods`), holding a `CrossPlatformPredictionResult`
 with one entry per prediction target — the target platform's cluster-
 representative traits, plus a `PC1` entry.
 
+### Permutation-Null Significance Test & Figure
+
+Tier 4 of the cross-platform genotype-prediction program (issue #200) answers
+the question the observed R²/RMSE/ρ above cannot: is a given prediction
+distinguishable from chance at n≈19 genotypes? `spearman_p`'s asymptotic
+p-value (`scipy.stats.spearmanr`'s default) is documented as unreliable below
+n≈20-30 — `permutation_test()` closes that gap empirically, by refitting the
+same LOGO-CV procedure on many random relabelings of the target and comparing
+the observed value's rank against that empirical null distribution.
+
+```python
+from sleap_roots_analyze import permutation_test, top_quartile_recovery
+
+result = permutation_test(
+    X=source_platform_blup_table,
+    y=target_platform_blup_table["target_trait"].values,
+    genotypes=source_platform_blup_table.index.tolist(),
+    reduction_method="pls_latent",
+    n_permutations=1000,
+    random_state=42,
+)
+print(result.observed_r2, result.p_value_r2, result.p_value_rmse)
+
+recovery = top_quartile_recovery(y_true, y_pred)  # q defaults to round(n/4)
+```
+
+`permutation_test()` is self-contained: it computes the observed value itself
+(one `logo_cv_predict()` call) before drawing `n_permutations` shuffled-`y`
+calls for the null distributions — a caller does not need a separate
+`logo_cv_predict()` call first. Two caveats worth knowing before using it
+directly:
+
+- **`p_value_r2`/`p_value_spearman_rho` are right-tailed (higher is better);
+  `p_value_rmse` is left-tailed (lower is better) — the opposite convention.**
+  Do not read a low `p_value_rmse` as indicating a bad fit.
+- **`random_state` accepts `int`/`numpy.random.SeedSequence` reproducibly**
+  (the same input always reproduces the same null draws), but a passed-in
+  `numpy.random.Generator` instance is stateful — reusing the *same* instance
+  across two calls will **not** reproduce identical results.
+
+`top_quartile_recovery`'s chance-level (random `y_pred`) baseline is `2*q/n`,
+not a fixed 25% — it varies ≈44-55% across this program's real per-pair
+genotype counts (n≈15-24), e.g. ≈52.6% at n=19, q=5. The *empirically measured*
+null (a real LOGO-CV null, not a uniformly-random `y_pred`) can differ
+measurably from that theoretical figure — e.g. ≈44.3% on this program's own
+synthetic pure-noise oracle fixture at n=19 — so always verify the empirical
+null for your actual data rather than asserting against the theoretical
+baseline alone.
+
+`VisualizePredictionStep`, an optional 7th step on `CrossPlatformPipeline`,
+runs `permutation_test()` for every `(target, method)` combination and builds
+a 3-panel summary figure. Enable it by adding `visualize: true` (plus the 3
+permutation-specific fields below) to an existing `prediction:` block —
+`visualize=True` requires `enabled=True` too:
+
+```yaml
+prediction:
+  enabled: true
+  # ... existing fields (predictor_source, reduction_method, etc.) ...
+  visualize: true                    # false by default
+  n_permutations: 1000               # default; 1000 shuffled-y calls per target/method
+  permutation_random_state: 42       # default; seeds an independent draw per (target, method)
+  permutation_n_jobs: 8              # default; joblib.Parallel workers, across targets
+```
+
+**Parallelization**: individual permutation calls are too fast (tens of
+milliseconds) for process-based parallelism to pay off — empirically measured
+*slower* than serial. `joblib.Parallel` instead parallelizes across
+independent `(target, method)` units, each running its own full,
+`n_permutations`-length loop. Verified against real EDPIE data (issue #200
+Section 11): the worst-case pair (Turface19→Cylinder, ~129 representative
+targets) completed this step in **~13 minutes** at `n_jobs=8` on a 16-core
+machine, well under the program's 30-minute feasibility gate.
+
+Output: one `07_permutation_<method>.json` file per method (same
+`reduction_method`/`comparison_methods` set as task 6's
+`06_prediction_<method>.json`), holding a `CrossPlatformPermutationResult`;
+and one `07_prediction_figure.png` per pair, built from only the primary
+`reduction_method`'s results — a PC1 observed-vs-predicted scatter, an
+all-targets observed-R²-vs-pooled-null-R² violin, and a top-quartile-recovery
+bar chart (mean observed vs. mean null).
+
 ### Current Limitations
 
 - The `PC1` target's computation (`sklearn.decomposition.PCA` via
@@ -1040,5 +1124,6 @@ representative traits, plus a `PC1` entry.
   `06_prediction_<method>.json`'s genotype count against each platform's own
   genotype count if this matters for your analysis.
 - `CrossPlatformSummaryGenerator`/`/cross-platform-summary` does not yet
-  surface prediction results — tracked as follow-up
+  surface prediction results — nor permutation-test/figure results (Tier 4) —
+  tracked as follow-up
   [#197](https://github.com/talmolab/sleap-roots-analyze/issues/197).

@@ -1583,8 +1583,9 @@ methods present in `all_outlier_results`.
 
 Cross-platform genotype-effect prediction: leave-one-genotype-out (LOGO) cross-validated
 ridge/PLS machinery (Tier 3 of the wheat EDPIE cross-platform genotype-prediction program,
-#194). Given genotype BLUPs (or raw genotype means) estimated within one platform, tests
-whether they predict genotype effects in another platform.
+#194), plus a permutation-null significance test (Tier 4, #200). Given genotype BLUPs (or
+raw genotype means) estimated within one platform, tests whether they predict genotype
+effects in another platform, and whether that prediction is distinguishable from chance.
 
 ### Functions
 
@@ -1633,6 +1634,73 @@ result = logo_cv_predict(
     reduction_method="pls_latent",
 )
 print(result.r2, result.rmse, result.spearman_rho)
+```
+
+#### `top_quartile_recovery`
+
+```python
+top_quartile_recovery(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    q: Optional[int] = None
+) -> float
+```
+
+Fraction of the true top-`q` genotypes (ranked by `y_true`) that appear in the predicted
+top-`2q` (ranked by `y_pred`). `q` defaults to `max(1, round(len(y_true) / 4))`. Chance-level
+(random `y_pred`) expected recovery is `2*q/n` by linearity of expectation — not a fixed
+25% — varying ≈44-55% across this program's real n=15-24 scale (e.g. ≈52.6% at n=19, q=5).
+Raises `ValueError` for an explicitly-supplied `q` that is non-positive or has
+`2*q > len(y_true)`.
+
+#### `permutation_test`
+
+```python
+permutation_test(
+    X: pd.DataFrame,
+    y: np.ndarray,
+    genotypes: Sequence[str],
+    reduction_method: str = "pls_latent",
+    representative_names: Optional[Sequence[str]] = None,
+    n_permutations: int = 1000,
+    random_state: Union[int, np.random.SeedSequence, np.random.Generator] = 42
+) -> PermutationTestResult
+```
+
+Permutation-null significance test for a cross-platform LOGO-CV prediction. Self-contained:
+first calls `logo_cv_predict()` once on the real (unshuffled) `y` to populate the observed
+R²/RMSE/Spearman ρ/top-quartile-recovery, then draws `n_permutations` independent shuffles of
+`y` relative to `genotypes` (`X` and `genotypes` are never shuffled) and calls
+`logo_cv_predict()` once per shuffle to build the null distributions and one-sided p-values.
+
+**Two caveats, easy to get wrong:**
+- `p_value_r2` and `p_value_spearman_rho` are right-tailed (`count(null >= observed)` —
+  higher is better). `p_value_rmse` is **left-tailed**
+  (`count(null <= observed)` — lower is better, the opposite convention). Do not read a low
+  `p_value_rmse` as indicating a bad fit.
+- `random_state` accepts `int`/`numpy.random.SeedSequence` reproducibly (the same input
+  always reproduces the same null draws), but a passed-in `numpy.random.Generator` instance
+  is **stateful** — reusing the *same* `Generator` instance across two calls will **not**
+  reproduce identical results, since its internal state has advanced between calls.
+
+Raises `ValueError` if `n_permutations` is not positive (before any `logo_cv_predict` call);
+if the observed-value call itself raises (e.g. invalid `reduction_method`); if a constant
+(zero-variance) `y` produces a non-finite observed `spearman_rho`/`top_quartile_recovery`
+(raised before any permutation is drawn); or if any permutation produces a non-finite null
+value (raised only after all `n_permutations` complete, naming the metric and permutation
+index).
+
+**Example:**
+```python
+result = permutation_test(
+    X=source_blup_table,
+    y=target_blup_table["target_trait"].values,
+    genotypes=source_blup_table.index.tolist(),
+    reduction_method="pls_latent",
+    n_permutations=1000,
+    random_state=42,
+)
+print(result.observed_r2, result.p_value_r2, result.p_value_rmse)
 ```
 
 ---

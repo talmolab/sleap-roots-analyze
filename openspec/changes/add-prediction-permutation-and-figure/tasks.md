@@ -624,8 +624,8 @@
 
 ## 12. Docs
 
-- [ ] 12.1 Add a `docs/CHANGELOG.md` `[Unreleased]` `### Added` entry.
-- [ ] 12.2 Extend `docs/CROSS_PLATFORM_ANALYSIS.md`'s existing `## Cross-Platform Genotype-Effect
+- [x] 12.1 Add a `docs/CHANGELOG.md` `[Unreleased]` `### Added` entry.
+- [x] 12.2 Extend `docs/CROSS_PLATFORM_ANALYSIS.md`'s existing `## Cross-Platform Genotype-Effect
       Prediction` section (Tier 3.5 already extended it once) with a new `###` subsection covering
       `permutation_test()` and `top_quartile_recovery()`, `VisualizePredictionStep`, and **all 4**
       new `PredictionConfig` fields (`visualize`, `n_permutations`, `permutation_random_state`,
@@ -656,7 +656,7 @@
       - **Extend the existing `### Current Limitations` subsection's #197 bullet in place** (found
         during round 2: a separate new bullet would read as a near-duplicate) to also note that
         `CrossPlatformSummaryGenerator` doesn't surface permutation/visualization output either.
-- [ ] 12.3 **No `docs/API.md` entry** for `PermutationResult`/`CrossPlatformPermutationResult`.
+- [x] 12.3 **No `docs/API.md` entry** for `PermutationResult`/`CrossPlatformPermutationResult`.
       Verified directly (found during `/review-openspec` round 1 that the original task's premise
       was backwards): `LOGOCVResult`/`CrossPlatformPredictionResult`/`TargetPrediction` are all in
       `__all__`, but **none** has an `API.md` entry — the `cross_platform_prediction` module
