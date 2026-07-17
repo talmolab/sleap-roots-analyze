@@ -1068,6 +1068,11 @@ class CrossPlatformConfig:
     # `warn` is recommended. See validation.input_contract.validate_cross_platform_experiment.
     validate_input: str = "warn"
 
+    # Optional cross-platform genotype-effect prediction for this same exp1/exp2
+    # pair (Tier 3.5, #196). Default PredictionConfig() (enabled=False) so every
+    # existing configuration is unaffected -- see design.md Decision 1/4.
+    prediction: PredictionConfig = field(default_factory=PredictionConfig)
+
     def __post_init__(self):
         """Validate configuration parameters."""
         # Validate input-contract validation mode (issue #154). Shared constant keeps
@@ -1180,4 +1185,27 @@ class CrossPlatformConfig:
                     f"enrichment_p_value_column '{self.enrichment_p_value_column}' "
                     f"must match correlation_method '{self.correlation_method}' "
                     f"(expected '{expected_p_col}')"
+                )
+
+        # Cross-check prediction.platform_pairs against this config's own
+        # exp1_name/exp2_name (Decision 3) -- PredictionConfig alone has no
+        # visibility into its parent's fields, so this lives here, not in
+        # PredictionConfig.__post_init__. Cardinality (Decision 10) is checked
+        # before the direction-match content check.
+        if self.prediction.enabled:
+            platform_pairs = self.prediction.platform_pairs
+            if len(platform_pairs) != 1:
+                raise ValueError(
+                    "prediction.platform_pairs must contain exactly one entry "
+                    f"when prediction.enabled=True, got {len(platform_pairs)}"
+                )
+            pair = platform_pairs[0]
+            pair_names = {pair.get("source"), pair.get("target")}
+            expected_names = {self.exp1_name, self.exp2_name}
+            if pair_names != expected_names:
+                raise ValueError(
+                    f"prediction.platform_pairs' {{source, target}} names "
+                    f"{sorted(n for n in pair_names if n is not None)} do not "
+                    f"match this config's exp1_name/exp2_name "
+                    f"{sorted(expected_names)}"
                 )

@@ -516,3 +516,130 @@ def test_prediction_config_genotype_means_does_not_require_blup_paths():
     )
     assert config.source_blup_path is None
     assert config.target_blup_path is None
+
+
+# =============================================================================
+# CrossPlatformConfig <-> PredictionConfig wiring tests (tasks.md Section 3)
+# =============================================================================
+
+
+def test_cross_platform_config_gains_prediction_field():
+    """CrossPlatformConfig().prediction is a default PredictionConfig (tasks.md 3.1)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="exp1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno1",
+        exp2_data_path="exp2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno2",
+    )
+    assert isinstance(config.prediction, PredictionConfig)
+    assert config.prediction == PredictionConfig()
+
+
+def test_cross_platform_config_validates_platform_pairs_direction_against_exp_names():
+    """A platform_pairs entry not matching exp1_name/exp2_name raises (tasks.md 3.2)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[{"source": "not_exp1_or_exp2", "target": "also_not"}],
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    "source_name,target_name",
+    [("Exp1", "Exp2"), ("Exp2", "Exp1")],
+)
+def test_cross_platform_config_accepts_valid_platform_pairs_direction(
+    source_name, target_name
+):
+    """platform_pairs direction is accepted in either order (tasks.md 3.3)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    config = CrossPlatformConfig(
+        exp1_data_path="exp1.csv",
+        exp1_name="Exp1",
+        exp1_genotype_col="geno1",
+        exp2_data_path="exp2.csv",
+        exp2_name="Exp2",
+        exp2_genotype_col="geno2",
+        prediction=PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            platform_pairs=[{"source": source_name, "target": target_name}],
+        ),
+    )
+    assert config.prediction.platform_pairs == [
+        {"source": source_name, "target": target_name}
+    ]
+
+
+def test_cross_platform_config_rejects_empty_platform_pairs_when_enabled():
+    """prediction.enabled=True with the default empty platform_pairs raises (tasks.md 3.3a)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[],
+            ),
+        )
+
+
+def test_cross_platform_config_rejects_multiple_platform_pairs_entries():
+    """prediction.enabled=True with 2 platform_pairs entries raises (tasks.md 3.3b)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="platform_pairs"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(
+                enabled=True,
+                predictor_source="genotype_means",
+                platform_pairs=[
+                    {"source": "Exp1", "target": "Exp2"},
+                    {"source": "Exp2", "target": "Exp1"},
+                ],
+            ),
+        )
