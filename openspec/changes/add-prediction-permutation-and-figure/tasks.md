@@ -203,27 +203,27 @@
 
 ## 4. `PredictionConfig` new fields + `CrossPlatformConfig` cross-check (test-first)
 
-- [ ] 4.1 Write failing test `test_prediction_config_visualize_defaults_to_false_and_no_op`:
+- [x] 4.1 Write failing test `test_prediction_config_visualize_defaults_to_false_and_no_op`:
       `PredictionConfig()` has `visualize=False`, `n_permutations=1000`,
       `permutation_random_state=42`, `permutation_n_jobs=8`; construction with these defaults does
       not raise.
-- [ ] 4.2 Write failing test `test_cross_platform_config_rejects_visualize_true_with_enabled_false`:
+- [x] 4.2 Write failing test `test_cross_platform_config_rejects_visualize_true_with_enabled_false`:
       `CrossPlatformConfig(..., prediction=PredictionConfig(enabled=False, visualize=True))`
       raises `ValueError` at construction time.
-- [ ] 4.3 Write failing test `test_prediction_config_permutation_fields_validation_skipped_when_visualize_false`:
+- [x] 4.3 Write failing test `test_prediction_config_permutation_fields_validation_skipped_when_visualize_false`:
       `enabled=True, visualize=False` with `n_permutations=0`, `permutation_n_jobs=0`, and
       `permutation_random_state=-1` (all simultaneously invalid) does not raise — none of the 3
       permutation-related fields are validated unless `visualize=True`.
-- [ ] 4.4 Write failing test `test_prediction_config_rejects_non_positive_n_permutations_when_visualize_true`:
+- [x] 4.4 Write failing test `test_prediction_config_rejects_non_positive_n_permutations_when_visualize_true`:
       `enabled=True, visualize=True, n_permutations=0` (and `-1`) raises `ValueError`.
-- [ ] 4.4a Write failing test `test_prediction_config_rejects_non_positive_permutation_n_jobs_when_visualize_true`:
+- [x] 4.4a Write failing test `test_prediction_config_rejects_non_positive_permutation_n_jobs_when_visualize_true`:
       `enabled=True, visualize=True, permutation_n_jobs=0` (and `-1`) raises `ValueError` naming
       the field, not `joblib.Parallel`'s own raw error surfacing later inside
       `VisualizePredictionStep`.
-- [ ] 4.4b Write failing test `test_prediction_config_rejects_invalid_permutation_random_state_when_visualize_true`:
+- [x] 4.4b Write failing test `test_prediction_config_rejects_invalid_permutation_random_state_when_visualize_true`:
       `enabled=True, visualize=True, permutation_random_state=-1` (and a non-`int` value) raises
       `ValueError` naming the field, not `numpy.random.SeedSequence`'s own raw error.
-- [ ] 4.5 Extend `PredictionConfig`/`CrossPlatformConfig.__post_init__` in
+- [x] 4.5 Extend `PredictionConfig`/`CrossPlatformConfig.__post_init__` in
       `pipeline/config/components.py` with the 4 new fields and the 4.2/4.4/4.4a/4.4b validations.
       Make 4.1-4.4b green.
 
