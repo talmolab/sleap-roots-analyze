@@ -54,7 +54,7 @@ class PredictCrossPlatformStep(BaseStep):
         not fixed here.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize PredictCrossPlatformStep."""
         super().__init__(
             step_name="PredictCrossPlatform",
@@ -94,6 +94,11 @@ class PredictCrossPlatformStep(BaseStep):
             source_raw = self._load_blup_table(pcfg.source_blup_path)
             target_raw = self._load_blup_table(pcfg.target_blup_path)
         else:
+            assert prev_result is not None, (
+                "prev_result (task 1's StepResult) is required when "
+                "predictor_source='genotype_means', to supply "
+                "exp1_trait_names/exp2_trait_names"
+            )
             source_is_exp1 = source_platform == config.exp1_name
             source_df = data["exp1_df"] if source_is_exp1 else data["exp2_df"]
             target_df = data["exp2_df"] if source_is_exp1 else data["exp1_df"]

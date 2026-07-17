@@ -897,7 +897,7 @@ class PredictionConfig:
     source_blup_path: Optional[str] = None
     target_blup_path: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration parameters (full no-op when disabled)."""
         if not self.enabled:
             return

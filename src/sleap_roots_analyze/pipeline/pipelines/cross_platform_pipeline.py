@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, List
 
 from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
+from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.pipelines.base_pipeline import BasePipeline
 from sleap_roots_analyze.pipeline.task import Task
 from sleap_roots_analyze.pipeline.steps.load_cross_platform_data import (
@@ -250,7 +251,9 @@ class CrossPlatformPipeline(BasePipeline):
         )
         return result
 
-    def _run_predict_cross_platform(self, config, run_dir, logger, **kwargs):
+    def _run_predict_cross_platform(
+        self, config: Any, run_dir: Path, logger: Any, **kwargs: Any
+    ) -> StepResult:
         """Execute Step 6: Predict Cross-Platform Genotype Values (optional).
 
         Reads data from task 1's result only. ``kwargs["05_visualize_cross_platform"]``
