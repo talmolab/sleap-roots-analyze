@@ -56,9 +56,14 @@ representative_names=None, n_permutations=1000, random_state=42) -> PermutationR
 `logo_cv_predict(X, y, genotypes, reduction_method, representative_names)` once, on the real
 (unshuffled) `y`, to populate `observed_r2`/`observed_rmse`/`observed_spearman_rho`/
 `observed_top_quartile_recovery`. It then draws `n_permutations` independent shuffles of `y`
-relative to `genotypes` (a single seeded `numpy.random.Generator(random_state)`, one shuffle per
-iteration, no shared mutable state across iterations) and calls `logo_cv_predict()` once per
-shuffle, collecting the four metrics' null distributions and computing one-sided p-values
+relative to `genotypes` (a single generator built via `numpy.random.default_rng(random_state)` —
+**not** `numpy.random.Generator(random_state)` directly, which requires a `BitGenerator` instance
+and rejects a bare `int`; `default_rng` accepts `int`, `SeedSequence`, or `Generator` uniformly,
+which is what lets `VisualizePredictionStep` pass per-target `SeedSequence` children through with
+no int-extraction step — see round 2's reconciliation below, this replaces an invalid API call an
+earlier draft of this decision specified — one shuffle per iteration, no shared mutable state
+across iterations) and calls `logo_cv_predict()` once per shuffle, collecting the four metrics'
+null distributions and computing one-sided p-values
 (`p = (#null >= observed + 1) / (n_permutations + 1)`) for R², RMSE, and Spearman ρ.
 
 **Added during `/review-openspec` round 1:** a permutation's LOGO-CV fold structure can
@@ -447,3 +452,119 @@ implementation began. 5 BLOCKING and 11 IMPORTANT findings, reconciled as follow
 
 Full re-validation (`openspec validate add-prediction-permutation-and-figure --strict`) passes
 after all round-1 fixes.
+
+## Adversarial Review Reconciliation (round 2)
+
+A second, independent round of the same 5-agent review (run fresh, with no memory of round 1,
+specifically to catch anything round 1 missed) found round 1's investigative work mostly held up
+under direct re-verification (the restored 19-scenario MODIFIED requirement, the `2q/n` math, the
+`predictor_matrices` collision invariant, and the `SeedSequence`/`loky`/tolerance language were all
+independently confirmed against the current spec/tasks text, not just design.md's own narrative).
+But it also found 2 new BLOCKING issues — both real implementation-blocking bugs, not polish — plus
+a further batch of IMPORTANT gaps:
+
+- **BLOCKING (new) — round 1's own RNG fix was itself invalid.** `numpy.random.Generator(random_state)`
+  requires a `BitGenerator` instance and raises `TypeError` on a bare `int` — the exact API round 1's
+  fix specified. Separately, the `SeedSequence.spawn(N)` → `permutation_test(random_state=...)`
+  handoff (also introduced in round 1) was left completely unspecified: `spawn()` returns
+  `SeedSequence` objects, not ints, and `permutation_test`'s signature was still typed as a plain
+  `int`. Fixed: `permutation_test` now builds its RNG via `numpy.random.default_rng(random_state)`,
+  which uniformly accepts `int`, `SeedSequence`, or `Generator` — resolving both problems at once,
+  with no int-extraction step needed anywhere. Decision 1, Decision 4, and the
+  `cross-platform-prediction` spec's Permutation Test requirement all now state this explicitly;
+  task 2.8 gained a parametrized case covering both input types, and task 2.14 states the exact
+  constructor to use and why (`default_rng`, not `Generator` directly).
+- **BLOCKING (new) — Section 6 (`VisualizePredictionStep`) depended on `create_prediction_figure()`
+  (the old Section 8) without that section being sequenced first.** Task 6.8's own test mocked "the
+  figure-building function," which didn't exist yet at that point in the task ordering — a real
+  sequencing bug missed by every round-1 reviewer (including the git-workflow lens, which checked
+  ordering but not this specific cross-section dependency). Fixed: the figure-content module
+  (`visualize_prediction.py`'s `create_prediction_figure()`) is now Section 6, sequenced *before*
+  the step (now Section 7) that consumes it — a pure renumbering, not a behavior change.
+- **IMPORTANT (new) — Section 6's (now Section 7's) "3 test-commits, then 1 implementation commit
+  at the end" pattern didn't achieve real commit atomicity.** Verified against Tier 3.5's actual
+  commit history (its own analogous section landed tests and implementation together in one
+  commit, never split): committing round 1's 3 test-only groups in sequence would leave
+  `uv run pytest` red at each of those 3 commit boundaries, only turning green at the final,
+  separate implementation commit — worse than Tier 3.5's own precedent, not better. Fixed:
+  restructured into 3 genuine red→green pairs (7a: wiring/reuse, 7b: `joblib` parallelization, 7c:
+  JSON/figure I/O), each landing its own working implementation increment.
+- **IMPORTANT (new) — oracle tests (9.2/9.3/9.4b) never stated a reduced `n_permutations` for CI**,
+  unlike 9.1, which did. At the production default (`n_permutations=1000`) across the existing
+  N=20-seed fixture, these could individually cost minutes and collectively threaten the shared
+  30-minute CI job timeout across 3 OSes. Fixed: 9.2/9.3/9.4b now explicitly state
+  `n_permutations=200`, matching 9.1's own CI-fast convention.
+- **IMPORTANT (new) — round 1's Section 11 timing claim was factually wrong, not just imprecise.**
+  Verified directly against Tier 3.5's real commit timestamps (branch `add-prediction-pipeline-step`,
+  still available locally): manual validation (`5d5b8e6`, `b5e5cf0`) landed *after* **both**
+  5-subagent review rounds (`718260b`/`afb4b91`, then `e5294e0`), with a further CI-driven fix
+  (`d401cf0`) landing even after Elizabeth's sign-off — not "between" two rounds, as round 1's text
+  claimed. Fixed: Section 11's timing note corrected to state validation is a late-stage gate that
+  can trail every review round, not one reliably sandwiched between two.
+- **IMPORTANT (new) — 2 previously-untested `PredictionConfig` fields had no validation at all**:
+  `permutation_n_jobs` (a non-positive value would surface `joblib.Parallel`'s own raw error deep
+  inside the step) and `permutation_random_state` (an invalid seed would surface
+  `numpy.random.SeedSequence`'s own raw error). Fixed: both gain the same
+  validated-only-when-`visualize=True` treatment as `n_permutations`, with named `ValueError`s and
+  corresponding tests (tasks.md 4.4a/4.4b).
+- **IMPORTANT (new) — the seed-enumeration order underlying `SeedSequence.spawn(N)` was never
+  pinned down.** Tests could pass regardless of which `(target, method)` enumeration order was
+  chosen (a rerun of the same code reproduces the same order trivially), silently leaving the
+  actual order — dict-iteration order of `results_by_method`, easy to perturb in a future refactor
+  — unspecified as a real contract. Fixed: the `cross-platform-analysis` spec now states the exact
+  canonical order (methods first, then target names in `CrossPlatformPredictionResult.predictions`
+  order), and task 7b.3 tests against it explicitly.
+- **IMPORTANT (new) — partial-failure/atomic-write semantics for `VisualizePredictionStep`'s JSON
+  output were unspecified.** If one `(target, method)` combination failed while others for the same
+  pair would have succeeded, it was unstated whether already-computed methods' JSON files should
+  still be written. Fixed: the `cross-platform-analysis` spec now states all-or-nothing per pair
+  (no partial JSON output on any failure), with a corresponding test (tasks.md 7c.6).
+- **IMPORTANT (new) — the non-finite-null guard's fail-fast-vs-complete-then-report choice was
+  undiscussed**, despite being cost-relevant in a ~27-minute parallel run. Fixed: the
+  `cross-platform-prediction` spec now states and justifies the choice (complete-then-report,
+  since a genuine bug is expected to affect many permutations, not one rare occurrence — failing
+  fast saves little wall-clock time while complicating which-permutations-ran accounting).
+- **IMPORTANT (new) — `assert_allclose(rtol=1e-6, atol=1e-9)` reused a tolerance convention
+  established for smaller arrays** (PCA loadings/eigenvalues/cluster centers), applied here
+  element-wise across null distributions of up to 1000 values across many targets/methods, without
+  stating what fixture size bounds the resulting false-failure-rate risk. Fixed: task 7b.5 now
+  states an explicit, small `n_permutations` (50) for this specific test, bounding the comparison
+  surface.
+- **IMPORTANT (new) — no wiring-correctness oracle existed for `observed_top_quartile_recovery`
+  specifically** (unlike the other 3 observed metrics, which have an explicit direct-`logo_cv_predict`-
+  call cross-check). Fixed: task 2.5 now asserts this metric against an independent
+  `top_quartile_recovery(y, y_pred)` computation from the same observed call.
+- **IMPORTANT (new) — the pooled-null violin panel's implicit invariant (every target within a pair
+  shares the same genotype count) was unstated**, and the independent per-target seeding fix (round
+  1) raised a legitimate question about whether pooling nulls from targets with wildly different
+  counts still makes sense. Verified: task 6's `dropna(axis=1, how="any")` trait-column filtering
+  never changes the row/genotype count, so this concern doesn't actually arise — but the invariant
+  was worth stating explicitly rather than leaving a future reviewer to re-derive it. Fixed: added
+  to the Visualize step's requirement body (step 5).
+- **IMPORTANT (new, documentation) — the round-1 fix of "cross-reference `design.md`'s Decisions"
+  for shipped-doc content was itself a documentation anti-pattern.** `design.md` moves to
+  `openspec/changes/archive/<change-id>/design.md` on archival — a shipped-doc pointer to it goes
+  stale/dangling the moment this change archives. Fixed: task 12.2 now states the two key numbers
+  (the parallelization headline, the `2q/n` chance-level baseline) directly in
+  `docs/CROSS_PLATFORM_ANALYSIS.md`, rather than deferring to a soon-to-be-archived file.
+- **IMPORTANT (new, documentation) — `top_quartile_recovery` and the full 4-field YAML example
+  were under-specified in task 12.2.** Fixed: both named explicitly.
+- **SUGGESTION (new) — missing an explicit-invalid-`q` scenario for `top_quartile_recovery`**
+  (only the *default*-`q` small-`n` case was covered). Fixed: added, with a corresponding test
+  (tasks.md 2.3b).
+- **SUGGESTION (new) — the bit-identical (single-process, task 2.8) and tolerance-based
+  (cross-`joblib`-worker, task 7b.5) determinism claims could read as contradictory** without an
+  explicit note that they concern different variables. Fixed: one clarifying sentence added to the
+  "Same random_state" scenario.
+- **SUGGESTION (new, documentation) — `theory.md`'s external-vault addendum has no repo-side
+  pointer anywhere**, making it discoverable only via archived OpenSpec history or vault access.
+  Documented as a known, accepted gap (task 10.1) — not fixed in this tier, no obvious low-cost fix
+  identified.
+- **Verified clean, no action needed:** the `2q/n` arithmetic was independently re-derived via the
+  hypergeometric mean and confirmed correct; the `predictor_matrices` key-collision invariant was
+  re-checked against the current `_VALID_REDUCTION_METHODS` tuple and still holds; the K-S
+  calibration test's fixture-seed-pinning (round 1's fix) was confirmed unambiguous.
+
+Full re-validation (`openspec validate add-prediction-permutation-and-figure --strict`) passes
+after all round-2 fixes (94 tasks, up from 88 — 2 new BLOCKING fixes and the Section 6/7
+restructuring account for most of the growth).

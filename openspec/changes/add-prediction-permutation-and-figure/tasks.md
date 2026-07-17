@@ -3,6 +3,33 @@
 > `CrossPlatformPermutationResult` type, additive `PredictCrossPlatformStep` extension, config
 > field placement, figure scope) is in `design.md`'s Decisions section and the brainstormed design
 > at `docs/superpowers/specs/2026-07-16-prediction-permutation-and-figure-design.md`.
+>
+> **`/review-openspec` round 1 reconciled into this file** (full findings in design.md's
+> "Adversarial Review Reconciliation (round 1)" section): a dropped-scenario bug in the MODIFIED
+> "Predict Cross-Platform..." requirement, a missing non-finite-null guard, the `2q/n` top-
+> quartile-recovery math (not the roadmap's unverified "≈25%"), a backwards `docs/API.md` task
+> premise, a missed stale-sentence doc fix, per-target/method seed independence via
+> `SeedSequence.spawn`, `assert_allclose` (not bit-identical) for parallel-vs-serial, the `joblib`
+> dependency task moved before the section that imports it, and several smaller test/doc gaps.
+>
+> **`/review-openspec` round 2 (fresh, no memory of round 1) reconciled into this file** (full
+> findings in design.md's "Adversarial Review Reconciliation (round 2)" section): two new BLOCKING
+> issues — the `numpy.random.Generator(random_state)` API call in round 1's own fix was invalid
+> (that constructor rejects a bare `int`; fixed to `numpy.random.default_rng(random_state)`, which
+> accepts `int`/`SeedSequence`/`Generator` uniformly, resolving the `SeedSequence.spawn()` →
+> `permutation_test(random_state=...)` handoff round 1 left unspecified), and Section 6 (now 7)
+> depended on `create_prediction_figure()` (Section 8, now 6) without that section being sequenced
+> first — fixed by moving the figure-content module ahead of the step and restructuring the step's
+> implementation into 3 genuine red→green increments instead of "8 tests, then 1 commit at the
+> end." Also fixed: an intrinsic CI-timeout risk in the oracle tests (missing explicit reduced
+> `n_permutations`), a factually-wrong claim about Tier 3.5's manual-validation timing (corrected
+> against real commit timestamps), missing config validation for the 2 previously-untested
+> `PredictionConfig` fields, unspecified seed-enumeration order, unspecified partial-failure/atomic-
+> write semantics, an unstated fail-fast-vs-complete rationale, a documentation anti-pattern
+> (cross-referencing `design.md`, which moves to `openspec/changes/archive/...` on archival) fixed
+> by stating key numbers directly in shipped docs instead, and several missing edge-case
+> scenarios/tests (explicit invalid `q`, PC1-only targets, `comparison_methods=[]`, an
+> `observed_top_quartile_recovery` wiring check).
 
 ## 1. Fixtures (test-first)
 
@@ -34,10 +61,15 @@
       `len(y_true) == 19` and `q` omitted, assert the effective `q` used equals `round(19 / 4)`
       (inspect via a case constructed so a wrong `q` produces a different recovery fraction).
 - [ ] 2.3a Write failing test `test_top_quartile_recovery_small_n_gives_at_least_one_and_not_over_n`:
-      at `len(y_true)=3` (this program's smallest real scale), assert the effective `q` used is
-      `>= 1` and `2 * q <= len(y_true)` (guards against a vacuous `q=0` or an out-of-range window).
+      at `len(y_true)=3` (this program's smallest real scale), assert the effective *default* `q`
+      used is `>= 1` and `2 * q <= len(y_true)` (guards against a vacuous `q=0` or an out-of-range
+      window).
+- [ ] 2.3b Write failing test `test_top_quartile_recovery_rejects_explicit_invalid_q`: a caller-
+      supplied `q=0`, a negative `q`, or a `q` with `2 * q > len(y_true)` raises `ValueError` naming
+      the invalid `q` and `len(y_true)` — a stricter contract than 2.3a's *default*-`q` case, which
+      the function itself computes and guarantees valid.
 - [ ] 2.4 Implement `top_quartile_recovery(y_true, y_pred, q=None)` in
-      `cross_platform_prediction.py`. Make 2.1-2.3a green.
+      `cross_platform_prediction.py`. Make 2.1-2.3b green.
 
 > **Commit boundary**: 2.1-2.4 (`top_quartile_recovery`, no dependency on `permutation_test`) is a
 > natural standalone commit; 2.5 onward (`permutation_test`, which calls `top_quartile_recovery`)
@@ -45,7 +77,12 @@
 
 - [ ] 2.5 Write failing test `test_permutation_test_observed_matches_direct_logo_cv_predict_call`:
       `permutation_test(X, y, genotypes, method).observed_r2` (etc.) exactly matches an
-      independent `logo_cv_predict(X, y, genotypes, method)` call's `r2` (etc.) on the same inputs.
+      independent `logo_cv_predict(X, y, genotypes, method)` call's `r2` (etc.) on the same inputs;
+      `observed_top_quartile_recovery` exactly equals
+      `top_quartile_recovery(y, that_call.y_pred)` — the same observed call's predictions, not a
+      separately-shuffled or stale value (this metric has no `LOGOCVResult`/`TargetPrediction`
+      analog to cross-check against, unlike the other three, so this test is its only wiring
+      oracle).
 - [ ] 2.6 Write failing test `test_permutation_test_null_distributions_have_length_n_permutations`:
       `null_r2`/`null_rmse`/`null_spearman_rho`/`null_top_quartile_recovery` each have length `N`
       for `n_permutations=N`.
@@ -53,7 +90,10 @@
       `logo_cv_predict` (or inspect its call arguments) to confirm each permutation iteration's `X`
       and `genotypes` arguments are unchanged from the original inputs, only `y` differs.
 - [ ] 2.8 Write failing test `test_permutation_test_deterministic_given_same_random_state`: two
-      calls with identical arguments (including `random_state`) produce bit-identical null arrays.
+      calls in the same process, with identical arguments (including `random_state`), produce
+      bit-identical null arrays. Also parametrize over `random_state` being a plain `int` and a
+      `numpy.random.SeedSequence` instance — both must work, since `VisualizePredictionStep`
+      (Section 7) passes `SeedSequence` children, not raw ints.
 - [ ] 2.9 Write failing test `test_permutation_test_different_random_state_differs`: two calls
       differing only in `random_state` produce non-identical `null_r2` arrays.
 - [ ] 2.10 Write failing test
@@ -80,13 +120,20 @@
       `spearman_rho` (e.g. inject via a monkeypatched `logo_cv_predict` returning a degenerate
       result for one specific permutation index, independent of whether that permutation's
       shuffled `y` was itself constant) — assert `ValueError` naming both the offending metric and
-      the permutation index, not a downstream `to_json()` crash with no indication of which
-      permutation caused it (per the cross-platform-prediction spec's "Non-finite null values are
-      rejected" scenario).
+      the permutation index, raised only after all `n_permutations` calls complete (fail-fast on
+      the first occurrence was considered and rejected: a genuinely non-finite-producing bug is
+      expected to affect many permutations within one target, not a rare one-off, so failing fast
+      saves little wall-clock time while complicating which-permutations-ran accounting), not a
+      downstream `to_json()` crash with no indication of which permutation caused it.
 - [ ] 2.14 Implement `permutation_test(X, y, genotypes, reduction_method="pls_latent",
       representative_names=None, n_permutations=1000, random_state=42)` in
-      `cross_platform_prediction.py`, returning a `PermutationResult` (Section 3), including the
-      non-finite-null scan from 2.13a. Make 2.5-2.13a green.
+      `cross_platform_prediction.py`, building its RNG via
+      `numpy.random.default_rng(random_state)` (not `numpy.random.Generator(random_state)`
+      directly, which requires a `BitGenerator` instance and rejects a bare `int` — `default_rng`
+      accepts `int`/`SeedSequence`/`Generator` uniformly, which is what makes 2.8's parametrized
+      `SeedSequence` case and Section 7's per-target `SeedSequence` children both work with no
+      int-extraction step). Returns a `PermutationResult` (Section 3), including the non-finite-
+      null scan from 2.13a. Make 2.5-2.13a green.
 
 ## 3. `PermutationResult`/`CrossPlatformPermutationResult` (test-first)
 
@@ -134,13 +181,22 @@
 - [ ] 4.2 Write failing test `test_cross_platform_config_rejects_visualize_true_with_enabled_false`:
       `CrossPlatformConfig(..., prediction=PredictionConfig(enabled=False, visualize=True))`
       raises `ValueError` at construction time.
-- [ ] 4.3 Write failing test `test_prediction_config_n_permutations_validation_skipped_when_visualize_false`:
-      `enabled=True, visualize=False, n_permutations=0` does not raise.
+- [ ] 4.3 Write failing test `test_prediction_config_permutation_fields_validation_skipped_when_visualize_false`:
+      `enabled=True, visualize=False` with `n_permutations=0`, `permutation_n_jobs=0`, and
+      `permutation_random_state=-1` (all simultaneously invalid) does not raise — none of the 3
+      permutation-related fields are validated unless `visualize=True`.
 - [ ] 4.4 Write failing test `test_prediction_config_rejects_non_positive_n_permutations_when_visualize_true`:
       `enabled=True, visualize=True, n_permutations=0` (and `-1`) raises `ValueError`.
+- [ ] 4.4a Write failing test `test_prediction_config_rejects_non_positive_permutation_n_jobs_when_visualize_true`:
+      `enabled=True, visualize=True, permutation_n_jobs=0` (and `-1`) raises `ValueError` naming
+      the field, not `joblib.Parallel`'s own raw error surfacing later inside
+      `VisualizePredictionStep`.
+- [ ] 4.4b Write failing test `test_prediction_config_rejects_invalid_permutation_random_state_when_visualize_true`:
+      `enabled=True, visualize=True, permutation_random_state=-1` (and a non-`int` value) raises
+      `ValueError` naming the field, not `numpy.random.SeedSequence`'s own raw error.
 - [ ] 4.5 Extend `PredictionConfig`/`CrossPlatformConfig.__post_init__` in
-      `pipeline/config/components.py` with the 4 new fields and the 4.2/4.4 validations. Make
-      4.1-4.4 green.
+      `pipeline/config/components.py` with the 4 new fields and the 4.2/4.4/4.4a/4.4b validations.
+      Make 4.1-4.4b green.
 
 ## 5. `PredictCrossPlatformStep` additive extension (test-first)
 
@@ -167,135 +223,182 @@
       the dependency after that import would exist is backwards (found during `/review-openspec`
       round 1).
 
-## 6. `VisualizePredictionStep` (test-first)
+## 6. Figure content: `visualize_prediction.py` module (test-first)
 
-> Split into three commits (found during `/review-openspec` round 1: one implementation task for
-> 8 tests was too coarse-grained relative to this program's established per-commit granularity):
-> 6.1-6.2 (wiring/reuse), 6.3-6.5a (joblib parallelization — the riskiest, most novel piece, worth
-> isolated review), 6.6-6.8a (JSON/figure I/O).
+> **Moved ahead of the step that consumes it** (found during `/review-openspec` round 2: the
+> step's own tests mock/call `create_prediction_figure`, which didn't exist yet when this section
+> was numbered after the step — a real sequencing bug, not just a stylistic reordering).
 
-- [ ] 6.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`: spy
+- [ ] 6.1 Write failing test `test_create_prediction_figure_scatter_panel_uses_pc1_target_only`:
+      given multiple targets' data, the obs-vs-pred scatter panel's plotted points correspond only
+      to the `PC1` target's `y_true`/`y_pred`.
+- [ ] 6.2 Write failing test `test_create_prediction_figure_violin_panel_pools_all_targets_nulls`:
+      the violin/strip panel's null data is the concatenation of every target's `null_r2`, and its
+      observed-points data is every target's `observed_r2` (one point per target).
+- [ ] 6.3 Write failing test `test_create_prediction_figure_bar_chart_shows_observed_vs_null_mean`:
+      the two bars' heights equal the mean observed and mean null top-quartile-recovery across all
+      targets.
+- [ ] 6.4 Write failing test `test_create_prediction_figure_returns_a_figure_with_three_axes`.
+- [ ] 6.5 Implement `create_prediction_figure(...)` (and any supporting per-panel helper functions)
+      in new `src/sleap_roots_analyze/visualize_prediction.py`, following
+      `cross_experiment_analysis.py`'s plotting-function convention (pure functions returning a
+      `matplotlib.Figure`, no file I/O). Make 6.1-6.4 green.
+
+## 7. `VisualizePredictionStep` (test-first)
+
+> Restructured during `/review-openspec` round 2: round 1's "3 test-group commits, 1 implementation
+> commit at the end" pattern doesn't achieve real atomicity — each test-only commit would leave
+> `uv run pytest` red until the final implementation commit lands (verified against Tier 3.5's own
+> real commit history, which never split tests from implementation this way). Restructured into 3
+> genuine red→green pairs, each landing its own working implementation increment.
+
+**7a. Wiring and predictor-matrix reuse (red→green pair 1)**
+
+- [ ] 7a.1 Write failing test `test_visualize_prediction_step_reuses_task6_predictor_matrices`: spy
       on any BLUP-loading/genotype-mean-aggregation function to confirm zero calls when
       `predictor_matrices` is supplied via `kwargs["06_predict_cross_platform"]`.
-- [ ] 6.1a Write failing test `test_visualize_prediction_step_handles_pc1_only_targets`: with zero
+- [ ] 7a.2 Write failing test `test_visualize_prediction_step_handles_pc1_only_targets`: with zero
       representative-trait targets (only `target_name="PC1"` present, e.g. a fixture where
       `select_cluster_representatives` returned empty — Tier 3.5's own documented degenerate case),
-      the step runs successfully through the full `joblib.Parallel` dispatch with `N=1` total
-      `(target, method)` unit, producing a valid `CrossPlatformPermutationResult`, not a crash.
-- [ ] 6.2 Write failing test
+      the step's target/method enumeration produces exactly `N=1` unit per method, not a crash.
+- [ ] 7a.3 Write failing test
       `test_visualize_prediction_step_calls_permutation_test_once_per_target_per_method`: for `N`
       targets × `M` methods (`reduction_method` + `comparison_methods`), `permutation_test` is
-      called exactly `N * M` times.
-- [ ] 6.2a Write failing test
+      called exactly `N * M` times (serial call, `n_jobs=1`, for this red→green pair — parallel
+      dispatch is Section 7b's concern).
+- [ ] 7a.4 Write failing test
       `test_visualize_prediction_step_calls_permutation_test_n_times_when_comparison_methods_empty`:
       with `comparison_methods=[]` (`K=0`), `permutation_test` is called exactly `N` times (`N`
-      targets × 1 method) — an explicit `K=0` case, not just the general `N * M` formula in 6.2.
-- [ ] 6.3 Write failing test
+      targets × 1 method) — an explicit `K=0` case, not just the general `N * M` formula in 7a.3.
+- [ ] 7a.5 Implement a minimal `VisualizePredictionStep(BaseStep)` in new
+      `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py`: reads `predictor_matrices`
+      and task 6's results, enumerates `(target_name, method)` combinations in the canonical order
+      (methods first, `[reduction_method] + comparison_methods`; then `target_names` in task 6's
+      `CrossPlatformPredictionResult.predictions` order — representative traits, then `"PC1"`
+      last), and calls `permutation_test()` serially (no `joblib` yet) for each. Make 7a.1-7a.4
+      green.
+
+**7b. `joblib` parallelization across targets (red→green pair 2 — the riskiest, most novel piece)**
+
+- [ ] 7b.1 Write failing test
       `test_visualize_prediction_step_parallelizes_across_target_method_units_not_within_one`:
       inspect the `joblib.Parallel`/`delayed` call structure (or the list of dispatched callables)
       to confirm one `delayed(...)` unit per `(target, method)` combination, not per permutation
       iteration.
-- [ ] 6.4 Write failing test
+- [ ] 7b.2 Write failing test
       `test_visualize_prediction_step_joblib_n_jobs_and_backend_match_config`:
       `joblib.Parallel` is constructed with `n_jobs=config.prediction.permutation_n_jobs,
       backend="loky"` (per the cross-platform-analysis spec's explicit backend choice).
-- [ ] 6.4a Write failing test
+- [ ] 7b.3 Write failing test
       `test_visualize_prediction_step_derives_independent_seed_per_target_method`: for `N`
-      `(target, method)` combinations, assert `numpy.random.SeedSequence(
-      config.prediction.permutation_random_state).spawn(N)` is used to derive `N` distinct seeds,
-      one passed to each `permutation_test()` call — no two combinations receive the same seed,
-      and re-running with the same `permutation_random_state` reproduces the same derived seeds
-      (per design.md Decision 4's finding that reusing one seed across all targets would
-      correlate, not independently sample, the pooled-null figure panel's null draws).
-- [ ] 6.5 Write failing test
+      `(target, method)` combinations enumerated in the canonical order (7a.5), assert
+      `numpy.random.SeedSequence(config.prediction.permutation_random_state).spawn(N)` derives `N`
+      distinct seeds, the `i`-th child assigned to the `i`-th combination in that order — no two
+      combinations receive the same seed, and re-running with the same `permutation_random_state`
+      and the same combinations reproduces the same derived seeds.
+- [ ] 7b.4 Write failing test `test_visualize_prediction_step_permutation_test_receives_derived_seed`:
+      spy on `permutation_test` to confirm each call's `random_state` argument is that
+      combination's derived `SeedSequence` child from 7b.3 (passed through unchanged — no
+      int-extraction step, per `default_rng`'s uniform acceptance of `SeedSequence`), not the raw
+      `config.prediction.permutation_random_state`.
+- [ ] 7b.5 Write failing test
       `test_visualize_prediction_step_parallel_vs_serial_results_agree_within_tolerance`: on a
-      small fixture, `permutation_n_jobs=1` and `permutation_n_jobs=4` produce
-      `CrossPlatformPermutationResult`s that agree via `numpy.testing.assert_allclose(...,
-      rtol=1e-6, atol=1e-9)` — **not bit-identical** (loky worker processes may resolve a
-      different default BLAS thread count than the main process, a documented source of
-      ULP-level floating-point differences per `docs/reproducibility.md`'s established
-      cross-BLAS tolerance convention, independent of this step's own correctness).
-- [ ] 6.5a Write failing test `test_visualize_prediction_step_permutation_test_receives_derived_seed`:
-      spy on `permutation_test` to confirm each call's `random_state` argument matches that
-      combination's derived seed from 6.4a, not the raw `config.prediction.permutation_random_state`
-      passed through unchanged.
-- [ ] 6.6 Write failing test `test_visualize_prediction_step_saves_one_json_per_method`: `K + 1`
+      small fixture with an explicitly small, stated `n_permutations` (e.g. 50, to bound the
+      elementwise-comparison surface and keep this test CI-fast), `permutation_n_jobs=1` and
+      `permutation_n_jobs=4` produce `CrossPlatformPermutationResult`s that agree via
+      `numpy.testing.assert_allclose(..., rtol=1e-6, atol=1e-9)` for every numeric field, including
+      every element of every null distribution — **not bit-identical** (loky worker processes may
+      resolve a different default BLAS thread count than the main process, a documented source of
+      ULP-level floating-point differences per `docs/reproducibility.md`'s established cross-BLAS
+      tolerance convention, independent of this step's own correctness).
+- [ ] 7b.6 Extend `VisualizePredictionStep` to dispatch the 7a.5 enumeration through
+      `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs, backend="loky")`, deriving
+      per-combination seeds via `SeedSequence.spawn(N)` (7b.3). Make 7b.1-7b.5 green.
+
+**7c. JSON/figure output (red→green pair 3)**
+
+- [ ] 7c.1 Write failing test `test_visualize_prediction_step_saves_one_json_per_method`: `K + 1`
       `07_permutation_<method>.json` files for `reduction_method` + `K` `comparison_methods`.
-- [ ] 6.7 Write failing test
+- [ ] 7c.2 Write failing test
+      `test_visualize_prediction_step_saves_one_json_when_comparison_methods_empty`: with `K=0`,
+      exactly 1 `07_permutation_<method>.json` file is saved, not `0` (a distinct check from
+      7c.1's general formula, guarding the `K=0` edge specifically).
+- [ ] 7c.3 Write failing test
       `test_visualize_prediction_step_permutation_observed_matches_task6_prediction_exactly`: for
       each target/method, the permutation JSON's `observed_r2`/`observed_rmse`/
       `observed_spearman_rho` exactly matches task 6's `06_prediction_<method>.json`'s `r2`/
       `rmse`/`spearman_rho` for the same target.
-- [ ] 6.8 Write failing test `test_visualize_prediction_step_saves_one_figure_using_primary_method_only`:
-      exactly one `07_prediction_figure.png`, and (via a spy/mock on the figure-building function)
-      confirm it was called with only the primary `reduction_method`'s results, not
+- [ ] 7c.4 Write failing test `test_visualize_prediction_step_saves_one_figure_using_primary_method_only`:
+      exactly one `07_prediction_figure.png`, and (via a spy/mock on `create_prediction_figure`,
+      Section 6) confirm it was called with only the primary `reduction_method`'s results, not
       `comparison_methods`'.
-- [ ] 6.8a Write failing test
+- [ ] 7c.5 Write failing test
       `test_visualize_prediction_step_rejects_non_finite_permutation_result_with_named_error`:
       when `permutation_test` (or its underlying `logo_cv_predict` calls) would produce a
       non-finite null value for one target/method, the step surfaces `ValueError` naming the
       target/method/permutation-index (propagated from `permutation_test`'s own guard, task
       2.13a), before attempting to write any `07_permutation_<method>.json`.
-- [ ] 6.9 Implement `VisualizePredictionStep(BaseStep)` in new
-      `src/sleap_roots_analyze/pipeline/steps/visualize_prediction.py`. Make 6.1-6.8a green.
+- [ ] 7c.6 Write failing test
+      `test_visualize_prediction_step_writes_no_partial_json_files_when_any_combination_fails`:
+      one `(target, method)` combination fails (per 7c.5) while every other combination for the
+      pair would have individually succeeded — assert **zero** `07_permutation_<method>.json`
+      files exist after the exception propagates, including for methods whose own combinations all
+      succeeded (all-or-nothing per pair, not a partial write).
+- [ ] 7c.7 Extend `VisualizePredictionStep` to save one `CrossPlatformPermutationResult` JSON per
+      method (only after every combination for the pair has succeeded — 7c.6's all-or-nothing
+      contract) and call `create_prediction_figure()` (Section 6) with the primary method's
+      results only, saving `07_prediction_figure.png` with `dpi=300, bbox_inches="tight"` matching
+      `visualize_cross_platform.py`'s convention. Make 7c.1-7c.6 green.
 
-## 7. `CrossPlatformPipeline` task wiring (test-first)
+## 8. `CrossPlatformPipeline` task wiring (test-first)
 
-- [ ] 7.1 Write failing test `test_cross_platform_pipeline_appends_visualize_prediction_task_when_visualize_enabled`:
+- [ ] 8.1 Write failing test `test_cross_platform_pipeline_appends_visualize_prediction_task_when_visualize_enabled`:
       `create_tasks()` includes a 7th task, `depends_on=["06_predict_cross_platform"]`, when
       `config.prediction.visualize=True`.
-- [ ] 7.2 Write failing test `test_cross_platform_pipeline_omits_visualize_prediction_task_when_disabled`:
+- [ ] 8.2 Write failing test `test_cross_platform_pipeline_omits_visualize_prediction_task_when_disabled`:
       `create_tasks()` returns exactly 6 tasks when `config.prediction.visualize=False` (the
       default) — including when `config.prediction.enabled=True` (prediction alone, no
       visualization).
-- [ ] 7.3 Add `_run_visualize_prediction` runner method + the conditional `Task(...)` entry to
-      `CrossPlatformPipeline.create_tasks()`. Make 7.1-7.2 green.
-- [ ] 7.4 Write failing test `test_cli_cross_platform_dry_run_lists_visualize_prediction_step_when_enabled`
+- [ ] 8.3 Add `_run_visualize_prediction` runner method + the conditional `Task(...)` entry to
+      `CrossPlatformPipeline.create_tasks()`. Make 8.1-8.2 green.
+- [ ] 8.4 Write failing test `test_cli_cross_platform_dry_run_lists_visualize_prediction_step_when_enabled`
       and `test_cli_cross_platform_dry_run_omits_it_when_disabled` (mirroring Tier 3.5 tasks 7.1-7.2).
-- [ ] 7.5 Update `cli.py`'s dry-run steps list (conditional 7th entry) and docstring. Make 7.4 green.
-
-## 8. Figure content: `visualize_prediction.py` module (test-first)
-
-- [ ] 8.1 Write failing test `test_create_prediction_figure_scatter_panel_uses_pc1_target_only`:
-      given multiple targets' data, the obs-vs-pred scatter panel's plotted points correspond only
-      to the `PC1` target's `y_true`/`y_pred`.
-- [ ] 8.2 Write failing test `test_create_prediction_figure_violin_panel_pools_all_targets_nulls`:
-      the violin/strip panel's null data is the concatenation of every target's `null_r2`, and its
-      observed-points data is every target's `observed_r2` (one point per target).
-- [ ] 8.3 Write failing test `test_create_prediction_figure_bar_chart_shows_observed_vs_null_mean`:
-      the two bars' heights equal the mean observed and mean null top-quartile-recovery across all
-      targets.
-- [ ] 8.4 Write failing test `test_create_prediction_figure_returns_a_figure_with_three_axes`.
-- [ ] 8.5 Implement `create_prediction_figure(...)` (and any supporting per-panel helper functions)
-      in new `src/sleap_roots_analyze/visualize_prediction.py`, following
-      `cross_experiment_analysis.py`'s plotting-function convention (pure functions returning a
-      `matplotlib.Figure`, no file I/O). Make 8.1-8.4 green.
-- [ ] 8.6 Wire `create_prediction_figure()` into `VisualizePredictionStep` (Section 6), saving with
-      `dpi=300, bbox_inches="tight"` matching `visualize_cross_platform.py`'s convention.
+- [ ] 8.5 Update `cli.py`'s dry-run steps list (conditional 7th entry) and docstring. Make 8.4 green.
 
 ## 9. Oracle tests (test-first, per design.md Decision 11)
 
+> **CI-timeout note (found during `/review-openspec` round 2):** every oracle test below MUST
+> state an explicit, small `n_permutations` for CI — at the production default (`1000`) across
+> the N=20-seed fixture (9.2/9.3) or 30-50-fixture set (9.1), several of these would individually
+> cost minutes and collectively threaten the shared 30-minute CI job budget across 3 OSes. Only
+> 9.1 stated this explicitly in an earlier draft; 9.2/9.3/9.4b now do too.
+
 - [ ] 9.1 Write failing test `test_permutation_test_p_values_are_uniform_under_null` (K-S
       calibration oracle): run `permutation_test()` on ~30-50 independent pure-noise fixtures
-      (task 1.2) with a reduced `n_permutations` (e.g. 200, CI-fast), collect the resulting
-      `p_value_r2`s, K-S-test against `Uniform(0,1)`, assert `p > 0.05`.
+      (task 1.2) with `n_permutations=200` (explicit, CI-fast — distinct from the
+      `n_permutations=1000` production default), collect the resulting `p_value_r2`s, K-S-test
+      against `Uniform(0,1)`, assert `p > 0.05`.
 - [ ] 9.2 Write failing test `test_permutation_test_signal_r2_exceeds_its_own_null_median`: on the
-      N=20-seed planted-signal fixture (task 1.1), the mean observed R² across seeds is
-      comfortably above the mean permutation-null median across the same seeds.
+      N=20-seed planted-signal fixture (task 1.1), with `n_permutations=200` (explicit, CI-fast),
+      the mean observed R² across seeds is comfortably above the mean permutation-null median
+      across the same seeds.
 - [ ] 9.3 Write failing test `test_permutation_test_noise_r2_falls_within_its_own_null_band`: on the
-      pure-noise fixture (task 1.1), mean observed R² falls within mean-null-median ± 1σ.
+      pure-noise fixture (task 1.1), with `n_permutations=200` (explicit, CI-fast), mean observed
+      R² falls within mean-null-median ± 1σ.
 - [ ] 9.4a **Spike, not a test** — compute (via a real run, recorded here and in design.md's
-      Decision 11 note): the pure-noise fixture's actual mean null top-quartile-recovery value.
-      Cross-check against the theoretical chance-level baseline `2q / n` (found during
-      `/review-openspec` round 1: at `n=19, q=5`, `2q/n ≈ 52.6%`, not the roadmap's originally-
-      estimated "≈25%" — the roadmap's number was never verified against the actual `top-q`-in-
-      `top-2q` window definition). This step produces a number to write a real assertion against
+      Decision 11 note): the pure-noise fixture's actual mean null top-quartile-recovery value at
+      `n_permutations=200`. Cross-check against the theoretical chance-level baseline `2q / n`
+      (found during `/review-openspec` round 1: at `n=19, q=5`, `2q/n ≈ 52.6%`, not the roadmap's
+      originally-estimated "≈25%" — the roadmap's number was never verified against the actual
+      `top-q`-in-`top-2q` window definition; independently re-derived and confirmed during round 2
+      via the hypergeometric mean). This step produces a number to write a real assertion against
       in 9.4b; it is not itself a red/green TDD step (a value that doesn't exist yet cannot be
       asserted against).
 - [ ] 9.4b Write failing test `test_permutation_test_top_quartile_recovery_signal_vs_noise`, using
-      9.4a's now-known empirical value: signal fixture's observed recovery ≥ 80%; noise fixture's
-      observed recovery is comfortably separated from the signal's, close to the empirically-
-      determined null value (not a blindly-pinned 25% or an untested theoretical `2q/n`).
+      9.4a's now-known empirical value (`n_permutations=200`, explicit, CI-fast): signal fixture's
+      observed recovery ≥ 80%; noise fixture's observed recovery is comfortably separated from the
+      signal's, close to the empirically-determined null value (not a blindly-pinned 25% or an
+      untested theoretical `2q/n`).
 - [ ] 9.5 Write failing test `test_visualize_prediction_step_figure_provenance`: run the step
       twice (different input CSV content between runs, e.g. a perturbed fixture), assert the two
       resulting `07_prediction_figure.png` files differ (via content hash), and that a given run's
@@ -306,7 +409,7 @@
 
 ## 10. `theory.md` addendum
 
-> `joblib` dependency addition moved to Section 5a (must precede Section 6, which imports it).
+> `joblib` dependency addition lives in Section 5a (must precede Section 6, which imports it).
 
 - [ ] 10.1 Add a permutation-null pseudo-code section to
       `c:\vaults\sleap-roots\wheat-edpie-paper\cross-platform-prediction\theory.md` (external
@@ -316,17 +419,20 @@
       `logo_cv_predict`. **This file lives in a separate external repository/git history from
       `sleap-roots-analyze`** — it is committed separately, in the vault's own repo, and will NOT
       appear in this repo's PR diff; a reviewer of the sleap-roots-analyze PR should not expect to
-      see this change there.
+      see this change there. No pointer to this addendum exists anywhere in this repo (confirmed
+      during `/review-openspec` round 2: it would be discoverable only via archived OpenSpec
+      history or vault access) — accepted as a known, non-blocking gap, not fixed in this tier.
 
 ## 11. Manual real-data validation gate (non-CI, pre-merge, sign-off required)
 
 > Mirrors Tier 3/3.5's Section 8 exactly — see design.md Section 5 for full rationale. Not
 > complete until Elizabeth has reviewed the findings and explicitly signed off; a green CI run is
-> necessary but not sufficient. **Timing**: per Tier 3.5's actual precedent (PR #199's real commit
-> history — validation commits landed *between* two rounds of PR-review fix commits, not
-> exclusively before the PR opened), this section runs on the already-open PR branch, after the
-> first 5-subagent self-review pass (task 13.7's pre-PR-open round) and before the second,
-> CI-triggered review pass — not necessarily a strict pre-PR-open gate.
+> necessary but not sufficient. **Timing, corrected during `/review-openspec` round 2** (round 1's
+> claim that validation ran "between two rounds of review" was checked against Tier 3.5's actual
+> commit timestamps and found factually wrong): Tier 3.5's real history shows validation landing
+> **after both** 5-subagent review rounds, with a further CI-driven fix landing even after
+> Elizabeth's sign-off. This section is therefore a late-stage gate that can trail every review
+> round in `/pre-merge-check` (task 13.7), not a step reliably sandwiched between two of them.
 
 - [ ] 11.1 Reuse Tier 3.5's Section 8 real BLUP tables and 4 directed-pair `CrossPlatformConfig`
       YAMLs (`pipeline_runs/section8_manual_validation_20260716/`) if still valid; rebuild via the
@@ -353,22 +459,32 @@
 - [ ] 12.1 Add a `docs/CHANGELOG.md` `[Unreleased]` `### Added` entry.
 - [ ] 12.2 Extend `docs/CROSS_PLATFORM_ANALYSIS.md`'s existing `## Cross-Platform Genotype-Effect
       Prediction` section (Tier 3.5 already extended it once) with a new `###` subsection covering
-      `permutation_test()` **and `top_quartile_recovery()`** (found during `/review-openspec`
-      round 1: the latter was missing from this task's original list), `VisualizePredictionStep`,
-      the new `PredictionConfig` fields, and a concrete YAML example with `visualize: true`. State
-      usage (what/how) only — cross-reference `design.md`'s Decisions for benchmark/rationale
-      detail (the 105.5min→27.4min parallelization benchmark, the figure-scope rationale) rather
-      than restating it (DRY). Also:
+      `permutation_test()` and `top_quartile_recovery()`, `VisualizePredictionStep`, and **all 4**
+      new `PredictionConfig` fields (`visualize`, `n_permutations`, `permutation_random_state`,
+      `permutation_n_jobs` — found during `/review-openspec` round 2 that an earlier draft of this
+      task risked an incomplete YAML example naming only `visualize: true`) shown together in one
+      concrete YAML example under the existing `prediction:` block. State usage (what/how) only,
+      but **do not cross-reference `design.md` for key numbers** (found during round 2: `design.md`
+      moves to `openspec/changes/archive/<change-id>/design.md` on archival, so a shipped-doc
+      pointer to it goes stale/dangling the moment this change archives — a documentation
+      anti-pattern, not a DRY win). Instead, state directly in this new subsection:
+      - The one-line parallelization headline (e.g. "full per-representative-trait permutation
+        nulls take ~27 minutes worst-case across all 4 pairs via `joblib.Parallel` across
+        targets, verified against real EDPIE data — see Section 11's findings for the actual
+        measured number").
+      - The `2q/n` chance-level baseline for top-quartile recovery (e.g. "chance-level recovery is
+        `2q/n`, not 25% — ≈52.6% at n=19, q=5" — found during round 2 that this math previously
+        existed only in the OpenSpec proposal, not any shipped doc a user would actually see).
+      Also:
       - **Correct the existing section's stale closing sentence** (found during round 1: it
         currently reads "The permutation null and its figures (Tier 4) remain a separate, later
         change" — stale now that this change *is* Tier 4).
       - **Document the new output-file naming convention** (`07_permutation_<method>.json`,
         `07_prediction_figure.png`) in an "Output:" paragraph, mirroring the existing section's own
-        precedent for Tier 3.5's `06_prediction_<method>.json` — currently this naming exists only
-        in `proposal.md`/`design.md`, neither of which is shipped documentation.
-      - **Add a one-line note to the `### Current Limitations` subsection** that
-        `CrossPlatformSummaryGenerator` does not yet surface permutation/visualization output
-        either (follow-up #197's scope has grown with this tier's new outputs, not fixed here).
+        precedent for Tier 3.5's `06_prediction_<method>.json`.
+      - **Extend the existing `### Current Limitations` subsection's #197 bullet in place** (found
+        during round 2: a separate new bullet would read as a near-duplicate) to also note that
+        `CrossPlatformSummaryGenerator` doesn't surface permutation/visualization output either.
 - [ ] 12.3 **No `docs/API.md` entry.** Verified directly (found during `/review-openspec` round 1
       that the original task's premise was backwards): `LOGOCVResult`/`CrossPlatformPredictionResult`/
       `TargetPrediction` are all in `__all__`, but **none** has an `API.md` entry — the
@@ -377,18 +493,21 @@
       inclusion for these dataclasses. `PermutationResult`/`CrossPlatformPermutationResult` follow
       that same (undocumented-dataclass) precedent — no `API.md` change needed. `permutation_test`/
       `top_quartile_recovery` DO get entries in the `cross_platform_prediction` module section,
-      alongside the existing two functions.
+      matching the existing `fit_pca_on_fold`/`logo_cv_predict` entries' heading/signature/prose
+      format exactly.
 
 ## 13. Validation
 
 - [ ] 13.1 `openspec validate add-prediction-permutation-and-figure --strict` — resolve every
       reported issue.
 - [ ] 13.2 `/lint` (black + ruff) on all changed files.
-- [ ] 13.3 Full `uv run pytest --cov --cov-branch` — no regressions, all new tests (Sections 2-9)
-      green.
+- [ ] 13.3 Full `uv run pytest --cov --cov-branch` — no regressions, all new tests (Sections
+      2-9) green.
 - [ ] 13.4 `/review-openspec` — adversarial proposal review, budget for multiple independent
-      rounds (this program's established pattern: 3-5 BLOCKING findings round 1, diminishing each
-      round). Reconcile literally into `design.md`.
+      rounds (this program's established pattern: BLOCKING findings diminishing round over round —
+      NOT yet the case after round 2 here, which found 2 new BLOCKING + several IMPORTANT; a
+      further round is warranted before this is a natural stopping point). Reconcile literally
+      into `design.md`.
 - [ ] 13.5 Wait for Elizabeth's explicit approval of the fully-reconciled proposal before starting
       implementation (Sections 1-10).
 - [ ] 13.6 Section 11's manual real-data validation gate, complete with sign-off.

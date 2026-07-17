@@ -109,6 +109,22 @@ validation failure, matching every other config dataclass's existing convention 
 - **WHEN** `n_permutations <= 0`
 - **THEN** `ValueError` SHALL be raised at construction time
 
+#### Scenario: permutation_n_jobs must be positive when visualize is True
+
+- **GIVEN** `enabled=True, visualize=True`
+- **WHEN** `permutation_n_jobs <= 0`
+- **THEN** `ValueError` SHALL be raised at construction time naming the field, rather than
+  surfacing `joblib.Parallel`'s own raw `ValueError` for a non-positive `n_jobs` deep inside
+  `VisualizePredictionStep`
+
+#### Scenario: permutation_random_state must be a valid seed when visualize is True
+
+- **GIVEN** `enabled=True, visualize=True`
+- **WHEN** `permutation_random_state` is not a non-negative integer (e.g. negative, or not an
+  `int`)
+- **THEN** `ValueError` SHALL be raised at construction time naming the field, rather than
+  surfacing `numpy.random.SeedSequence`'s own raw error deep inside `VisualizePredictionStep`
+
 ### Requirement: Predict Cross-Platform Genotype Values Pipeline Step
 
 The system SHALL provide `PredictCrossPlatformStep`, an optional pipeline step consuming
@@ -349,7 +365,14 @@ For a given directed pair, the step SHALL:
    identical permutation-index sequence, correlating (not independently sampling) the null draws
    this step later pools across targets into one figure panel (see the pooled-violin scenario
    below). The whole run remains deterministic given `permutation_random_state`, since
-   `SeedSequence.spawn` is itself deterministic.
+   `SeedSequence.spawn` is itself deterministic, **provided the `N` combinations are always
+   enumerated in the same canonical order**: methods first, in `[reduction_method] +
+   comparison_methods` order, then within each method, `target_names` in task 6's own
+   `CrossPlatformPredictionResult.predictions` list order (representative traits in
+   `select_cluster_representatives`'s returned order, followed by `"PC1"` last) — the `i`-th
+   spawned child is assigned to the `i`-th combination in this fixed enumeration, not an
+   unspecified iteration order (e.g. Python dict-iteration order, which is insertion-order-
+   dependent and easy to accidentally perturb in a future refactor).
 3. For every `(target_name, method)` combination present in task 6's results (both
    `reduction_method` and every `comparison_methods` entry), run `permutation_test()`
    (`cross_platform_prediction.py`) with `n_permutations=config.prediction.n_permutations` and that
@@ -369,7 +392,19 @@ For a given directed pair, the step SHALL:
 5. Build one composite figure per pair (not per method) using only the primary
    `reduction_method`'s results: a PC1 observed-vs-predicted scatter, an all-targets observed-R²-
    vs-pooled-permutation-null strip/violin plot, and an aggregate top-quartile-recovery bar chart
-   (observed mean vs. null mean). Save as `07_prediction_figure.png`.
+   (observed mean vs. null mean). Save as `07_prediction_figure.png`. Pooling every target's
+   `null_r2` into one distribution for the violin panel is coherent because every target within
+   one pair shares the same common-genotype count `n` (task 6's `dropna(axis=1, how="any")`
+   trait-column filtering never changes the row/genotype count — see Decision 16 in the
+   `cross-platform-analysis` capability's Predict Cross-Platform Genotype Values Pipeline Step
+   requirement) — the independent per-target seeds (step 2) mean each target's null draws are
+   independent samples of the *same* null distribution shape, not draws from differently-shaped
+   nulls.
+6. If any `(target_name, method)` combination's `permutation_test()` call raises (including the
+   non-finite-null-value error from the `cross-platform-prediction` capability's Permutation Test
+   requirement), the step SHALL propagate that error and SHALL NOT write any
+   `07_permutation_<method>.json` file for this pair — all-or-nothing per pair, not a partial set
+   of successfully-computed methods' files alongside a missing one.
 
 #### Scenario: Step present only when visualize is enabled
 
@@ -405,6 +440,44 @@ For a given directed pair, the step SHALL:
 
 - **WHEN** task 7 runs for a pair with `reduction_method` plus `K` `comparison_methods` entries
 - **THEN** exactly `K + 1` `07_permutation_<method>.json` files SHALL be saved, one per method
+
+#### Scenario: Exactly one permutation JSON when comparison_methods is empty
+
+- **GIVEN** `comparison_methods=[]` (`K=0`)
+- **WHEN** task 7 runs
+- **THEN** exactly 1 `07_permutation_<method>.json` file SHALL be saved (for `reduction_method`
+  alone), not `K + 1` misapplied as `0 + 1` via some other, coincidentally-matching code path
+
+#### Scenario: Step still runs with only the PC1 target when zero representative traits are selected
+
+- **GIVEN** task 6's results contain only a `target_name="PC1"` entry (zero representative-trait
+  targets, e.g. `select_cluster_representatives` returned an empty list for the target platform —
+  the same degenerate case the Predict Cross-Platform Genotype Values Pipeline Step requirement
+  already documents)
+- **WHEN** task 7 runs, dispatching `N=1` total `(target, method)` unit per method through
+  `joblib.Parallel`
+- **THEN** the step SHALL still run successfully, producing a valid `CrossPlatformPermutationResult`
+  with only the PC1 target, not a crash
+
+#### Scenario: Parallel and serial execution agree within this codebase's cross-BLAS tolerance
+
+- **WHEN** the same pair is run once with `permutation_n_jobs=1` and once with
+  `permutation_n_jobs=4`
+- **THEN** the two runs' `CrossPlatformPermutationResult`s SHALL agree via
+  `numpy.testing.assert_allclose(rtol=1e-6, atol=1e-9)` for every numeric field, including every
+  element of every null distribution — **not** bit-for-bit equality, since `loky` worker processes
+  may resolve a different default BLAS thread count than the main process
+
+#### Scenario: A non-finite permutation result propagates as a named error, with no partial output
+
+- **GIVEN** one `(target_name, method)` combination's `permutation_test()` call raises `ValueError`
+  for a non-finite null value (per the `cross-platform-prediction` capability's Permutation Test
+  requirement), while every other combination for this pair would have succeeded
+- **WHEN** task 7 runs
+- **THEN** it SHALL propagate that `ValueError` (naming the offending target/method/permutation
+  index)
+- **AND** no `07_permutation_<method>.json` file SHALL be written for this pair — not even for
+  methods whose own combinations all individually succeeded
 
 #### Scenario: One figure per pair, using the primary method only
 

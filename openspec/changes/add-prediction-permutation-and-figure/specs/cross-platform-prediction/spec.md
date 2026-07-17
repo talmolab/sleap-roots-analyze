@@ -6,16 +6,25 @@ The package SHALL provide `permutation_test(X, y, genotypes, reduction_method="p
 representative_names=None, n_permutations=1000, random_state=42)` in
 `src/sleap_roots_analyze/cross_platform_prediction.py` that computes a shuffled-genotype-label
 permutation-null significance test for `logo_cv_predict()`'s R², RMSE, and Spearman ρ, plus the
-top-quartile recovery metric (see the Top-Quartile Recovery Metric requirement).
+top-quartile recovery metric (see the Top-Quartile Recovery Metric requirement). `random_state`
+SHALL accept anything `numpy.random.default_rng()` itself accepts — an `int`, a
+`numpy.random.SeedSequence`, or a `numpy.random.Generator` — since the caller (see the
+`cross-platform-analysis` capability's Visualize Cross-Platform Prediction Pipeline Step
+requirement) derives per-`(target, method)` seeds as `numpy.random.SeedSequence` children via
+`SeedSequence(...).spawn(N)`, not as plain integers, and passes each child through unchanged
+(`numpy.random.default_rng` accepts a `SeedSequence` directly — no int-extraction step exists or
+is needed).
 
 The function SHALL first call `logo_cv_predict(X, y, genotypes, reduction_method,
 representative_names)` once, on the real (unshuffled) `y`, to obtain the observed R², RMSE,
-Spearman ρ, and top-quartile recovery. It SHALL then draw `n_permutations` independent
-permutations of `y` relative to `genotypes` (using a single `numpy.random.Generator` seeded with
-`random_state`), calling `logo_cv_predict()` once per permutation with the same `X`,
-`reduction_method`, and `representative_names`, and computing top-quartile recovery for that
-permutation using its own shuffled `y` as ground truth (not the original, unshuffled `y`) against
-that same call's leave-one-genotype-out predictions.
+Spearman ρ, and top-quartile recovery. It SHALL then construct one `numpy.random.Generator` via
+`numpy.random.default_rng(random_state)` (not `numpy.random.Generator(random_state)` directly,
+which requires a `BitGenerator` instance and rejects a bare `int`) and draw `n_permutations`
+independent permutations of `y` relative to `genotypes` from that one generator, calling
+`logo_cv_predict()` once per permutation with the same `X`, `reduction_method`, and
+`representative_names`, and computing top-quartile recovery for that permutation using its own
+shuffled `y` as ground truth (not the original, unshuffled `y`) against that same call's
+leave-one-genotype-out predictions.
 
 The function SHALL return a `PermutationResult` (see the `serializable-result-types` capability)
 holding the observed values, the four null distributions (each of length `n_permutations`), and
@@ -32,6 +41,12 @@ before returning, and SHALL raise `ValueError` naming both the offending metric 
 0-indexed permutation number(s) at which it occurred, rather than allowing a non-finite value to
 propagate into `PermutationResult`/`CrossPlatformPermutationResult.to_json()`'s
 `allow_nan=False` contract as an unnamed failure deep inside a long-running `joblib.Parallel` loop.
+This scan runs **after** all `n_permutations` calls complete, not fail-fast on the first
+occurrence — chosen for implementation simplicity (one deterministic pass reporting every
+offending index at once, rather than a per-iteration check that changes the function's control
+flow) and because a genuinely non-finite-producing bug is expected to affect many permutations
+within one target, not a rare one-off, so failing fast saves little wall-clock time in the case
+that matters, while complicating the accounting of *which* permutations were and weren't run.
 
 #### Scenario: Observed value matches a direct logo_cv_predict call on the unshuffled y
 
@@ -39,6 +54,9 @@ propagate into `PermutationResult`/`CrossPlatformPermutationResult.to_json()`'s
 - **THEN** its returned `observed_r2`/`observed_rmse`/`observed_spearman_rho` SHALL exactly match
   the result of an independent `logo_cv_predict(X, y, genotypes, reduction_method)` call made
   with the same inputs
+- **AND** `observed_top_quartile_recovery` SHALL exactly equal
+  `top_quartile_recovery(y, that_call.y_pred)` — derived from the same observed call's predictions,
+  not a separately-shuffled or stale value
 
 #### Scenario: Null distributions have length n_permutations
 
@@ -55,9 +73,12 @@ propagate into `PermutationResult`/`CrossPlatformPermutationResult.to_json()`'s
 #### Scenario: Same random_state produces identical null distributions
 
 - **WHEN** `permutation_test(X, y, genotypes, reduction_method, n_permutations=N,
-  random_state=S)` is called twice with identical arguments
+  random_state=S)` is called twice, in the same process, with identical arguments
 - **THEN** both calls SHALL produce bit-identical `null_r2`/`null_rmse`/`null_spearman_rho`/
-  `null_top_quartile_recovery` arrays
+  `null_top_quartile_recovery` arrays — this in-process determinism guarantee is distinct from the
+  `cross-platform-analysis` capability's cross-`joblib`-worker-process tolerance requirement
+  (`assert_allclose(rtol=1e-6, atol=1e-9)`, not bit-identical), which concerns a different variable
+  (worker-process BLAS thread count), not this function's own determinism
 
 #### Scenario: Different random_state produces different null distributions
 
@@ -132,6 +153,15 @@ roadmap's earlier, unverified estimate.
   this program's smallest real scale (`n=3`, `logo_cv_predict`'s own minimum)
 - **THEN** the effective `q` used SHALL be at least `1` (not `0`, which would make the metric
   vacuously `0/0`-undefined), and `2q` SHALL NOT exceed `len(y_true)`
+
+#### Scenario: An explicitly-supplied invalid q is rejected
+
+- **WHEN** a caller explicitly passes `q=0`, a negative `q`, or a `q` such that `2 * q >
+  len(y_true)`
+- **THEN** `top_quartile_recovery` SHALL raise `ValueError` naming the invalid `q` and
+  `len(y_true)`, rather than silently computing a vacuous or out-of-range recovery fraction — this
+  is a stricter contract than the *default*-`q` case above, which the function itself computes and
+  guarantees valid
 
 ### Requirement: Permutation Test Input Validation
 
