@@ -1369,9 +1369,21 @@ The system SHALL provide a `PredictionConfig` dataclass (nested as the `predicti
 - `source_blup_path` / `target_blup_path`: `Optional[str]`, default `None`. Required and
   existence-checked on disk only when `enabled=True` and `predictor_source="blup"`. Not required
   when `predictor_source="genotype_means"`.
+- `visualize`: bool, default `False`. Gates whether `VisualizePredictionStep` (see the Visualize
+  Cross-Platform Prediction Pipeline Step requirement) is added to `CrossPlatformPipeline`.
+  Requires `enabled=True` — validated in `CrossPlatformConfig.__post_init__` (see below), since
+  visualization has nothing to visualize without a prior prediction run.
+- `n_permutations`: int, default `1000`. Number of shuffled-label permutations `permutation_test()`
+  draws per (target, method) combination when `visualize=True`. Only meaningful (and only
+  validated) when `visualize=True`.
+- `permutation_random_state`: int, default `42`. Seed for the permutation shuffles.
+- `permutation_n_jobs`: int, default `8`. Number of `joblib.Parallel` workers `VisualizePredictionStep`
+  uses to parallelize permutation testing across independent prediction targets.
 
 `PredictionConfig.__post_init__` SHALL raise `ValueError` (not a new exception type) for any
 validation failure, matching every other config dataclass's existing convention in this codebase.
+`CrossPlatformConfig.__post_init__` SHALL additionally raise `ValueError` when
+`prediction.visualize=True` and `prediction.enabled=False`.
 
 #### Scenario: Validation is a full no-op when disabled
 
@@ -1419,6 +1431,41 @@ validation failure, matching every other config dataclass's existing convention 
 - **WHEN** `source_blup_path` and `target_blup_path` are both `None`
 - **THEN** no exception SHALL be raised
 
+#### Scenario: visualize=True requires enabled=True
+
+- **GIVEN** `prediction.visualize=True` on a `CrossPlatformConfig`
+- **WHEN** `prediction.enabled=False`
+- **THEN** `CrossPlatformConfig.__post_init__` SHALL raise `ValueError`
+
+#### Scenario: visualize field validation is skipped when visualize is False
+
+- **GIVEN** `enabled=True, visualize=False`
+- **WHEN** `n_permutations` is set to an invalid value (e.g. `0` or negative)
+- **THEN** no exception SHALL be raised from `PredictionConfig`/`CrossPlatformConfig`
+  construction — `n_permutations` is only meaningful, and only validated, when `visualize=True`
+
+#### Scenario: n_permutations must be positive when visualize is True
+
+- **GIVEN** `enabled=True, visualize=True`
+- **WHEN** `n_permutations <= 0`
+- **THEN** `ValueError` SHALL be raised at construction time
+
+#### Scenario: permutation_n_jobs must be positive when visualize is True
+
+- **GIVEN** `enabled=True, visualize=True`
+- **WHEN** `permutation_n_jobs <= 0`
+- **THEN** `ValueError` SHALL be raised at construction time naming the field, rather than
+  surfacing `joblib.Parallel`'s own raw `ValueError` for a non-positive `n_jobs` deep inside
+  `VisualizePredictionStep`
+
+#### Scenario: permutation_random_state must be a valid seed when visualize is True
+
+- **GIVEN** `enabled=True, visualize=True`
+- **WHEN** `permutation_random_state` is not a non-negative integer (e.g. negative, or not an
+  `int`)
+- **THEN** `ValueError` SHALL be raised at construction time naming the field, rather than
+  surfacing `numpy.random.SeedSequence`'s own raw error deep inside `VisualizePredictionStep`
+
 ### Requirement: Predict Cross-Platform Genotype Values Pipeline Step
 
 The system SHALL provide `PredictCrossPlatformStep`, an optional pipeline step consuming
@@ -1458,6 +1505,11 @@ For a given directed pair, the step SHALL:
    `comparison_methods` — guaranteed distinct from each other), assembling one
    `CrossPlatformPredictionResult` per method.
 6. Save each `CrossPlatformPredictionResult` as JSON to the run directory, one file per method.
+7. Additionally include, under a `predictor_matrices` key in the returned `StepResult.data`
+   (alongside the existing, unchanged `data`/`metadata`/`files_generated` contents), the already-
+   computed `source_clean`/`target_clean` predictor matrices and `source_representative_names`/
+   `target_representatives` computed in steps 1-4 above — so that a downstream consumer (e.g.
+   `VisualizePredictionStep`) can reuse them without independently rebuilding them.
 
 If the common-genotype count between source and target is below `logo_cv_predict`'s own minimum,
 the step SHALL raise a clear `ValueError` naming the pair and the common-genotype count, rather than
@@ -1613,4 +1665,176 @@ and SHALL NOT list it when disabled. No new CLI command or flag SHALL be introdu
 - **WHEN** `sleap-roots-analyze cross-platform <config> --dry-run` runs with
   `config.prediction.enabled=False` (or the `prediction:` key absent)
 - **THEN** the printed step list SHALL contain exactly the existing 5 entries
+
+#### Scenario: predictor_matrices is exposed for downstream reuse without changing existing outputs
+
+`StepResult.data` is a plain dict keyed by method name (one `CrossPlatformPredictionResult.to_dict()`
+per `reduction_method`/`comparison_methods` entry). Adding a sibling `"predictor_matrices"` key is
+safe only because no valid `reduction_method`/`comparison_methods` value can itself equal
+`"predictor_matrices"` (both are constrained to `{"pls_latent", "representatives", "pc1"}`) — this
+is a load-bearing invariant on the reduction-method enum, not an incidental fact.
+
+- **WHEN** the step runs to completion
+- **THEN** `StepResult.data["predictor_matrices"]` SHALL hold the `source_clean`/`target_clean`
+  DataFrames and `source_representative_names`/`target_representatives` computed during this run
+- **AND** every method-keyed entry in `StepResult.data` (one per `reduction_method`/
+  `comparison_methods` value) SHALL be unchanged in shape and content relative to this step's
+  behavior before this key was added, and `StepResult.metadata`/`StepResult.files_generated` SHALL
+  likewise be unchanged
+- **AND** `"predictor_matrices"` SHALL NOT collide with any valid `reduction_method`/
+  `comparison_methods` value, now or if that enum is ever extended by a future change
+
+### Requirement: Visualize Cross-Platform Prediction Pipeline Step
+
+The system SHALL provide `VisualizePredictionStep`, an optional pipeline step wired as task 7,
+`depends_on=["06_predict_cross_platform"]` (for both data and ordering). The task SHALL be
+entirely absent from `create_tasks()`'s return value — not merely skipped at run time — when
+`config.prediction.visualize=False` (the default). Per Cross-Platform Prediction Configuration's
+scenario, `visualize=True` implies `enabled=True` (enforced at config-construction time), so this
+step never runs without task 6 having already run in the same pipeline.
+
+For a given directed pair, the step SHALL:
+1. Read `predictor_matrices` and the observed `CrossPlatformPredictionResult`(s) from task 6's
+   `StepResult.data`.
+2. Derive one independent `random_state` per `(target_name, method)` combination from
+   `config.prediction.permutation_random_state` via
+   `numpy.random.SeedSequence(permutation_random_state).spawn(N)` (`N` = the total number of
+   `(target_name, method)` combinations for this pair), rather than reusing the single configured
+   seed identically for every combination — reusing one seed would make every target draw the
+   identical permutation-index sequence, correlating (not independently sampling) the null draws
+   this step later pools across targets into one figure panel (see the pooled-violin scenario
+   below). The whole run remains deterministic given `permutation_random_state`, since
+   `SeedSequence.spawn` is itself deterministic, **provided the `N` combinations are always
+   enumerated in the same canonical order**: methods first, in `[reduction_method] +
+   comparison_methods` order, then within each method, `target_names` in task 6's own
+   `CrossPlatformPredictionResult.predictions` list order (representative traits in
+   `select_cluster_representatives`'s returned order, followed by `"PC1"` last) — the `i`-th
+   spawned child is assigned to the `i`-th combination in this fixed enumeration, not an
+   unspecified iteration order (e.g. Python dict-iteration order, which is insertion-order-
+   dependent and easy to accidentally perturb in a future refactor).
+3. For every `(target_name, method)` combination present in task 6's results (both
+   `reduction_method` and every `comparison_methods` entry), run `permutation_test()`
+   (`cross_platform_prediction.py`) with `n_permutations=config.prediction.n_permutations` and that
+   combination's derived `random_state` (step 2). These calls SHALL be parallelized via
+   `joblib.Parallel(n_jobs=config.prediction.permutation_n_jobs, backend="loky")`, with each
+   parallel unit of work being one complete `(target_name, method)` permutation test (not
+   individual permutation iterations within one test). Because each `permutation_test()` call is a
+   pure function of its own arguments with no shared mutable state, `loky`'s process-based
+   isolation cannot introduce cross-call RNG interference or change *which* values are computed —
+   results at different `permutation_n_jobs` settings SHALL agree within this codebase's
+   established cross-BLAS numerical tolerance (`rtol=1e-6, atol=1e-9`, `docs/reproducibility.md`),
+   not necessarily bit-for-bit, since `loky` worker processes may resolve a different default BLAS
+   thread count than the main process, a documented source of ULP-level floating-point differences
+   independent of this step's own logic.
+4. Save one `CrossPlatformPermutationResult` per method as JSON to the run directory:
+   `07_permutation_<method>.json`.
+5. Build one composite figure per pair (not per method) using only the primary
+   `reduction_method`'s results: a PC1 observed-vs-predicted scatter, an all-targets observed-R²-
+   vs-pooled-permutation-null strip/violin plot, and an aggregate top-quartile-recovery bar chart
+   (observed mean vs. null mean). Save as `07_prediction_figure.png`. Pooling every target's
+   `null_r2` into one distribution for the violin panel is coherent because every target within
+   one pair shares the same common-genotype count `n` (task 6's `dropna(axis=1, how="any")`
+   trait-column filtering never changes the row/genotype count — see Decision 16 in the
+   `cross-platform-analysis` capability's Predict Cross-Platform Genotype Values Pipeline Step
+   requirement) — the independent per-target seeds (step 2) mean each target's null draws are
+   independent samples of the *same* null distribution shape, not draws from differently-shaped
+   nulls.
+6. If any `(target_name, method)` combination's `permutation_test()` call raises (including the
+   non-finite-null-value error from the `cross-platform-prediction` capability's Permutation Test
+   requirement), the step SHALL propagate that error and SHALL NOT write any
+   `07_permutation_<method>.json` file for this pair — all-or-nothing per pair, not a partial set
+   of successfully-computed methods' files alongside a missing one.
+
+#### Scenario: Step present only when visualize is enabled
+
+- **WHEN** `CrossPlatformPipeline(config).create_tasks()` is called
+- **THEN** a 7th task SHALL be present if and only if `config.prediction.visualize=True`
+
+#### Scenario: Step reuses task 6's predictor matrices without rebuilding them
+
+- **GIVEN** task 6 has already run and its `StepResult.data["predictor_matrices"]` holds the
+  computed `source_clean`/`target_clean` matrices
+- **WHEN** task 7 runs
+- **THEN** it SHALL use those matrices directly (via `kwargs["06_predict_cross_platform"]`),
+  not independently reload BLUP CSVs or re-aggregate genotype means
+
+#### Scenario: Permutation tests are parallelized across targets, not within one target's permutations
+
+- **WHEN** task 7 runs permutation tests for `N` `(target, method)` combinations
+- **THEN** `joblib.Parallel` SHALL distribute the `N` combinations across
+  `config.prediction.permutation_n_jobs` workers, with each worker running one combination's
+  complete, internally-serial `permutation_test()` call
+
+#### Scenario: Each (target, method) combination draws an independent permutation seed
+
+- **GIVEN** `N` `(target_name, method)` combinations for a pair
+- **WHEN** task 7 derives each combination's `random_state` via
+  `numpy.random.SeedSequence(config.prediction.permutation_random_state).spawn(N)`
+- **THEN** no two combinations SHALL receive the same derived seed
+- **AND** re-running the step with the same `permutation_random_state` and the same `N`
+  combinations (same order) SHALL reproduce identical derived seeds, and therefore identical
+  results, for every combination
+
+#### Scenario: One permutation JSON per method
+
+- **WHEN** task 7 runs for a pair with `reduction_method` plus `K` `comparison_methods` entries
+- **THEN** exactly `K + 1` `07_permutation_<method>.json` files SHALL be saved, one per method
+
+#### Scenario: Exactly one permutation JSON when comparison_methods is empty
+
+- **GIVEN** `comparison_methods=[]` (`K=0`)
+- **WHEN** task 7 runs
+- **THEN** exactly 1 `07_permutation_<method>.json` file SHALL be saved (for `reduction_method`
+  alone), not `K + 1` misapplied as `0 + 1` via some other, coincidentally-matching code path
+
+#### Scenario: Step still runs with only the PC1 target when zero representative traits are selected
+
+- **GIVEN** task 6's results contain only a `target_name="PC1"` entry (zero representative-trait
+  targets, e.g. `select_cluster_representatives` returned an empty list for the target platform —
+  the same degenerate case the Predict Cross-Platform Genotype Values Pipeline Step requirement
+  already documents)
+- **WHEN** task 7 runs, dispatching `N=1` total `(target, method)` unit per method through
+  `joblib.Parallel`
+- **THEN** the step SHALL still run successfully, producing a valid `CrossPlatformPermutationResult`
+  with only the PC1 target, not a crash
+
+#### Scenario: Parallel and serial execution agree within this codebase's cross-BLAS tolerance
+
+- **WHEN** the same pair is run once with `permutation_n_jobs=1` and once with
+  `permutation_n_jobs=4`
+- **THEN** the two runs' `CrossPlatformPermutationResult`s SHALL agree via
+  `numpy.testing.assert_allclose(rtol=1e-6, atol=1e-9)` for every numeric field, including every
+  element of every null distribution — **not** bit-for-bit equality, since `loky` worker processes
+  may resolve a different default BLAS thread count than the main process
+
+#### Scenario: A non-finite permutation result propagates as a named error, with no partial output
+
+- **GIVEN** one `(target_name, method)` combination's `permutation_test()` call raises `ValueError`
+  for a non-finite null value (per the `cross-platform-prediction` capability's Permutation Test
+  requirement), while every other combination for this pair would have succeeded
+- **WHEN** task 7 runs
+- **THEN** it SHALL propagate that `ValueError` (naming the offending target/method/permutation
+  index)
+- **AND** no `07_permutation_<method>.json` file SHALL be written for this pair — not even for
+  methods whose own combinations all individually succeeded
+
+#### Scenario: One figure per pair, using the primary method only
+
+- **WHEN** task 7 runs for a pair with `comparison_methods` non-empty
+- **THEN** exactly one `07_prediction_figure.png` SHALL be saved, built from the primary
+  `reduction_method`'s permutation results only
+
+#### Scenario: Figure PNG is non-empty and reflects the current run's inputs
+
+- **WHEN** task 7 completes
+- **THEN** `07_prediction_figure.png` SHALL exist, be non-empty, and (via a hash or timestamp
+  comparison in the acceptance test) SHALL be verifiably produced from the current run's input
+  CSVs, not a stale file from a prior run
+
+#### Scenario: Observed values in the permutation JSON match task 6's prediction JSON exactly
+
+- **WHEN** task 7's `07_permutation_<method>.json` and task 6's `06_prediction_<method>.json` are
+  compared for the same target and method
+- **THEN** the permutation result's `observed_r2`/`observed_rmse`/`observed_spearman_rho` SHALL
+  exactly match the prediction result's `r2`/`rmse`/`spearman_rho` for that target
 
