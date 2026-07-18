@@ -989,13 +989,19 @@ class PredictionConfig:
         # an enabled=True/visualize=False run (prediction alone, no
         # permutation/figures) never rejects values it will never use.
         if self.visualize:
-            if self.n_permutations <= 0:
+            if (
+                not isinstance(self.n_permutations, int)
+                or isinstance(self.n_permutations, bool)
+                or self.n_permutations <= 0
+            ):
                 raise ValueError(
-                    f"n_permutations must be positive when visualize=True, "
-                    f"got {self.n_permutations}"
+                    f"n_permutations must be a positive int when visualize=True, "
+                    f"got {self.n_permutations!r}"
                 )
-            if not isinstance(self.permutation_n_jobs, int) or (
-                self.permutation_n_jobs <= 0
+            if (
+                not isinstance(self.permutation_n_jobs, int)
+                or isinstance(self.permutation_n_jobs, bool)
+                or self.permutation_n_jobs <= 0
             ):
                 raise ValueError(
                     f"permutation_n_jobs must be a positive int when "

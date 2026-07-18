@@ -1707,6 +1707,22 @@ class TestPublicApiExport:
         assert sra.LOGOCVResult is LOGOCVResult
         assert "LOGOCVResult" in sra.__all__
 
+    def test_permutation_test_result_importable_from_package_root(self):
+        """PermutationTestResult (permutation_test's own return type) is importable and in __all__.
+
+        Found during pre-merge self-review: permutation_test was exported but
+        the dataclass it directly returns was not, the same gap round-2
+        review previously caught for logo_cv_predict/LOGOCVResult above.
+        """
+        import sleap_roots_analyze as sra
+        from sleap_roots_analyze.cross_platform_prediction import (
+            PermutationTestResult,
+        )
+
+        assert sra.PermutationTestResult is PermutationTestResult
+        assert "PermutationTestResult" in sra.__all__
+        assert len(sra.__all__) == len(set(sra.__all__))
+
 
 # =============================================================================
 # Tier 4 (add-prediction-permutation-and-figure, #200): permutation_test() /
@@ -1752,6 +1768,19 @@ class TestTopQuartileRecovery:
         assert default_result == pytest.approx(
             top_quartile_recovery(y_true, y_pred, q=1)
         )
+
+    def test_top_quartile_recovery_rejects_default_q_below_n_equals_2(self):
+        """At n=1, even the default q=1 would violate 2*q<=n -- raises, not a silent 1.0.
+
+        Found during pre-merge self-review: max(1, round(n/4)) with n=1 gives
+        q=1, but 2*1=2 > 1, which the explicit-q validation branch would
+        reject -- the default-q branch previously skipped that check
+        entirely, silently returning a vacuous "100% recovery" instead.
+        """
+        y_true = np.array([5.0])
+        y_pred = np.array([3.0])
+        with pytest.raises(ValueError, match="too small"):
+            top_quartile_recovery(y_true, y_pred)
 
     def test_top_quartile_recovery_rejects_explicit_invalid_q(self):
         """An explicit q=0, negative q, or 2*q > len(y_true) raises ValueError."""

@@ -781,11 +781,54 @@ def test_prediction_config_rejects_non_positive_n_permutations_when_visualize_tr
         )
 
 
+@pytest.mark.parametrize("n_permutations", [True, "not_an_int", 1.5])
+def test_prediction_config_rejects_non_int_n_permutations_when_visualize_true(
+    n_permutations,
+):
+    """A non-int n_permutations (incl. bool) raises ValueError when visualize=True.
+
+    Found during pre-merge self-review: unlike its sibling permutation_n_jobs/
+    permutation_random_state fields, n_permutations previously had no
+    isinstance check at all, so e.g. n_permutations=True would silently pass
+    (bool is an int subclass in Python).
+    """
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="n_permutations"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            visualize=True,
+            n_permutations=n_permutations,
+        )
+
+
 @pytest.mark.parametrize("permutation_n_jobs", [0, -1])
 def test_prediction_config_rejects_non_positive_permutation_n_jobs_when_visualize_true(
     permutation_n_jobs,
 ):
     """permutation_n_jobs<=0 raises ValueError naming the field (tasks.md 4.4a)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="permutation_n_jobs"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            visualize=True,
+            permutation_n_jobs=permutation_n_jobs,
+        )
+
+
+@pytest.mark.parametrize("permutation_n_jobs", [True, "not_an_int", 1.5])
+def test_prediction_config_rejects_non_int_permutation_n_jobs_when_visualize_true(
+    permutation_n_jobs,
+):
+    """A non-int permutation_n_jobs (incl. bool) raises ValueError when visualize=True.
+
+    Found during pre-merge self-review: permutation_n_jobs=True previously
+    passed silently (bool is an int subclass), unlike the sibling
+    permutation_random_state field, which already excluded bool explicitly.
+    """
     from sleap_roots_analyze.pipeline.config.components import PredictionConfig
 
     with pytest.raises(ValueError, match="permutation_n_jobs"):

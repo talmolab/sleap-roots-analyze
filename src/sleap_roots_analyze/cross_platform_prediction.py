@@ -324,7 +324,9 @@ def top_quartile_recovery(
             small ``n`` never produces a vacuous, zero-size window. An
             explicitly-supplied ``q`` is validated strictly (must be
             positive and satisfy ``2 * q <= len(y_true)``); the computed
-            default is never invalid at this program's real n>=3 scale.
+            default is never invalid at this program's real n>=3 scale (or
+            any ``n>=2``) but is only well-defined for ``n>=2`` -- see
+            ``Raises`` below.
 
     Returns:
         The fraction (in ``[0, 1]``) of the true top-``q`` genotypes present
@@ -332,12 +334,20 @@ def top_quartile_recovery(
 
     Raises:
         ValueError: If an explicitly-supplied ``q`` is not positive, or if
-            ``2 * q`` exceeds ``len(y_true)``.
+            ``2 * q`` exceeds ``len(y_true)``; or if ``len(y_true) < 2``
+            (below this, even the default ``q`` would violate
+            ``2 * q <= len(y_true)``).
     """
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     n = len(y_true)
     if q is None:
+        if n < 2:
+            raise ValueError(
+                f"len(y_true)={n} is too small for a default q: even q=1 "
+                "would violate 2*q <= len(y_true); provide an explicit "
+                "valid q (impossible below n=2) or use a larger input"
+            )
         q = max(1, round(n / 4))
     elif q <= 0 or 2 * q > n:
         raise ValueError(

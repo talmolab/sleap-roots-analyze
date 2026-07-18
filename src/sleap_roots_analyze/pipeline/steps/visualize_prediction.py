@@ -1,10 +1,19 @@
-"""Step: Visualize cross-platform prediction via permutation null + figure (Tier 4, #200)."""
+"""Step: Visualize cross-platform prediction via permutation null + figure (Tier 4, #200).
+
+Naming note: this module shares its basename with
+``sleap_roots_analyze.visualize_prediction`` (a different module, in a
+different subpackage -- that one holds ``create_prediction_figure()`` and
+the other pure plotting helpers this step calls; this module holds only the
+pipeline-step wiring/orchestration). Full import paths never collide. See
+that module's own docstring for the same cross-reference.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.preprocessing import StandardScaler
@@ -182,6 +191,7 @@ class VisualizePredictionStep(BaseStep):
         )
         figure_path = run_dir / "07_prediction_figure.png"
         fig.savefig(figure_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
         files_generated.append(figure_path)
 
         return StepResult(

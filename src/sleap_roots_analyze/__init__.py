@@ -216,6 +216,7 @@ from sleap_roots_analyze.cross_platform_prediction import (
     permutation_test,
     top_quartile_recovery,
     LOGOCVResult,
+    PermutationTestResult,
 )
 from sleap_roots_analyze.result_types import (
     CrossPlatformPredictionResult,
@@ -387,6 +388,7 @@ __all__ = [
     # Cross-platform prediction permutation null + figures (Tier 4, #200)
     "permutation_test",
     "top_quartile_recovery",
+    "PermutationTestResult",
     "CrossPlatformPermutationResult",
     "PermutationResult",
 ]

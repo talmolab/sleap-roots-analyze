@@ -43,13 +43,23 @@ def _pc1_scatter_panel(
 def _r2_violin_panel(
     ax: plt.Axes, permutation_results: Sequence[PermutationResult]
 ) -> None:
-    """Panel 2: every target's observed R^2 vs. the pooled all-targets null R^2."""
+    """Panel 2: every target's observed R^2 vs. the pooled all-targets null R^2.
+
+    Pooling every target's null distribution into one violin assumes every
+    target within a pair shares the same genotype count -- true here because
+    all targets are drawn from one shared, already-column-filtered
+    ``target_clean`` matrix (see ``predict_cross_platform.py``'s
+    ``dropna(axis=1, how="any")``, which never changes the row/genotype
+    count).
+    """
     pooled_null_r2 = np.concatenate(
         [np.asarray(pr.null_r2, dtype=float) for pr in permutation_results]
     )
     observed_r2 = [pr.observed_r2 for pr in permutation_results]
 
     ax.violinplot([pooled_null_r2], positions=[1], showmedians=True)
+    # Seed is jitter-only (horizontal scatter position for readability) --
+    # does not affect any reported statistic.
     rng = np.random.default_rng(0)
     x_jitter = 1 + rng.uniform(-0.05, 0.05, size=len(observed_r2))
     ax.scatter(x_jitter, observed_r2, color=_OBSERVED_COLOR, zorder=3, label="Observed")
