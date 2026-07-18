@@ -885,6 +885,27 @@ class PredictionConfig:
             enabled=True and predictor_source="blup".
         target_blup_path: Path to the target platform's BLUP-adjusted-means
             CSV. Same requirement as source_blup_path.
+        visualize: Whether to run VisualizePredictionStep (Tier 4, #200) --
+            an optional 7th pipeline task that computes a permutation-null
+            significance test per target/method and saves a composite
+            figure. Default False so every existing CrossPlatformConfig YAML
+            is unaffected. Only ever meaningful when enabled=True (a
+            visualize=True + enabled=False combination is rejected by
+            CrossPlatformConfig.__post_init__, which alone can see both
+            fields, since PredictionConfig's own __post_init__ short-circuits
+            entirely when enabled=False).
+        n_permutations: Number of shuffled-y calls per permutation_test()
+            call. Validated (must be positive) only when visualize=True.
+        permutation_random_state: Seed for the permutation draws (an
+            independent child is derived per target/method via
+            numpy.random.SeedSequence(...).spawn(N), not this raw value
+            reused identically). Validated (must be a non-negative int)
+            only when visualize=True.
+        permutation_n_jobs: Number of joblib.Parallel workers, parallelizing
+            across independent (target, method) units -- not across
+            individual permutation calls, which measured slower than serial
+            (design.md Decision 4). Validated (must be positive) only when
+            visualize=True.
     """
 
     enabled: bool = False
@@ -896,6 +917,10 @@ class PredictionConfig:
     blup_refit_per_fold: bool = False
     source_blup_path: Optional[str] = None
     target_blup_path: Optional[str] = None
+    visualize: bool = False
+    n_permutations: int = 1000
+    permutation_random_state: int = 42
+    permutation_n_jobs: int = 8
 
     def __post_init__(self) -> None:
         """Validate configuration parameters (full no-op when disabled)."""
@@ -958,6 +983,39 @@ class PredictionConfig:
                         f"{path_attr} must resolve to an existing file when "
                         f"predictor_source='blup', got {path_value!r}"
                     )
+
+        # The 3 permutation-related fields below are only ever consumed by
+        # VisualizePredictionStep -- validated only when visualize=True, so
+        # an enabled=True/visualize=False run (prediction alone, no
+        # permutation/figures) never rejects values it will never use.
+        if self.visualize:
+            if (
+                not isinstance(self.n_permutations, int)
+                or isinstance(self.n_permutations, bool)
+                or self.n_permutations <= 0
+            ):
+                raise ValueError(
+                    f"n_permutations must be a positive int when visualize=True, "
+                    f"got {self.n_permutations!r}"
+                )
+            if (
+                not isinstance(self.permutation_n_jobs, int)
+                or isinstance(self.permutation_n_jobs, bool)
+                or self.permutation_n_jobs <= 0
+            ):
+                raise ValueError(
+                    f"permutation_n_jobs must be a positive int when "
+                    f"visualize=True, got {self.permutation_n_jobs!r}"
+                )
+            if (
+                not isinstance(self.permutation_random_state, int)
+                or isinstance(self.permutation_random_state, bool)
+                or self.permutation_random_state < 0
+            ):
+                raise ValueError(
+                    f"permutation_random_state must be a non-negative int "
+                    f"when visualize=True, got {self.permutation_random_state!r}"
+                )
 
 
 @dataclass(frozen=True)
@@ -1186,6 +1244,20 @@ class CrossPlatformConfig:
                     f"must match correlation_method '{self.correlation_method}' "
                     f"(expected '{expected_p_col}')"
                 )
+
+        # visualize=True only ever makes sense when enabled=True --
+        # VisualizePredictionStep reads PredictCrossPlatformStep's (task 6's)
+        # output, which never runs when enabled=False. This lives here, not
+        # in PredictionConfig.__post_init__, because that method's own
+        # `if not self.enabled: return` short-circuit (Decision 4) would
+        # otherwise skip this check entirely for exactly the combination it
+        # needs to reject (Tier 4, #200, design.md Decision 7).
+        if self.prediction.visualize and not self.prediction.enabled:
+            raise ValueError(
+                "prediction.visualize=True requires prediction.enabled=True "
+                "-- VisualizePredictionStep reads PredictCrossPlatformStep's "
+                "output, which never runs when enabled=False"
+            )
 
         # Cross-check prediction.platform_pairs against this config's own
         # exp1_name/exp2_name (Decision 3) -- PredictionConfig alone has no

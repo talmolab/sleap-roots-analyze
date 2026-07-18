@@ -14,9 +14,10 @@ CV-hygiene contract this module implements against.
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -292,4 +293,261 @@ def logo_cv_predict(
         rmse=rmse,
         spearman_rho=float(spearman_rho),
         spearman_p=float(spearman_p),
+    )
+
+
+def top_quartile_recovery(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    q: Optional[int] = None,
+) -> float:
+    """Fraction of the true top-``q`` genotypes recovered in the predicted top-``2q``.
+
+    Tier 4 (#200) metric: ranks genotypes by ``y_true`` and by ``y_pred``
+    independently, then measures what fraction of the true top-``q`` set
+    (by ``y_true``) also appears in the *predicted* top-``2q`` set (by
+    ``y_pred``) -- a wider predicted window than the true one, since a
+    ranking-based recovery metric at n~=19 is too noisy to expect exact
+    top-``q``-for-top-``q`` agreement.
+
+    Chance-level (random ``y_pred``) expected recovery is ``2*q/n`` by
+    linearity of expectation, not a fixed "25%" -- see design.md Decision 11
+    for the derivation. Used both for the observed value (real ``y``, real
+    LOGO-CV predictions) and, once per permutation inside
+    :func:`permutation_test`, for the null distribution.
+
+    Args:
+        y_true: Observed target values, one per genotype.
+        y_pred: Predicted target values, same order as ``y_true``.
+        q: Size of the true top-quartile set. Defaults to
+            ``max(1, round(len(y_true) / 4))`` -- clamped to at least 1 so a
+            small ``n`` never produces a vacuous, zero-size window. An
+            explicitly-supplied ``q`` is validated strictly (must be
+            positive and satisfy ``2 * q <= len(y_true)``); the computed
+            default is never invalid at this program's real n>=3 scale (or
+            any ``n>=2``) but is only well-defined for ``n>=2`` -- see
+            ``Raises`` below.
+
+    Returns:
+        The fraction (in ``[0, 1]``) of the true top-``q`` genotypes present
+        in the predicted top-``2q`` genotypes.
+
+    Raises:
+        ValueError: If an explicitly-supplied ``q`` is not positive, or if
+            ``2 * q`` exceeds ``len(y_true)``; or if ``len(y_true) < 2``
+            (below this, even the default ``q`` would violate
+            ``2 * q <= len(y_true)``).
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    n = len(y_true)
+    if q is None:
+        if n < 2:
+            raise ValueError(
+                f"len(y_true)={n} is too small for a default q: even q=1 "
+                "would violate 2*q <= len(y_true); provide an explicit "
+                "valid q (impossible below n=2) or use a larger input"
+            )
+        q = max(1, round(n / 4))
+    elif q <= 0 or 2 * q > n:
+        raise ValueError(
+            f"q must be a positive integer with 2*q <= len(y_true) ({n}), " f"got q={q}"
+        )
+
+    top_q_true = set(np.argsort(-y_true, kind="stable")[:q])
+    top_2q_pred = set(np.argsort(-y_pred, kind="stable")[: 2 * q])
+    return len(top_q_true & top_2q_pred) / q
+
+
+@dataclass
+class PermutationTestResult:
+    """Permutation-null significance test result for one prediction target.
+
+    Returned by :func:`permutation_test`. Deliberately does not carry a
+    ``target_name`` field -- this type mirrors :class:`LOGOCVResult`'s role
+    as the analytical module's own "raw" result, with no knowledge of which
+    named target it was computed for (that context is attached only by
+    ``result_types.CrossPlatformPermutationResult.from_permutation_test_results``,
+    exactly as ``TargetPrediction`` attaches ``target_name`` to a plain
+    ``LOGOCVResult``).
+
+    Attributes:
+        observed_r2: Aggregate R^2 from one ``logo_cv_predict()`` call on the
+            real (unshuffled) ``y``.
+        observed_rmse: Aggregate RMSE from the same observed call.
+        observed_spearman_rho: Aggregate Spearman rho from the same observed
+            call.
+        observed_top_quartile_recovery: :func:`top_quartile_recovery`
+            computed from the same observed call's predictions.
+        null_r2: R^2 for each of ``n_permutations`` shuffled-``y`` calls.
+        null_rmse: RMSE for each shuffled-``y`` call.
+        null_spearman_rho: Spearman rho for each shuffled-``y`` call.
+        null_top_quartile_recovery: :func:`top_quartile_recovery` for each
+            shuffled-``y`` call, using that permutation's own shuffled ``y``
+            as ground truth (not the original, unshuffled ``y``).
+        p_value_r2: One-sided p-value, right-tailed (higher R^2 is better).
+        p_value_rmse: One-sided p-value, **left-tailed** (lower RMSE is
+            better -- the opposite convention from R^2/rho). Do not read a
+            low ``p_value_rmse`` as indicating a bad fit.
+        p_value_spearman_rho: One-sided p-value, right-tailed, same
+            direction as ``p_value_r2``.
+        n_permutations: Number of permutations run (length of every
+            ``null_*`` array).
+    """
+
+    observed_r2: float
+    observed_rmse: float
+    observed_spearman_rho: float
+    observed_top_quartile_recovery: float
+    null_r2: np.ndarray
+    null_rmse: np.ndarray
+    null_spearman_rho: np.ndarray
+    null_top_quartile_recovery: np.ndarray
+    p_value_r2: float
+    p_value_rmse: float
+    p_value_spearman_rho: float
+    n_permutations: int
+
+
+def permutation_test(
+    X: pd.DataFrame,
+    y: np.ndarray,
+    genotypes: Sequence[str],
+    reduction_method: str = "pls_latent",
+    representative_names: Optional[Sequence[str]] = None,
+    n_permutations: int = 1000,
+    random_state: Union[int, np.random.SeedSequence, np.random.Generator] = 42,
+) -> PermutationTestResult:
+    """Permutation-null significance test for a cross-platform LOGO-CV prediction.
+
+    Self-contained: first calls :func:`logo_cv_predict` once on the real
+    (unshuffled) ``y`` to populate the observed R^2/RMSE/Spearman rho/
+    top-quartile-recovery, then draws ``n_permutations`` independent
+    shuffles of ``y`` relative to ``genotypes`` (``X`` and ``genotypes`` are
+    never shuffled) and calls :func:`logo_cv_predict` once per shuffle to
+    build the null distributions and one-sided p-values.
+
+    Args:
+        X: Predictor matrix, forwarded unchanged to every ``logo_cv_predict``
+            call -- see that function's own contract.
+        y: Target values, one per genotype. The real, unshuffled labeling;
+            each permutation iteration shuffles a copy of this array.
+        genotypes: Genotype labels, forwarded unchanged to every
+            ``logo_cv_predict`` call.
+        reduction_method: Forwarded to every ``logo_cv_predict`` call.
+        representative_names: Forwarded to every ``logo_cv_predict`` call.
+        n_permutations: Number of shuffled-``y`` calls to run. Must be
+            positive.
+        random_state: Seed for the permutation draws, built into an RNG via
+            ``numpy.random.default_rng`` (not ``numpy.random.Generator``
+            directly, which requires a ``BitGenerator`` instance and rejects
+            a bare ``int``). Accepts ``int``/``numpy.random.SeedSequence``
+            reproducibly (the same input always reproduces the same null
+            draws). A passed-in ``numpy.random.Generator`` instance is
+            stateful -- reusing the *same* ``Generator`` instance across two
+            calls will **not** reproduce identical results, since its
+            internal state has advanced between calls.
+
+    Returns:
+        A :class:`PermutationTestResult` with the observed values, full null
+        distributions, and one-sided p-values.
+
+    Raises:
+        ValueError: If ``n_permutations`` is not positive (checked before
+            any ``logo_cv_predict`` call); if the observed-value
+            ``logo_cv_predict`` call itself raises (e.g. an invalid
+            ``reduction_method`` or mismatched-length inputs) -- surfaced
+            unchanged, before any permutation is drawn; if a constant
+            (zero-variance) ``y`` produces a non-finite observed
+            ``spearman_rho``/``top_quartile_recovery`` (legal per
+            ``logo_cv_predict``'s own contract, but unusable here) -- raised
+            immediately after the observed call, before any permutation is
+            drawn; if any permutation produces a non-finite null value --
+            raised only after all ``n_permutations`` calls complete (a
+            genuinely non-finite-producing bug is expected to affect many
+            permutations within one target, not a rare one-off, so failing
+            fast saves little wall-clock time while complicating
+            which-permutations-ran accounting), naming both the offending
+            metric(s) and permutation index(es).
+    """
+    if n_permutations <= 0:
+        raise ValueError(f"n_permutations must be positive, got {n_permutations}")
+
+    observed = logo_cv_predict(X, y, genotypes, reduction_method, representative_names)
+    observed_top_quartile_recovery = top_quartile_recovery(
+        observed.y_true, observed.y_pred
+    )
+
+    observed_metrics = {
+        "r2": observed.r2,
+        "rmse": observed.rmse,
+        "spearman_rho": observed.spearman_rho,
+        "top_quartile_recovery": observed_top_quartile_recovery,
+    }
+    non_finite_observed = sorted(
+        name for name, value in observed_metrics.items() if not math.isfinite(value)
+    )
+    if non_finite_observed:
+        raise ValueError(
+            f"Observed value(s) for metric(s) {non_finite_observed} are "
+            "non-finite (e.g. a constant y produces a non-finite "
+            "spearman_rho) -- refusing to run n_permutations shuffled calls "
+            "on data already known to be unusable"
+        )
+
+    rng = np.random.default_rng(random_state)
+    y_arr = np.asarray(y, dtype=float)
+
+    null_r2 = np.empty(n_permutations)
+    null_rmse = np.empty(n_permutations)
+    null_spearman_rho = np.empty(n_permutations)
+    null_top_quartile_recovery = np.empty(n_permutations)
+
+    for i in range(n_permutations):
+        y_shuffled = rng.permutation(y_arr)
+        shuffled_result = logo_cv_predict(
+            X, y_shuffled, genotypes, reduction_method, representative_names
+        )
+        null_r2[i] = shuffled_result.r2
+        null_rmse[i] = shuffled_result.rmse
+        null_spearman_rho[i] = shuffled_result.spearman_rho
+        null_top_quartile_recovery[i] = top_quartile_recovery(
+            y_shuffled, shuffled_result.y_pred
+        )
+
+    non_finite_entries = [
+        (name, int(idx))
+        for name, arr in (
+            ("r2", null_r2),
+            ("rmse", null_rmse),
+            ("spearman_rho", null_spearman_rho),
+            ("top_quartile_recovery", null_top_quartile_recovery),
+        )
+        for idx in np.where(~np.isfinite(arr))[0]
+    ]
+    if non_finite_entries:
+        raise ValueError(
+            f"Non-finite null value(s) found (metric, permutation index): "
+            f"{non_finite_entries}"
+        )
+
+    p_value_r2 = (np.sum(null_r2 >= observed.r2) + 1) / (n_permutations + 1)
+    p_value_rmse = (np.sum(null_rmse <= observed.rmse) + 1) / (n_permutations + 1)
+    p_value_spearman_rho = (np.sum(null_spearman_rho >= observed.spearman_rho) + 1) / (
+        n_permutations + 1
+    )
+
+    return PermutationTestResult(
+        observed_r2=observed.r2,
+        observed_rmse=observed.rmse,
+        observed_spearman_rho=observed.spearman_rho,
+        observed_top_quartile_recovery=observed_top_quartile_recovery,
+        null_r2=null_r2,
+        null_rmse=null_rmse,
+        null_spearman_rho=null_spearman_rho,
+        null_top_quartile_recovery=null_top_quartile_recovery,
+        p_value_r2=float(p_value_r2),
+        p_value_rmse=float(p_value_rmse),
+        p_value_spearman_rho=float(p_value_spearman_rho),
+        n_permutations=n_permutations,
     )

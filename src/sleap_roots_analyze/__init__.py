@@ -213,11 +213,16 @@ from sleap_roots_analyze.pc_correlations import (
 from sleap_roots_analyze.cross_platform_prediction import (
     fit_pca_on_fold,
     logo_cv_predict,
+    permutation_test,
+    top_quartile_recovery,
     LOGOCVResult,
+    PermutationTestResult,
 )
 from sleap_roots_analyze.result_types import (
     CrossPlatformPredictionResult,
     TargetPrediction,
+    CrossPlatformPermutationResult,
+    PermutationResult,
 )
 
 __all__ = [
@@ -380,4 +385,10 @@ __all__ = [
     "LOGOCVResult",
     "CrossPlatformPredictionResult",
     "TargetPrediction",
+    # Cross-platform prediction permutation null + figures (Tier 4, #200)
+    "permutation_test",
+    "top_quartile_recovery",
+    "PermutationTestResult",
+    "CrossPlatformPermutationResult",
+    "PermutationResult",
 ]

@@ -44,3 +44,32 @@ def test_cli_cross_platform_dry_run_omits_prediction_step_when_disabled(runner):
         "VisualizeCrossPlatform",
     ):
         assert step_name in result.output
+
+
+# =============================================================================
+# Tier 4 (add-prediction-permutation-and-figure, #200), tasks.md 8.4/8.5 --
+# --dry-run listing for VisualizePredictionStep (7th step).
+# =============================================================================
+
+
+def test_cli_cross_platform_dry_run_lists_visualize_prediction_step_when_enabled(
+    runner,
+):
+    """--dry-run lists a 7th step when prediction.visualize=True (tasks.md 8.4)."""
+    config_path = HARNESS_DIR / "cross_platform_prediction_wiring_visualize.yaml"
+
+    result = runner.invoke(cli, ["cross-platform", str(config_path), "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "VisualizePrediction" in result.output
+
+
+def test_cli_cross_platform_dry_run_omits_it_when_disabled(runner):
+    """--dry-run has exactly the existing 6 steps when visualize=False (tasks.md 8.4)."""
+    config_path = HARNESS_DIR / "cross_platform_prediction_wiring.yaml"
+
+    result = runner.invoke(cli, ["cross-platform", str(config_path), "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "VisualizePrediction" not in result.output
+    assert "PredictCrossPlatform" in result.output

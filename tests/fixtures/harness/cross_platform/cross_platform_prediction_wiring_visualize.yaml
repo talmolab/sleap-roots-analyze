@@ -1,0 +1,39 @@
+# Tier 4 (add-prediction-permutation-and-figure, #200) CI-fast wiring fixture.
+#
+# Extends cross_platform_prediction_wiring.yaml (Tier 3.5's own wiring fixture)
+# with prediction.visualize=true and the 3 new permutation fields, for
+# VisualizePredictionStep wiring-correctness tests (Sections 6-8) -- not a
+# statistical-signal-recovery claim, see tasks.md Section 1.3. n_permutations
+# is kept small (20) to stay CI-fast at this fixture's tiny (19-genotype,
+# 3-trait) scale; permutation_n_jobs=1 is the wiring-test default (see the
+# mocking-across-process-boundary note at the top of tasks.md Section 7a) --
+# individual tests override n_jobs on the loaded config object directly
+# (PredictionConfig is a plain, non-frozen dataclass) when they need to
+# exercise real joblib.Parallel dispatch.
+
+exp1_data_path: tests/fixtures/synthetic/cross_platform_prediction/source_blup.csv
+exp1_name: SourcePlatform
+exp1_genotype_col: Genotype
+exp2_data_path: tests/fixtures/synthetic/cross_platform_prediction/target_blup.csv
+exp2_name: TargetPlatform
+exp2_genotype_col: Genotype
+correlation_method: spearman
+min_samples_per_genotype: 1
+trait_reduction_method: none
+
+prediction:
+  enabled: true
+  predictor_source: blup
+  reduction_method: pls_latent
+  comparison_methods:
+    - representatives
+  representative_selection_metric: variance
+  platform_pairs:
+    - source: SourcePlatform
+      target: TargetPlatform
+  source_blup_path: tests/fixtures/synthetic/cross_platform_prediction/source_blup.csv
+  target_blup_path: tests/fixtures/synthetic/cross_platform_prediction/target_blup.csv
+  visualize: true
+  n_permutations: 20
+  permutation_random_state: 42
+  permutation_n_jobs: 1

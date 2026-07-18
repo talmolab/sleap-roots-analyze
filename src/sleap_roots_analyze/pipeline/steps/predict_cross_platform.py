@@ -277,6 +277,21 @@ class PredictCrossPlatformStep(BaseStep):
             "target_dropped_columns": target_dropped_columns,
         }
 
+        # Additive extension (Tier 4, #200, design.md Decision 6): expose the
+        # already-computed predictor matrices for VisualizePredictionStep to
+        # reuse, rather than rebuilding BLUP-loading/NaN-dropping/alignment
+        # logic (Decisions 2/13/14/16/17) a second time. Safe as a sibling
+        # key alongside the per-method entries above only because no valid
+        # reduction_method/comparison_methods value can itself equal
+        # "predictor_matrices" -- both are constrained to
+        # _VALID_REDUCTION_METHODS-equivalent values in PredictionConfig.
+        results_by_method["predictor_matrices"] = {
+            "source_clean": source_clean,
+            "target_clean": target_clean,
+            "source_representative_names": list(source_representative_names),
+            "target_representatives": list(target_representatives),
+        }
+
         return StepResult(
             data=results_by_method,
             metadata=metadata,

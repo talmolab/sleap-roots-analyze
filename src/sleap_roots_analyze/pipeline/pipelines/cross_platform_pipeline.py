@@ -33,6 +33,9 @@ from sleap_roots_analyze.pipeline.steps.visualize_cross_platform import (
 from sleap_roots_analyze.pipeline.steps.predict_cross_platform import (
     PredictCrossPlatformStep,
 )
+from sleap_roots_analyze.pipeline.steps.visualize_prediction import (
+    VisualizePredictionStep,
+)
 
 
 class CrossPlatformPipeline(BasePipeline):
@@ -45,6 +48,7 @@ class CrossPlatformPipeline(BasePipeline):
     4. Trait-level binomial enrichment (optional, config-gated)
     5. Generate visualizations of correlations
     6. Predict cross-platform genotype values via LOGO-CV (optional, config-gated)
+    7. Visualize prediction via permutation null + figure (optional, config-gated)
 
     The pipeline is designed to compare traits across different experimental
     platforms or conditions to identify which traits capture similar biological
@@ -100,7 +104,7 @@ class CrossPlatformPipeline(BasePipeline):
         return sanitized
 
     def create_tasks(self) -> List[Task]:
-        """Create the cross-platform analysis task graph with 5 or 6 steps.
+        """Create the cross-platform analysis task graph with 5-7 steps.
 
         Returns:
             List of Tasks defining the pipeline DAG:
@@ -112,6 +116,9 @@ class CrossPlatformPipeline(BasePipeline):
                 - Step 6: PredictCrossPlatform (optional, based on
                   config.prediction.enabled -- entirely absent, not merely
                   skipped, when disabled)
+                - Step 7: VisualizePrediction (optional, based on
+                  config.prediction.visualize -- entirely absent, not merely
+                  skipped, when disabled; Tier 4, #200)
         """
         tasks = []
 
@@ -180,6 +187,20 @@ class CrossPlatformPipeline(BasePipeline):
                         "05_visualize_cross_platform",
                     ],
                     description="Predict cross-platform genotype values via LOGO-CV",
+                )
+            )
+
+        # Step 7: Visualize prediction via permutation null + figure (Tier 4,
+        # #200; optional, config-gated; entirely absent -- not merely
+        # skipped -- when disabled). depends_on task 6 for both data AND
+        # ordering (unlike task 6's own ordering-only second dependency).
+        if self.config.prediction.visualize:
+            tasks.append(
+                Task(
+                    func=self._run_visualize_prediction,
+                    name="07_visualize_prediction",
+                    depends_on=["06_predict_cross_platform"],
+                    description="Permutation-null significance test + prediction figure",
                 )
             )
 
@@ -268,6 +289,27 @@ class CrossPlatformPipeline(BasePipeline):
         prev_task_result = kwargs["01_load_cross_platform_data"]
         prev_step_result = prev_task_result.data
         step = PredictCrossPlatformStep()
+        result = step.execute(
+            data=prev_step_result.data,
+            config=config,
+            run_dir=run_dir,
+            prev_result=prev_step_result,
+        )
+        return result
+
+    def _run_visualize_prediction(
+        self, config: Any, run_dir: Path, logger: Any, **kwargs: Any
+    ) -> StepResult:
+        """Execute Step 7: Visualize Prediction (optional, Tier 4, #200).
+
+        Reads task 6's data AND depends on it for ordering -- unlike task
+        6's own ordering-only second dependency (Decision 15), this step
+        genuinely reads task 6's ``predictor_matrices`` and observed results.
+        """
+        logger.info("Step 7/7: Visualizing prediction (permutation null + figure)...")
+        prev_task_result = kwargs["06_predict_cross_platform"]
+        prev_step_result = prev_task_result.data
+        step = VisualizePredictionStep()
         result = step.execute(
             data=prev_step_result.data,
             config=config,

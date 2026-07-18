@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `permutation_test(X, y, genotypes, reduction_method="pls_latent",
+  representative_names=None, n_permutations=1000, random_state=42)` and
+  `top_quartile_recovery(y_true, y_pred, q=None)` (#200): a permutation-null
+  significance test for cross-platform LOGO-CV prediction, closing the gap
+  Tier 3 Decision 9 flagged (`spearman_p`'s asymptotic p-value is unreliable
+  below n≈20-30). Self-contained: computes the observed R²/RMSE/Spearman ρ/
+  top-quartile-recovery via one `logo_cv_predict()` call, then null
+  distributions via `n_permutations` shuffled-`y` calls. One-sided p-values
+  are right-tailed for R²/ρ (higher is better) and **left-tailed** for RMSE
+  (lower is better — the opposite convention). `top_quartile_recovery`'s
+  chance-level baseline is `2*q/n`, not a fixed 25%. Serializable
+  `PermutationResult` / `CrossPlatformPermutationResult` dataclasses and
+  `CrossPlatformPermutationResult.from_permutation_test_results(...)` adapter,
+  mirroring `TargetPrediction`/`CrossPlatformPredictionResult`'s pattern.
+- `VisualizePredictionStep`, an optional 7th task on `CrossPlatformPipeline`
+  (#200), gated on `PredictionConfig.visualize` (requires `enabled=True`
+  too): runs `permutation_test()` for every `(target, method)` combination
+  via `joblib.Parallel` across independent targets (parallelizing individual
+  permutation calls measured *slower* than serial — empirically verified,
+  not assumed), saves one `07_permutation_<method>.json` per method, and a
+  composite 3-panel `07_prediction_figure.png` per pair (PC1 obs-vs-pred
+  scatter, all-targets R²-vs-pooled-null violin, top-quartile-recovery bar
+  chart) from the primary `reduction_method`'s results. Additive extension to
+  `PredictCrossPlatformStep`'s `StepResult.data` (`predictor_matrices` key)
+  lets this step reuse task 6's already-computed matrices instead of
+  rebuilding BLUP-loading/alignment logic. Tier 4 of the cross-platform
+  genotype-prediction program (Tier 3: #194, Tier 3.5: #196).
 - `PredictionConfig` (nested on `CrossPlatformConfig` as `prediction`, default
   disabled) and `PredictCrossPlatformStep`, an optional 6th task on
   `CrossPlatformPipeline` (#196): wires Tier 3's `logo_cv_predict`/

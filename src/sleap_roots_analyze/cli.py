@@ -526,6 +526,9 @@ def cross_platform(
     - Optionally, predict cross-platform genotype values via LOGO-CV, as a
       6th step, when the config's `prediction.enabled` is true (no new flag
       -- set it in the config's `prediction:` block)
+    - Optionally, compute a permutation-null significance test and a
+      3-panel prediction figure, as a 7th step, when the config's
+      `prediction.visualize` is true (requires `prediction.enabled` too)
 
     This pipeline is designed to compare traits across different experimental
     platforms or conditions to identify which traits capture similar biological
@@ -589,6 +592,15 @@ def cross_platform(
                         "6",
                         "PredictCrossPlatform",
                         "Predict cross-platform genotype values via LOGO-CV",
+                    )
+                )
+
+            if cfg.prediction.visualize:
+                steps.append(
+                    (
+                        "7",
+                        "VisualizePrediction",
+                        "Permutation-null significance test + prediction figure",
                     )
                 )
 

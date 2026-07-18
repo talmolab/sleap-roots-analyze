@@ -20,6 +20,7 @@ import pandas as pd
 
 from sleap_roots_analyze import (
     clustering,
+    cross_platform_prediction,
     outlier_detection,
     outlier_removal,
     pca,
@@ -167,6 +168,28 @@ def _compare_remove_outlier_samples(a, b):
     (df_b, report_b) = b
     _exact(report_a["outlier_indices"], report_b["outlier_indices"], "outlier_indices")
     pd.testing.assert_frame_equal(df_a, df_b)
+
+
+def _compare_permutation_test(a, b):
+    """Compare ``permutation_test`` results: observed_*/null_*/p_value_*/n_permutations."""
+    for field in (
+        "observed_r2",
+        "observed_rmse",
+        "observed_spearman_rho",
+        "observed_top_quartile_recovery",
+        "p_value_r2",
+        "p_value_rmse",
+        "p_value_spearman_rho",
+    ):
+        _close(getattr(a, field), getattr(b, field), field)
+    for field in (
+        "null_r2",
+        "null_rmse",
+        "null_spearman_rho",
+        "null_top_quartile_recovery",
+    ):
+        _close(getattr(a, field), getattr(b, field), field)
+    assert a.n_permutations == b.n_permutations
 
 
 def _silence(fn):
@@ -336,6 +359,26 @@ CASES: List[Case] = [
             lambda: outlier_removal.remove_outlier_samples(ctx.df, random_state=seed)
         ),
         _compare_remove_outlier_samples,
+    ),
+    Case(
+        # Tier 4 (#200). y is a plain synthetic function of ctx.X (not one of
+        # its own columns) -- this sweep only checks bit-for-bit determinism
+        # given the same seed, not a scientific claim. n_permutations kept
+        # small (5) to bound this case's cost: it runs 3 times total (twice
+        # for the same-seed check, once for the random_state=None check),
+        # each a 60-genotype LOGO-CV loop x (1 observed + 5 permutations).
+        cross_platform_prediction.permutation_test,
+        lambda ctx, seed: _silence(
+            lambda: cross_platform_prediction.permutation_test(
+                X=ctx.df,
+                y=ctx.X.sum(axis=1),
+                genotypes=[f"g{i}" for i in range(len(ctx.df))],
+                reduction_method="pls_latent",
+                n_permutations=5,
+                random_state=seed,
+            )
+        ),
+        _compare_permutation_test,
     ),
 ]
 

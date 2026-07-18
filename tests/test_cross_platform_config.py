@@ -706,3 +706,151 @@ def test_cross_platform_config_rejects_prediction_when_exp_names_are_equal():
                 platform_pairs=[{"source": "SamePlatform", "target": "SamePlatform"}],
             ),
         )
+
+
+# =============================================================================
+# Tier 4 (add-prediction-permutation-and-figure, #200): PredictionConfig's 4
+# new fields (visualize, n_permutations, permutation_random_state,
+# permutation_n_jobs) and the visualize-requires-enabled cross-check.
+# See design.md Decision 7 and tasks.md Section 4.
+# =============================================================================
+
+
+def test_prediction_config_visualize_defaults_to_false_and_no_op():
+    """PredictionConfig() defaults (tasks.md 4.1) construct without raising."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    config = PredictionConfig()
+    assert config.visualize is False
+    assert config.n_permutations == 1000
+    assert config.permutation_random_state == 42
+    assert config.permutation_n_jobs == 8
+
+
+def test_cross_platform_config_rejects_visualize_true_with_enabled_false():
+    """visualize=True with enabled=False raises ValueError at construction (tasks.md 4.2)."""
+    from sleap_roots_analyze.pipeline.config.components import (
+        CrossPlatformConfig,
+        PredictionConfig,
+    )
+
+    with pytest.raises(ValueError, match="visualize"):
+        CrossPlatformConfig(
+            exp1_data_path="exp1.csv",
+            exp1_name="Exp1",
+            exp1_genotype_col="geno1",
+            exp2_data_path="exp2.csv",
+            exp2_name="Exp2",
+            exp2_genotype_col="geno2",
+            prediction=PredictionConfig(enabled=False, visualize=True),
+        )
+
+
+def test_prediction_config_permutation_fields_validation_skipped_when_visualize_false():
+    """No permutation-field validation runs when visualize=False (tasks.md 4.3)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    # All 3 permutation-related fields are simultaneously invalid; none of it
+    # should raise because visualize=False short-circuits their validation.
+    config = PredictionConfig(
+        enabled=True,
+        predictor_source="genotype_means",
+        visualize=False,
+        n_permutations=0,
+        permutation_n_jobs=0,
+        permutation_random_state=-1,
+    )
+    assert config.n_permutations == 0
+    assert config.permutation_n_jobs == 0
+    assert config.permutation_random_state == -1
+
+
+@pytest.mark.parametrize("n_permutations", [0, -1])
+def test_prediction_config_rejects_non_positive_n_permutations_when_visualize_true(
+    n_permutations,
+):
+    """n_permutations<=0 raises ValueError only when visualize=True (tasks.md 4.4)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="n_permutations"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            visualize=True,
+            n_permutations=n_permutations,
+        )
+
+
+@pytest.mark.parametrize("n_permutations", [True, "not_an_int", 1.5])
+def test_prediction_config_rejects_non_int_n_permutations_when_visualize_true(
+    n_permutations,
+):
+    """A non-int n_permutations (incl. bool) raises ValueError when visualize=True.
+
+    Found during pre-merge self-review: unlike its sibling permutation_n_jobs/
+    permutation_random_state fields, n_permutations previously had no
+    isinstance check at all, so e.g. n_permutations=True would silently pass
+    (bool is an int subclass in Python).
+    """
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="n_permutations"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            visualize=True,
+            n_permutations=n_permutations,
+        )
+
+
+@pytest.mark.parametrize("permutation_n_jobs", [0, -1])
+def test_prediction_config_rejects_non_positive_permutation_n_jobs_when_visualize_true(
+    permutation_n_jobs,
+):
+    """permutation_n_jobs<=0 raises ValueError naming the field (tasks.md 4.4a)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="permutation_n_jobs"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            visualize=True,
+            permutation_n_jobs=permutation_n_jobs,
+        )
+
+
+@pytest.mark.parametrize("permutation_n_jobs", [True, "not_an_int", 1.5])
+def test_prediction_config_rejects_non_int_permutation_n_jobs_when_visualize_true(
+    permutation_n_jobs,
+):
+    """A non-int permutation_n_jobs (incl. bool) raises ValueError when visualize=True.
+
+    Found during pre-merge self-review: permutation_n_jobs=True previously
+    passed silently (bool is an int subclass), unlike the sibling
+    permutation_random_state field, which already excluded bool explicitly.
+    """
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="permutation_n_jobs"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            visualize=True,
+            permutation_n_jobs=permutation_n_jobs,
+        )
+
+
+@pytest.mark.parametrize("permutation_random_state", [-1, "not_an_int"])
+def test_prediction_config_rejects_invalid_permutation_random_state_when_visualize_true(
+    permutation_random_state,
+):
+    """An invalid permutation_random_state raises ValueError naming the field (tasks.md 4.4b)."""
+    from sleap_roots_analyze.pipeline.config.components import PredictionConfig
+
+    with pytest.raises(ValueError, match="permutation_random_state"):
+        PredictionConfig(
+            enabled=True,
+            predictor_source="genotype_means",
+            visualize=True,
+            permutation_random_state=permutation_random_state,
+        )
