@@ -4443,35 +4443,3 @@ def cross_platform_synthetic_non_edpie_fixture():
         _make_planted_signal_realization(25, 4, 0.8, seed + 20000)
         for seed in range(1, 21)
     ]
-
-
-# ============================================================================
-# PERMUTATION-TEST CALIBRATION FIXTURES (Tier 4, #200)
-# ============================================================================
-# K-S calibration oracle substrate (design.md Decision 11 / tasks.md 1.2):
-# exactly 40 independent pure-noise realizations, each with a fixed, committed
-# literal seed (not regenerated per test run) so the K-S-against-Uniform(0,1)
-# test is a deterministic golden check, not a live stochastic draw with an
-# intrinsic false-failure rate. Uses a seed offset of +30000 to guarantee
-# independence from the signal/noise/non-EDPIE fixtures above (offsets 0,
-# +10000, +20000). Same (n_genotypes=19, n_traits=3) shape as the primary
-# signal/noise fixtures -- this program's real scale.
-
-
-@pytest.fixture
-def cross_platform_permutation_calibration_fixture():
-    """40 independent pure-noise realizations for the K-S calibration oracle.
-
-    ``X`` and ``y`` are independently drawn with no planted relationship, at
-    this program's real (n_genotypes=19, n_traits=3) scale. Distinct from
-    ``cross_platform_pure_noise_fixture`` (20 realizations, seed offset
-    +10000) -- this fixture is exactly 40 realizations (seed offset +30000),
-    sized for the K-S calibration oracle's own statistical-power needs
-    (tasks.md 1.2/9.1), not the mean-R^2 comparison the 20-realization
-    fixtures are used for.
-
-    Returns:
-        list[tuple[pd.DataFrame, np.ndarray, list[str]]]: 40 ``(X, y,
-        genotypes)`` realizations, seeds 1..40 (offset +30000).
-    """
-    return [_make_pure_noise_realization(19, 3, seed + 30000) for seed in range(1, 41)]

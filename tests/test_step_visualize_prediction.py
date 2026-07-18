@@ -137,6 +137,30 @@ def test_visualize_prediction_step_reuses_task6_predictor_matrices(tmp_path):
     mock_load.assert_not_called()
 
 
+def test_visualize_prediction_step_raises_when_prev_result_is_none(tmp_path):
+    """execute(prev_result=None) raises ValueError before touching `data`.
+
+    Regression test for the round-2 `/review-pr` finding (PR #201, Code
+    Quality): the mypy-motivated `if prev_result is None: raise ValueError`
+    guard at the top of `execute()` was added without a test exercising it.
+    Unreachable via the real DAG (`cross_platform_pipeline.py`'s
+    `_run_visualize_prediction` always passes a populated task-6
+    `StepResult`), but `execute()` is public API and must fail predictably
+    on direct/standalone misuse.
+    """
+    config = _visualize_config(tmp_path)
+    predict_result = _run_predict_step(config, tmp_path)
+    step = VisualizePredictionStep()
+
+    with pytest.raises(ValueError, match="prev_result"):
+        step.execute(
+            data=predict_result.data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=None,
+        )
+
+
 def test_visualize_prediction_step_handles_pc1_only_targets(tmp_path):
     """With zero representative-trait targets, exactly N=1 unit per method runs."""
     from sleap_roots_analyze.cross_experiment_analysis import (

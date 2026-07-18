@@ -730,4 +730,31 @@
       `PermutationTestResult` missing from package-root exports; a one-directional naming-collision
       docstring cross-reference; a pooling-validity comment. Declined: write-to-temp-then-rename
       for the JSON write loop (low-probability failure mode, outside the documented contract).
-      Full re-run: 193 passed, 0 failed. Second pass pending the open PR's CI run.
+      Full re-run: 193 passed, 0 failed.
+
+      **CI-timeout fix (found after the pre-PR pass, before the second pass could run):**
+      `Tests (ubuntu)`/`Tests (windows)` hit the 30-minute job timeout —
+      `TestPermutationOracles` recomputed `permutation_test()` redundantly per test method.
+      Fixed via 3 module-scoped fixtures sharing one computation across the class's 6 tests, plus
+      `n_permutations` 200→100 for the CI-only oracle fixtures. Verified: ubuntu 16m51s (pass),
+      mac 14m9s (pass), windows 28m36s (pass, but a thin ~5% margin against the 30-minute budget).
+
+      **Second pass done (PR #201, open PR mode):** 0 BLOCKING across all 5 lenses again. Fixed 4
+      converged IMPORTANT findings: (1) restricted `TestPermutationOracles` to Linux-only CI via
+      `pytestmark = pytest.mark.skipif(sys.platform != "linux", ...)` on the class (mirroring
+      `test_numerical_stability.py`'s single-OS pattern, but for a CI-*budget* reason — no
+      OS-dependent code path exists in `permutation_test()` — not a cross-OS numerical-drift one);
+      this removes the Windows-margin risk outright rather than trimming it further. (2) Removed
+      the now-dead `cross_platform_permutation_calibration_fixture` in `tests/fixtures.py`
+      (unreferenced since the module-scoped fixtures above call `_make_pure_noise_realization`
+      directly). (3) Wrapped `create_prediction_figure`'s panel-building in `try/except` (closes
+      the figure before re-raising) and `VisualizePredictionStep.execute()`'s `savefig` in
+      `try/finally` — both close a figure-leak path reachable only when a panel-building/save call
+      raises (e.g. the missing-`"PC1"` `ValueError`), previously unreachable via the wired pipeline
+      but reachable via direct calls; added 3 new tests in `tests/test_visualize_prediction.py`
+      asserting no figure leaks on all 3 `ValueError` paths. (4) Added a test in
+      `tests/test_step_visualize_prediction.py` exercising `VisualizePredictionStep().execute(...,
+      prev_result=None)` and asserting the existing mypy-motivated `ValueError` guard fires with a
+      sensible message. Re-verified locally: 101 passed, 6 skipped (the 6 being
+      `TestPermutationOracles`, confirmed skipped on this non-Linux dev machine) in the 3 directly
+      affected files; full-suite re-run before push.

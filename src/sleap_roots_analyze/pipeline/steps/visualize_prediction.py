@@ -202,8 +202,10 @@ class VisualizePredictionStep(BaseStep):
             permutation_results=cp_results_by_method[primary_method].predictions,
         )
         figure_path = run_dir / "07_prediction_figure.png"
-        fig.savefig(figure_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
+        try:
+            fig.savefig(figure_path, dpi=300, bbox_inches="tight")
+        finally:
+            plt.close(fig)
         files_generated.append(figure_path)
 
         return StepResult(

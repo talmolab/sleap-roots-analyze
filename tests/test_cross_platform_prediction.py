@@ -7,6 +7,7 @@ acceptance-criteria oracles this test suite implements against.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1433,7 +1434,28 @@ class TestPermutationOracles:
     ``n_permutations=1000`` production default) and a fixed, committed
     literal ``random_state=0``, per the CI-timeout note at the top of
     tasks.md Section 9.
+
+    Linux-only in CI (round-2 `/review-pr` on PR #201, Testing/TDD +
+    Performance reviewers): unlike `test_numerical_stability.py`'s
+    single-OS gate, this is a CI-*budget* skip, not a cross-OS numerical
+    incompatibility one -- `permutation_test()` is pure numpy/pandas/sklearn
+    with no OS-dependent code path, so running this class's ~8,000
+    `logo_cv_predict` calls on all 3 CI matrix OSes buys zero additional
+    coverage, only 3x the cost. Windows CI was measured at 28m36s against
+    the `Tests` job's 30-minute timeout with this class running on every
+    platform; Ubuntu had the most headroom (16m51s) of the three, so it is
+    the canonical platform here.
     """
+
+    pytestmark = pytest.mark.skipif(
+        sys.platform != "linux",
+        reason=(
+            "CI-budget-only skip (see class docstring): permutation_test() "
+            "has no OS-dependent code path, so this oracle class runs on "
+            "Linux CI only to keep Windows/macOS Tests jobs under their "
+            "30-minute timeout."
+        ),
+    )
 
     def test_permutation_test_p_values_are_uniform_under_null(
         self, _calibration_permutation_results

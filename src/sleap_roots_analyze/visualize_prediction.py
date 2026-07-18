@@ -134,8 +134,16 @@ def create_prediction_figure(
         raise ValueError("permutation_results must be non-empty")
 
     fig, axes = plt.subplots(1, 3, figsize=figsize)
-    _pc1_scatter_panel(axes[0], target_predictions)
-    _r2_violin_panel(axes[1], permutation_results)
-    _top_quartile_bar_panel(axes[2], permutation_results)
+    try:
+        _pc1_scatter_panel(axes[0], target_predictions)
+        _r2_violin_panel(axes[1], permutation_results)
+        _top_quartile_bar_panel(axes[2], permutation_results)
+    except Exception:
+        # _pc1_scatter_panel's missing-"PC1" ValueError fires after
+        # plt.subplots() has already allocated `fig` -- close it here so a
+        # raised panel error never leaks a figure (round-2 /review-pr on PR
+        # #201, Behavioural Correctness).
+        plt.close(fig)
+        raise
     fig.tight_layout()
     return fig

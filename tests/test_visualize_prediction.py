@@ -9,6 +9,7 @@ basename in two different subpackages.
 
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -151,3 +152,49 @@ def test_create_prediction_figure_handles_single_target():
     assert len(fig.axes) == 3
     for ax in fig.axes:
         assert ax is not None
+    plt.close(fig)
+
+
+def test_create_prediction_figure_raises_on_empty_target_predictions():
+    """Empty target_predictions raises ValueError before any figure is allocated."""
+    permutation_results = [
+        _permutation_result("PC1", 0.8, [0.1, 0.2, 0.3], 0.6, [0.2, 0.3, 0.4])
+    ]
+    open_before = set(plt.get_fignums())
+
+    with pytest.raises(ValueError, match="target_predictions must be non-empty"):
+        create_prediction_figure([], permutation_results)
+
+    assert set(plt.get_fignums()) == open_before
+
+
+def test_create_prediction_figure_raises_on_empty_permutation_results():
+    """Empty permutation_results raises ValueError before any figure is allocated."""
+    target_predictions = [_target_prediction("PC1", [1.0, 2.0], [1.1, 1.9])]
+    open_before = set(plt.get_fignums())
+
+    with pytest.raises(ValueError, match="permutation_results must be non-empty"):
+        create_prediction_figure(target_predictions, [])
+
+    assert set(plt.get_fignums()) == open_before
+
+
+def test_create_prediction_figure_raises_on_missing_pc1_target_and_closes_figure():
+    """Missing 'PC1' target raises ValueError and leaks no figure.
+
+    Regression test for the round-2 `/review-pr` finding (PR #201,
+    Behavioural Correctness): `_pc1_scatter_panel`'s ValueError fires after
+    `plt.subplots()` has already allocated a figure, so without the
+    `create_prediction_figure` try/except closing it, this path would leak
+    one figure per call.
+    """
+    target_predictions = [_target_prediction("trait_a", [1.0, 2.0], [1.1, 1.9])]
+    permutation_results = [
+        _permutation_result("trait_a", 0.7, [0.1, 0.2, 0.3], 0.5, [0.2, 0.3, 0.4])
+    ]
+    open_before = set(plt.get_fignums())
+
+    with pytest.raises(ValueError, match="PC1"):
+        create_prediction_figure(target_predictions, permutation_results)
+
+    assert set(plt.get_fignums()) == open_before
