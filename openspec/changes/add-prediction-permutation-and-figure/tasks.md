@@ -678,19 +678,29 @@
 
 ## 13. Validation
 
-- [ ] 13.1 `openspec validate add-prediction-permutation-and-figure --strict` — resolve every
-      reported issue.
-- [ ] 13.2 `/lint` (black + ruff) on all changed files.
-- [ ] 13.3 Full `uv run pytest --cov --cov-branch` — no regressions, all new tests (Sections
-      2-9) green.
-- [ ] 13.4 `/review-openspec` — adversarial proposal review, budget for multiple independent
+- [x] 13.1 `openspec validate add-prediction-permutation-and-figure --strict` — resolve every
+      reported issue. **Passes.**
+- [x] 13.2 `/lint` (black + ruff) on all changed files. **Clean** (verified against this branch's
+      actual changed-file list, not the full repo — a full-repo scan surfaces 33 pre-existing
+      docstring-convention errors on `main`, unrelated to this branch, in files this branch never
+      touches).
+- [x] 13.3 Full `uv run pytest --cov --cov-branch` — no regressions, all new tests (Sections
+      2-9) green. **Ran full suite (3748s): 1 failed, 2823 passed, 31 skipped.** The 1 failure
+      (`test_sweep_covers_all_stochastic_functions`) was a real, correctly-caught gap:
+      `permutation_test`'s new `random_state` parameter made it a newly-discoverable stochastic
+      function with no reproducibility-sweep case. Fixed (registered in
+      `tests/reproducibility_cases.py` + `EXPECTED_QUALNAMES`); re-verified green, plus a full
+      re-run of every Tier 3/3.5/4 + reproducibility + public-API test file together (298 passed,
+      18 skipped, 0 failed).
+- [x] 13.4 `/review-openspec` — adversarial proposal review, budget for multiple independent
       rounds (this program's established pattern: BLOCKING findings diminishing round over round —
       NOT yet the case after round 2 here, which found 2 new BLOCKING + several IMPORTANT; a
       further round is warranted before this is a natural stopping point). Reconcile literally
-      into `design.md`.
+      into `design.md`. **Done — 4 rounds, round 4 found 0 new BLOCKING.**
 - [x] 13.5 Wait for Elizabeth's explicit approval of the fully-reconciled proposal before starting
       implementation (Sections 1-10). **Approved 2026-07-17.**
-- [ ] 13.6 Section 11's manual real-data validation gate, complete with sign-off.
+- [x] 13.6 Section 11's manual real-data validation gate, complete with sign-off. **Signed off
+      2026-07-17.**
 - [ ] 13.7 Post-implementation code review: `/pre-merge-check` including a 5-subagent `/review-pr`
       self-review pass before the PR opens, and a second fresh pass once CI runs on the open PR
       (mirroring Tier 3/3.5's precedent — both passes have caught real bugs every tier so far).
