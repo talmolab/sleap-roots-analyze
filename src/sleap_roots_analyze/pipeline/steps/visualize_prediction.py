@@ -18,7 +18,10 @@ import numpy as np
 from joblib import Parallel, delayed
 from sklearn.preprocessing import StandardScaler
 
-from sleap_roots_analyze.cross_platform_prediction import permutation_test
+from sleap_roots_analyze.cross_platform_prediction import (
+    PermutationTestResult,
+    permutation_test,
+)
 from sleap_roots_analyze.pca import fit_pca
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.result_types import (
@@ -80,6 +83,13 @@ class VisualizePredictionStep(BaseStep):
             ``(method, target_name)`` combination (Sections 7b/7c extend this
             into the final JSON/figure output).
         """
+        if prev_result is None:
+            raise ValueError(
+                "prev_result (task 6's StepResult) is required -- "
+                "VisualizePredictionStep reads its metadata "
+                "(source_platform/target_platform)"
+            )
+
         pcfg = config.prediction
         predictor_matrices = data["predictor_matrices"]
         source_clean = predictor_matrices["source_clean"]
@@ -125,7 +135,9 @@ class VisualizePredictionStep(BaseStep):
         seed_sequence = np.random.SeedSequence(pcfg.permutation_random_state)
         child_seeds = seed_sequence.spawn(len(combinations))
 
-        def _run_unit(method: str, target_name: str, seed: np.random.SeedSequence):
+        def _run_unit(
+            method: str, target_name: str, seed: np.random.SeedSequence
+        ) -> tuple[str, str, PermutationTestResult]:
             result = permutation_test(
                 X=source_clean,
                 y=target_y[target_name],
