@@ -533,8 +533,27 @@
       on an open PR; record the 3 per-OS numbers here and compare against the ~8-minute serial
       estimate above (per the CI-timeout note's own "estimate, not measurement" framing).
       **Local measurement (dev machine, Windows, serial):** 9m28s for
-      `TestPermutationOracles`'s 6 tests. Consistent with the ~9-minute estimate. Per-OS CI numbers
-      still pending -- to be recorded once this section is green on the open PR (13.7).
+      `TestPermutationOracles`'s 6 tests. Consistent with the ~9-minute estimate.
+
+      **CI measurement (PR #201, first push) -- this estimate held locally but NOT on CI runners.**
+      `Tests (ubuntu, Python 3.11)` and `Tests (windows, Python 3.11)` both hit the job's
+      `timeout-minutes: 30` and were canceled; `test_cross_platform_prediction.py` alone (which
+      houses `TestPermutationOracles`) had run for **20m19s** at cancellation (01:02:21-01:22:40),
+      consuming two-thirds of the entire job budget by itself. Root cause: the *tests*, not
+      `permutation_test()` itself, redundantly recomputed the same fixture's `permutation_test()`
+      results once per sibling oracle test that shared it (the calibration fixture recomputed for
+      both 9.1/9.1a; the signal fixture recomputed for 9.2/9.2a/half of 9.4b; the noise fixture for
+      9.3/half of 9.4b) -- roughly 36,000 total `logo_cv_predict` calls -- combined with CI runners
+      measuring ~2x slower than this dev machine for this workload. **Fixed:** introduced
+      module-scoped pytest fixtures (`_calibration_permutation_results`,
+      `_signal_permutation_results`, `_noise_permutation_results`) computing each fixture's
+      `permutation_test()` results exactly once per test module, shared across every oracle test
+      that uses it, and reduced the CI oracle `n_permutations` from 200 to 100 (the empirically-
+      measured values recorded above and in design.md's Decision 11 note were measured at
+      n_permutations=200 and are unaffected -- only the CI regression check's own N changed).
+      Combined effect: ~36,000 -> ~8,000 `logo_cv_predict` calls (~4.4x). Re-measured locally:
+      `TestPermutationOracles` 9m28s -> **2m23s**; the full `test_cross_platform_prediction.py`
+      file 2m26s. Awaiting confirmation this fits the CI budget on the next push.
 
 ## 10. `theory.md` addendum
 

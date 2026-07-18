@@ -1335,44 +1335,116 @@ class TestPermutationTest:
             mock_logo_cv.assert_called_once()  # only the observed call, zero shuffled calls
 
 
+@pytest.fixture(scope="module")
+def _calibration_permutation_results():
+    """permutation_test() on all 40 calibration realizations, computed ONCE.
+
+    Found during CI (not local) runs: the original per-test-method
+    `_permutation_results(...)` recomputation (once per oracle test that
+    shares a fixture) pushed this one file's CI wall time to ~20 minutes on
+    Ubuntu/Windows runners (vs. ~9.5 min measured locally), blowing the
+    30-minute `Tests` job budget together with the rest of the suite.
+    Sharing one computation across every test that uses this fixture (via a
+    module-scoped pytest fixture, calling the plain generator function
+    directly rather than the function-scoped pytest fixture in
+    tests/fixtures.py -- pytest forbids a wider-scoped fixture depending on a
+    narrower-scoped one) cuts the redundant ~2x recomputation for this
+    fixture. Combined with the matching signal/noise fixtures below and a
+    reduced n_permutations=100 (from 200), this brings total logo_cv_predict
+    calls for Section 9 down from ~36,000 to ~8,000.
+    """
+    from tests.fixtures import _make_pure_noise_realization
+
+    realizations = [
+        _make_pure_noise_realization(19, 3, seed + 30000) for seed in range(1, 41)
+    ]
+    return [
+        permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="pls_latent",
+            n_permutations=100,
+            random_state=0,
+        )
+        for X, y, genotypes in realizations
+    ]
+
+
+@pytest.fixture(scope="module")
+def _signal_permutation_results():
+    """permutation_test() on all 20 planted-signal realizations, computed ONCE.
+
+    See `_calibration_permutation_results`'s docstring for why this is
+    module-scoped and shared across every oracle test that uses the signal
+    fixture, instead of each test recomputing it independently.
+    """
+    from tests.fixtures import _make_planted_signal_realization
+
+    realizations = [
+        _make_planted_signal_realization(19, 3, 0.8, seed) for seed in range(1, 21)
+    ]
+    return [
+        permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="pls_latent",
+            n_permutations=100,
+            random_state=0,
+        )
+        for X, y, genotypes in realizations
+    ]
+
+
+@pytest.fixture(scope="module")
+def _noise_permutation_results():
+    """permutation_test() on all 20 pure-noise realizations, computed ONCE.
+
+    See `_calibration_permutation_results`'s docstring for why this is
+    module-scoped and shared across every oracle test that uses the noise
+    fixture, instead of each test recomputing it independently.
+    """
+    from tests.fixtures import _make_pure_noise_realization
+
+    realizations = [
+        _make_pure_noise_realization(19, 3, seed + 10000) for seed in range(1, 21)
+    ]
+    return [
+        permutation_test(
+            X,
+            y,
+            genotypes,
+            reduction_method="pls_latent",
+            n_permutations=100,
+            random_state=0,
+        )
+        for X, y, genotypes in realizations
+    ]
+
+
 class TestPermutationOracles:
     """Oracle tests for permutation_test() (design.md Decision 11, tasks.md Section 9).
 
     Uses the N=20-seed planted-signal/pure-noise fixtures (task 1.1) and the
-    40-realization pure-noise K-S calibration fixture (task 1.2). Every test
-    below states an explicit, CI-fast ``n_permutations=200`` (not the
+    40-realization pure-noise K-S calibration fixture (task 1.2), each
+    computed exactly once per test module (see the module-scoped fixtures
+    above) at an explicit, CI-fast ``n_permutations=100`` (not the
     ``n_permutations=1000`` production default) and a fixed, committed
     literal ``random_state=0``, per the CI-timeout note at the top of
     tasks.md Section 9.
     """
 
-    @staticmethod
-    def _permutation_results(realizations, **kwargs):
-        return [
-            permutation_test(
-                X, y, genotypes, n_permutations=200, random_state=0, **kwargs
-            )
-            for X, y, genotypes in realizations
-        ]
-
     def test_permutation_test_p_values_are_uniform_under_null(
-        self, cross_platform_permutation_calibration_fixture
+        self, _calibration_permutation_results
     ):
-        """K-S calibration oracle: p_value_r2 is uniform under a pure-noise null.
-
-        Empirically measured (this task's implementation): K-S p=0.273 across
-        the 40 fixtures at n_permutations=200, reduction_method="pls_latent".
-        """
-        results = self._permutation_results(
-            cross_platform_permutation_calibration_fixture,
-            reduction_method="pls_latent",
-        )
-        p_values = [r.p_value_r2 for r in results]
+        """K-S calibration oracle: p_value_r2 is uniform under a pure-noise null."""
+        p_values = [r.p_value_r2 for r in _calibration_permutation_results]
         ks_result = kstest(p_values, "uniform")
         assert ks_result.pvalue > 0.05
 
     def test_permutation_test_p_value_rmse_is_uniform_under_null(
-        self, cross_platform_permutation_calibration_fixture
+        self, _calibration_permutation_results
     ):
         """K-S calibration oracle for p_value_rmse -- calibration only, not direction.
 
@@ -1384,92 +1456,85 @@ class TestPermutationOracles:
         ``test_permutation_test_signal_p_value_rmse_reads_as_significant``
         below, not this test, is what actually guards the RMSE direction.
         """
-        results = self._permutation_results(
-            cross_platform_permutation_calibration_fixture,
-            reduction_method="pls_latent",
-        )
-        p_values = [r.p_value_rmse for r in results]
+        p_values = [r.p_value_rmse for r in _calibration_permutation_results]
         ks_result = kstest(p_values, "uniform")
         assert ks_result.pvalue > 0.05
 
     def test_permutation_test_signal_r2_exceeds_its_own_null_median(
-        self, cross_platform_planted_signal_fixture
+        self, _signal_permutation_results
     ):
         """Mean observed R2 across seeds is comfortably above the mean null median.
 
-        Empirically measured: mean observed R2 ~= 0.646, mean null median
-        R2 ~= -0.315 (gap ~= 0.96) at n_permutations=200.
+        Empirically measured (at n_permutations=200; see design.md Decision
+        11 -- the CI oracle above uses a smaller n_permutations=100 for
+        speed): mean observed R2 ~= 0.646, mean null median R2 ~= -0.315
+        (gap ~= 0.96).
         """
-        results = self._permutation_results(
-            cross_platform_planted_signal_fixture, reduction_method="pls_latent"
+        mean_observed = np.mean([r.observed_r2 for r in _signal_permutation_results])
+        mean_null_median = np.mean(
+            [np.median(r.null_r2) for r in _signal_permutation_results]
         )
-        mean_observed = np.mean([r.observed_r2 for r in results])
-        mean_null_median = np.mean([np.median(r.null_r2) for r in results])
         assert mean_observed - mean_null_median > 0.5
 
     def test_permutation_test_signal_p_value_rmse_reads_as_significant(
-        self, cross_platform_planted_signal_fixture
+        self, _signal_permutation_results
     ):
         """A genuinely low-RMSE (good) signal result reads as significant.
 
         Direct regression guard for the RMSE directional-inversion bug found
         during `/review-openspec` round 3 -- the naive R2/rho-style
         right-tail formula would instead produce p_value_rmse ~= 1.0 here.
-        Empirically measured: mean p_value_rmse ~= 0.0085 at
-        n_permutations=200.
+        Empirically measured (at n_permutations=200): mean p_value_rmse
+        ~= 0.0085.
         """
-        results = self._permutation_results(
-            cross_platform_planted_signal_fixture, reduction_method="pls_latent"
+        mean_p_value_rmse = np.mean(
+            [r.p_value_rmse for r in _signal_permutation_results]
         )
-        mean_p_value_rmse = np.mean([r.p_value_rmse for r in results])
         assert mean_p_value_rmse < 0.1
 
     def test_permutation_test_noise_r2_falls_within_its_own_null_band(
-        self, cross_platform_pure_noise_fixture
+        self, _noise_permutation_results
     ):
         """Mean observed R2 (noise) falls within mean-null-median +/- 1 SD.
 
-        Empirically measured: mean observed R2 ~= -0.254, mean null median
-        ~= -0.321, mean null SD ~= 0.213 at n_permutations=200.
+        Empirically measured (at n_permutations=200): mean observed R2
+        ~= -0.254, mean null median ~= -0.321, mean null SD ~= 0.213.
         """
-        results = self._permutation_results(
-            cross_platform_pure_noise_fixture, reduction_method="pls_latent"
+        mean_observed = np.mean([r.observed_r2 for r in _noise_permutation_results])
+        mean_null_median = np.mean(
+            [np.median(r.null_r2) for r in _noise_permutation_results]
         )
-        mean_observed = np.mean([r.observed_r2 for r in results])
-        mean_null_median = np.mean([np.median(r.null_r2) for r in results])
-        mean_null_sd = np.mean([np.std(r.null_r2) for r in results])
+        mean_null_sd = np.mean([np.std(r.null_r2) for r in _noise_permutation_results])
         assert abs(mean_observed - mean_null_median) <= mean_null_sd
 
     def test_permutation_test_top_quartile_recovery_signal_vs_noise(
-        self, cross_platform_planted_signal_fixture, cross_platform_pure_noise_fixture
+        self, _signal_permutation_results, _noise_permutation_results
     ):
         """Signal recovery >=80%; noise recovery close to the empirical null value.
 
-        Spike (tasks.md 9.4a), computed via this same fixture/n_permutations:
-        the pure-noise fixture's actual mean null top-quartile-recovery is
-        ~=0.443 (44.3%) -- cross-checked against the theoretical chance-level
-        baseline 2*q/n = 10/19 ~= 0.526 (design.md Decision 11): close but not
-        identical, since the theoretical value assumes a uniformly random
-        y_pred, while the empirical null instead reflects this fixture's real
+        Spike (tasks.md 9.4a): the pure-noise fixture's actual mean null
+        top-quartile-recovery (computed fresh from this same fixture/run, not
+        a hardcoded literal) is cross-checked against the theoretical
+        chance-level baseline 2*q/n = 10/19 ~= 0.526 (design.md Decision 11):
+        close but not identical (measured ~=0.443 at n_permutations=200),
+        since the theoretical value assumes a uniformly random y_pred, while
+        the empirical null instead reflects this fixture's real
         (correlated-by-construction) predictor structure fed through
-        `logo_cv_predict`. The noise fixture's own *observed* recovery
-        (~=0.45) is, as expected, close to this empirical null (not the
-        theoretical one), not a blindly-pinned "25%".
+        `logo_cv_predict`. The noise fixture's own *observed* recovery is, as
+        expected, close to this empirical null, not a blindly-pinned "25%".
         """
-        signal_results = self._permutation_results(
-            cross_platform_planted_signal_fixture, reduction_method="pls_latent"
-        )
-        noise_results = self._permutation_results(
-            cross_platform_pure_noise_fixture, reduction_method="pls_latent"
-        )
         mean_signal_tqr = np.mean(
-            [r.observed_top_quartile_recovery for r in signal_results]
+            [r.observed_top_quartile_recovery for r in _signal_permutation_results]
         )
         mean_noise_tqr = np.mean(
-            [r.observed_top_quartile_recovery for r in noise_results]
+            [r.observed_top_quartile_recovery for r in _noise_permutation_results]
         )
         empirical_null_tqr = np.mean(
-            [v for r in noise_results for v in r.null_top_quartile_recovery]
+            [
+                v
+                for r in _noise_permutation_results
+                for v in r.null_top_quartile_recovery
+            ]
         )
 
         assert mean_signal_tqr >= 0.8

@@ -4381,6 +4381,32 @@ def cross_platform_planted_signal_fixture():
     return [_make_planted_signal_realization(19, 3, 0.8, seed) for seed in range(1, 21)]
 
 
+def _make_pure_noise_realization(n_genotypes, n_traits, seed):
+    """Build one pure-noise LOGO-CV realization: X and y independently drawn.
+
+    Factored out (Tier 4, #200) so both ``cross_platform_pure_noise_fixture``
+    and the K-S calibration fixture below can share the exact same generation
+    logic at different seed offsets/realization counts, and so a module-scoped
+    test fixture can call it directly without a pytest function-scope
+    mismatch.
+
+    Args:
+        n_genotypes: Number of genotypes (rows).
+        n_traits: Number of predictor traits (columns).
+        seed: Seed for ``np.random.default_rng``.
+
+    Returns:
+        tuple[pd.DataFrame, np.ndarray, list[str]]: ``(X, y, genotypes)``.
+    """
+    rng = np.random.default_rng(seed)
+    genotypes = [f"geno_{i:02d}" for i in range(n_genotypes)]
+    trait_names = [f"trait_{j}" for j in range(n_traits)]
+    X = rng.standard_normal((n_genotypes, n_traits))
+    y = rng.standard_normal(n_genotypes)
+    X_df = pd.DataFrame(X, index=genotypes, columns=trait_names)
+    return X_df, y, genotypes
+
+
 @pytest.fixture
 def cross_platform_pure_noise_fixture():
     """20 independent pure-noise LOGO-CV realizations (n=19, p=3 traits).
@@ -4396,17 +4422,7 @@ def cross_platform_pure_noise_fixture():
         list[tuple[pd.DataFrame, np.ndarray, list[str]]]: 20 ``(X, y,
         genotypes)`` realizations.
     """
-    realizations = []
-    for seed in range(1, 21):
-        rng = np.random.default_rng(seed + 10000)
-        n_genotypes, n_traits = 19, 3
-        genotypes = [f"geno_{i:02d}" for i in range(n_genotypes)]
-        trait_names = [f"trait_{j}" for j in range(n_traits)]
-        X = rng.standard_normal((n_genotypes, n_traits))
-        y = rng.standard_normal(n_genotypes)
-        X_df = pd.DataFrame(X, index=genotypes, columns=trait_names)
-        realizations.append((X_df, y, genotypes))
-    return realizations
+    return [_make_pure_noise_realization(19, 3, seed + 10000) for seed in range(1, 21)]
 
 
 @pytest.fixture
@@ -4458,14 +4474,4 @@ def cross_platform_permutation_calibration_fixture():
         list[tuple[pd.DataFrame, np.ndarray, list[str]]]: 40 ``(X, y,
         genotypes)`` realizations, seeds 1..40 (offset +30000).
     """
-    realizations = []
-    for seed in range(1, 41):
-        rng = np.random.default_rng(seed + 30000)
-        n_genotypes, n_traits = 19, 3
-        genotypes = [f"geno_{i:02d}" for i in range(n_genotypes)]
-        trait_names = [f"trait_{j}" for j in range(n_traits)]
-        X = rng.standard_normal((n_genotypes, n_traits))
-        y = rng.standard_normal(n_genotypes)
-        X_df = pd.DataFrame(X, index=genotypes, columns=trait_names)
-        realizations.append((X_df, y, genotypes))
-    return realizations
+    return [_make_pure_noise_realization(19, 3, seed + 30000) for seed in range(1, 41)]
