@@ -701,6 +701,14 @@
       implementation (Sections 1-10). **Approved 2026-07-17.**
 - [x] 13.6 Section 11's manual real-data validation gate, complete with sign-off. **Signed off
       2026-07-17.**
-- [ ] 13.7 Post-implementation code review: `/pre-merge-check` including a 5-subagent `/review-pr`
+- [x] 13.7 Post-implementation code review: `/pre-merge-check` including a 5-subagent `/review-pr`
       self-review pass before the PR opens, and a second fresh pass once CI runs on the open PR
       (mirroring Tier 3/3.5's precedent — both passes have caught real bugs every tier so far).
+      **Pre-PR pass done:** 0 BLOCKING across all 5 lenses. Fixed: a real, confirmed
+      `plt.close(fig)` leak in `VisualizePredictionStep` (broke this codebase's established
+      per-figure-step convention); inconsistent int/bool validation across the 3 permutation
+      config fields; `top_quartile_recovery`'s default `q` silently wrong (not raising) at `n=1`;
+      `PermutationTestResult` missing from package-root exports; a one-directional naming-collision
+      docstring cross-reference; a pooling-validity comment. Declined: write-to-temp-then-rename
+      for the JSON write loop (low-probability failure mode, outside the documented contract).
+      Full re-run: 193 passed, 0 failed. Second pass pending the open PR's CI run.
