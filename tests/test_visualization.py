@@ -4587,3 +4587,108 @@ class TestBoxplotGenotypePagination:
 
         for fig in figures:
             plt.close(fig)
+
+
+class TestBatchedFigureGenerators:
+    """Tests for the private generator functions backing the batched figure
+    creators (Issue #110).
+
+    ExploratoryAnalysisStep and GenerateStaticFiguresStep need to save+close
+    each batch figure as soon as it's produced, not after the full batch list
+    already exists in memory. This requires the batched creators to be
+    expressible as generators (yield one figure at a time), with the existing
+    public functions becoming thin list(...) wrappers so external callers are
+    unaffected.
+    """
+
+    def _make_df(self, n_genotypes, n_traits=1, samples_per_geno=2):
+        """Helper to create a DataFrame with the given number of genotypes."""
+        np.random.seed(42)
+        n_samples = n_genotypes * samples_per_geno
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [
+            f"Genotype_{i:03d}" for i in range(n_genotypes)
+        ] * samples_per_geno
+        return pd.DataFrame(data)
+
+    def test_histogram_generator_matches_list_wrapper_output(self):
+        """list(_generate_trait_histogram_batches(...)) matches the public wrapper."""
+        from sleap_roots_analyze.visualization import (
+            _generate_trait_histogram_batches,
+            create_trait_histograms_batched,
+        )
+
+        df = self._make_df(10, n_traits=20)
+        trait_cols = [f"trait_{i}" for i in range(20)]
+
+        wrapper_figures = create_trait_histograms_batched(
+            df, trait_cols, batch_size=8
+        )
+        generator_figures = list(
+            _generate_trait_histogram_batches(df, trait_cols, batch_size=8)
+        )
+
+        assert len(generator_figures) == len(wrapper_figures)
+        for gen_fig, wrap_fig in zip(generator_figures, wrapper_figures):
+            assert gen_fig.get_size_inches() == pytest.approx(
+                wrap_fig.get_size_inches()
+            )
+
+        for fig in wrapper_figures:
+            plt.close(fig)
+        for fig in generator_figures:
+            plt.close(fig)
+
+    def test_boxplot_generator_matches_list_wrapper_output(self):
+        """list(_generate_trait_boxplot_batches(...)) matches the public wrapper,
+        including paginated output."""
+        from sleap_roots_analyze.visualization import _generate_trait_boxplot_batches
+
+        df = self._make_df(480, n_traits=20)
+        trait_cols = [f"trait_{i}" for i in range(20)]
+
+        wrapper_figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=8
+        )
+        generator_figures = list(
+            _generate_trait_boxplot_batches(df, trait_cols, batch_size=8)
+        )
+
+        assert len(generator_figures) == len(wrapper_figures)
+        assert len(generator_figures) > 1  # sanity: pagination should have engaged
+        for gen_fig, wrap_fig in zip(generator_figures, wrapper_figures):
+            assert gen_fig.get_size_inches() == pytest.approx(
+                wrap_fig.get_size_inches()
+            )
+
+        for fig in wrapper_figures:
+            plt.close(fig)
+        for fig in generator_figures:
+            plt.close(fig)
+
+    def test_boxplot_generator_yields_lazily(self):
+        """A figure is not created until the generator is actually advanced."""
+        from sleap_roots_analyze.visualization import _generate_trait_boxplot_batches
+
+        df = self._make_df(480, n_traits=1)
+        trait_cols = ["trait_0"]
+
+        fignums_before = set(plt.get_fignums())
+        gen = _generate_trait_boxplot_batches(df, trait_cols)
+
+        # Constructing the generator must not create any figures yet
+        assert set(plt.get_fignums()) == fignums_before, (
+            "Generator construction should not eagerly create figures"
+        )
+
+        first_fig = next(gen)
+        fignums_after_one = set(plt.get_fignums())
+        assert len(fignums_after_one - fignums_before) == 1, (
+            "Advancing the generator once should create exactly one new figure, "
+            "not the entire batch"
+        )
+        plt.close(first_fig)
+
+        remaining = list(gen)
+        for fig in remaining:
+            plt.close(fig)

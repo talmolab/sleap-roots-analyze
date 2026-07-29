@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -428,3 +429,137 @@ class TestExploratoryAnalysisMetadataPropagation:
         )
 
         assert result.metadata["samples"] == 30
+
+
+@pytest.fixture
+def large_genotype_data():
+    """Synthetic DataFrame shaped like the real #110 failure: many genotypes,
+    many traits (480 genotypes x 300 traits) -- no proprietary data needed."""
+    np.random.seed(42)
+    n_genotypes = 480
+    n_traits = 300
+    samples_per_geno = 2
+    n_samples = n_genotypes * samples_per_geno
+    data = {
+        "Barcode": [f"plant{i}" for i in range(n_samples)],
+        "geno": [f"Genotype_{i:03d}" for i in range(n_genotypes)] * samples_per_geno,
+        "rep": [1, 2] * n_genotypes,
+    }
+    for i in range(n_traits):
+        data[f"trait{i + 1}"] = np.random.randn(n_samples) * 10 + 50
+    return pd.DataFrame(data)
+
+
+@pytest.fixture
+def large_config():
+    """Config with low DPI for fast test rendering of many figures."""
+    return QCPipelineConfig(
+        pipeline_name="test_qc_large",
+        columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+        data=DataConfig(csv_path="dummy.csv"),
+        cleanup=CleanupConfig(
+            max_zeros_per_trait=0.5,
+            max_nans_per_trait=0.3,
+            min_samples_per_trait=2,
+        ),
+        visualization=VisualizationConfig(dpi=100),
+    )
+
+
+@pytest.fixture
+def large_prev_result(large_genotype_data):
+    """Mock previous step result for the large-genotype fixture."""
+    trait_cols = [f"trait{i + 1}" for i in range(300)]
+    return StepResult(
+        data=large_genotype_data,
+        metadata={
+            "valid_trait_names": trait_cols,
+            "trait_names": trait_cols,
+            "samples": len(large_genotype_data),
+            "cleanup_log": {},
+        },
+        files_generated=[],
+    )
+
+
+class TestExploratoryAnalysisMemoryBounds:
+    """Tests for bounded peak concurrent figures during execute() (Issue #110).
+
+    ExploratoryAnalysisStep.execute() previously accumulated every generated
+    figure into an all_figures dict before saving/closing any of them --- peak
+    memory was the sum of every figure held at once, not the size of the
+    single largest one. These tests instrument figure lifecycle to assert the
+    peak number of simultaneously-open figures stays a small constant, not on
+    the order of the total figures the step generates.
+    """
+
+    def test_peak_concurrent_figures_bounded_during_execute(
+        self, large_genotype_data, large_config, large_prev_result, tmp_path
+    ):
+        """Peak concurrently-open figures during execute() stays small.
+
+        Sampled at both figure-creation time (plt.subplots) and close time
+        (plt.close) -- sampling only at close time could miss a figure that's
+        created but never explicitly closed, silently undercounting a leak.
+        """
+        peak_fignums = 0
+        original_close = plt.close
+        original_subplots = plt.subplots
+
+        def tracking_close(*args, **kwargs):
+            nonlocal peak_fignums
+            peak_fignums = max(peak_fignums, len(plt.get_fignums()))
+            return original_close(*args, **kwargs)
+
+        def tracking_subplots(*args, **kwargs):
+            result = original_subplots(*args, **kwargs)
+            nonlocal peak_fignums
+            peak_fignums = max(peak_fignums, len(plt.get_fignums()))
+            return result
+
+        step = ExploratoryAnalysisStep()
+
+        with (
+            patch("matplotlib.pyplot.close", side_effect=tracking_close),
+            patch("matplotlib.pyplot.subplots", side_effect=tracking_subplots),
+        ):
+            step.execute(
+                data=large_genotype_data,
+                config=large_config,
+                run_dir=tmp_path,
+                prev_result=large_prev_result,
+            )
+
+        # Measured peak with the incremental save/close implementation is 4
+        # (one in-flight figure at a time, plus a small margin for overlap
+        # between a figure's creation and its close). Before this fix, the
+        # same fixture measured a peak of 45 (all_figures accumulation).
+        assert peak_fignums <= 5, (
+            f"Peak concurrently-open figures was {peak_fignums}, expected a "
+            "small constant (measured 4 with incremental save/close), not "
+            "scaling with the total number of figures generated (45 before "
+            "this fix)"
+        )
+
+    def test_execute_completes_and_produces_figures_for_large_dataset(
+        self, large_genotype_data, large_config, large_prev_result, tmp_path
+    ):
+        """execute() completes without raising and produces expected output files."""
+        step = ExploratoryAnalysisStep()
+
+        result = step.execute(
+            data=large_genotype_data,
+            config=large_config,
+            run_dir=tmp_path,
+            prev_result=large_prev_result,
+        )
+
+        figures_dir = tmp_path / "figures"
+        png_files = list(figures_dir.glob("*.png"))
+        assert len(png_files) > 0
+
+        # Batched boxplots should be paginated (many genotype pages) for 480 genotypes
+        box_batches = [
+            name for name in result.metadata["figure_names"] if "boxplots_batch" in name
+        ]
+        assert len(box_batches) > 1
