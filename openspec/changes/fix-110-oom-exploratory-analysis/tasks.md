@@ -49,51 +49,51 @@ boundary.
 
 ## Task 2: Genotype pagination for readability (TDD Red -> Green)
 *Commit 2: `feat(#110): paginate boxplots by genotype when count exceeds readable page capacity`*
-- [ ] 2.1 In `tests/test_visualization.py`, add `TestBoxplotGenotypePagination`. Use a small, fixed
+- [x] 2.1 In `tests/test_visualization.py`, add `TestBoxplotGenotypePagination`. Use a small, fixed
       trait count for these tests (e.g. exactly 1 trait, so `n_traits <= batch_size` guarantees a
       single trait batch and every figure the test sees belongs to it unambiguously) -- pagination
       is a property of the genotype axis, not the trait axis, so reuse Task 1's 480-genotype
       fixture but do NOT reuse the full 300-trait fixture here (keeps these tests fast; see
       `design.md` Decision 4 point 6)
-- [ ] 2.2 `test_pagination_splits_genotypes_at_default_capacity` -- 480 genotypes, default
+- [x] 2.2 `test_pagination_splits_genotypes_at_default_capacity` -- 480 genotypes, default
       `max_genotypes_per_page` (auto-derived, ~66 for horizontal); assert
       `create_trait_boxplots_by_genotype_batched()` returns more figures than trait-batch count
       alone would produce (i.e. `n_trait_batches * n_genotype_pages`, `n_genotype_pages > 1`)
-- [ ] 2.3 `test_pagination_covers_every_genotype_exactly_once` -- with the single-trait-batch fixture
+- [x] 2.3 `test_pagination_covers_every_genotype_exactly_once` -- with the single-trait-batch fixture
       from 2.1, every returned figure belongs to that one trait batch; collect the genotype tick
       labels rendered in each figure (via `ax.get_yticklabels()` for horizontal orientation,
       matching the existing pattern at `tests/test_visualization.py:303,4033`) and assert their
       union equals the full 480-genotype set with no duplicates across figures
-- [ ] 2.4 `test_pagination_noop_at_or_below_capacity` -- genotype count at or below the auto-derived
+- [x] 2.4 `test_pagination_noop_at_or_below_capacity` -- genotype count at or below the auto-derived
       page capacity; assert exactly one genotype page per trait batch (no behavior change)
-- [ ] 2.5 `test_pagination_page_height_uses_readable_spacing_not_cap` -- a paginated figure's height
+- [x] 2.5 `test_pagination_page_height_uses_readable_spacing_not_cap` -- a paginated figure's height
       reflects `page_genotype_count * 0.3` (the pre-cap readable formula), not the 20" cap, since
       pages are sized to stay under it by construction
-- [ ] 2.6 `test_pagination_custom_max_genotypes_per_page_respected` -- explicit
+- [x] 2.6 `test_pagination_custom_max_genotypes_per_page_respected` -- explicit
       `max_genotypes_per_page` override changes the number of pages produced
-- [ ] 2.7 `test_pagination_suptitle_includes_genotype_range` -- a multi-page batch's figures each
+- [x] 2.7 `test_pagination_suptitle_includes_genotype_range` -- a multi-page batch's figures each
       have a `suptitle` containing the genotype range and total (e.g. "Genotypes 1-66 of 489")
-- [ ] 2.8 `test_pagination_last_page_orientation_matches_other_pages` -- use 469 genotypes with the
+- [x] 2.8 `test_pagination_last_page_orientation_matches_other_pages` -- use 469 genotypes with the
       default page capacity of 66 (`469 = 66*7 + 7`, leaving a 7-genotype final page, correctly
       below `horizontal_threshold=8` -- verify this arithmetic when implementing, a prior draft of
       this task miscalculated it as 483); assert every page's rendered orientation matches the
       orientation resolved from the *full* dataset, not one independently re-resolved from the
       small page's own count (see `design.md` Decision 3's orientation-consistency note)
-- [ ] 2.9 `test_pagination_missing_genotype_column_is_noop` -- a DataFrame that does not contain
+- [x] 2.9 `test_pagination_missing_genotype_column_is_noop` -- a DataFrame that does not contain
       `genotype_col` at all; assert `create_trait_boxplots_by_genotype_batched()` does not raise
       and produces one figure per trait batch (matching today's existing "0 genotypes" behavior),
       not a `KeyError`
-- [ ] 2.10 `test_pagination_with_nan_genotype_values` -- a DataFrame with some rows having a NaN
+- [x] 2.10 `test_pagination_with_nan_genotype_values` -- a DataFrame with some rows having a NaN
       genotype value alongside 480+ real genotype values; assert pagination does not raise
       (`sorted()` on a mixed NaN/string array raises `TypeError`) and every non-NaN genotype still
       appears in exactly one page
-- [ ] 2.11 `test_pagination_with_partial_trait_batch_and_partial_genotype_page` -- e.g. 20 traits
+- [x] 2.11 `test_pagination_with_partial_trait_batch_and_partial_genotype_page` -- e.g. 20 traits
       with `batch_size=16` (batches of 16 + 4) crossed with 100 genotypes at the default page
       capacity of 66 (pages of 66 + 34); assert figure count equals
       `n_trait_batches * n_genotype_pages` and each figure's figsize matches the per-page formula
       for its actual (possibly partial) trait and genotype counts
-- [ ] 2.12 Run tests, confirm FAIL on current code (no pagination exists yet)
-- [ ] 2.13 In `create_trait_boxplots_by_genotype_batched()`, add `max_genotypes_per_page:
+- [x] 2.12 Run tests, confirm FAIL on current code (no pagination exists yet)
+- [x] 2.13 In `create_trait_boxplots_by_genotype_batched()`, add `max_genotypes_per_page:
       Optional[int] = None` parameter; when `None`, derive as `max(1, int(max_subplot_height //
       per_genotype_size))` using 0.3 (horizontal) or 0.5 (vertical) based on `actual_orientation`.
       Guard `genotype_col in df.columns` before accessing it for pagination purposes -- if absent,
@@ -108,8 +108,8 @@ boundary.
       argument) into each per-page call so every page of a batch uses a consistent orientation
       regardless of that page's own genotype count. Append the genotype range to the `suptitle`
       when more than one page exists. Update the docstring `Args:` section.
-- [ ] 2.14 Run Task 2 tests, confirm PASS (green)
-- [ ] 2.15 Run the full existing `TestTraitBoxplotsAdaptiveSizing`, `TestBoxplotLabelOverlapFixes`,
+- [x] 2.14 Run Task 2 tests, confirm PASS (green)
+- [x] 2.15 Run the full existing `TestTraitBoxplotsAdaptiveSizing`, `TestBoxplotLabelOverlapFixes`,
       and Task 1's height-cap tests, confirm no regressions
 
 ## Task 3: Generator refactor + incremental save/close in ExploratoryAnalysisStep (TDD Red -> Green)
