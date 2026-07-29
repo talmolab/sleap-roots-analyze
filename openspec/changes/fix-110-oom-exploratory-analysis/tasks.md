@@ -178,17 +178,20 @@ boundary.
 - [x] 4.5 Run the full existing static-figures test suite, confirm no regressions (70 passed)
 
 ## Task 5: End-to-end regression test against the real failure shape
-*Commit 5: `test(#110): add end-to-end OOM regression test at real failure scale`*
-- [ ] 5.1 Add an integration-style test (not marked `@pytest.mark.integration`, per Task 3.6's
-      reasoning) running `ExploratoryAnalysisStep.execute()` end-to-end against the 480x300
-      synthetic fixture, with `enable_batched_plots=True`
-- [ ] 5.2 Assert the step completes without raising and produces the expected figure files on disk,
-      including multiple genotype-paginated boxplot batches
-- [ ] 5.3 Assert peak concurrent figures stays bounded (reuse the Task 3.5 instrumentation)
+- [x] 5.1 Already satisfied by Task 3's `TestExploratoryAnalysisMemoryBounds` (no separate commit
+      needed): `test_execute_completes_and_produces_figures_for_large_dataset` runs
+      `ExploratoryAnalysisStep.execute()` end-to-end against the 480x300 synthetic fixture with
+      `enable_batched_plots=True` (the `VisualizationConfig` default)
+- [x] 5.2 Covered by the same test: asserts the step completes without raising, produces PNG figure
+      files on disk, and produces multiple genotype-paginated boxplot batches (`box_batches > 1`)
+- [x] 5.3 Covered by the sibling test in the same class,
+      `test_peak_concurrent_figures_bounded_during_execute`, using the Task 3.5 instrumentation
+      against the identical fixture -- splitting "completes and produces correct output" from "peak
+      memory stays bounded" into two focused tests rather than one combined test
 
 ## Task 6: Documentation and finalization
-*Commit 6: `chore(#110): changelog entry`* (or fold into Commit 5 if trivial)
-- [ ] 6.1 Add a `### Fixed` entry to `docs/CHANGELOG.md` under `[Unreleased]` for #110: incremental
+*Commit 5: `docs(#110): changelog entry`*
+- [x] 6.1 Add a `### Fixed` entry to `docs/CHANGELOG.md` under `[Unreleased]` for #110: incremental
       figure save/close in `ExploratoryAnalysisStep` and `GenerateStaticFiguresStep` (fixes OOM on
       large genotype counts); the new `max_subplot_height` cap (default 20.0") on
       `create_trait_boxplots_by_genotype()` / `create_trait_boxplots_by_genotype_batched()`'s
