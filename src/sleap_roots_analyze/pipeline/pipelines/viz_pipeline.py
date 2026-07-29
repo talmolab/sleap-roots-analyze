@@ -438,6 +438,14 @@ class VizPipeline(BasePipeline):
                     "pca_explained_variance": pca_step_result.metadata.get(
                         "pca_explained_variance"
                     ),
+                    # Issue #80: trait_names/original_trait_names must come
+                    # from the PCA branch too, not just pca_results/top_features
+                    # above — otherwise this step keeps the pre-PCA trait list
+                    # relayed from the heritability/aggregation branch.
+                    "trait_names": pca_step_result.metadata.get("trait_names"),
+                    "original_trait_names": pca_step_result.metadata.get(
+                        "original_trait_names"
+                    ),
                 }
             )
 

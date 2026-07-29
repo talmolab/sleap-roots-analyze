@@ -162,7 +162,13 @@ class PCAAnalysisStep(BaseStep):
         # but not the PCA model object itself
         pca_results_serializable = {k: v for k, v in pca_results.items() if k != "pca"}
 
-        # Update metadata
+        # Update metadata. `trait_names`/`valid_trait_names` are corrected to
+        # the post-filtering feature set here, matching the "traits still in
+        # play" contract every other filtering step maintains (cleanup_traits,
+        # filter_heritability, remove_outliers, detect_outliers) — downstream
+        # steps that read `trait_names` must see the traits PCA actually used,
+        # not the pre-filter list. `original_trait_names` preserves the
+        # pre-filter list for traceability.
         metadata = {
             **prev_result.metadata,
             "pca_results": pca_results_serializable,
@@ -171,6 +177,9 @@ class PCAAnalysisStep(BaseStep):
             "pca_explained_variance": explained_var,
             "excluded_zero_variance_traits": excluded_traits,
             "n_traits_after_filtering": len(feature_names),
+            "trait_names": feature_names,
+            "valid_trait_names": feature_names,
+            "original_trait_names": list(trait_cols),
         }
 
         return StepResult(
