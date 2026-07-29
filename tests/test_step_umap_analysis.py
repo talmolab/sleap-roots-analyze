@@ -18,7 +18,7 @@ from sleap_roots_analyze.pipeline import (
 from sleap_roots_analyze.pipeline.config.components import StatisticsConfig, UMAPConfig
 from sleap_roots_analyze.pipeline.config.viz_config import VizPipelineConfig
 from sleap_roots_analyze.pipeline.core import StepResult
-from sleap_roots_analyze.pipeline.steps import UMAPAnalysisStep
+from sleap_roots_analyze.pipeline.steps import PCAAnalysisStep, UMAPAnalysisStep
 
 
 @pytest.fixture
@@ -440,3 +440,81 @@ class TestUMAPConfigParameters:
             )
 
             assert result.metadata["umap_results"]["min_dist"] == min_dist
+
+
+class TestUMAPTraitNamesPropagation:
+    """Regression tests for Issue #80.
+
+    `UMAPAnalysisStep` inherits `prev_result.metadata` verbatim from
+    `PCAAnalysisStep` via a direct dict spread, so once PCA writes the
+    corrected `trait_names`, UMAP must pick it up automatically. Unlike this
+    file's other tests, `prev_result` here must come from an actually-executed
+    `PCAAnalysisStep` (not a hand-mocked `StepResult`) — a mock with
+    `trait_names` hard-coded to the full list would pass both before and
+    after the fix, never exercising the bug.
+    """
+
+    @pytest.fixture
+    def interleaved_trait_data(self):
+        """Data with zero-variance traits interleaved among variable ones."""
+        np.random.seed(42)
+        n_samples = 60
+        return pd.DataFrame(
+            {
+                "Barcode": [f"sample_{i}" for i in range(n_samples)],
+                "Genotype": [f"geno_{i % 4}" for i in range(n_samples)],
+                "Replicate": [i % 3 + 1 for i in range(n_samples)],
+                "trait_constant_a": np.full(n_samples, 1.0),
+                "trait_variable_1": np.random.normal(10.0, 2.0, n_samples),
+                "trait_variable_2": np.random.normal(5.0, 1.0, n_samples),
+                "trait_constant_b": np.full(n_samples, 0.0),
+                "trait_variable_3": np.random.normal(20.0, 3.0, n_samples),
+                "trait_variable_4": np.random.normal(8.0, 1.5, n_samples),
+            }
+        )
+
+    @pytest.fixture
+    def pca_result(self, interleaved_trait_data, viz_config, tmp_path):
+        """Run a real PCAAnalysisStep on interleaved data to build UMAP's prev_result."""
+        trait_cols = [
+            c for c in interleaved_trait_data.columns if c.startswith("trait_")
+        ]
+        prior = StepResult(
+            data=interleaved_trait_data,
+            metadata={"trait_names": trait_cols, "valid_trait_names": trait_cols},
+        )
+        pca_step = PCAAnalysisStep()
+        return pca_step.execute(
+            data=interleaved_trait_data,
+            config=viz_config,
+            run_dir=tmp_path / "pca_run",
+            prev_result=prior,
+        )
+
+    def test_pca_result_excludes_the_two_constant_traits(self, pca_result):
+        """Sanity check on the fixture/PCA step itself, before testing UMAP."""
+        excluded = set(pca_result.metadata["excluded_zero_variance_traits"])
+        assert excluded == {"trait_constant_a", "trait_constant_b"}
+
+    def test_umap_uses_pca_filtered_trait_count(
+        self, viz_config, interleaved_trait_data, pca_result, tmp_path
+    ):
+        """UMAP's feature_cols/logged n_traits reflect PCA's filtered set, not the original."""
+        step = UMAPAnalysisStep()
+
+        step.execute(
+            data=interleaved_trait_data,
+            config=viz_config,
+            run_dir=tmp_path / "umap_run",
+            prev_result=pca_result,
+        )
+
+        umap_dir = tmp_path / "umap_run" / "data" / "umap"
+        with open(umap_dir / "umap_parameters.json") as f:
+            params = json.load(f)
+
+        assert params["n_traits"] == 4, (
+            "UMAP should use the 4 PCA-filtered traits (trait_variable_1..4), "
+            f"not the original 6 (including the 2 excluded constants). "
+            f"Got n_traits={params['n_traits']}"
+        )
