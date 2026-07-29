@@ -200,16 +200,21 @@ boundary.
       height) for previously-uncapped/unpaginated high-genotype-count datasets
 
 ## Task 7: Verify no regressions and finalize
-- [ ] 7.1 Full test suite passes (`uv run pytest`)
-- [ ] 7.2 Linting and formatting pass (`uv run ruff check`, `uv run black --check .`)
-- [ ] 7.3 Type checking passes (`uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter
+- [x] 7.1 Full test suite passes (`uv run pytest`) -- 2863 passed, 37 skipped, 0 failed
+      (46m32s)
+- [x] 7.2 Linting and formatting pass (`uv run ruff check`, `uv run black --check .`) -- clean on
+      all files this change touches (pre-existing lint debt in unrelated files left as-is, out of
+      scope)
+- [x] 7.3 Type checking passes (`uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter
       --baseline-path .mypy-baseline.txt`, matching CI's `type-check` job) -- new generator
-      functions need correct `Iterator[plt.Figure]`-style annotations
-- [ ] 7.4 `openspec validate fix-110-oom-exploratory-analysis --strict` passes
-- [ ] 7.5 Drop the reference-only stash (Task 0.2) once superseded
+      functions need correct `Iterator[plt.Figure]`-style annotations -- found and fixed one new
+      error (`genotype_pages` needed an explicit `List[Optional[List[Any]]]` annotation); confirmed
+      `new: 0` / exit 0 after the fix
+- [x] 7.4 `openspec validate fix-110-oom-exploratory-analysis --strict` passes
+- [x] 7.5 Drop the reference-only stash (Task 0.2) once superseded -- dropped
 - [ ] 7.6 Note in the PR description that #202, the correlation-heatmap figsize cap, #110's P2
       DPI-reduction suggestion, and `create_exploratory_summary_plots()`'s separate
       adaptive-sizing-bounded boxplot are explicitly out of scope for this change
-- [ ] 7.7 Visual QA: generate boxplot figures for a genotype count that triggers pagination (e.g.
+- [x] 7.7 Visual QA: generate boxplot figures for a genotype count that triggers pagination (e.g.
       120 genotypes, 2 pages) and open the PNGs with the Read tool to visually confirm labels are
       readable within each page and the suptitle correctly identifies the genotype range
