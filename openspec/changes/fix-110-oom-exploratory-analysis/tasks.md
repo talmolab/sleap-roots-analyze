@@ -114,59 +114,68 @@ boundary.
 
 ## Task 3: Generator refactor + incremental save/close in ExploratoryAnalysisStep (TDD Red -> Green)
 *Commit 3: `fix(#110): incrementally save+close figures in ExploratoryAnalysisStep.execute()`*
-- [ ] 3.1 In `tests/test_visualization.py`, add tests for generator/list parity:
+- [x] 3.1 In `tests/test_visualization.py`, add tests for generator/list parity:
       `test_histogram_generator_matches_list_wrapper_output` and
       `test_boxplot_generator_matches_list_wrapper_output` -- `list(_generate_trait_*_batches(...))`
       produces the same count and sizes (including paginated output) as the existing public
       function's output
-- [ ] 3.2 Add `test_boxplot_generator_yields_lazily` -- confirm a figure is not created until the
+- [x] 3.2 Add `test_boxplot_generator_yields_lazily` -- confirm a figure is not created until the
       generator is advanced (e.g. via a counter/spy), demonstrating genuine laziness rather than
       generator syntax wrapping already-eager work
-- [ ] 3.3 Run tests, confirm FAIL (generators do not exist yet)
-- [ ] 3.4 In `tests/test_step_exploratory_analysis.py`, add a fixture producing a synthetic
+- [x] 3.3 Run tests, confirm FAIL (generators do not exist yet)
+- [x] 3.4 In `tests/test_step_exploratory_analysis.py`, add a fixture producing a synthetic
       DataFrame pinned at 480 genotypes x 300 trait columns (dpi=100, matching this file's existing
       low-DPI test convention) -- no proprietary data
-- [ ] 3.5 Add `test_peak_concurrent_figures_bounded_during_execute` -- instrument figure lifecycle
+- [x] 3.5 Add `test_peak_concurrent_figures_bounded_during_execute` -- instrument figure lifecycle
       by monkeypatching both figure-creation (e.g. wrap `plt.subplots`/`plt.figure`) and
       `matplotlib.pyplot.close`, recording `len(plt.get_fignums())` at both points (sampling only at
       close time can miss a figure that's created but never explicitly closed -- see review
       finding). Assert the peak recorded value is far below the total number of figures the step
       would generate (e.g. `< 10`); pin the exact constant once Task 3.9 is green.
-- [ ] 3.6 Decide and record whether this test needs `@pytest.mark.integration` -- CI's `tests` job
+- [x] 3.6 Decide and record whether this test needs `@pytest.mark.integration` -- CI's `tests` job
       runs `-m "not integration"` on all 3 OSes, so if marked integration this regression proof
       never runs in CI. Given the DataFrame is synthetic and runtime is expected to be seconds, do
       NOT mark it integration; keep it in the default CI-run test set.
-- [ ] 3.7 Run test, confirm FAIL on current code (all figures accumulate before any close)
-- [ ] 3.8 In `src/sleap_roots_analyze/visualization.py`, add `_generate_trait_histogram_batches()`
+- [x] 3.7 Run test, confirm FAIL on current code (all figures accumulate before any close)
+- [x] 3.8 In `src/sleap_roots_analyze/visualization.py`, add `_generate_trait_histogram_batches()`
       as a generator version of `create_trait_histograms_batched()`; make the existing function a
       `list(...)` wrapper over it. Add `_generate_trait_boxplot_batches()` as a generator version of
       `create_trait_boxplots_by_genotype_batched()` (including Task 1's height cap and Task 2's
       pagination); make the existing function a `list(...)` wrapper over it.
-- [ ] 3.9 In `ExploratoryAnalysisStep.execute()`, remove the `all_figures` dict. Save and close each
+- [x] 3.9 In `ExploratoryAnalysisStep.execute()`, remove the `all_figures` dict. Save and close each
       summary/EDA figure and the correlation heatmap immediately after creation, and iterate the two
       batch generators directly, saving and closing each batch figure as it's yielded. Update
       `execute()`'s metadata construction (`figures_generated`, `figure_names`) to track figures via
       the save+close calls instead of `all_figures.keys()`.
-- [ ] 3.10 Run Task 3 tests, confirm PASS (green); pin the exact peak-figure-count constant Task 3.5
-      asserts based on the real measured value
-- [ ] 3.11 Run the full existing `TestExploratoryAnalysisStepBasic`,
+- [x] 3.10 Run Task 3 tests, confirm PASS (green); pin the exact peak-figure-count constant Task 3.5
+      asserts based on the real measured value (measured 4, previously 45; asserted `<= 5`)
+- [x] 3.11 Run the full existing `TestExploratoryAnalysisStepBasic`,
       `TestExploratoryAnalysisStatistics`, `TestExploratoryAnalysisFigures`,
       `TestExploratoryAnalysisEdgeCases`, and `TestExploratoryAnalysisMetadataPropagation` classes,
       confirm no regressions
 
 ## Task 4: Incremental save/close in GenerateStaticFiguresStep (TDD Red -> Green)
 *Commit 4: `fix(#110): incrementally save+close figures in GenerateStaticFiguresStep`*
-- [ ] 4.1 In `tests/test_step_generate_static_figures.py`, add the same 480-genotype x 300-trait
-      fixture (or reuse a shared fixture factored out of Task 3.4 if convenient) and a
+- [x] 4.1 In `tests/test_step_generate_static_figures.py`, add a 480-genotype fixture and a
       `test_peak_concurrent_figures_bounded_during_static_figures` test using the same
-      creation+close instrumentation as Task 3.5
-- [ ] 4.2 Run test, confirm FAIL on current code (full batch list materializes before any close)
-- [ ] 4.3 Update `GenerateStaticFiguresStep` to iterate `_generate_trait_histogram_batches()` /
+      creation+close instrumentation as Task 3.5. Used 30 traits (not the full 300) and disabled
+      PCA/heritability/correlation/genotype-comparison plot types via `static_viz_config_enabled`,
+      since this step generates many more figure types than `ExploratoryAnalysisStep` when fully
+      enabled -- keeping the test scoped to trait-distribution figures (the code path this task
+      actually changes) keeps runtime reasonable, per the CI-cost budgeting note in `design.md`
+      Decision 4 point 7.
+- [x] 4.2 Run test, confirm FAIL on current code (full batch list materializes before any close)
+- [x] 4.3 Update `GenerateStaticFiguresStep` to iterate `_generate_trait_histogram_batches()` /
       `_generate_trait_boxplot_batches()` directly instead of calling the list-returning public
       wrappers; keep the existing periodic `gc.collect()` calls (now an extra safety margin, not
-      the only defense)
-- [ ] 4.4 Run Task 4 test, confirm PASS (green)
-- [ ] 4.5 Run the full existing static-figures test suite, confirm no regressions
+      the only defense). Also updated two pre-existing tests
+      (`TestAdaptiveBatchSize::test_adaptive_batch_size_increases_for_many_traits` and
+      `test_cylinder_scale_generates_reasonable_batch_count`) that patched the old public function
+      names directly in this module's namespace -- they now patch the new private generator names.
+- [x] 4.4 Run Task 4 test, confirm PASS (green) -- verified with an explicit red/green cycle
+      (temporarily reverted the fix via `git stash`, confirmed the test fails at peak=40, restored
+      via `git stash pop`, confirmed it passes)
+- [x] 4.5 Run the full existing static-figures test suite, confirm no regressions (70 passed)
 
 ## Task 5: End-to-end regression test against the real failure shape
 *Commit 5: `test(#110): add end-to-end OOM regression test at real failure scale`*
