@@ -433,8 +433,11 @@ class TestExploratoryAnalysisMetadataPropagation:
 
 @pytest.fixture
 def large_genotype_data():
-    """Synthetic DataFrame shaped like the real #110 failure: many genotypes,
-    many traits (480 genotypes x 300 traits) -- no proprietary data needed."""
+    """Synthetic DataFrame shaped like the real #110 failure.
+
+    Many genotypes, many traits (480 genotypes x 300 traits) -- no
+    proprietary data needed.
+    """
     np.random.seed(42)
     n_genotypes = 480
     n_traits = 300

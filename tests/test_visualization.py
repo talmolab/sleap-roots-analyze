@@ -4439,9 +4439,9 @@ class TestBoxplotGenotypePagination:
         figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
 
         # 1 trait -> 1 trait batch; multiple genotype pages expected
-        assert len(figures) > 1, (
-            f"Expected multiple genotype pages for 480 genotypes, got {len(figures)}"
-        )
+        assert (
+            len(figures) > 1
+        ), f"Expected multiple genotype pages for 480 genotypes, got {len(figures)}"
         for fig in figures:
             plt.close(fig)
 
@@ -4590,10 +4590,9 @@ class TestBoxplotGenotypePagination:
 
 
 class TestBatchedFigureGenerators:
-    """Tests for the private generator functions backing the batched figure
-    creators (Issue #110).
+    """Tests for the private generator functions backing the batched figure creators.
 
-    ExploratoryAnalysisStep and GenerateStaticFiguresStep need to save+close
+    Issue #110: ExploratoryAnalysisStep and GenerateStaticFiguresStep need to save+close
     each batch figure as soon as it's produced, not after the full batch list
     already exists in memory. This requires the batched creators to be
     expressible as generators (yield one figure at a time), with the existing
@@ -4621,9 +4620,7 @@ class TestBatchedFigureGenerators:
         df = self._make_df(10, n_traits=20)
         trait_cols = [f"trait_{i}" for i in range(20)]
 
-        wrapper_figures = create_trait_histograms_batched(
-            df, trait_cols, batch_size=8
-        )
+        wrapper_figures = create_trait_histograms_batched(df, trait_cols, batch_size=8)
         generator_figures = list(
             _generate_trait_histogram_batches(df, trait_cols, batch_size=8)
         )
@@ -4640,8 +4637,10 @@ class TestBatchedFigureGenerators:
             plt.close(fig)
 
     def test_boxplot_generator_matches_list_wrapper_output(self):
-        """list(_generate_trait_boxplot_batches(...)) matches the public wrapper,
-        including paginated output."""
+        """list(_generate_trait_boxplot_batches(...)) matches the public wrapper.
+
+        Including paginated output.
+        """
         from sleap_roots_analyze.visualization import _generate_trait_boxplot_batches
 
         df = self._make_df(480, n_traits=20)
@@ -4677,9 +4676,9 @@ class TestBatchedFigureGenerators:
         gen = _generate_trait_boxplot_batches(df, trait_cols)
 
         # Constructing the generator must not create any figures yet
-        assert set(plt.get_fignums()) == fignums_before, (
-            "Generator construction should not eagerly create figures"
-        )
+        assert (
+            set(plt.get_fignums()) == fignums_before
+        ), "Generator construction should not eagerly create figures"
 
         first_fig = next(gen)
         fignums_after_one = set(plt.get_fignums())

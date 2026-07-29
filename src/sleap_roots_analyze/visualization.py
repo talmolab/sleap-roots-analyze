@@ -403,9 +403,7 @@ def _generate_trait_boxplot_batches(
         max_genotypes_per_page = max(1, int(max_subplot_height // per_genotype_size))
 
     all_genotypes = (
-        sorted(df[genotype_col].dropna().unique())
-        if genotype_col in df.columns
-        else []
+        sorted(df[genotype_col].dropna().unique()) if genotype_col in df.columns else []
     )
     if all_genotypes and len(all_genotypes) > max_genotypes_per_page:
         genotype_pages = [
