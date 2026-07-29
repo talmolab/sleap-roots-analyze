@@ -4287,3 +4287,120 @@ class TestBoxplotLabelOverlapFixes:
 
         plt.close(fig_vert)
         plt.close(fig_horiz)
+
+
+class TestBoxplotHorizontalHeightCap:
+    """Tests for capping horizontal-orientation boxplot subplot height (Issue #110).
+
+    The vertical branch already caps adaptive subplot width at 20 inches. The
+    horizontal branch had no equivalent cap, so datasets with hundreds of
+    genotypes could produce a figure large enough to fail to allocate. These
+    tests cover both the single-figure function (where the cap must actually
+    take effect) and the batched wrapper.
+    """
+
+    def _make_df(self, n_genotypes, n_traits=1, samples_per_geno=2):
+        """Helper to create a DataFrame with the given number of genotypes."""
+        np.random.seed(42)
+        n_samples = n_genotypes * samples_per_geno
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [
+            f"Genotype_{i:03d}" for i in range(n_genotypes)
+        ] * samples_per_geno
+        return pd.DataFrame(data)
+
+    def test_direct_call_horizontal_height_capped(self):
+        """480 genotypes via the single-figure function stays at or under the cap.
+
+        This specifically catches the bug where a cap applied only to the
+        batched wrapper's local variable is silently discarded by this inner
+        function's own uncapped recomputation.
+        """
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="auto")
+
+        _, height = fig.get_size_inches()
+        assert height <= 20.0, (
+            f"Horizontal subplot height {height} exceeds the 20.0 inch cap for "
+            "480 genotypes"
+        )
+        plt.close(fig)
+
+    def test_batched_call_horizontal_height_capped(self):
+        """480 genotypes via the batched wrapper stays at or under the cap."""
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        assert len(figures) >= 1
+        for fig in figures:
+            _, height = fig.get_size_inches()
+            assert height <= 20.0, (
+                f"Batched horizontal subplot height {height} exceeds the 20.0 "
+                "inch cap for 480 genotypes"
+            )
+        for fig in figures:
+            plt.close(fig)
+
+    def test_horizontal_height_cap_boundary(self):
+        """At exactly the cap boundary, height matches the cap (no off-by-one)."""
+        # 60 genotypes * 0.3 in/genotype = 18.0 in, chosen to equal a custom cap
+        df = self._make_df(60)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, orientation="auto", max_subplot_height=18.0
+        )
+
+        _, height = fig.get_size_inches()
+        assert height == pytest.approx(18.0, abs=1e-6)
+        plt.close(fig)
+
+    def test_horizontal_height_unchanged_below_cap(self):
+        """Below the cap, height matches the existing uncapped formula exactly."""
+        df = self._make_df(30)  # 30 * 0.3 = 9.0, well under the 20.0 default cap
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="auto")
+
+        _, height = fig.get_size_inches()
+        assert height == pytest.approx(max(4.0, 30 * 0.3), abs=1e-6)
+        plt.close(fig)
+
+    def test_custom_max_subplot_height_respected(self):
+        """A non-default max_subplot_height, not the 20.0 default, bounds output."""
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, orientation="auto", max_subplot_height=10.0
+        )
+
+        _, height = fig.get_size_inches()
+        assert height == pytest.approx(10.0, abs=1e-6)
+        plt.close(fig)
+
+    def test_horizontal_boxplots_zero_genotypes_and_zero_traits(self):
+        """Empty-input edge cases (0 genotypes, empty trait_cols) do not raise."""
+        df_no_genotype_col = pd.DataFrame({"trait_0": np.random.randn(10)})
+
+        fig = create_trait_boxplots_by_genotype(df_no_genotype_col, ["trait_0"])
+        plt.close(fig)
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df_no_genotype_col, ["trait_0"]
+        )
+        for f in figures:
+            plt.close(f)
+
+        df_with_genotype = self._make_df(5)
+        fig_empty_traits = create_trait_boxplots_by_genotype(df_with_genotype, [])
+        plt.close(fig_empty_traits)
+
+        figures_empty_traits = create_trait_boxplots_by_genotype_batched(
+            df_with_genotype, []
+        )
+        assert figures_empty_traits == []

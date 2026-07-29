@@ -14,37 +14,37 @@ boundary.
 
 ## Task 1: Height cap -- write failing tests, then implement (TDD Red -> Green)
 *Commit 1: `fix(#110): cap horizontal boxplot subplot height`*
-- [ ] 1.1 In `tests/test_visualization.py`, add `TestBoxplotHorizontalHeightCap` with a synthetic
+- [x] 1.1 In `tests/test_visualization.py`, add `TestBoxplotHorizontalHeightCap` with a synthetic
       DataFrame fixture pinned at 480 genotypes (horizontal orientation triggered) and a small
       trait count
-- [ ] 1.2 `test_direct_call_horizontal_height_capped` -- call `create_trait_boxplots_by_genotype()`
+- [x] 1.2 `test_direct_call_horizontal_height_capped` -- call `create_trait_boxplots_by_genotype()`
       directly (not via the batched wrapper) with 480 genotypes, horizontal orientation; assert
       `fig.get_size_inches()` height stays at or under the cap. This specifically catches the
       "cap applied only to the batched wrapper's local variable, silently discarded by the inner
       function" bug identified in `design.md` Decision 2.
-- [ ] 1.3 `test_batched_call_horizontal_height_capped` -- same assertion via
+- [x] 1.3 `test_batched_call_horizontal_height_capped` -- same assertion via
       `create_trait_boxplots_by_genotype_batched()`
-- [ ] 1.4 `test_horizontal_height_cap_boundary` -- `n_genotypes` chosen so
+- [x] 1.4 `test_horizontal_height_cap_boundary` -- `n_genotypes` chosen so
       `n_genotypes * 0.3 == max_subplot_height` exactly; assert no off-by-one/float issue in the
       `min()` cap
-- [ ] 1.5 `test_horizontal_height_unchanged_below_cap` -- genotype count low enough that
+- [x] 1.5 `test_horizontal_height_unchanged_below_cap` -- genotype count low enough that
       `n_genotypes * 0.3` is below the cap; assert height matches the existing uncapped formula
       exactly (`max(4.0, n_genotypes * 0.3)`) -- no regression for the common case
-- [ ] 1.6 `test_custom_max_subplot_height_respected` -- pass a non-default `max_subplot_height`
+- [x] 1.6 `test_custom_max_subplot_height_respected` -- pass a non-default `max_subplot_height`
       (e.g. 10.0) and confirm it, not the 20.0 default, is what bounds the output
-- [ ] 1.7 `test_horizontal_boxplots_zero_genotypes_and_zero_traits` -- empty-input edge cases
+- [x] 1.7 `test_horizontal_boxplots_zero_genotypes_and_zero_traits` -- empty-input edge cases
       (0 genotypes, empty `trait_cols`) do not raise
-- [ ] 1.8 Run tests, confirm FAIL on current code
-- [ ] 1.9 Add `max_subplot_height: float = 20.0` parameter to `create_trait_boxplots_by_genotype()`
+- [x] 1.8 Run tests, confirm FAIL on current code
+- [x] 1.9 Add `max_subplot_height: float = 20.0` parameter to `create_trait_boxplots_by_genotype()`
       (`visualization.py`); apply cap in the horizontal-orientation branch:
       `min_subplot_height = min(max_subplot_height, max(4, n_genotypes * height_per_genotype))`.
       Update its Google-style docstring `Args:` section.
-- [ ] 1.10 Add the same `max_subplot_height: float = 20.0` parameter to
+- [x] 1.10 Add the same `max_subplot_height: float = 20.0` parameter to
       `create_trait_boxplots_by_genotype_batched()`; use it in its own `batch_figsize`
       precomputation and pass it through to the inner `create_trait_boxplots_by_genotype()` call.
       Update its docstring `Args:` section.
-- [ ] 1.11 Run Task 1 tests, confirm PASS (green)
-- [ ] 1.12 Run the full existing `TestTraitBoxplotsAdaptiveSizing` and
+- [x] 1.11 Run Task 1 tests, confirm PASS (green)
+- [x] 1.12 Run the full existing `TestTraitBoxplotsAdaptiveSizing` and
       `TestBoxplotLabelOverlapFixes` classes, confirm no regressions
 
 ## Task 2: Genotype pagination for readability (TDD Red -> Green)
