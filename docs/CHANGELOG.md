@@ -113,6 +113,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (PR #193 review).
 
 ### Fixed
+- `PCAAnalysisStep` now updates `metadata["trait_names"]`/`valid_trait_names`
+  to the zero-variance-filtered feature set after PCA, instead of leaving
+  them as the pre-filter list while only recording
+  `excluded_zero_variance_traits`/`n_traits_after_filtering` alongside them
+  (#80). The pre-filter list is preserved under a new
+  `metadata["original_trait_names"]` key. Downstream, `UMAPAnalysisStep`
+  inherited the stale list directly (silently re-including excluded traits
+  in `feature_cols` and the logged `n_traits`), and the `VizPipeline`
+  orchestrator's `_run_generate_static_figures` cherry-picks `trait_names`/
+  `original_trait_names` from the PCA branch alongside `pca_results`/
+  `top_features` (previously omitted), so static figures now use the
+  corrected set too — this also fixes a latent bug in `create_pca_biplot`,
+  which indexes its `trait_names` argument positionally against
+  `pca_results["loadings"]` and would silently mislabel feature arrows when
+  an excluded trait wasn't the last column of the original trait list.
 - `VizPipelineConfig` now automatically unions `statistics.fixed_effects` into
   `data.additional_exclude_cols` at construction time, so a fixed-effect column
   named outside the hardcoded metadata-substring list (e.g. `"block"`) is no

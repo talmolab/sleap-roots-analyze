@@ -725,3 +725,130 @@ class TestPCAZeroVarianceHandling:
             f"Loadings index {set(loadings.index)} does not match "
             f"expected variable traits {variable_traits}"
         )
+
+
+class TestPCATraitNamesMetadataPropagation:
+    """Regression tests for Issue #80.
+
+    `PCAAnalysisStep` must update `metadata["trait_names"]`/
+    `valid_trait_names` to the post-filter feature set (matching the
+    "traits still in play" contract every other filtering step maintains),
+    and preserve the pre-filter list under `original_trait_names`.
+    """
+
+    @pytest.fixture
+    def config_interleaved(self):
+        """Config for the interleaved zero-variance fixture (2 real features)."""
+        return QCPipelineConfig(
+            pipeline_name="test_pca_trait_names_interleaved",
+            data=DataConfig(csv_path="test.csv"),
+            pca=PCAConfig(
+                n_components=1,
+                standardize=True,
+                n_top_features=2,
+                feature_selection_strategy="top_absolute",
+            ),
+        )
+
+    @pytest.fixture
+    def prev_result_interleaved(self, pca_constant_feature_data):
+        """Previous step result using the interleaved constant/variable fixture.
+
+        `pca_constant_feature_data` (tests/fixtures.py) has columns
+        [constant1, constant2, variable1, variable2, constant3] — the
+        excluded traits are NOT confined to the end of the list, so a
+        buggy prefix-slice (`trait_names[:n_features]`) would wrongly
+        yield [constant1, constant2] instead of the correct
+        [variable1, variable2].
+        """
+        trait_cols = list(pca_constant_feature_data.columns)
+        return StepResult(
+            data=pca_constant_feature_data,
+            metadata={"trait_cols": trait_cols},
+        )
+
+    def test_trait_names_reflects_post_filter_feature_set(
+        self,
+        config_interleaved,
+        pca_constant_feature_data,
+        prev_result_interleaved,
+        tmp_path,
+    ):
+        """metadata['trait_names']/'valid_trait_names' equal the filtered feature_names."""
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=pca_constant_feature_data,
+            config=config_interleaved,
+            run_dir=tmp_path,
+            prev_result=prev_result_interleaved,
+        )
+
+        feature_names = result.metadata["pca_results"]["feature_names"]
+        assert feature_names == ["variable1", "variable2"]
+
+        assert result.metadata["trait_names"] == feature_names
+        assert result.metadata["valid_trait_names"] == feature_names
+
+        # Guard against the specific bug this regression targets: a naive
+        # prefix slice of the original (unfiltered) list would silently
+        # substitute the wrong names instead of raising an error.
+        original_trait_cols = list(pca_constant_feature_data.columns)
+        naive_prefix_slice = original_trait_cols[: len(feature_names)]
+        assert result.metadata["trait_names"] != naive_prefix_slice
+
+    def test_original_trait_names_preserves_pre_filter_list(
+        self,
+        config_interleaved,
+        pca_constant_feature_data,
+        prev_result_interleaved,
+        tmp_path,
+    ):
+        """metadata['original_trait_names'] preserves the full pre-filter list, in order."""
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=pca_constant_feature_data,
+            config=config_interleaved,
+            run_dir=tmp_path,
+            prev_result=prev_result_interleaved,
+        )
+
+        assert result.metadata["original_trait_names"] == list(
+            pca_constant_feature_data.columns
+        )
+
+    def test_trait_names_unchanged_when_nothing_excluded(
+        self, config, sample_data, tmp_path
+    ):
+        """Verify trait_names/valid_trait_names/original_trait_names are unchanged.
+
+        When no trait is zero-variance, all three equal the input trait list.
+
+        Seeds `prev_result.metadata` with `trait_names`/`valid_trait_names`
+        already set (as the real upstream `StatisticalAnalysisStep` does),
+        rather than only `trait_cols` — this is a pure passthrough guard, not
+        a red test, so it must reflect the metadata shape PCAAnalysisStep
+        actually receives in production.
+        """
+        trait_cols = ["trait1", "trait2", "trait3", "trait4", "trait5", "trait6"]
+        prev_result_with_trait_names = StepResult(
+            data=sample_data,
+            metadata={
+                "trait_names": trait_cols,
+                "valid_trait_names": trait_cols,
+                "metadata_cols": ["Barcode", "geno", "rep"],
+            },
+        )
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_trait_names,
+        )
+
+        assert result.metadata["trait_names"] == trait_cols
+        assert result.metadata["valid_trait_names"] == trait_cols
+        assert result.metadata["original_trait_names"] == trait_cols
