@@ -405,6 +405,7 @@ def _generate_trait_boxplot_batches(
     all_genotypes = (
         sorted(df[genotype_col].dropna().unique()) if genotype_col in df.columns else []
     )
+    genotype_pages: List[Optional[List[Any]]]
     if all_genotypes and len(all_genotypes) > max_genotypes_per_page:
         genotype_pages = [
             all_genotypes[p : p + max_genotypes_per_page]
