@@ -6,10 +6,10 @@ precedent for standalone failing-test commits and `main` has no per-commit CI ga
 boundary.
 
 ## Task 0: Dispose of the prior non-TDD draft
-- [ ] 0.1 Confirm the prior uncommitted draft is stashed (not applied) on this branch and is not
+- [x] 0.1 Confirm the prior uncommitted draft is stashed (not applied) on this branch and is not
       silently merged into any implementation below (its cap value, fix location, and lack of any
       pagination were all superseded by `design.md` Decisions 2 and 3)
-- [ ] 0.2 Drop the stash (`git stash drop`) once Task 7 confirms all tests pass and the draft has
+- [x] 0.2 Drop the stash (`git stash drop`) once Task 7 confirms all tests pass and the draft has
       been fully superseded
 
 ## Task 1: Height cap -- write failing tests, then implement (TDD Red -> Green)
@@ -212,9 +212,12 @@ boundary.
       `new: 0` / exit 0 after the fix
 - [x] 7.4 `openspec validate fix-110-oom-exploratory-analysis --strict` passes
 - [x] 7.5 Drop the reference-only stash (Task 0.2) once superseded -- dropped
-- [ ] 7.6 Note in the PR description that #202, the correlation-heatmap figsize cap, #110's P2
+- [x] 7.6 Note in the PR description that #202, the correlation-heatmap figsize cap, #110's P2
       DPI-reduction suggestion, and `create_exploratory_summary_plots()`'s separate
-      adaptive-sizing-bounded boxplot are explicitly out of scope for this change
+      adaptive-sizing-bounded boxplot are explicitly out of scope for this change -- included in
+      the "Out of scope" section of the PR body. Also ran a full pre-merge-check: fresh full-suite
+      coverage run (2866 passed, 37 skipped, 0 failed, 89% coverage) and a 5-subagent pre-PR review
+      (no blocking findings; all IMPORTANT findings fixed in a follow-up commit and re-verified)
 - [x] 7.7 Visual QA: generate boxplot figures for a genotype count that triggers pagination (e.g.
       120 genotypes, 2 pages) and open the PNGs with the Read tool to visually confirm labels are
       readable within each page and the suptitle correctly identifies the genotype range
