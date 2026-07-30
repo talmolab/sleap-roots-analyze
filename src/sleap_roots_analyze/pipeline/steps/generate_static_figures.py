@@ -410,7 +410,6 @@ class GenerateStaticFiguresStep(BaseStep):
             n_components=None,  # Use variance threshold instead
             variance_threshold=variance_threshold,
             top_n=config.static_viz.feature_contribution_top_n,
-            feature_selection=config.pca.feature_selection_strategy,
         )
         files.extend(
             self._save_figure(
