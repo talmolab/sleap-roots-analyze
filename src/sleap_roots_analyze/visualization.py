@@ -23,7 +23,10 @@ from datetime import datetime
 import logging
 
 # Import PCA functions
-from sleap_roots_analyze.pca import select_top_features_from_pca
+from sleap_roots_analyze.pca import (
+    select_top_features_from_pca,
+    VALID_SELECTION_METHODS,
+)
 
 try:
     import plotly.graph_objects as go
@@ -2262,23 +2265,15 @@ def create_pca_biplot(
     # Get eigenvalues if available for variance-based selection
     eigenvalues = pca_results.get("eigenvalues", np.ones(loadings.shape[1]))
 
-    # Map feature_selection parameter to method
-    if feature_selection == "extreme":
-        method = "extreme"
-    elif feature_selection == "top_absolute":
-        method = "top_absolute"
-    elif feature_selection == "top_contribution":
-        method = "top_contribution"
-    elif feature_selection == "vector_length":
-        method = "vector_length"
-    elif feature_selection == "top_variance":
-        method = "top_variance"
-    else:
+    # feature_selection maps 1:1 onto select_top_features_from_pca's `method`
+    # values; validate against its own VALID_SELECTION_METHODS so this check
+    # can't drift out of sync with what that function actually supports.
+    if feature_selection not in VALID_SELECTION_METHODS:
         raise ValueError(
-            f"Unrecognized feature_selection: {feature_selection!r}. Expected one "
-            "of 'vector_length', 'extreme', 'top_absolute', 'top_contribution', "
-            "'top_variance'."
+            f"Unrecognized feature_selection: {feature_selection!r}. Expected "
+            f"one of {sorted(VALID_SELECTION_METHODS)}."
         )
+    method = feature_selection
 
     # Select features using modular function. "top_variance" ranks by total
     # variance contribution across all retained PCs (not just pc_x/pc_y), so

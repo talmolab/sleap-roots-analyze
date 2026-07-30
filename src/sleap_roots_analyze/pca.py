@@ -10,6 +10,13 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from typing import Dict, Optional, Tuple, Union, List
 
+# Single source of truth for select_top_features_from_pca's supported `method`
+# values, so callers that pre-validate `method`/`feature_selection` (e.g.
+# create_pca_biplot) can't drift out of sync with this function's own dispatch.
+VALID_SELECTION_METHODS = frozenset(
+    {"extreme", "top_absolute", "top_contribution", "top_variance", "vector_length"}
+)
+
 
 def select_top_features_from_pca(
     loadings: np.ndarray,
@@ -128,7 +135,10 @@ def select_top_features_from_pca(
         return np.argsort(distances)[::-1][:n_features_to_select].tolist()
 
     else:
-        raise ValueError(f"Unknown selection method: {method}")
+        raise ValueError(
+            f"Unknown selection method: {method!r}. Expected one of "
+            f"{sorted(VALID_SELECTION_METHODS)}."
+        )
 
 
 def select_n_components(
