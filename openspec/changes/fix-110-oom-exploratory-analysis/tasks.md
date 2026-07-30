@@ -124,8 +124,14 @@ boundary.
       generator syntax wrapping already-eager work
 - [x] 3.3 Run tests, confirm FAIL (generators do not exist yet)
 - [x] 3.4 In `tests/test_step_exploratory_analysis.py`, add a fixture producing a synthetic
-      DataFrame pinned at 480 genotypes x 300 trait columns (dpi=100, matching this file's existing
-      low-DPI test convention) -- no proprietary data
+      DataFrame (dpi=100, matching this file's existing low-DPI test convention) -- no proprietary
+      data. Originally pinned at 480 genotypes x 300 trait columns to mirror the real #110/
+      production failure scale directly; **reduced to 100 genotypes x 40 traits after an actual CI
+      run on the opened PR showed the larger size pushed CI's 30-minute `tests` job timeout on
+      Ubuntu/Windows** (both failed at the identical 30m16s mark mid-suite -- a timeout, not a test
+      failure) even though it ran fine standalone locally (~170-180s). The smaller fixture still
+      triggers genotype pagination (2 pages) and multiple trait batches, runs in ~15s (see
+      `design.md` Decision 4 point 7's post-hoc update).
 - [x] 3.5 Add `test_peak_concurrent_figures_bounded_during_execute` -- instrument figure lifecycle
       by monkeypatching both figure-creation (e.g. wrap `plt.subplots`/`plt.figure`) and
       `matplotlib.pyplot.close`, recording `len(plt.get_fignums())` at both points (sampling only at
@@ -156,14 +162,16 @@ boundary.
 
 ## Task 4: Incremental save/close in GenerateStaticFiguresStep (TDD Red -> Green)
 *Commit 4: `fix(#110): incrementally save+close figures in GenerateStaticFiguresStep`*
-- [x] 4.1 In `tests/test_step_generate_static_figures.py`, add a 480-genotype fixture and a
-      `test_peak_concurrent_figures_bounded_during_static_figures` test using the same
-      creation+close instrumentation as Task 3.5. Used 30 traits (not the full 300) and disabled
+- [x] 4.1 In `tests/test_step_generate_static_figures.py`, add a `test_peak_concurrent_figures_bounded_during_static_figures`
+      test using the same creation+close instrumentation as Task 3.5, and disabled
       PCA/heritability/correlation/genotype-comparison plot types via `static_viz_config_enabled`,
       since this step generates many more figure types than `ExploratoryAnalysisStep` when fully
       enabled -- keeping the test scoped to trait-distribution figures (the code path this task
-      actually changes) keeps runtime reasonable, per the CI-cost budgeting note in `design.md`
-      Decision 4 point 7.
+      actually changes). Originally pinned at 480 genotypes x 30 traits, matching the real-world
+      failure scale; **reduced to 100 genotypes x 12 traits after an actual CI run on the opened PR
+      showed the larger size contributed to CI's 30-minute `tests` job timeout on Ubuntu/Windows**
+      (see Task 3.4's note and `design.md` Decision 4 point 7's post-hoc update) -- still triggers
+      genotype pagination and multiple trait batches, runs in ~14s instead of ~180s.
 - [x] 4.2 Run test, confirm FAIL on current code (full batch list materializes before any close)
 - [x] 4.3 Update `GenerateStaticFiguresStep` to iterate `_generate_trait_histogram_batches()` /
       `_generate_trait_boxplot_batches()` directly instead of calling the list-returning public
@@ -180,8 +188,9 @@ boundary.
 ## Task 5: End-to-end regression test against the real failure shape
 - [x] 5.1 Already satisfied by Task 3's `TestExploratoryAnalysisMemoryBounds` (no separate commit
       needed): `test_execute_completes_and_produces_figures_for_large_dataset` runs
-      `ExploratoryAnalysisStep.execute()` end-to-end against the 480x300 synthetic fixture with
-      `enable_batched_plots=True` (the `VisualizationConfig` default)
+      `ExploratoryAnalysisStep.execute()` end-to-end against the synthetic fixture (100 genotypes x
+      40 traits, reduced from an original 480x300 per Task 3.4's note) with `enable_batched_plots=True`
+      (the `VisualizationConfig` default)
 - [x] 5.2 Covered by the same test: asserts the step completes without raising, produces PNG figure
       files on disk, and produces multiple genotype-paginated boxplot batches (`box_batches > 1`)
 - [x] 5.3 Covered by the sibling test in the same class,
@@ -221,3 +230,22 @@ boundary.
 - [x] 7.7 Visual QA: generate boxplot figures for a genotype count that triggers pagination (e.g.
       120 genotypes, 2 pages) and open the PNGs with the Read tool to visually confirm labels are
       readable within each page and the suptitle correctly identifies the genotype range
+
+## Post-PR: CI-only timeout discovered and fixed
+- [x] 8.1 PR #210 opened; CI's `Tests (ubuntu, Python 3.11)` and `Tests (windows, Python 3.11)`
+      jobs both failed at the identical 30m16s mark (`##[error]The operation was canceled.`
+      mid-suite at 94% completion, no test failures visible) -- a 30-minute job timeout
+      (`.github/workflows/ci.yml` `timeout-minutes: 30`), not a real test failure. `macos` passed in
+      16m46s. Root cause: Task 3.4/4.1's 480-genotype fixtures ran fine standalone locally
+      (~170-180s each, which read as an acceptable budgeted cost per Decision 4 point 7) but pushed
+      the shared CI job over budget once combined with the rest of the ~2900-test suite --
+      standalone local timing is not sufficient evidence of CI feasibility for a shared-budget job.
+- [x] 8.2 Reduced both fixtures (100 genotypes x 40 traits for `ExploratoryAnalysisStep`, 100 x 12
+      for `GenerateStaticFiguresStep`) -- still large enough to trigger genotype pagination and
+      multiple trait batches, still large enough to clearly distinguish a bounded (~4 peak) from an
+      unbounded (near-total-figure-count peak) implementation. Runtime dropped from ~170-180s each
+      to ~15s each (~12x). Updated `design.md` Decision 4 point 7 and this file's Task 3.4/4.1/5.1
+      entries to document the correction and why.
+- [x] 8.3 Re-verified: `tests/test_step_exploratory_analysis.py` +
+      `tests/test_step_generate_static_figures.py` full files (86 passed), ruff/black clean,
+      `openspec validate --strict` passes.

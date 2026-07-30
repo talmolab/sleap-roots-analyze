@@ -1281,6 +1281,14 @@ class TestMemoryManagement:
         at both figure-creation time (plt.subplots) and close time (plt.close)
         -- sampling only at close time could miss a figure that's created but
         never explicitly closed, silently undercounting a leak.
+
+        Fixture size (100 genotypes x 12 traits): originally validated
+        against 480 genotypes x 30 traits, matching the real #110/production
+        failure scale directly, but that size measurably pushed CI's
+        30-minute `tests` job timeout on Ubuntu/Windows once combined with
+        the rest of the suite (confirmed via an actual CI run). 100x12 still
+        triggers genotype pagination (2 pages) and multiple trait batches at
+        this step's default batch sizes, at a small fraction of the runtime.
         """
         import matplotlib.pyplot as plt
         import numpy as np
@@ -1290,8 +1298,8 @@ class TestMemoryManagement:
         setup_matplotlib_backend()
 
         np.random.seed(42)
-        n_genotypes = 480
-        n_traits = 30
+        n_genotypes = 100
+        n_traits = 12
         samples_per_geno = 2
         n_samples = n_genotypes * samples_per_geno
         data = {

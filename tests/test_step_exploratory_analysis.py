@@ -433,14 +433,26 @@ class TestExploratoryAnalysisMetadataPropagation:
 
 @pytest.fixture
 def large_genotype_data():
-    """Synthetic DataFrame shaped like the real #110 failure.
+    """Synthetic DataFrame shaped like the real #110 failure, scaled for CI.
 
-    Many genotypes, many traits (480 genotypes x 300 traits) -- no
-    proprietary data needed.
+    100 genotypes (above the ~66/page pagination threshold, giving a
+    partial second page) x 40 traits (above the 16-trait batching
+    threshold, giving multiple trait batches) -- no proprietary data
+    needed. The real #110 repro and the MO Soybean production failure
+    both involved far more genotypes/traits (94-489, 300-1061 columns);
+    this fixture was originally pinned at 480x300 to mirror that scale
+    directly, but that size measurably pushed CI's 30-minute `tests` job
+    timeout on Ubuntu/Windows once combined with the rest of the suite
+    (confirmed via an actual CI run, not assumed) even though it ran fine
+    standalone locally. 100x40 still exercises every code path this
+    fixture exists to cover -- the generator refactor, genotype
+    pagination with a partial last page, and a peak-figure-count large
+    enough to clearly distinguish a bounded vs. unbounded implementation
+    -- at a small fraction of the runtime.
     """
     np.random.seed(42)
-    n_genotypes = 480
-    n_traits = 300
+    n_genotypes = 100
+    n_traits = 40
     samples_per_geno = 2
     n_samples = n_genotypes * samples_per_geno
     data = {
@@ -472,7 +484,7 @@ def large_config():
 @pytest.fixture
 def large_prev_result(large_genotype_data):
     """Mock previous step result for the large-genotype fixture."""
-    trait_cols = [f"trait{i + 1}" for i in range(300)]
+    trait_cols = [f"trait{i + 1}" for i in range(40)]
     return StepResult(
         data=large_genotype_data,
         metadata={
@@ -538,16 +550,21 @@ class TestExploratoryAnalysisMemoryBounds:
             )
 
         # Measured peak delta above baseline with the incremental save/close
-        # implementation is 4 (one in-flight figure at a time, plus a small
-        # margin for overlap between a figure's creation and its close).
-        # Before this fix, the same fixture measured a peak delta of 45
-        # (all_figures accumulation).
+        # implementation is 4 on this fixture (one in-flight figure at a
+        # time, plus a small margin for overlap between a figure's creation
+        # and its close) out of 13 total figures generated -- an unbounded
+        # (all_figures-accumulation) implementation would peak near the total
+        # figure count instead. Originally validated against a
+        # production-scale 480-genotype x 300-trait fixture (peak delta 4 out
+        # of ~150 figures there too), but that size measurably pushed CI's
+        # 30-minute test-job timeout once combined with the rest of the
+        # suite; this smaller fixture still exercises the same code paths.
         peak_delta = peak_fignums - baseline_fignums
         assert peak_delta <= 5, (
             f"Peak concurrently-open figures above baseline was {peak_delta}, "
             "expected a small constant (measured 4 with incremental "
             "save/close), not scaling with the total number of figures "
-            "generated (45 before this fix)"
+            "generated"
         )
 
     def test_execute_completes_and_produces_figures_for_large_dataset(
@@ -567,7 +584,7 @@ class TestExploratoryAnalysisMemoryBounds:
         png_files = list(figures_dir.glob("*.png"))
         assert len(png_files) > 0
 
-        # Batched boxplots should be paginated (many genotype pages) for 480 genotypes
+        # Batched boxplots should be paginated (multiple genotype pages)
         box_batches = [
             name for name in result.metadata["figure_names"] if "boxplots_batch" in name
         ]
