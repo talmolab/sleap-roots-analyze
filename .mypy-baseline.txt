@@ -265,7 +265,6 @@ src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "len" has incom
 src/sleap_roots_analyze/visualization.py:0: error: Item "None" of "Any | None" has no attribute "head"  [union-attr]
 src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "len" has incompatible type "Any | None"; expected "Sized"  [arg-type]
 src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "signedinteger[_32Bit | _64Bit]", variable has type "int | None")  [assignment]
-src/sleap_roots_analyze/visualization.py:0: error: Incompatible types in assignment (expression has type "ndarray[tuple[Any, ...], dtype[signedinteger[_32Bit | _64Bit]]]", variable has type "list[Any]")  [assignment]
 src/sleap_roots_analyze/visualization.py:0: error: Module has no attribute "tab20"  [attr-defined]
 src/sleap_roots_analyze/visualization.py:0: error: Argument 3 to "linspace" has incompatible type "int | None"; expected "SupportsIndex"  [arg-type]
 src/sleap_roots_analyze/visualization.py:0: error: Argument 1 to "range" has incompatible type "int | None"; expected "SupportsIndex"  [arg-type]
