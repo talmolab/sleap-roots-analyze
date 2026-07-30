@@ -1315,7 +1315,8 @@ class TestMemoryManagement:
         config.static_viz.create_trait_correlations = False
         config.static_viz.create_genotype_comparisons = False
 
-        peak_fignums = 0
+        baseline_fignums = len(plt.get_fignums())
+        peak_fignums = baseline_fignums
         original_close = plt.close
         original_subplots = plt.subplots
 
@@ -1343,10 +1344,14 @@ class TestMemoryManagement:
                 prev_result=prev_result,
             )
 
-        assert peak_fignums <= 5, (
-            f"Peak concurrently-open figures was {peak_fignums}, expected a "
-            "small constant, not scaling with the total number of figures "
-            "generated"
+        # Compared against a baseline captured just before execute() runs
+        # (not an absolute count), so a figure left open by an unrelated test
+        # earlier in the same pytest session can't inflate this result.
+        peak_delta = peak_fignums - baseline_fignums
+        assert peak_delta <= 5, (
+            f"Peak concurrently-open figures above baseline was {peak_delta}, "
+            "expected a small constant, not scaling with the total number of "
+            "figures generated"
         )
 
 

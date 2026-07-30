@@ -230,7 +230,7 @@ def create_trait_boxplots_by_genotype(
                     # Use matplotlib boxplot for horizontal orientation
                     # Style matches df.boxplot() vertical: blue boxes, green
                     # medians, gridlines, unfilled outline
-                    genotype_order = sorted(df_plot[genotype_col].unique())
+                    genotype_order = sorted(df_plot[genotype_col].unique(), key=str)
                     grouped_data = [
                         df_plot.loc[df_plot[genotype_col] == g, trait].values
                         for g in genotype_order
@@ -403,7 +403,9 @@ def _generate_trait_boxplot_batches(
         max_genotypes_per_page = max(1, int(max_subplot_height // per_genotype_size))
 
     all_genotypes = (
-        sorted(df[genotype_col].dropna().unique()) if genotype_col in df.columns else []
+        sorted(df[genotype_col].dropna().unique(), key=str)
+        if genotype_col in df.columns
+        else []
     )
     genotype_pages: List[Optional[List[Any]]]
     if all_genotypes and len(all_genotypes) > max_genotypes_per_page:
@@ -417,6 +419,14 @@ def _generate_trait_boxplot_batches(
         genotype_pages = [None]
     n_pages = len(genotype_pages)
 
+    # Precompute each page's filtered DataFrame once, since it depends only on
+    # the genotype page (not the trait batch) -- avoids redundant isin()
+    # filtering on every (trait batch, genotype page) combination below.
+    page_dfs: List[pd.DataFrame] = [
+        df[df[genotype_col].isin(page_genotypes)] if page_genotypes is not None else df
+        for page_genotypes in genotype_pages
+    ]
+
     for batch_start in range(0, n_traits, batch_size):
         batch_end = min(batch_start + batch_size, n_traits)
         batch_traits = trait_cols[batch_start:batch_end]
@@ -429,12 +439,10 @@ def _generate_trait_boxplot_batches(
         actual_cols = min(n_cols, n_traits_in_batch)
 
         for page_idx, page_genotypes in enumerate(genotype_pages):
-            if page_genotypes is not None:
-                page_df = df[df[genotype_col].isin(page_genotypes)]
-                n_genotypes_page = len(page_genotypes)
-            else:
-                page_df = df
-                n_genotypes_page = n_genotypes
+            page_df = page_dfs[page_idx]
+            n_genotypes_page = (
+                len(page_genotypes) if page_genotypes is not None else n_genotypes
+            )
 
             if figsize is not None:
                 # Explicit figsize provided - scale both dimensions for partial batches

@@ -95,15 +95,20 @@ class ExploratoryAnalysisStep(BaseStep):
 
         def _save_and_close(name: str, fig: plt.Figure) -> None:
             fig_path = figures_dir / f"{name}.{config.visualization.figure_format}"
-            fig.savefig(
-                fig_path,
-                dpi=config.visualization.dpi,
-                bbox_inches=config.visualization.bbox_inches,
-                facecolor=config.visualization.facecolor,
-                edgecolor=config.visualization.edgecolor,
-                transparent=config.visualization.transparent,
-            )
-            plt.close(fig)
+            try:
+                fig.savefig(
+                    fig_path,
+                    dpi=config.visualization.dpi,
+                    bbox_inches=config.visualization.bbox_inches,
+                    facecolor=config.visualization.facecolor,
+                    edgecolor=config.visualization.edgecolor,
+                    transparent=config.visualization.transparent,
+                )
+            finally:
+                # Always close, even if savefig raises, so a save failure
+                # can't leak the figure back into the unbounded-accumulation
+                # pattern this step exists to avoid (Issue #110).
+                plt.close(fig)
             files.append(fig_path)
             figure_names.append(name)
 

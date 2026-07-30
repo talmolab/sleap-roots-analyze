@@ -4588,6 +4588,51 @@ class TestBoxplotGenotypePagination:
         for fig in figures:
             plt.close(fig)
 
+    def test_pagination_exact_boundary_one_page(self):
+        """Genotype count exactly equal to max_genotypes_per_page stays one page."""
+        df = self._make_df(20)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, max_genotypes_per_page=20
+        )
+
+        assert len(figures) == 1
+        plt.close(figures[0])
+
+    def test_pagination_one_over_boundary_two_pages(self):
+        """One genotype over max_genotypes_per_page produces a second, 1-genotype page."""
+        df = self._make_df(21)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, max_genotypes_per_page=20
+        )
+
+        assert len(figures) == 2
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_with_mixed_dtype_genotype_values(self):
+        """Pagination sorts safely when genotype values have mixed types.
+
+        `sorted()` on a raw mixed str/int/float sequence raises TypeError in
+        Python; pagination sorts by `str(value)` internally to avoid this
+        while leaving the underlying genotype values unchanged.
+        """
+        n_genotypes = 90
+        df = self._make_df(n_genotypes)
+        # Replace a few genotype labels with non-string values, as could occur
+        # with a numeric-looking or partially-unsanitized genotype column.
+        df.loc[df["geno"] == "Genotype_000", "geno"] = 12345
+        df.loc[df["geno"] == "Genotype_001", "geno"] = 67.5
+
+        figures = create_trait_boxplots_by_genotype_batched(df, ["trait_0"])
+
+        assert len(figures) >= 1
+        for fig in figures:
+            plt.close(fig)
+
 
 class TestBatchedFigureGenerators:
     """Tests for the private generator functions backing the batched figure creators.

@@ -504,8 +504,12 @@ class TestExploratoryAnalysisMemoryBounds:
         Sampled at both figure-creation time (plt.subplots) and close time
         (plt.close) -- sampling only at close time could miss a figure that's
         created but never explicitly closed, silently undercounting a leak.
+        Compares against a baseline captured just before `execute()` runs
+        (not an absolute count), so a figure left open by an unrelated test
+        earlier in the same pytest session can't inflate this test's result.
         """
-        peak_fignums = 0
+        baseline_fignums = len(plt.get_fignums())
+        peak_fignums = baseline_fignums
         original_close = plt.close
         original_subplots = plt.subplots
 
@@ -533,15 +537,17 @@ class TestExploratoryAnalysisMemoryBounds:
                 prev_result=large_prev_result,
             )
 
-        # Measured peak with the incremental save/close implementation is 4
-        # (one in-flight figure at a time, plus a small margin for overlap
-        # between a figure's creation and its close). Before this fix, the
-        # same fixture measured a peak of 45 (all_figures accumulation).
-        assert peak_fignums <= 5, (
-            f"Peak concurrently-open figures was {peak_fignums}, expected a "
-            "small constant (measured 4 with incremental save/close), not "
-            "scaling with the total number of figures generated (45 before "
-            "this fix)"
+        # Measured peak delta above baseline with the incremental save/close
+        # implementation is 4 (one in-flight figure at a time, plus a small
+        # margin for overlap between a figure's creation and its close).
+        # Before this fix, the same fixture measured a peak delta of 45
+        # (all_figures accumulation).
+        peak_delta = peak_fignums - baseline_fignums
+        assert peak_delta <= 5, (
+            f"Peak concurrently-open figures above baseline was {peak_delta}, "
+            "expected a small constant (measured 4 with incremental "
+            "save/close), not scaling with the total number of figures "
+            "generated (45 before this fix)"
         )
 
     def test_execute_completes_and_produces_figures_for_large_dataset(
