@@ -4617,8 +4617,8 @@ class TestBoxplotGenotypePagination:
         """Pagination sorts safely when genotype values have mixed types.
 
         `sorted()` on a raw mixed str/int/float sequence raises TypeError in
-        Python; pagination sorts by `str(value)` internally to avoid this
-        while leaving the underlying genotype values unchanged.
+        Python; pagination falls back to sorting by `str(value)` only in
+        that case, leaving the underlying genotype values unchanged.
         """
         n_genotypes = 90
         df = self._make_df(n_genotypes)
@@ -4632,6 +4632,35 @@ class TestBoxplotGenotypePagination:
         assert len(figures) >= 1
         for fig in figures:
             plt.close(fig)
+
+    def test_pagination_preserves_natural_order_for_numeric_genotypes(self):
+        """A purely-numeric genotype column keeps numeric order, not lexicographic.
+
+        The mixed-dtype fallback (str-keyed sort) must only engage for a
+        genuinely mixed-dtype column; a homogeneous numeric column should
+        still sort as 1, 2, ..., 12 rather than "1", "10", "11", "12", "2", ...
+        """
+        n_samples_per_geno = 2
+        genotype_ids = list(range(1, 13))  # 12 genotypes: horizontal orientation
+        data = {
+            "trait_0": np.random.randn(len(genotype_ids) * n_samples_per_geno),
+            "geno": [g for g in genotype_ids for _ in range(n_samples_per_geno)],
+        }
+        df = pd.DataFrame(data)
+
+        fig = create_trait_boxplots_by_genotype(df, ["trait_0"], orientation="auto")
+
+        ax = [a for a in fig.get_axes() if a.get_visible()][0]
+        y_labels = [
+            label.get_text() for label in ax.get_yticklabels() if label.get_text()
+        ]
+        expected_order = [str(g) for g in sorted(genotype_ids)]
+        assert y_labels == expected_order, (
+            f"Expected natural numeric order {expected_order}, got {y_labels} "
+            "(lexicographic string order would incorrectly place 10/11/12 "
+            "before 2)"
+        )
+        plt.close(fig)
 
 
 class TestBatchedFigureGenerators:

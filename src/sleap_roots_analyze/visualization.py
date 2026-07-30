@@ -105,6 +105,23 @@ def create_trait_histograms(
     return fig
 
 
+def _sort_genotypes_safely(values: Any) -> List[Any]:
+    """Sort genotype values, tolerating a mixed-dtype column.
+
+    Tries a natural sort first, so a homogeneous column (all strings, or
+    all numeric) keeps its natural order (e.g. numeric genotype IDs sort as
+    1, 2, 10, 20 -- not lexicographically as "1", "10", "2", "20"). Falls
+    back to sorting by `str()` only if the natural sort raises `TypeError`,
+    which happens for a genuinely mixed-dtype column (e.g. some
+    numeric-looking genotype IDs alongside string ones in unsanitized CSV
+    input).
+    """
+    try:
+        return sorted(values)
+    except TypeError:
+        return sorted(values, key=str)
+
+
 def create_trait_boxplots_by_genotype(
     df: pd.DataFrame,
     trait_cols: List[str],
@@ -230,7 +247,9 @@ def create_trait_boxplots_by_genotype(
                     # Use matplotlib boxplot for horizontal orientation
                     # Style matches df.boxplot() vertical: blue boxes, green
                     # medians, gridlines, unfilled outline
-                    genotype_order = sorted(df_plot[genotype_col].unique(), key=str)
+                    genotype_order = _sort_genotypes_safely(
+                        df_plot[genotype_col].unique()
+                    )
                     grouped_data = [
                         df_plot.loc[df_plot[genotype_col] == g, trait].values
                         for g in genotype_order
@@ -403,7 +422,7 @@ def _generate_trait_boxplot_batches(
         max_genotypes_per_page = max(1, int(max_subplot_height // per_genotype_size))
 
     all_genotypes = (
-        sorted(df[genotype_col].dropna().unique(), key=str)
+        _sort_genotypes_safely(df[genotype_col].dropna().unique())
         if genotype_col in df.columns
         else []
     )

@@ -129,9 +129,12 @@ boundary.
       production failure scale directly; **reduced to 100 genotypes x 40 traits after an actual CI
       run on the opened PR showed the larger size pushed CI's 30-minute `tests` job timeout on
       Ubuntu/Windows** (both failed at the identical 30m16s mark mid-suite -- a timeout, not a test
-      failure) even though it ran fine standalone locally (~170-180s). The smaller fixture still
-      triggers genotype pagination (2 pages) and multiple trait batches, runs in ~15s (see
-      `design.md` Decision 4 point 7's post-hoc update).
+      failure) even though it ran fine standalone locally (~170-180s locally; the actual CI,
+      per-test duration was higher, ~124-126s on Windows -- see `design.md` Decision 4 point 7's
+      post-hoc update on why local timing undercounted this). The smaller fixture still triggers
+      genotype pagination (2 pages) and multiple trait batches; measured ~24.7s on Windows CI after
+      the reduction (~5x, not the ~12x a first, local-only estimate suggested -- see the same
+      design.md update).
 - [x] 3.5 Add `test_peak_concurrent_figures_bounded_during_execute` -- instrument figure lifecycle
       by monkeypatching both figure-creation (e.g. wrap `plt.subplots`/`plt.figure`) and
       `matplotlib.pyplot.close`, recording `len(plt.get_fignums())` at both points (sampling only at
@@ -171,7 +174,8 @@ boundary.
       failure scale; **reduced to 100 genotypes x 12 traits after an actual CI run on the opened PR
       showed the larger size contributed to CI's 30-minute `tests` job timeout on Ubuntu/Windows**
       (see Task 3.4's note and `design.md` Decision 4 point 7's post-hoc update) -- still triggers
-      genotype pagination and multiple trait batches, runs in ~14s instead of ~180s.
+      genotype pagination and multiple trait batches; measured ~24.7s on Windows CI after the
+      reduction, down from 278.15s (~11x, per actual CI logs, not local-only timing).
 - [x] 4.2 Run test, confirm FAIL on current code (full batch list materializes before any close)
 - [x] 4.3 Update `GenerateStaticFiguresStep` to iterate `_generate_trait_histogram_batches()` /
       `_generate_trait_boxplot_batches()` directly instead of calling the list-returning public
@@ -243,9 +247,34 @@ boundary.
 - [x] 8.2 Reduced both fixtures (100 genotypes x 40 traits for `ExploratoryAnalysisStep`, 100 x 12
       for `GenerateStaticFiguresStep`) -- still large enough to trigger genotype pagination and
       multiple trait batches, still large enough to clearly distinguish a bounded (~4 peak) from an
-      unbounded (near-total-figure-count peak) implementation. Runtime dropped from ~170-180s each
-      to ~15s each (~12x). Updated `design.md` Decision 4 point 7 and this file's Task 3.4/4.1/5.1
-      entries to document the correction and why.
+      unbounded (near-total-figure-count peak) implementation. Pushed a fix commit and re-ran CI;
+      it passed. First wrote up the improvement using LOCAL timing (~170-180s -> ~15s, "~12x") --
+      caught by a third review round that this repeated the exact mistake this section warns
+      against. Pulled actual per-test durations from both CI runs' logs instead: on Windows,
+      278.15s/126.09s/123.99s (pre-fix) -> 24.72s/24.74s/24.72s (post-fix) -- a 5-11x reduction, not
+      a uniform 12x, and ~25s absolute per test in CI vs. ~15s locally. Updated `design.md`
+      Decision 4 point 7 and this file's Task 3.4/4.1/5.1 entries with the CI-verified numbers.
 - [x] 8.3 Re-verified: `tests/test_step_exploratory_analysis.py` +
       `tests/test_step_generate_static_figures.py` full files (86 passed), ruff/black clean,
       `openspec validate --strict` passes.
+
+## Post-PR: third review round on commits since the pre-merge review
+- [x] 8.4 A third adversarial review (scoped to commits 63ca343..89d46e7, i.e. everything since
+      the pre-merge 5-subagent review) found one real code bug and one doc-accuracy issue, both
+      fixed:
+      - **Bug**: the `key=str` fix for the mixed-dtype-genotype `TypeError` (Task 7's pre-merge
+        fixes) was applied unconditionally, silently changing sort order for a *homogeneous*
+        numeric genotype column from natural numeric order (1, 2, 10, 20) to lexicographic string
+        order ("1", "10", "2", "20") -- a real, if narrow, behavior regression for a plausible
+        input shape, not just a defensive no-op. Fixed with a new `_sort_genotypes_safely()`
+        helper: try a natural `sorted()` first, fall back to `sorted(..., key=str)` only on the
+        `TypeError` a genuinely mixed-dtype column raises. Added
+        `test_pagination_preserves_natural_order_for_numeric_genotypes` (12 numeric genotype IDs,
+        asserts rendered y-tick order is 1..12, not lexicographic).
+      - **Doc accuracy**: Task 8.2's write-up of the fixture-shrink improvement cited local-only
+        timing numbers (~170-180s -> ~15s, "~12x") -- an ironic near-repeat of the exact mistake
+        that section itself warns against. Corrected using actual per-test durations pulled from
+        both CI runs' logs (see Task 8.2's updated text and `design.md` Decision 4 point 7).
+- [x] 8.5 Re-verified after the `_sort_genotypes_safely()` fix: `TestBoxplotGenotypePagination` +
+      `TestBoxplotHorizontalHeightCap` + `TestBatchedFigureGenerators` (23 passed, including the
+      new natural-order test), ruff/black/mypy-baseline clean.

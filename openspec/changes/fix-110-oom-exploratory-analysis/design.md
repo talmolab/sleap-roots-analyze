@@ -261,16 +261,28 @@ shape of the real failure. Properties asserted:
 
    **Update after measuring in CI, not just locally**: the 480x300 fixture (and the analogous
    480x30 fixture used for `GenerateStaticFiguresStep`'s equivalent test) ran fine standalone
-   locally (~170-180s each), which read as an acceptable, budgeted cost. It was not acceptable in
-   practice: combined with the rest of the suite, it pushed CI's 30-minute `tests` job timeout on
-   Ubuntu and Windows (confirmed via an actual CI run on the opened PR — both failed at the
-   identical 30m16s mark, mid-suite, not from a real test failure). Reduced both fixtures to
-   100 genotypes x 40 traits (`ExploratoryAnalysisStep`) and 100 genotypes x 12 traits
-   (`GenerateStaticFiguresStep`) — still large enough to trigger genotype pagination (2 pages) and
-   multiple trait batches, still large enough to clearly distinguish a bounded (~4 peak) from an
-   unbounded (near-total-figure-count peak) implementation, at roughly 1/12th the runtime (~15s
-   each). Lesson: for a regression test meant to run in CI's shared job budget, a local-only
-   wall-clock measurement is not sufficient evidence of CI feasibility — the fixture size needs to
-   be validated against an actual CI run, since CI's aggregate job budget (the whole test suite
-   sharing one 30-minute window) is a stricter constraint than "is this one test fast enough on its
-   own."
+   locally (~170-180s each on the implementer's Windows dev machine), which read as an acceptable,
+   budgeted cost. It was not acceptable in practice: combined with the rest of the suite, it pushed
+   CI's 30-minute `tests` job timeout on Ubuntu and Windows (confirmed via an actual CI run on the
+   opened PR — both failed at the identical 30m16s mark, mid-suite, not from a real test failure).
+   Reduced both fixtures to 100 genotypes x 40 traits (`ExploratoryAnalysisStep`) and 100 genotypes
+   x 12 traits (`GenerateStaticFiguresStep`) — still large enough to trigger genotype pagination (2
+   pages) and multiple trait batches, still large enough to clearly distinguish a bounded (~4 peak)
+   from an unbounded (near-total-figure-count peak) implementation.
+
+   **The reduction numbers themselves needed re-measuring in CI, not just locally, too** — an
+   ironic near-repeat of the same mistake. The first draft of this note cited local timing
+   (~170-180s → ~15s, "~12x") as the before/after. Pulled from the actual CI logs of both PR runs
+   instead (per-test durations, Windows job, the three tests these two fixtures drive):
+   `test_peak_concurrent_figures_bounded_during_static_figures` 278.15s → 24.72s (11.2x),
+   `test_execute_completes_and_produces_figures_for_large_dataset` 126.09s → 24.74s (5.1x),
+   `test_peak_concurrent_figures_bounded_during_execute` 123.99s → 24.72s (5.0x). Directionally the
+   same conclusion (a large, decisive reduction that fixed the timeout), but the exact factor is
+   5-11x, not a uniform "~12x," and CI's absolute per-test time (~25s) is noticeably higher than
+   local's (~15s) even after the fix. Lesson, stated more carefully this time: for a regression test
+   meant to run in CI's shared job budget, neither the pass/fail feasibility judgment NOR the
+   specific timing numbers used to justify it should be asserted from local measurement alone —
+   both need to be checked against an actual CI run, since CI's aggregate job budget (the whole test
+   suite sharing one 30-minute window, on hardware that measurably runs slower than a local dev
+   machine for this workload) is a stricter and different constraint than "is this one test fast
+   enough on my machine."
