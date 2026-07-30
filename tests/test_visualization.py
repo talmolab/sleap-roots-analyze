@@ -4287,3 +4287,481 @@ class TestBoxplotLabelOverlapFixes:
 
         plt.close(fig_vert)
         plt.close(fig_horiz)
+
+
+class TestBoxplotHorizontalHeightCap:
+    """Tests for capping horizontal-orientation boxplot subplot height (Issue #110).
+
+    The vertical branch already caps adaptive subplot width at 20 inches. The
+    horizontal branch had no equivalent cap, so datasets with hundreds of
+    genotypes could produce a figure large enough to fail to allocate. These
+    tests cover both the single-figure function (where the cap must actually
+    take effect) and the batched wrapper.
+    """
+
+    def _make_df(self, n_genotypes, n_traits=1, samples_per_geno=2):
+        """Helper to create a DataFrame with the given number of genotypes."""
+        np.random.seed(42)
+        n_samples = n_genotypes * samples_per_geno
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [
+            f"Genotype_{i:03d}" for i in range(n_genotypes)
+        ] * samples_per_geno
+        return pd.DataFrame(data)
+
+    def test_direct_call_horizontal_height_capped(self):
+        """480 genotypes via the single-figure function stays at or under the cap.
+
+        This specifically catches the bug where a cap applied only to the
+        batched wrapper's local variable is silently discarded by this inner
+        function's own uncapped recomputation.
+        """
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="auto")
+
+        _, height = fig.get_size_inches()
+        assert height <= 20.0, (
+            f"Horizontal subplot height {height} exceeds the 20.0 inch cap for "
+            "480 genotypes"
+        )
+        plt.close(fig)
+
+    def test_batched_call_horizontal_height_capped(self):
+        """480 genotypes via the batched wrapper stays at or under the cap."""
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        assert len(figures) >= 1
+        for fig in figures:
+            _, height = fig.get_size_inches()
+            assert height <= 20.0, (
+                f"Batched horizontal subplot height {height} exceeds the 20.0 "
+                "inch cap for 480 genotypes"
+            )
+        for fig in figures:
+            plt.close(fig)
+
+    def test_horizontal_height_cap_boundary(self):
+        """At exactly the cap boundary, height matches the cap (no off-by-one)."""
+        # 60 genotypes * 0.3 in/genotype = 18.0 in, chosen to equal a custom cap
+        df = self._make_df(60)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, orientation="auto", max_subplot_height=18.0
+        )
+
+        _, height = fig.get_size_inches()
+        assert height == pytest.approx(18.0, abs=1e-6)
+        plt.close(fig)
+
+    def test_horizontal_height_unchanged_below_cap(self):
+        """Below the cap, height matches the existing uncapped formula exactly."""
+        df = self._make_df(30)  # 30 * 0.3 = 9.0, well under the 20.0 default cap
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(df, trait_cols, orientation="auto")
+
+        _, height = fig.get_size_inches()
+        assert height == pytest.approx(max(4.0, 30 * 0.3), abs=1e-6)
+        plt.close(fig)
+
+    def test_custom_max_subplot_height_respected(self):
+        """A non-default max_subplot_height, not the 20.0 default, bounds output."""
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        fig = create_trait_boxplots_by_genotype(
+            df, trait_cols, orientation="auto", max_subplot_height=10.0
+        )
+
+        _, height = fig.get_size_inches()
+        assert height == pytest.approx(10.0, abs=1e-6)
+        plt.close(fig)
+
+    def test_horizontal_boxplots_zero_genotypes_and_zero_traits(self):
+        """Empty-input edge cases (0 genotypes, empty trait_cols) do not raise."""
+        df_no_genotype_col = pd.DataFrame({"trait_0": np.random.randn(10)})
+
+        fig = create_trait_boxplots_by_genotype(df_no_genotype_col, ["trait_0"])
+        plt.close(fig)
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df_no_genotype_col, ["trait_0"]
+        )
+        for f in figures:
+            plt.close(f)
+
+        df_with_genotype = self._make_df(5)
+        fig_empty_traits = create_trait_boxplots_by_genotype(df_with_genotype, [])
+        plt.close(fig_empty_traits)
+
+        figures_empty_traits = create_trait_boxplots_by_genotype_batched(
+            df_with_genotype, []
+        )
+        assert figures_empty_traits == []
+
+
+class TestBoxplotGenotypePagination:
+    """Tests for genotype pagination in create_trait_boxplots_by_genotype_batched (Issue #110).
+
+    The height cap alone keeps high-genotype-count figures memory-safe but not
+    readable -- hundreds of genotype labels squeezed into a fixed-height axis
+    are illegible regardless of cap value. Pagination splits genotypes across
+    multiple figures so every genotype stays at the same readable per-genotype
+    spacing used below the cap.
+
+    These tests use a small, fixed trait count (not the full 300-trait
+    fixture used elsewhere) since pagination is a property of the genotype
+    axis, not the trait axis -- this keeps a single trait batch unambiguous
+    and keeps tests fast.
+    """
+
+    def _make_df(self, n_genotypes, n_traits=1, samples_per_geno=2):
+        """Helper to create a DataFrame with the given number of genotypes."""
+        np.random.seed(42)
+        n_samples = n_genotypes * samples_per_geno
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [
+            f"Genotype_{i:03d}" for i in range(n_genotypes)
+        ] * samples_per_geno
+        return pd.DataFrame(data)
+
+    def test_pagination_splits_genotypes_at_default_capacity(self):
+        """480 genotypes at the default ~66/page capacity produce multiple pages."""
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        # 1 trait -> 1 trait batch; multiple genotype pages expected
+        assert (
+            len(figures) > 1
+        ), f"Expected multiple genotype pages for 480 genotypes, got {len(figures)}"
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_covers_every_genotype_exactly_once(self):
+        """Every genotype appears in exactly one page's figure, none dropped/duplicated."""
+        n_genotypes = 480
+        df = self._make_df(n_genotypes)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        seen = []
+        for fig in figures:
+            ax = [a for a in fig.get_axes() if a.get_visible()][0]
+            labels = [
+                label.get_text() for label in ax.get_yticklabels() if label.get_text()
+            ]
+            seen.extend(labels)
+
+        expected = {f"Genotype_{i:03d}" for i in range(n_genotypes)}
+        assert set(seen) == expected, "Union of all pages should cover every genotype"
+        assert len(seen) == len(
+            set(seen)
+        ), "No genotype should appear on more than one page"
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_noop_at_or_below_capacity(self):
+        """Genotype count at or below page capacity produces exactly one page."""
+        df = self._make_df(50)  # well below the ~66 default horizontal capacity
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        assert len(figures) == 1
+        plt.close(figures[0])
+
+    def test_pagination_page_height_uses_readable_spacing_not_cap(self):
+        """A paginated figure's height reflects the pre-cap readable formula."""
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        for fig in figures:
+            _, height = fig.get_size_inches()
+            # Every page should be well under the 20.0 cap, since pages are
+            # sized to avoid needing it
+            assert height < 20.0
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_custom_max_genotypes_per_page_respected(self):
+        """An explicit max_genotypes_per_page overrides the auto-derived default."""
+        df = self._make_df(100)
+        trait_cols = ["trait_0"]
+
+        figures_default = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+        figures_custom = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, max_genotypes_per_page=20
+        )
+
+        assert len(figures_custom) > len(figures_default)
+
+        for fig in figures_default:
+            plt.close(fig)
+        for fig in figures_custom:
+            plt.close(fig)
+
+    def test_pagination_suptitle_includes_genotype_range(self):
+        """A multi-page batch's figures each include the genotype range in suptitle."""
+        df = self._make_df(480)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+
+        assert len(figures) > 1
+        for fig in figures:
+            assert "Genotypes" in fig.get_suptitle()
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_last_page_orientation_matches_other_pages(self):
+        """A small last page uses the same orientation as the rest of the batch."""
+        # 469 = 66*7 + 7, leaving a 7-genotype final page (below horizontal_threshold=8)
+        n_genotypes = 469
+        df = self._make_df(n_genotypes)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(df, trait_cols)
+        assert len(figures) > 1
+
+        last_fig = figures[-1]
+        ax = [a for a in last_fig.get_axes() if a.get_visible()][0]
+        y_labels = [l.get_text() for l in ax.get_yticklabels() if l.get_text()]
+        assert any("Genotype_" in l for l in y_labels), (
+            "Last (small) page should still use horizontal orientation, matching "
+            "the rest of the batch, not independently re-resolve to vertical "
+            "based on its own small genotype count"
+        )
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_missing_genotype_column_is_noop(self):
+        """Pagination does not raise when genotype_col is entirely absent."""
+        df = pd.DataFrame({"trait_0": np.random.randn(20)})
+
+        figures = create_trait_boxplots_by_genotype_batched(df, ["trait_0"])
+
+        assert len(figures) == 1
+        plt.close(figures[0])
+
+    def test_pagination_with_nan_genotype_values(self):
+        """Pagination does not raise when some genotype values are NaN."""
+        df = self._make_df(480)
+        # Introduce NaNs into a handful of rows' genotype values
+        df.loc[df.index[:5], "geno"] = np.nan
+
+        figures = create_trait_boxplots_by_genotype_batched(df, ["trait_0"])
+
+        assert len(figures) >= 1
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_with_partial_trait_batch_and_partial_genotype_page(self):
+        """Partial trait batch and partial genotype page combine correctly."""
+        n_traits = 20
+        n_genotypes = 100
+        df = self._make_df(n_genotypes, n_traits=n_traits)
+        trait_cols = [f"trait_{i}" for i in range(n_traits)]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=16, max_genotypes_per_page=66
+        )
+
+        # 20 traits / batch_size=16 -> 2 trait batches (16 full + 4 partial)
+        # 100 genotypes / page_cap=66 -> 2 genotype pages (66 full + 34 partial)
+        assert len(figures) == 4
+
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_exact_boundary_one_page(self):
+        """Genotype count exactly equal to max_genotypes_per_page stays one page."""
+        df = self._make_df(20)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, max_genotypes_per_page=20
+        )
+
+        assert len(figures) == 1
+        plt.close(figures[0])
+
+    def test_pagination_one_over_boundary_two_pages(self):
+        """One genotype over max_genotypes_per_page produces a second, 1-genotype page."""
+        df = self._make_df(21)
+        trait_cols = ["trait_0"]
+
+        figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, max_genotypes_per_page=20
+        )
+
+        assert len(figures) == 2
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_with_mixed_dtype_genotype_values(self):
+        """Pagination sorts safely when genotype values have mixed types.
+
+        `sorted()` on a raw mixed str/int/float sequence raises TypeError in
+        Python; pagination falls back to sorting by `str(value)` only in
+        that case, leaving the underlying genotype values unchanged.
+        """
+        n_genotypes = 90
+        df = self._make_df(n_genotypes)
+        # Replace a few genotype labels with non-string values, as could occur
+        # with a numeric-looking or partially-unsanitized genotype column.
+        df.loc[df["geno"] == "Genotype_000", "geno"] = 12345
+        df.loc[df["geno"] == "Genotype_001", "geno"] = 67.5
+
+        figures = create_trait_boxplots_by_genotype_batched(df, ["trait_0"])
+
+        assert len(figures) >= 1
+        for fig in figures:
+            plt.close(fig)
+
+    def test_pagination_preserves_natural_order_for_numeric_genotypes(self):
+        """A purely-numeric genotype column keeps numeric order, not lexicographic.
+
+        The mixed-dtype fallback (str-keyed sort) must only engage for a
+        genuinely mixed-dtype column; a homogeneous numeric column should
+        still sort as 1, 2, ..., 12 rather than "1", "10", "11", "12", "2", ...
+        """
+        n_samples_per_geno = 2
+        genotype_ids = list(range(1, 13))  # 12 genotypes: horizontal orientation
+        data = {
+            "trait_0": np.random.randn(len(genotype_ids) * n_samples_per_geno),
+            "geno": [g for g in genotype_ids for _ in range(n_samples_per_geno)],
+        }
+        df = pd.DataFrame(data)
+
+        fig = create_trait_boxplots_by_genotype(df, ["trait_0"], orientation="auto")
+
+        ax = [a for a in fig.get_axes() if a.get_visible()][0]
+        y_labels = [
+            label.get_text() for label in ax.get_yticklabels() if label.get_text()
+        ]
+        expected_order = [str(g) for g in sorted(genotype_ids)]
+        assert y_labels == expected_order, (
+            f"Expected natural numeric order {expected_order}, got {y_labels} "
+            "(lexicographic string order would incorrectly place 10/11/12 "
+            "before 2)"
+        )
+        plt.close(fig)
+
+
+class TestBatchedFigureGenerators:
+    """Tests for the private generator functions backing the batched figure creators.
+
+    Issue #110: ExploratoryAnalysisStep and GenerateStaticFiguresStep need to save+close
+    each batch figure as soon as it's produced, not after the full batch list
+    already exists in memory. This requires the batched creators to be
+    expressible as generators (yield one figure at a time), with the existing
+    public functions becoming thin list(...) wrappers so external callers are
+    unaffected.
+    """
+
+    def _make_df(self, n_genotypes, n_traits=1, samples_per_geno=2):
+        """Helper to create a DataFrame with the given number of genotypes."""
+        np.random.seed(42)
+        n_samples = n_genotypes * samples_per_geno
+        data = {f"trait_{i}": np.random.randn(n_samples) for i in range(n_traits)}
+        data["geno"] = [
+            f"Genotype_{i:03d}" for i in range(n_genotypes)
+        ] * samples_per_geno
+        return pd.DataFrame(data)
+
+    def test_histogram_generator_matches_list_wrapper_output(self):
+        """list(_generate_trait_histogram_batches(...)) matches the public wrapper."""
+        from sleap_roots_analyze.visualization import (
+            _generate_trait_histogram_batches,
+            create_trait_histograms_batched,
+        )
+
+        df = self._make_df(10, n_traits=20)
+        trait_cols = [f"trait_{i}" for i in range(20)]
+
+        wrapper_figures = create_trait_histograms_batched(df, trait_cols, batch_size=8)
+        generator_figures = list(
+            _generate_trait_histogram_batches(df, trait_cols, batch_size=8)
+        )
+
+        assert len(generator_figures) == len(wrapper_figures)
+        for gen_fig, wrap_fig in zip(generator_figures, wrapper_figures):
+            assert gen_fig.get_size_inches() == pytest.approx(
+                wrap_fig.get_size_inches()
+            )
+
+        for fig in wrapper_figures:
+            plt.close(fig)
+        for fig in generator_figures:
+            plt.close(fig)
+
+    def test_boxplot_generator_matches_list_wrapper_output(self):
+        """list(_generate_trait_boxplot_batches(...)) matches the public wrapper.
+
+        Including paginated output.
+        """
+        from sleap_roots_analyze.visualization import _generate_trait_boxplot_batches
+
+        df = self._make_df(480, n_traits=20)
+        trait_cols = [f"trait_{i}" for i in range(20)]
+
+        wrapper_figures = create_trait_boxplots_by_genotype_batched(
+            df, trait_cols, batch_size=8
+        )
+        generator_figures = list(
+            _generate_trait_boxplot_batches(df, trait_cols, batch_size=8)
+        )
+
+        assert len(generator_figures) == len(wrapper_figures)
+        assert len(generator_figures) > 1  # sanity: pagination should have engaged
+        for gen_fig, wrap_fig in zip(generator_figures, wrapper_figures):
+            assert gen_fig.get_size_inches() == pytest.approx(
+                wrap_fig.get_size_inches()
+            )
+
+        for fig in wrapper_figures:
+            plt.close(fig)
+        for fig in generator_figures:
+            plt.close(fig)
+
+    def test_boxplot_generator_yields_lazily(self):
+        """A figure is not created until the generator is actually advanced."""
+        from sleap_roots_analyze.visualization import _generate_trait_boxplot_batches
+
+        df = self._make_df(480, n_traits=1)
+        trait_cols = ["trait_0"]
+
+        fignums_before = set(plt.get_fignums())
+        gen = _generate_trait_boxplot_batches(df, trait_cols)
+
+        # Constructing the generator must not create any figures yet
+        assert (
+            set(plt.get_fignums()) == fignums_before
+        ), "Generator construction should not eagerly create figures"
+
+        first_fig = next(gen)
+        fignums_after_one = set(plt.get_fignums())
+        assert len(fignums_after_one - fignums_before) == 1, (
+            "Advancing the generator once should create exactly one new figure, "
+            "not the entire batch"
+        )
+        plt.close(first_fig)
+
+        remaining = list(gen)
+        for fig in remaining:
+            plt.close(fig)

@@ -9,11 +9,11 @@ import matplotlib.pyplot as plt
 
 from sleap_roots_analyze.statistics import calculate_trait_statistics
 from sleap_roots_analyze.visualization import (
+    _generate_trait_boxplot_batches,
+    _generate_trait_histogram_batches,
     create_correlation_heatmap,
     create_exploratory_summary_plots,
-    create_trait_boxplots_by_genotype_batched,
     create_trait_eda_plots,
-    create_trait_histograms_batched,
 )
 from sleap_roots_analyze.viz_utils import calculate_correlation_matrix_size
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
@@ -84,6 +84,34 @@ class ExploratoryAnalysisStep(BaseStep):
         # 1. Calculate trait statistics
         stats = calculate_trait_statistics(df=df, trait_cols=trait_cols)
 
+        # Save and close each figure as soon as it's produced instead of
+        # accumulating every figure in memory before saving any of them
+        # (Issue #110: peak memory was the sum of every figure generated in
+        # this step -- e.g. dozens of batched boxplot figures, a full
+        # correlation heatmap, and histograms all held simultaneously --
+        # rather than the size of the single largest one).
+        files: list[Path] = []
+        figure_names: list[str] = []
+
+        def _save_and_close(name: str, fig: plt.Figure) -> None:
+            fig_path = figures_dir / f"{name}.{config.visualization.figure_format}"
+            try:
+                fig.savefig(
+                    fig_path,
+                    dpi=config.visualization.dpi,
+                    bbox_inches=config.visualization.bbox_inches,
+                    facecolor=config.visualization.facecolor,
+                    edgecolor=config.visualization.edgecolor,
+                    transparent=config.visualization.transparent,
+                )
+            finally:
+                # Always close, even if savefig raises, so a save failure
+                # can't leak the figure back into the unbounded-accumulation
+                # pattern this step exists to avoid (Issue #110).
+                plt.close(fig)
+            files.append(fig_path)
+            figure_names.append(name)
+
         # 2. Create exploratory summary plots
         # Pass adaptive config if enabled
         adaptive_cfg = (
@@ -95,6 +123,8 @@ class ExploratoryAnalysisStep(BaseStep):
             genotype_col=genotype_col,
             adaptive_config=adaptive_cfg,
         )
+        for fig_name, fig in summary_figures.items():
+            _save_and_close(fig_name, fig)
 
         # 3. Create detailed EDA plots with cleanup thresholds
         thresholds = {
@@ -110,9 +140,8 @@ class ExploratoryAnalysisStep(BaseStep):
             cleanup_log=cleanup_log,
             min_samples_per_trait=config.cleanup.min_samples_per_trait,
         )
-
-        # Combine all figures
-        all_figures = {**summary_figures, **eda_figures}
+        for fig_name, fig in eda_figures.items():
+            _save_and_close(fig_name, fig)
 
         # 3.5. Add full correlation heatmap (separate from summary plots)
         # Use adaptive sizing if enabled
@@ -128,46 +157,33 @@ class ExploratoryAnalysisStep(BaseStep):
             trait_cols=trait_cols,
             figsize=corr_figsize,
         )
-        all_figures["full_correlation_heatmap"] = full_corr_fig
+        _save_and_close("full_correlation_heatmap", full_corr_fig)
 
-        # 4. Add batched trait visualizations if enabled and threshold exceeded
+        # 4. Add batched trait visualizations if enabled and threshold exceeded.
+        # Generate, save, and close one batch at a time (rather than collecting
+        # the full list first) so at most one batch figure exists at a time.
         if (
             config.visualization.enable_batched_plots
             and len(trait_cols) > config.visualization.batched_plot_threshold
         ):
-            # Batched histograms
-            hist_figs = create_trait_histograms_batched(
-                df=df,
-                trait_cols=trait_cols,
-                batch_size=config.visualization.batch_size,
-            )
-            for i, fig in enumerate(hist_figs):
-                all_figures[f"04_trait_histograms_batch_{i + 1}"] = fig
+            for i, fig in enumerate(
+                _generate_trait_histogram_batches(
+                    df=df,
+                    trait_cols=trait_cols,
+                    batch_size=config.visualization.batch_size,
+                )
+            ):
+                _save_and_close(f"04_trait_histograms_batch_{i + 1}", fig)
 
-            # Batched boxplots by genotype
-            box_figs = create_trait_boxplots_by_genotype_batched(
-                df=df,
-                trait_cols=trait_cols,
-                genotype_col=genotype_col,
-                batch_size=config.visualization.batch_size,
-            )
-            for i, fig in enumerate(box_figs):
-                all_figures[f"04_trait_boxplots_batch_{i + 1}"] = fig
-
-        # Save all figures
-        files = []
-        for fig_name, fig in all_figures.items():
-            fig_path = figures_dir / f"{fig_name}.{config.visualization.figure_format}"
-            fig.savefig(
-                fig_path,
-                dpi=config.visualization.dpi,
-                bbox_inches=config.visualization.bbox_inches,
-                facecolor=config.visualization.facecolor,
-                edgecolor=config.visualization.edgecolor,
-                transparent=config.visualization.transparent,
-            )
-            plt.close(fig)  # Close to free memory
-            files.append(fig_path)
+            for i, fig in enumerate(
+                _generate_trait_boxplot_batches(
+                    df=df,
+                    trait_cols=trait_cols,
+                    genotype_col=genotype_col,
+                    batch_size=config.visualization.batch_size,
+                )
+            ):
+                _save_and_close(f"04_trait_boxplots_batch_{i + 1}", fig)
 
         # Save statistics
         stats_path = self.save_json(stats, "trait_statistics.json", run_dir)
@@ -177,8 +193,8 @@ class ExploratoryAnalysisStep(BaseStep):
         metadata = {
             "samples": len(df),
             "traits": len(trait_cols),
-            "figures_generated": len(all_figures),
-            "figure_names": list(all_figures.keys()),
+            "figures_generated": len(figure_names),
+            "figure_names": figure_names,
             "statistics": stats,
             "trait_names": trait_cols,  # Primary key (standardized)
             "valid_trait_names": trait_cols,  # For consistency

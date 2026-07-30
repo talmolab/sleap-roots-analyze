@@ -13,6 +13,8 @@ import pandas as pd
 
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
 from sleap_roots_analyze.visualization import (
+    _generate_trait_boxplot_batches,
+    _generate_trait_histogram_batches,
     create_correlation_heatmap,
     create_feature_contribution_heatmap,
     create_feature_contribution_plot,
@@ -23,8 +25,6 @@ from sleap_roots_analyze.visualization import (
     create_pca_scree_plot,
     create_phenotype_variation_plot,
     create_regression_plot,
-    create_trait_boxplots_by_genotype_batched,
-    create_trait_histograms_batched,
     create_umap_colored_by_top_traits,
     identify_extreme_genotypes_by_pc,
 )
@@ -604,22 +604,30 @@ class GenerateStaticFiguresStep(BaseStep):
             )
 
         # Histograms (batched) - saved to figures/trait_histograms/
-        fig = create_trait_histograms_batched(
-            df, trait_cols, batch_size=histogram_batch_size
-        )
-        for i, subfig in enumerate(fig):
-            files.extend(
-                self._save_figure(
-                    subfig,
-                    f"trait_histograms_batch{i + 1}",
-                    histograms_dir,
-                    formats,
-                    dpi,
-                    bbox_inches=config.static_viz.bbox_inches,
-                    transparent=config.static_viz.transparent,
-                )
+        # Iterate the generator directly (rather than materializing the full
+        # batch list first) so at most one batch figure is held in memory at
+        # a time (Issue #110).
+        for i, subfig in enumerate(
+            _generate_trait_histogram_batches(
+                df, trait_cols, batch_size=histogram_batch_size
             )
-            plt.close(subfig)
+        ):
+            try:
+                files.extend(
+                    self._save_figure(
+                        subfig,
+                        f"trait_histograms_batch{i + 1}",
+                        histograms_dir,
+                        formats,
+                        dpi,
+                        bbox_inches=config.static_viz.bbox_inches,
+                        transparent=config.static_viz.transparent,
+                    )
+                )
+            finally:
+                # Always close, even if saving raises, so a save failure
+                # can't leak the figure (Issue #110).
+                plt.close(subfig)
             # Periodically reclaim memory during large batch generation
             if (i + 1) % 10 == 0:
                 gc.collect()
@@ -641,24 +649,29 @@ class GenerateStaticFiguresStep(BaseStep):
                     sizing.height_per_item,
                 )
 
-            fig = create_trait_boxplots_by_genotype_batched(
-                df,
-                trait_cols,
-                **boxplot_kwargs,
-            )
-            for i, subfig in enumerate(fig):
-                files.extend(
-                    self._save_figure(
-                        subfig,
-                        f"trait_boxplots_batch{i + 1}",
-                        boxplots_dir,
-                        formats,
-                        dpi,
-                        bbox_inches=config.static_viz.bbox_inches,
-                        transparent=config.static_viz.transparent,
-                    )
+            for i, subfig in enumerate(
+                _generate_trait_boxplot_batches(
+                    df,
+                    trait_cols,
+                    **boxplot_kwargs,
                 )
-                plt.close(subfig)
+            ):
+                try:
+                    files.extend(
+                        self._save_figure(
+                            subfig,
+                            f"trait_boxplots_batch{i + 1}",
+                            boxplots_dir,
+                            formats,
+                            dpi,
+                            bbox_inches=config.static_viz.bbox_inches,
+                            transparent=config.static_viz.transparent,
+                        )
+                    )
+                finally:
+                    # Always close, even if saving raises, so a save failure
+                    # can't leak the figure (Issue #110).
+                    plt.close(subfig)
                 # Periodically reclaim memory during large batch generation
                 if (i + 1) % 10 == 0:
                     gc.collect()

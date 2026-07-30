@@ -1267,6 +1267,101 @@ class TestMemoryManagement:
             f"Expected <= {max_allowed_accumulation}"
         )
 
+    def test_peak_concurrent_figures_bounded_during_static_figures(
+        self,
+        static_viz_config_enabled,
+        tmp_path,
+    ):
+        """Peak concurrently-open figures stays small even with many genotypes.
+
+        GenerateStaticFiguresStep previously materialized the full batch list
+        (via create_trait_histograms_batched/create_trait_boxplots_by_genotype_batched)
+        before closing any figure -- peak memory was the sum of every batch
+        figure, not the size of the single largest one (Issue #110). Sampled
+        at both figure-creation time (plt.subplots) and close time (plt.close)
+        -- sampling only at close time could miss a figure that's created but
+        never explicitly closed, silently undercounting a leak.
+
+        Fixture size (100 genotypes x 12 traits): originally validated
+        against 480 genotypes x 30 traits, matching the real #110/production
+        failure scale directly, but that size measurably pushed CI's
+        30-minute `tests` job timeout on Ubuntu/Windows once combined with
+        the rest of the suite (confirmed via an actual CI run). 100x12 still
+        triggers genotype pagination (2 pages) and multiple trait batches at
+        this step's default batch sizes, at a small fraction of the runtime.
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import pandas as pd
+        from unittest.mock import patch
+
+        setup_matplotlib_backend()
+
+        np.random.seed(42)
+        n_genotypes = 100
+        n_traits = 12
+        samples_per_geno = 2
+        n_samples = n_genotypes * samples_per_geno
+        data = {
+            "Barcode": [f"sample_{i}" for i in range(n_samples)],
+            "Genotype": [f"geno_{i:03d}" for i in range(n_genotypes)]
+            * samples_per_geno,
+        }
+        for i in range(n_traits):
+            data[f"trait_{i}"] = np.random.randn(n_samples)
+        df = pd.DataFrame(data)
+        trait_cols = [f"trait_{i}" for i in range(n_traits)]
+
+        prev_result = StepResult(
+            data=df,
+            metadata={"valid_trait_names": trait_cols},
+        )
+
+        config = static_viz_config_enabled
+        config.static_viz.create_pca_plots = False
+        config.static_viz.create_heritability_plots = False
+        config.static_viz.create_trait_correlations = False
+        config.static_viz.create_genotype_comparisons = False
+
+        baseline_fignums = len(plt.get_fignums())
+        peak_fignums = baseline_fignums
+        original_close = plt.close
+        original_subplots = plt.subplots
+
+        def tracking_close(*args, **kwargs):
+            nonlocal peak_fignums
+            peak_fignums = max(peak_fignums, len(plt.get_fignums()))
+            return original_close(*args, **kwargs)
+
+        def tracking_subplots(*args, **kwargs):
+            result = original_subplots(*args, **kwargs)
+            nonlocal peak_fignums
+            peak_fignums = max(peak_fignums, len(plt.get_fignums()))
+            return result
+
+        step = GenerateStaticFiguresStep()
+
+        with (
+            patch("matplotlib.pyplot.close", side_effect=tracking_close),
+            patch("matplotlib.pyplot.subplots", side_effect=tracking_subplots),
+        ):
+            step.execute(
+                data=df,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+        # Compared against a baseline captured just before execute() runs
+        # (not an absolute count), so a figure left open by an unrelated test
+        # earlier in the same pytest session can't inflate this result.
+        peak_delta = peak_fignums - baseline_fignums
+        assert peak_delta <= 5, (
+            f"Peak concurrently-open figures above baseline was {peak_delta}, "
+            "expected a small constant, not scaling with the total number of "
+            "figures generated"
+        )
+
 
 class TestBatchFileReduction:
     """Tests for Section 8: Batch File Reduction."""
@@ -2658,10 +2753,10 @@ class TestAdaptiveBatchSize:
 
         with (
             patch(
-                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_histograms_batched"
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures._generate_trait_histogram_batches"
             ) as mock_histograms,
             patch(
-                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_boxplots_by_genotype_batched"
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures._generate_trait_boxplot_batches"
             ) as mock_boxplots,
         ):
             mock_histograms.return_value = [plt.figure() for _ in range(5)]
@@ -2733,10 +2828,10 @@ class TestAdaptiveBatchSize:
 
         with (
             patch(
-                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_histograms_batched"
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures._generate_trait_histogram_batches"
             ) as mock_histograms,
             patch(
-                "sleap_roots_analyze.pipeline.steps.generate_static_figures.create_trait_boxplots_by_genotype_batched"
+                "sleap_roots_analyze.pipeline.steps.generate_static_figures._generate_trait_boxplot_batches"
             ) as mock_boxplots,
         ):
             # Calculate expected batch counts based on adaptive sizing

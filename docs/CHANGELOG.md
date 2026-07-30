@@ -113,6 +113,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (PR #193 review).
 
 ### Fixed
+- `ExploratoryAnalysisStep.execute()` and `GenerateStaticFiguresStep` no longer accumulate every
+  step-4/static figure in memory before saving any of them — an OOM (`bad allocation`) on large
+  experiments with many genotypes and traits (#110). Peak concurrently-open figures dropped from
+  45/40 (measured on a 480-genotype x 300-trait fixture) to 4/5. Both steps now save and close each
+  figure immediately after it's produced, via new private generator functions
+  (`_generate_trait_histogram_batches`, `_generate_trait_boxplot_batches`) that the existing public
+  `create_trait_histograms_batched()`/`create_trait_boxplots_by_genotype_batched()` now wrap.
+  Additionally, `create_trait_boxplots_by_genotype()`'s horizontal-orientation branch — previously
+  unbounded, unlike the vertical branch's existing 20" width cap — now caps subplot height at 20"
+  (`max_subplot_height`, mirroring the vertical cap), and
+  `create_trait_boxplots_by_genotype_batched()` gains genotype pagination
+  (`max_genotypes_per_page`, auto-derived from the height cap: ~66 genotypes/page horizontal, ~40
+  vertical): datasets with more genotypes than fit in one readable, capped figure are split across
+  multiple pages instead of producing one memory-safe-but-illegible chart. Visual output changes
+  (capped height, more boxplot figures for very high genotype counts) are intentional, not a
+  regression.
 - `PCAAnalysisStep` now updates `metadata["trait_names"]`/`valid_trait_names`
   to the zero-variance-filtered feature set after PCA, instead of leaving
   them as the pre-filter list while only recording

@@ -11,7 +11,7 @@ This module provides basic static visualization functions including:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -105,6 +105,23 @@ def create_trait_histograms(
     return fig
 
 
+def _sort_genotypes_safely(values: Any) -> List[Any]:
+    """Sort genotype values, tolerating a mixed-dtype column.
+
+    Tries a natural sort first, so a homogeneous column (all strings, or
+    all numeric) keeps its natural order (e.g. numeric genotype IDs sort as
+    1, 2, 10, 20 -- not lexicographically as "1", "10", "2", "20"). Falls
+    back to sorting by `str()` only if the natural sort raises `TypeError`,
+    which happens for a genuinely mixed-dtype column (e.g. some
+    numeric-looking genotype IDs alongside string ones in unsanitized CSV
+    input).
+    """
+    try:
+        return sorted(values)
+    except TypeError:
+        return sorted(values, key=str)
+
+
 def create_trait_boxplots_by_genotype(
     df: pd.DataFrame,
     trait_cols: List[str],
@@ -114,6 +131,7 @@ def create_trait_boxplots_by_genotype(
     adaptive_config: Optional[Any] = None,
     orientation: str = "auto",
     horizontal_threshold: int = 8,
+    max_subplot_height: float = 20.0,
 ) -> plt.Figure:
     """Create boxplots for traits grouped by genotype.
 
@@ -129,6 +147,11 @@ def create_trait_boxplots_by_genotype(
             "auto" switches to horizontal when n_genotypes > horizontal_threshold.
         horizontal_threshold: Number of genotypes above which auto orientation
             switches to horizontal (default: 8).
+        max_subplot_height: Maximum height in inches per subplot in horizontal
+            orientation (default: 20.0), mirroring the vertical orientation's
+            existing per-subplot width cap. Prevents datasets with very high
+            genotype counts from producing a figure large enough to fail to
+            allocate (Issue #110).
 
     Returns:
         Matplotlib figure object. Callers are responsible for calling
@@ -187,10 +210,13 @@ def create_trait_boxplots_by_genotype(
         figsize = (fig_width, fig_height)
     elif actual_orientation == "horizontal":
         # For horizontal orientation, adjust figsize for readability
-        # Height needs to scale with number of genotypes
+        # Height needs to scale with number of genotypes, capped to prevent
+        # extremely large figures (Issue #110)
         n_rows = (n_traits + n_cols - 1) // n_cols
         height_per_genotype = 0.3  # inches per genotype
-        min_subplot_height = max(4, n_genotypes * height_per_genotype)
+        min_subplot_height = min(
+            max_subplot_height, max(4, n_genotypes * height_per_genotype)
+        )
         figsize = (figsize[0], min_subplot_height * n_rows)
     elif actual_orientation == "vertical" and n_genotypes > 0:
         # For vertical orientation, scale subplot width with genotype count
@@ -221,7 +247,9 @@ def create_trait_boxplots_by_genotype(
                     # Use matplotlib boxplot for horizontal orientation
                     # Style matches df.boxplot() vertical: blue boxes, green
                     # medians, gridlines, unfilled outline
-                    genotype_order = sorted(df_plot[genotype_col].unique())
+                    genotype_order = _sort_genotypes_safely(
+                        df_plot[genotype_col].unique()
+                    )
                     grouped_data = [
                         df_plot.loc[df_plot[genotype_col] == g, trait].values
                         for g in genotype_order
@@ -276,30 +304,24 @@ def create_trait_boxplots_by_genotype(
     return fig
 
 
-def create_trait_histograms_batched(
+def _generate_trait_histogram_batches(
     df: pd.DataFrame,
     trait_cols: List[str],
     batch_size: int = 16,
     n_cols: int = 4,
     figsize: Tuple[int, int] = (16, 16),
-) -> List[plt.Figure]:
-    """Create batched histogram plots for traits (multiple figures for many traits).
+) -> Iterator[plt.Figure]:
+    """Yield batched histogram figures one at a time.
 
-    Args:
-        df: DataFrame with trait data
-        trait_cols: List of trait column names
-        batch_size: Number of traits per figure (default: 16)
-        n_cols: Number of columns in subplot grid
-        figsize: Figure size for FULL batches (default: (16, 16))
-
-    Returns:
-        List of matplotlib figure objects (one per batch)
+    Generator form of `create_trait_histograms_batched`, so a caller can
+    save+close each batch immediately instead of holding every batch figure
+    in memory simultaneously (Issue #110: peak memory was the sum of every
+    batch figure generated, not the size of the single largest one).
     """
     n_traits = len(trait_cols)
     if n_traits == 0:
-        return []
+        return
 
-    figures = []
     for batch_start in range(0, n_traits, batch_size):
         batch_end = min(batch_start + batch_size, n_traits)
         batch_traits = trait_cols[batch_start:batch_end]
@@ -326,9 +348,183 @@ def create_trait_histograms_batched(
             fontsize=14,
             y=0.995,
         )
-        figures.append(fig)
+        yield fig
 
-    return figures
+
+def create_trait_histograms_batched(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    batch_size: int = 16,
+    n_cols: int = 4,
+    figsize: Tuple[int, int] = (16, 16),
+) -> List[plt.Figure]:
+    """Create batched histogram plots for traits (multiple figures for many traits).
+
+    Args:
+        df: DataFrame with trait data
+        trait_cols: List of trait column names
+        batch_size: Number of traits per figure (default: 16)
+        n_cols: Number of columns in subplot grid
+        figsize: Figure size for FULL batches (default: (16, 16))
+
+    Returns:
+        List of matplotlib figure objects (one per batch)
+
+    Note:
+        Holds every batch figure in memory at once. For many traits, prefer
+        iterating `_generate_trait_histogram_batches` directly and
+        saving+closing each figure as it's produced.
+    """
+    return list(
+        _generate_trait_histogram_batches(df, trait_cols, batch_size, n_cols, figsize)
+    )
+
+
+def _generate_trait_boxplot_batches(
+    df: pd.DataFrame,
+    trait_cols: List[str],
+    genotype_col: str = "geno",
+    batch_size: int = 16,
+    n_cols: int = 4,
+    figsize: Optional[Tuple[int, int]] = None,
+    subplot_size: Tuple[float, float] = (4.0, 4.0),
+    orientation: str = "auto",
+    horizontal_threshold: int = 8,
+    max_subplot_height: float = 20.0,
+    max_genotypes_per_page: Optional[int] = None,
+) -> Iterator[plt.Figure]:
+    """Yield batched genotype-boxplot figures one at a time.
+
+    Generator form of `create_trait_boxplots_by_genotype_batched`, so a
+    caller can save+close each batch immediately instead of holding every
+    batch figure in memory simultaneously (Issue #110). Includes the
+    horizontal-orientation height cap and genotype pagination.
+    """
+    n_traits = len(trait_cols)
+    if n_traits == 0:
+        return
+
+    # Determine actual orientation for sizing calculations
+    n_genotypes = df[genotype_col].nunique() if genotype_col in df.columns else 0
+    if orientation == "auto":
+        actual_orientation = (
+            "horizontal" if n_genotypes > horizontal_threshold else "vertical"
+        )
+    else:
+        actual_orientation = orientation
+
+    # Determine genotype pagination (Issue #110: readability at high genotype
+    # counts). NaN genotype values are dropped before sorting, matching the
+    # single-figure renderer's own convention of only ever sorting/plotting a
+    # dropna()'d subset.
+    if max_genotypes_per_page is None:
+        per_genotype_size = 0.3 if actual_orientation == "horizontal" else 0.5
+        max_genotypes_per_page = max(1, int(max_subplot_height // per_genotype_size))
+
+    all_genotypes = (
+        _sort_genotypes_safely(df[genotype_col].dropna().unique())
+        if genotype_col in df.columns
+        else []
+    )
+    genotype_pages: List[Optional[List[Any]]]
+    if all_genotypes and len(all_genotypes) > max_genotypes_per_page:
+        genotype_pages = [
+            all_genotypes[p : p + max_genotypes_per_page]
+            for p in range(0, len(all_genotypes), max_genotypes_per_page)
+        ]
+    else:
+        # No pagination needed: a single page using the unfiltered DataFrame,
+        # matching pre-pagination behavior exactly.
+        genotype_pages = [None]
+    n_pages = len(genotype_pages)
+
+    # Precompute each page's filtered DataFrame once, since it depends only on
+    # the genotype page (not the trait batch) -- avoids redundant isin()
+    # filtering on every (trait batch, genotype page) combination below.
+    page_dfs: List[pd.DataFrame] = [
+        df[df[genotype_col].isin(page_genotypes)] if page_genotypes is not None else df
+        for page_genotypes in genotype_pages
+    ]
+
+    for batch_start in range(0, n_traits, batch_size):
+        batch_end = min(batch_start + batch_size, n_traits)
+        batch_traits = trait_cols[batch_start:batch_end]
+
+        # Calculate adaptive figsize for this batch based on actual rows needed
+        n_traits_in_batch = len(batch_traits)
+        n_rows = (n_traits_in_batch + n_cols - 1) // n_cols
+
+        # Calculate actual columns used in this batch (may be fewer than n_cols)
+        actual_cols = min(n_cols, n_traits_in_batch)
+
+        for page_idx, page_genotypes in enumerate(genotype_pages):
+            page_df = page_dfs[page_idx]
+            n_genotypes_page = (
+                len(page_genotypes) if page_genotypes is not None else n_genotypes
+            )
+
+            if figsize is not None:
+                # Explicit figsize provided - scale both dimensions for partial batches
+                full_n_rows = (batch_size + n_cols - 1) // n_cols
+                width_scale = actual_cols / n_cols
+                height_scale = n_rows / full_n_rows
+                batch_figsize = (figsize[0] * width_scale, figsize[1] * height_scale)
+            else:
+                # Adaptive sizing: calculate based on actual layout, driven by
+                # this page's genotype count (bounded by max_genotypes_per_page
+                # by construction, so the height/width cap is a backstop here,
+                # not the primary mechanism)
+                if actual_orientation == "horizontal":
+                    height_per_genotype = 0.3
+                    subplot_height = min(
+                        max_subplot_height,
+                        max(subplot_size[1], n_genotypes_page * height_per_genotype),
+                    )
+                    batch_figsize = (
+                        actual_cols * subplot_size[0],
+                        n_rows * subplot_height,
+                    )
+                else:
+                    # For vertical, scale subplot width with genotype count
+                    # Cap at 20 inches per subplot to prevent extremely large figures
+                    adaptive_subplot_width = min(
+                        20.0, max(subplot_size[0], n_genotypes_page * 0.5)
+                    )
+                    batch_figsize = (
+                        actual_cols * adaptive_subplot_width,
+                        n_rows * subplot_size[1],
+                    )
+
+            # Create figure for this batch/page
+            # Use actual_cols so the subplot grid matches the computed figsize
+            # Pass the already-resolved actual_orientation (not the original,
+            # possibly-"auto", orientation) so every page of a batch uses a
+            # consistent orientation regardless of that page's own genotype count
+            fig = create_trait_boxplots_by_genotype(
+                page_df,
+                batch_traits,
+                genotype_col=genotype_col,
+                n_cols=actual_cols,
+                figsize=batch_figsize,
+                orientation=actual_orientation,
+                horizontal_threshold=horizontal_threshold,
+                max_subplot_height=max_subplot_height,
+            )
+            title = (
+                f"Trait Boxplots by Genotype (Traits {batch_start + 1}-{batch_end} "
+                f"of {n_traits})"
+            )
+            if n_pages > 1:
+                page_start = page_idx * max_genotypes_per_page
+                page_end = page_start + n_genotypes_page
+                title += f" | Genotypes {page_start + 1}-{page_end} of {n_genotypes}"
+            fig.suptitle(
+                title,
+                fontsize=14,
+                y=0.995,
+            )
+            fig.tight_layout(rect=[0, 0, 1, 0.96])
+            yield fig
 
 
 def create_trait_boxplots_by_genotype_batched(
@@ -341,6 +537,8 @@ def create_trait_boxplots_by_genotype_batched(
     subplot_size: Tuple[float, float] = (4.0, 4.0),
     orientation: str = "auto",
     horizontal_threshold: int = 8,
+    max_subplot_height: float = 20.0,
+    max_genotypes_per_page: Optional[int] = None,
 ) -> List[plt.Figure]:
     """Create batched boxplot plots by genotype (multiple figures for many traits).
 
@@ -358,79 +556,43 @@ def create_trait_boxplots_by_genotype_batched(
             "auto" switches to horizontal when n_genotypes > horizontal_threshold.
         horizontal_threshold: Number of genotypes above which auto orientation
             switches to horizontal (default: 8).
+        max_subplot_height: Maximum height in inches per subplot in horizontal
+            orientation (default: 20.0), mirroring the vertical orientation's
+            existing per-subplot width cap. Passed through to the underlying
+            single-figure renderer, which is where the cap actually takes
+            effect (Issue #110).
+        max_genotypes_per_page: Maximum number of genotypes rendered in a single
+            figure. When the dataset has more genotypes than this, genotypes are
+            split into consecutive alphabetically-sorted pages and one figure is
+            rendered per (trait batch, genotype page) combination, keeping every
+            page at the same readable per-genotype spacing used below the height
+            cap. Defaults to `None`, which auto-derives a value from
+            `max_subplot_height` and the per-genotype size for the orientation in
+            effect (~66 for horizontal, ~40 for vertical, at default settings).
 
     Returns:
-        List of matplotlib figure objects (one per batch)
+        List of matplotlib figure objects (one per batch per genotype page)
+
+    Note:
+        Holds every batch figure in memory at once. For many traits or many
+        genotypes, prefer iterating `_generate_trait_boxplot_batches` directly
+        and saving+closing each figure as it's produced.
     """
-    n_traits = len(trait_cols)
-    if n_traits == 0:
-        return []
-
-    # Determine actual orientation for sizing calculations
-    n_genotypes = df[genotype_col].nunique() if genotype_col in df.columns else 0
-    if orientation == "auto":
-        actual_orientation = (
-            "horizontal" if n_genotypes > horizontal_threshold else "vertical"
-        )
-    else:
-        actual_orientation = orientation
-
-    figures = []
-    for batch_start in range(0, n_traits, batch_size):
-        batch_end = min(batch_start + batch_size, n_traits)
-        batch_traits = trait_cols[batch_start:batch_end]
-
-        # Calculate adaptive figsize for this batch based on actual rows needed
-        n_traits_in_batch = len(batch_traits)
-        n_rows = (n_traits_in_batch + n_cols - 1) // n_cols
-
-        # Calculate actual columns used in this batch (may be fewer than n_cols)
-        actual_cols = min(n_cols, n_traits_in_batch)
-
-        if figsize is not None:
-            # Explicit figsize provided - scale both dimensions for partial batches
-            full_n_rows = (batch_size + n_cols - 1) // n_cols
-            width_scale = actual_cols / n_cols
-            height_scale = n_rows / full_n_rows
-            batch_figsize = (figsize[0] * width_scale, figsize[1] * height_scale)
-        else:
-            # Adaptive sizing: calculate based on actual layout
-            if actual_orientation == "horizontal":
-                # For horizontal, height scales with genotype count
-                height_per_genotype = 0.3
-                subplot_height = max(subplot_size[1], n_genotypes * height_per_genotype)
-                batch_figsize = (actual_cols * subplot_size[0], n_rows * subplot_height)
-            else:
-                # For vertical, scale subplot width with genotype count
-                # Cap at 20 inches per subplot to prevent extremely large figures
-                adaptive_subplot_width = min(
-                    20.0, max(subplot_size[0], n_genotypes * 0.5)
-                )
-                batch_figsize = (
-                    actual_cols * adaptive_subplot_width,
-                    n_rows * subplot_size[1],
-                )
-
-        # Create figure for this batch
-        # Use actual_cols so the subplot grid matches the computed figsize
-        fig = create_trait_boxplots_by_genotype(
+    return list(
+        _generate_trait_boxplot_batches(
             df,
-            batch_traits,
-            genotype_col=genotype_col,
-            n_cols=actual_cols,
-            figsize=batch_figsize,
-            orientation=orientation,
-            horizontal_threshold=horizontal_threshold,
+            trait_cols,
+            genotype_col,
+            batch_size,
+            n_cols,
+            figsize,
+            subplot_size,
+            orientation,
+            horizontal_threshold,
+            max_subplot_height,
+            max_genotypes_per_page,
         )
-        fig.suptitle(
-            f"Trait Boxplots by Genotype (Traits {batch_start + 1}-{batch_end} of {n_traits})",
-            fontsize=14,
-            y=0.995,
-        )
-        fig.tight_layout(rect=[0, 0, 1, 0.96])
-        figures.append(fig)
-
-    return figures
+    )
 
 
 def create_correlation_heatmap(
