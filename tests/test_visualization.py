@@ -2179,6 +2179,57 @@ class TestPCAVisualization:
 
         plt.close("all")
 
+    def test_create_feature_contribution_plot_on_the_fly_matches_direct_call(
+        self, pca_viz_results
+    ):
+        """Regression test for #202: on-the-fly ranking matches select_top_features_from_pca directly.
+
+        The refactored on-the-fly branch delegates to
+        select_top_features_from_pca(method="top_variance", pc_indices=None, ...)
+        instead of duplicating its ranking formula inline; this asserts the two
+        stay identical, in order.
+        """
+        from sleap_roots_analyze.visualization import create_feature_contribution_plot
+        from sleap_roots_analyze.pca import select_top_features_from_pca
+
+        trait_names = pca_viz_results["feature_names"]
+        n_components = 3
+        top_n = 10
+
+        # This fixture includes a pre-calculated "feature_contributions" key by
+        # default, which would route through the pre-calculated branch instead of
+        # the on-the-fly branch under test here — strip it to force the on-the-fly
+        # path this test targets.
+        pca_results_no_precalc = {
+            k: v for k, v in pca_viz_results.items() if k != "feature_contributions"
+        }
+        assert "trait_contrib_df" not in pca_results_no_precalc
+        assert "feature_contributions" not in pca_results_no_precalc
+
+        fig = create_feature_contribution_plot(
+            pca_results_no_precalc,
+            trait_names,
+            n_components=n_components,
+            top_n=top_n,
+        )
+        ax = fig.axes[0]
+        plotted_order = [label.get_text() for label in ax.get_yticklabels()]
+
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"][:, :n_components],
+            eigenvalues=pca_viz_results["eigenvalues"][:n_components],
+            n_features_total=len(trait_names),
+            n_features_to_select=min(top_n, len(trait_names)),
+            method="top_variance",
+            pc_indices=None,
+        )
+        # The plot draws highest-contribution at top, i.e. reversed selection order.
+        expected_order = [trait_names[i] for i in expected_indices][::-1]
+
+        assert plotted_order == expected_order
+
+        plt.close("all")
+
     def test_create_feature_contribution_plot_consistency(self):
         """Test that pre-calculated and on-the-fly calculations give consistent results."""
         from sleap_roots_analyze.visualization import create_feature_contribution_plot

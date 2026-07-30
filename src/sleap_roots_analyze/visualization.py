@@ -2103,7 +2103,7 @@ def create_feature_contribution_plot(
         for i in range(n_components):
             contributions[:, i] = eigenvalues[i] * loadings[:, i] ** 2
 
-        # Sum across selected PCs (for display of unselected features' totals)
+        # Total contribution per feature (all features, before top-N selection below)
         total_contributions_all = np.sum(contributions, axis=1)
 
         # Select top features by total variance contribution, delegating to the
@@ -2274,7 +2274,11 @@ def create_pca_biplot(
     elif feature_selection == "top_variance":
         method = "top_variance"
     else:
-        raise ValueError(f"Unrecognized feature_selection: {feature_selection!r}")
+        raise ValueError(
+            f"Unrecognized feature_selection: {feature_selection!r}. Expected one "
+            "of 'vector_length', 'extreme', 'top_absolute', 'top_contribution', "
+            "'top_variance'."
+        )
 
     # Select features using modular function. "top_variance" ranks by total
     # variance contribution across all retained PCs (not just pc_x/pc_y), so

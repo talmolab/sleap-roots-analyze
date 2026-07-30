@@ -34,6 +34,11 @@ def select_top_features_from_pca(
             - "top_variance": Top N by total variance contribution (all PCs)
             - "vector_length": Top N by Euclidean distance in PC plane (traditional biplot)
         pc_indices: Which PCs to consider (0-based). If None, uses first 2 PCs.
+            Ignored entirely by "top_variance", which always ranks across every
+            retained PC (`range(n_pcs)` below) regardless of what is passed here —
+            callers wanting "top_variance" scoped to specific PCs should pass a
+            pre-sliced `loadings`/`eigenvalues` instead (see `create_pca_biplot`
+            and `create_umap_colored_by_top_traits` for this pattern).
 
     Returns:
         List of selected feature indices (order depends on method)
