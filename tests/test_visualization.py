@@ -2240,6 +2240,20 @@ class TestPCAVisualization:
 
         plt.close("all")
 
+    def test_create_feature_contribution_plot_no_feature_selection_param(self):
+        """Regression test for #202: dead feature_selection param is removed.
+
+        It never affected selection, so it must be removed, not silently ignored.
+        """
+        import inspect
+        from sleap_roots_analyze.visualization import create_feature_contribution_plot
+
+        sig = inspect.signature(create_feature_contribution_plot)
+        assert "feature_selection" not in sig.parameters
+
+        with pytest.raises(TypeError):
+            create_feature_contribution_plot({}, [], feature_selection="top_variance")
+
     def test_create_pca_biplot(self, pca_viz_results, pca_viz_dataframe):
         """Test PCA biplot creation."""
         from sleap_roots_analyze.visualization import create_pca_biplot
@@ -2297,6 +2311,120 @@ class TestPCAVisualization:
         assert isinstance(fig, plt.Figure)
         # Should have a colorbar
         assert len(fig.axes) > 1  # Main ax plus colorbar
+
+        plt.close("all")
+
+    def test_create_pca_biplot_top_variance_feature_selection(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Regression test for #202: "top_variance" must select via that method.
+
+        It must match select_top_features_from_pca(method="top_variance"), not
+        silently fall back to "vector_length".
+        """
+        from sleap_roots_analyze.visualization import create_pca_biplot
+        from sleap_roots_analyze.pca import select_top_features_from_pca
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+        top_n_features = 5
+        # PC1/PC3 (not PC1/PC2) is deliberate: for this fixture's random loadings,
+        # "vector_length" restricted to PC1/PC2 happens to coincide with
+        # "top_variance" over all PCs, which would make this test pass even on the
+        # buggy fallback. PC1/PC3 empirically diverges, so it actually catches #202.
+        pc_x, pc_y = 1, 3
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            pc_x=pc_x,
+            pc_y=pc_y,
+            top_n_features=top_n_features,
+            feature_selection="top_variance",
+        )
+
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(trait_names),
+            n_features_to_select=top_n_features,
+            method="top_variance",
+            pc_indices=None,
+        )
+        expected_traits = {trait_names[i] for i in expected_indices}
+
+        ax = fig.axes[0]
+        plotted_traits = {text.get_text() for text in ax.texts if text.get_text()}
+
+        assert plotted_traits == expected_traits
+
+        plt.close("all")
+
+    def test_create_pca_biplot_unrecognized_feature_selection_raises(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Regression test for #202: an unrecognized feature_selection raises.
+
+        It must raise ValueError instead of silently substituting "vector_length".
+        """
+        from sleap_roots_analyze.visualization import create_pca_biplot
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+
+        with pytest.raises(ValueError):
+            create_pca_biplot(
+                pca_viz_results,
+                pca_viz_dataframe,
+                trait_names,
+                pc_x=1,
+                pc_y=2,
+                top_n_features=5,
+                feature_selection="not_a_real_method",
+            )
+
+    @pytest.mark.parametrize(
+        "feature_selection",
+        ["vector_length", "extreme", "top_absolute", "top_contribution"],
+    )
+    def test_create_pca_biplot_feature_selection_methods_dispatch_correctly(
+        self, pca_viz_results, pca_viz_dataframe, feature_selection
+    ):
+        """Regression guard: pre-existing feature_selection methods still work.
+
+        The four pre-existing methods must keep dispatching to their matching
+        select_top_features_from_pca method.
+        """
+        from sleap_roots_analyze.visualization import create_pca_biplot
+        from sleap_roots_analyze.pca import select_top_features_from_pca
+
+        trait_names = [f"trait_{i}" for i in range(10)]
+        top_n_features = 5
+        pc_x, pc_y = 1, 2
+
+        fig = create_pca_biplot(
+            pca_viz_results,
+            pca_viz_dataframe,
+            trait_names,
+            pc_x=pc_x,
+            pc_y=pc_y,
+            top_n_features=top_n_features,
+            feature_selection=feature_selection,
+        )
+
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(trait_names),
+            n_features_to_select=top_n_features,
+            method=feature_selection,
+            pc_indices=[pc_x - 1, pc_y - 1],
+        )
+        expected_traits = {trait_names[i] for i in expected_indices}
+
+        ax = fig.axes[0]
+        plotted_traits = {text.get_text() for text in ax.texts if text.get_text()}
+
+        assert plotted_traits == expected_traits
 
         plt.close("all")
 

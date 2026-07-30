@@ -1645,6 +1645,41 @@ class TestMissingPlotsWiring:
         assert "top_n" in call_kwargs
         assert call_kwargs["top_n"] == 15
 
+    def test_feature_contribution_plot_call_does_not_pass_feature_selection(
+        self,
+        static_viz_config_enabled,
+        sample_trait_data,
+        prev_result_with_pca,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Regression test for #202: step no longer passes feature_selection.
+
+        create_feature_contribution_plot no longer accepts feature_selection,
+        so the step must not pass it.
+        """
+        from unittest.mock import Mock
+        from sleap_roots_analyze.pipeline.steps import generate_static_figures
+
+        mock_contrib = Mock(return_value=Mock())
+        monkeypatch.setattr(
+            generate_static_figures, "create_feature_contribution_plot", mock_contrib
+        )
+
+        setup_matplotlib_backend()
+        step = GenerateStaticFiguresStep()
+
+        step.execute(
+            data=sample_trait_data,
+            config=static_viz_config_enabled,
+            run_dir=tmp_path,
+            prev_result=prev_result_with_pca,
+        )
+
+        assert mock_contrib.called
+        call_kwargs = mock_contrib.call_args.kwargs
+        assert "feature_selection" not in call_kwargs
+
     # --- 6b: PCA PC Boxplots Variance Threshold ---
 
     def test_pc_boxplots_uses_variance_threshold_from_pca_config(
