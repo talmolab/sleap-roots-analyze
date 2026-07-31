@@ -52,8 +52,8 @@ The pipeline provenance manifest (`pipeline_summary.json`) SHALL record every fi
 - **WHEN** any of those intermediate annotations declare `List[str]`, an unannotated
   container, or otherwise disagree with the actual `Path` objects being stored
 - **THEN** the mypy type-check gate (`developer-tooling` capability) SHALL surface it as an
-  error not present in `.mypy-baseline.txt`
-- **AND** the frozen baseline SHALL contain zero `files_generated`-related `list[Path]` vs
-  `list[str]` mismatches once a producer is fixed — a non-zero count indicates a producer
-  whose static annotations still lag its runtime behavior, independent of whether the
-  runtime `str(path)` source guard passes
+  error not present in `.mypy-baseline.txt`, independent of whether the runtime
+  `str(path)` source guard passes
+- **AND** correcting only the annotation (no serializer or pipeline-logic change) SHALL be
+  sufficient to clear the corresponding entry from the baseline, since the invariant this
+  scenario enforces is a static-typing property, not a runtime behavior
