@@ -113,6 +113,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (PR #193 review).
 
 ### Fixed
+- `create_pca_biplot` now honors `feature_selection="top_variance"` (#202): the
+  `feature_selection`→`method` mapping had `elif` branches for `extreme`/
+  `top_absolute`/`top_contribution`/`vector_length` but none for `top_variance`,
+  so it silently fell into `else: method = "vector_length"` — a materially
+  different selection criterion (eigenvalue-weighted variance contribution vs.
+  unweighted Euclidean norm in the PC plane). An explicit `top_variance` branch
+  now passes `pc_indices=None` (rather than the biplot's 2 displayed PCs) since
+  `select_top_features_from_pca`'s `top_variance` method ranks across all
+  retained PCs and ignores `pc_indices` entirely. Any other `feature_selection`
+  value now raises `ValueError` instead of silently substituting
+  `vector_length`. `create_feature_contribution_plot` **removes** its
+  `feature_selection` parameter (BREAKING): the parameter was never referenced
+  in the function body — every code path always ranked by total variance
+  contribution regardless of what was passed — and wiring it up would have made
+  the chart's own title (which asserts the displayed traits are the top
+  contributors) misdescribe non-contribution-selected content, so the
+  parameter is removed rather than fixed, matching the parameter-free
+  `create_feature_contribution_heatmap` precedent. Its on-the-fly ranking
+  branch now delegates to `select_top_features_from_pca(method="top_variance")`
+  instead of duplicating the formula inline. No in-repo caller nor the
+  verified downstream `bloom` consumer passed `feature_selection` to this
+  function, so removal is backward-compatible in practice.
 - `ExploratoryAnalysisStep.execute()` and `GenerateStaticFiguresStep` no longer accumulate every
   step-4/static figure in memory before saving any of them — an OOM (`bad allocation`) on large
   experiments with many genotypes and traits (#110). Peak concurrently-open figures dropped from

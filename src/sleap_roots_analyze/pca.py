@@ -10,6 +10,13 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from typing import Dict, Optional, Tuple, Union, List
 
+# Single source of truth for select_top_features_from_pca's supported `method`
+# values, so callers that pre-validate `method`/`feature_selection` (e.g.
+# create_pca_biplot) can't drift out of sync with this function's own dispatch.
+VALID_SELECTION_METHODS = frozenset(
+    {"extreme", "top_absolute", "top_contribution", "top_variance", "vector_length"}
+)
+
 
 def select_top_features_from_pca(
     loadings: np.ndarray,
@@ -34,6 +41,11 @@ def select_top_features_from_pca(
             - "top_variance": Top N by total variance contribution (all PCs)
             - "vector_length": Top N by Euclidean distance in PC plane (traditional biplot)
         pc_indices: Which PCs to consider (0-based). If None, uses first 2 PCs.
+            Ignored entirely by "top_variance", which always ranks across every
+            retained PC (`range(n_pcs)` below) regardless of what is passed here —
+            callers wanting "top_variance" scoped to specific PCs should pass a
+            pre-sliced `loadings`/`eigenvalues` instead (see `create_pca_biplot`
+            and `create_umap_colored_by_top_traits` for this pattern).
 
     Returns:
         List of selected feature indices (order depends on method)
@@ -123,7 +135,10 @@ def select_top_features_from_pca(
         return np.argsort(distances)[::-1][:n_features_to_select].tolist()
 
     else:
-        raise ValueError(f"Unknown selection method: {method}")
+        raise ValueError(
+            f"Unknown selection method: {method!r}. Expected one of "
+            f"{sorted(VALID_SELECTION_METHODS)}."
+        )
 
 
 def select_n_components(

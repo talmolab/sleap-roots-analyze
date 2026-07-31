@@ -23,7 +23,10 @@ from datetime import datetime
 import logging
 
 # Import PCA functions
-from sleap_roots_analyze.pca import select_top_features_from_pca
+from sleap_roots_analyze.pca import (
+    select_top_features_from_pca,
+    VALID_SELECTION_METHODS,
+)
 
 try:
     import plotly.graph_objects as go
@@ -1970,13 +1973,16 @@ def create_feature_contribution_plot(
     n_components: Optional[int] = None,
     variance_threshold: float = 0.95,
     top_n: int = 20,
-    feature_selection: str = "top_variance",  # New parameter
     figsize: Tuple[float, float] = (12, 8),
 ) -> plt.Figure:
     """Create a plot showing feature contributions across selected PCs.
 
     This function can use pre-calculated contributions from run_pca_and_export_artifacts
     (if available in pca_results["trait_contrib_df"]) or calculate them on the fly.
+    Features are always selected by total variance contribution: the chart's own
+    title asserts the displayed traits are the top contributors, so a different
+    selection criterion would misdescribe the chart's own content (matching
+    create_feature_contribution_heatmap's precedent, which has no such parameter).
 
     Args:
         pca_results: Results from perform_pca_analysis or run_pca_and_export_artifacts.
@@ -1985,11 +1991,6 @@ def create_feature_contribution_plot(
         n_components: Number of PCs to consider. If None, use variance threshold.
         variance_threshold: Cumulative variance threshold for PC selection.
         top_n: Number of top contributing features to show.
-        feature_selection: Method for selecting features:
-            - "top_variance": Top N by total variance contribution (default)
-            - "extreme": Top N most positive and negative for displayed PCs
-            - "top_absolute": Top N by absolute loading magnitude
-            - "top_contribution": Top N by contribution to displayed PCs
         figsize: Figure size.
 
     Returns:
@@ -2105,20 +2106,25 @@ def create_feature_contribution_plot(
         for i in range(n_components):
             contributions[:, i] = eigenvalues[i] * loadings[:, i] ** 2
 
-        # Sum across selected PCs
-        total_contributions = np.sum(contributions, axis=1)
+        # Total contribution per feature (all features, before top-N selection below)
+        total_contributions_all = np.sum(contributions, axis=1)
 
-        # Sort features by total contribution
-        sorted_indices = np.argsort(total_contributions)[::-1]
-
-        # Limit to available features
+        # Select top features by total variance contribution, delegating to the
+        # shared selection function instead of duplicating its ranking formula.
         actual_top_n = min(top_n, len(trait_names))
-        top_indices = sorted_indices[:actual_top_n]
+        top_indices = select_top_features_from_pca(
+            loadings=loadings,
+            eigenvalues=eigenvalues,
+            n_features_total=len(trait_names),
+            n_features_to_select=actual_top_n,
+            method="top_variance",
+            pc_indices=None,
+        )
 
         # Get top features data
         top_traits = [trait_names[i] for i in top_indices]
         contributions = contributions[top_indices]
-        total_contributions = total_contributions[top_indices]
+        total_contributions = total_contributions_all[top_indices]
         available_pcs = n_components
 
     # Create figure
@@ -2205,6 +2211,8 @@ def create_pca_biplot(
             - "extreme": Top N most positive and negative for each PC
             - "top_absolute": Top N by absolute loading magnitude
             - "top_contribution": Top N by variance contribution to displayed PCs
+            - "top_variance": Top N by total variance contribution (all retained PCs,
+              not just pc_x/pc_y)
         figsize: Figure size.
         alpha: Transparency for scatter points.
         arrow_scale: Scaling factor for feature arrows (auto-calculated if None).
@@ -2220,7 +2228,8 @@ def create_pca_biplot(
         PCA biplot figure.
 
     Raises:
-        ValueError: If the PCA sample count cannot be matched to ``df``.
+        ValueError: If the PCA sample count cannot be matched to ``df``, or if
+            ``feature_selection`` is not one of the documented values.
     """
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -2256,26 +2265,28 @@ def create_pca_biplot(
     # Get eigenvalues if available for variance-based selection
     eigenvalues = pca_results.get("eigenvalues", np.ones(loadings.shape[1]))
 
-    # Map feature_selection parameter to method
-    if feature_selection == "extreme":
-        method = "extreme"
-    elif feature_selection == "top_absolute":
-        method = "top_absolute"
-    elif feature_selection == "top_contribution":
-        method = "top_contribution"
-    elif feature_selection == "vector_length":
-        method = "vector_length"
-    else:
-        method = "vector_length"  # Default to traditional biplot convention
+    # feature_selection maps 1:1 onto select_top_features_from_pca's `method`
+    # values; validate against its own VALID_SELECTION_METHODS so this check
+    # can't drift out of sync with what that function actually supports.
+    if feature_selection not in VALID_SELECTION_METHODS:
+        raise ValueError(
+            f"Unrecognized feature_selection: {feature_selection!r}. Expected "
+            f"one of {sorted(VALID_SELECTION_METHODS)}."
+        )
+    method = feature_selection
 
-    # Select features using modular function
+    # Select features using modular function. "top_variance" ranks by total
+    # variance contribution across all retained PCs (not just pc_x/pc_y), so
+    # pc_indices must be None here — select_top_features_from_pca ignores
+    # pc_indices entirely for this method, and passing [pc_x_idx, pc_y_idx]
+    # would misleadingly suggest the biplot's 2-PC scope is honored.
     top_indices = select_top_features_from_pca(
         loadings=loadings,
         eigenvalues=eigenvalues,
         n_features_total=n_features,
         n_features_to_select=top_n_features,
         method=method,
-        pc_indices=[pc_x_idx, pc_y_idx],
+        pc_indices=None if method == "top_variance" else [pc_x_idx, pc_y_idx],
     )
 
     # Plot samples
