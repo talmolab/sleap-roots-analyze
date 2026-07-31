@@ -2916,7 +2916,7 @@ def create_umap_colored_by_top_traits(
         "top_variance": "Contributing",
         "extreme": "Extreme Loading",
         "top_absolute": "Highest Absolute Loading",
-        "top_contribution": "Contributing to PC1-PC2",
+        "top_contribution": "Contributing to Retained PCs",
     }
     title = f"UMAP Colored by Top {n_traits} {method_desc.get(feature_selection, 'Contributing')} Traits"
     fig.suptitle(title, fontsize=14)

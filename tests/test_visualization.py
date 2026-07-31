@@ -2968,6 +2968,62 @@ class TestPCAVisualization:
 
         plt.close("all")
 
+    def test_create_umap_colored_by_top_traits_top_contribution_scopes_pc_indices(
+        self,
+    ):
+        """pc_indices scoping also applies to "top_contribution" (#207).
+
+        Mirrors the "top_absolute" scoping test above, but for
+        "top_contribution", whose ranking is eigenvalue-weighted
+        (contribution = eigenvalue * loading**2) rather than a plain
+        abs-loading sum.
+        """
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+
+        n_features = 6
+        n_pcs = 4
+        loadings = np.zeros((n_features, n_pcs))
+        # Feature 0: loads only on PC1 (eigenvalue 5.0).
+        # Contribution = 5.0 * 0.6**2 = 1.8, visible under the old hardcoded
+        # pc_indices=[0, 1] scope.
+        loadings[0, 0] = 0.6
+        # Feature 2: loads only on PC4 (eigenvalue 2.0, index 3) — invisible
+        # under the old [0, 1] scope (contribution there = 0).
+        # Contribution = 2.0 * 1.0**2 = 2.0, exceeding feature 0's 1.8 only
+        # once pc_indices spans all 4 retained PCs.
+        loadings[2, 3] = 1.0
+
+        eigenvalues = np.array([5.0, 4.0, 3.0, 2.0])
+        pca_results = {
+            "loadings": loadings,
+            "eigenvalues": eigenvalues,
+            "cumulative_variance_ratio": np.cumsum(eigenvalues / eigenvalues.sum()),
+            "n_components_selected": n_pcs,
+        }
+
+        trait_columns = [f"trait_{i}" for i in range(n_features)]
+        rng = np.random.RandomState(0)
+        df = pd.DataFrame({col: rng.randn(20) for col in trait_columns})
+        umap_results = {"embedding": rng.randn(20, 2)}
+
+        fig = create_umap_colored_by_top_traits(
+            umap_results,
+            df,
+            trait_columns,
+            trait_columns,
+            pca_results,
+            n_traits=1,
+            feature_selection="top_contribution",
+        )
+
+        plotted = {ax.get_title().split("\n")[0] for ax in fig.axes if ax.get_title()}
+        assert plotted == {"trait_2"}, (
+            "Expected the PC4-dominant trait to be selected once pc_indices "
+            f"spans all retained PCs; got {plotted}"
+        )
+
+        plt.close("all")
+
     def test_create_umap_colored_by_top_traits_extreme_spans_multiple_pcs_and_directions(
         self,
     ):
