@@ -130,6 +130,14 @@ summary glyph can raise `UnicodeEncodeError` locally — prefix the command with
 
 Strictness starts lenient (one knob today) and is tightened over time in small follow-up PRs.
 
+CI also guards against mypy itself crashing (issue #160): a fatal/internal-error exit (anything
+other than mypy's documented `0`=clean or `1`=errors-reported) fails the job immediately, with a
+distinct `mypy exited with fatal status ...` annotation, regardless of what `mypy-baseline filter`
+reports. This matters most once the baseline reaches zero — without it, a silent crash would look
+identical to a clean run. The local commands above intentionally don't carry this guard: a local
+terminal already shows a crash directly (non-zero `$?`, stderr output), so there's nothing to
+disambiguate.
+
 ### 6. Update Documentation
 
 - Add docstrings to all functions
