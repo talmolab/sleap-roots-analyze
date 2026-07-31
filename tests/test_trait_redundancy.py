@@ -6,6 +6,8 @@ These tests define expected behavior before implementation.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import pandas as pd
 import numpy as np
@@ -985,6 +987,11 @@ class TestReduceTraitRedundancyStep:
         # Check file was generated
         assert any("exp2_trait_clusters.csv" in str(f) for f in result.files_generated)
 
+        # files_generated SHALL hold Path objects, not str (cli-pipeline spec:
+        # "Provenance Path Serialization Is Centralized") — every other assertion
+        # here goes through str(f), which would pass identically for either type
+        assert all(isinstance(f, Path) for f in result.files_generated)
+
         # Read and verify the file
         cluster_file = tmp_path / "exp2_trait_clusters.csv"
         assert cluster_file.exists()
@@ -1110,6 +1117,11 @@ class TestReduceTraitRedundancyStep:
         assert any(
             "exp2_trait_cluster_heatmap.png" in str(f) for f in result.files_generated
         )
+
+        # files_generated SHALL hold Path objects, not str (cli-pipeline spec:
+        # "Provenance Path Serialization Is Centralized") — every other assertion
+        # here goes through str(f), which would pass identically for either type
+        assert all(isinstance(f, Path) for f in result.files_generated)
 
         # Check metadata includes both experiment stats
         assert "exp1_original_traits" in result.metadata
