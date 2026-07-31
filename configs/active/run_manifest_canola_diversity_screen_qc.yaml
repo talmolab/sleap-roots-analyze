@@ -1,0 +1,22 @@
+# Run Manifest: canola_diversity_screen_qc
+#
+# Dataset: Z:/users/eberrigan/20240815_canola_diversity_screen_analysis/sleap_roots_traits_output/traits_summary_with_genotype_qc_no_root_widths.csv
+# Analysis date: 2026-07-31
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_canola_diversity_screen_qc.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: canola_diversity_screen_qc
+description: QC and Viz re-analysis of the existing canola Diversity Screen (experiment_id=1),
+  Bloom QC set_id=5 applied (3,135 plants / 15,066 scans pass). Root Widths trait
+  family pre-filtered out of the input CSV (81 root_widths_* columns) to avoid
+  sleap-roots-analyze#113. Groups: plant_age_days (0, 2, 7, 9, 12, 13).
+qc_configs:
+  - qc/canola_diversity_screen_qc.yaml
+viz_configs:
+  - viz/canola_diversity_screen_qc.yaml
+qc_mapping:
+  viz/canola_diversity_screen_qc.yaml: qc/canola_diversity_screen_qc.yaml

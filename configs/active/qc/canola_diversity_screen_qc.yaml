@@ -1,0 +1,77 @@
+# QC Pipeline Configuration: canola_diversity_screen_qc
+#
+# Dataset: canola Diversity Screen (experiment_id=1), re-analysis of existing
+# predictions with Bloom QC set_id=5 ("canola-greenhouse-v1") applied. 3,135
+# plants / 15,066 scans pass QC out of 18,470 scans total.
+# Analysis date: 2026-07-31
+# Generated from: qc_template_grouped.yaml
+#
+# Key choices:
+#   csv_path points at the *_no_root_widths pre-filtered CSV (81 root_widths_*
+#     columns dropped) rather than using additional_exclude_cols, to avoid
+#     talmolab/sleap-roots-analyze#113 (viz steps 09/10 crash with a long
+#     additional_exclude_cols list). Same workaround used for the alfalfa GWAS
+#     groups 1-6 no-root-widths run.
+#   group_by: plant_age_days — min_samples_per_trait=30 auto-skips ages 11/14
+#     (too few samples); 6 valid groups remain (0, 2, 7, 9, 12, 13).
+#   heritability.threshold: 0.0 — compute + visualize H2 without filtering
+#     (first-pass exploratory run per lab convention).
+#   columns.replicate: scan_id — must differ from barcode (plant_qr_code).
+
+pipeline_name: canola_diversity_screen_qc
+version: '1.0'
+enable_parallel: false
+data:
+  csv_path: Z:/users/eberrigan/20240815_canola_diversity_screen_analysis/sleap_roots_traits_output/traits_summary_with_genotype_qc_no_root_widths.csv
+  image_dir: null
+  additional_exclude_cols: []
+  validate_input: warn
+  group_by: plant_age_days
+columns:
+  barcode: plant_qr_code
+  genotype: genotype
+  replicate: scan_id
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 30
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+outlier_removal:
+  strategy: single
+  method: mahalanobis
+pca:
+  n_components: 0.75
+  feature_selection_strategy: extreme
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+visualization:
+  dpi: 300
+  figsize: [12, 8]
+  figure_format: png
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+logging:
+  level: INFO
+  log_to_file: true
+  log_file: pipeline.log
