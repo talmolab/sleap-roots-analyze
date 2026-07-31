@@ -3011,7 +3011,6 @@ class TestPCAVisualization:
             f"extremes {pc1_most_negative} — the #207 bug has resurfaced"
         )
 
-        pc1_neg_idx, pc1_pos_idx = 0, 1
         assert any(
             extremes.get(idx, (None, None))[0] not in (None, 0) for idx in plotted
         ), f"Expected a trait from a PC other than PC1 in {plotted}"

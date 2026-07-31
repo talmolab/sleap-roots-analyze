@@ -140,9 +140,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trait, then every PC's most-positive trait, then every PC's 2nd-most-negative, ...),
   so small `n_traits` relative to PC count can't starve later PCs the way a PC-major
   ordering would. Per-subplot subtitles now report the trait's actual source PC and
-  direction instead of always re-deriving it from PC1's loading.
+  direction instead of always re-deriving it from PC1's loading — though a trait extreme
+  on more than one PC is still attributed to whichever PC's round-robin turn claims it
+  first, not necessarily its strongest association, and direction balance (both + and -)
+  is only guaranteed once `n_traits >= 2 * n_retained_pcs`.
   `select_top_features_from_pca` itself (`pca.py`) is unchanged — `PCAAnalysisStep`
-  still relies on its existing block-ordered, per-direction-per-PC semantics.
+  still relies on its existing block-ordered, per-direction-per-PC semantics. Every
+  active config with `feature_selection_strategy: "extreme"` (the majority of
+  `configs/active/viz/*.yaml`) will now plot a different trait set for
+  `umap_top_traits.png` than previously generated output — regenerate that figure on
+  next run if a prior copy is being compared against.
 - `create_pca_biplot` now honors `feature_selection="top_variance"` (#202): the
   `feature_selection`→`method` mapping had `elif` branches for `extreme`/
   `top_absolute`/`top_contribution`/`vector_length` but none for `top_variance`,

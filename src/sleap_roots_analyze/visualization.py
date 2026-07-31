@@ -2803,16 +2803,22 @@ def create_umap_colored_by_top_traits(
         # next sweep (second-most-negative, second-most-positive, ...). This
         # guarantees every retained PC contributes once before any PC
         # contributes twice, which a PC-major ordering (all of PC1 before
-        # moving to PC2) would not.
+        # moving to PC2) would not. It does NOT guarantee a balanced mix of
+        # directions: when n_traits < 2 * len(pc_indices), the negative pass
+        # completes before any positive trait is reached, so the plotted set
+        # can skew toward one direction — PC sign is an arbitrary convention
+        # with no biological meaning, so this is a display artifact, not a
+        # scientific one. A trait that is extreme on more than one PC is
+        # attributed (for its subtitle) to whichever pair's turn claims it
+        # first in this pass order, not necessarily its strongest association.
+        ascending_by_pc = {
+            pc_idx: np.argsort(loadings[:n_features, pc_idx]) for pc_idx in pc_indices
+        }
         direction_iters = [
-            (pc_idx, "-", iter(np.argsort(loadings[:n_features, pc_idx]).tolist()))
+            (pc_idx, "-", iter(ascending_by_pc[pc_idx].tolist()))
             for pc_idx in pc_indices
         ] + [
-            (
-                pc_idx,
-                "+",
-                iter(np.argsort(loadings[:n_features, pc_idx])[::-1].tolist()),
-            )
+            (pc_idx, "+", iter(ascending_by_pc[pc_idx][::-1].tolist()))
             for pc_idx in pc_indices
         ]
 
