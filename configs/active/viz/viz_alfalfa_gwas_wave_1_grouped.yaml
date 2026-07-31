@@ -28,13 +28,16 @@ statistics:
 # PCA configuration
 # feature_selection_strategy "extreme" selects the traits with the most extreme
 # positive and negative loadings per PC. n_top_features controls how many are
-# selected for UMAP coloring and metadata storage (one per extreme direction per PC).
+# selected per extreme direction per PC for PCAAnalysisStep's metadata/top_features
+# output only — it does NOT control the "UMAP colored by top traits" plot, which
+# always shows 6 traits (n_traits is hardcoded in GenerateStaticFiguresStep),
+# round-robin distributed across all retained PCs and both loading directions.
 # pca_biplot_top_features (in static_viz) independently controls biplot arrow count.
 pca:
   n_components: 0.95
   standardize: true
   feature_selection_strategy: "extreme"
-  n_top_features: 5            # 5 extreme traits for UMAP coloring
+  n_top_features: 5            # 5 extreme traits per direction per PC (PCA metadata)
 
 umap:
   enabled: true
