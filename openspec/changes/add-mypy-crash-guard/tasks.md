@@ -34,9 +34,10 @@
       simulated fatal mypy exit is piped through `filter` against the **real, non-empty**
       baseline — i.e. the new guard doesn't interfere with or mask the already-correct behavior
       in this case. Verified locally: `mypy_status=2 filter_status=100 step_exit=1`.
-- [ ] 2.6 After pushing, confirm via `gh pr checks` that the real `type-check` job goes green (or
+- [x] 2.6 After pushing, confirm via `gh pr checks` that the real `type-check` job goes green (or
       red, matching the local result) and that the unrelated lint/reproducibility/
-      numerical-stability/serialization jobs are unaffected.
+      numerical-stability/serialization jobs are unaffected. Confirmed on PR #218: all 10 checks
+      pass, including `Type check (mypy baseline)` (19s).
 
 ## 3. Documentation
 
