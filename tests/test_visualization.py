@@ -1987,6 +1987,64 @@ class TestCreateHeritabilityThresholdPlot:
         plt.close("all")
 
 
+def _multi_pc_extreme_pca_results(n_pcs=5):
+    """Build hand-constructed PCA results with unambiguous per-PC extremes.
+
+    Feature ``2 * pc`` is PC ``pc``'s most-negative loading and feature
+    ``2 * pc + 1`` is PC ``pc``'s most-positive loading, for every PC in
+    ``range(n_pcs)``. All other loadings are small noise (well below the
+    intentional +/-0.7..0.9 magnitudes), so expected selections are known in
+    advance rather than re-derived via ``np.argsort`` inside a test.
+
+    Returns:
+        Tuple of (pca_results dict, {feature_idx: (pc_idx, direction)} map
+        for the intentional extremes, total feature count).
+    """
+    n_features = 2 * n_pcs + 2  # plus 2 filler features never selected
+    rng = np.random.RandomState(0)
+    loadings = rng.uniform(-0.05, 0.05, size=(n_features, n_pcs))
+    extremes = {}
+    for pc in range(n_pcs):
+        neg_magnitude = 0.9 - 0.05 * pc
+        pos_magnitude = 0.85 - 0.05 * pc
+        loadings[2 * pc, pc] = -neg_magnitude
+        loadings[2 * pc + 1, pc] = pos_magnitude
+        extremes[2 * pc] = (pc, "-")
+        extremes[2 * pc + 1] = (pc, "+")
+
+    eigenvalues = np.linspace(n_pcs, 1.0, n_pcs)
+    pca_results = {
+        "loadings": loadings,
+        "eigenvalues": eigenvalues,
+        "cumulative_variance_ratio": np.cumsum(eigenvalues / eigenvalues.sum()),
+        "n_components_selected": n_pcs,
+    }
+    return pca_results, extremes, n_features
+
+
+def _plotted_trait_indices(fig, n_features):
+    """Parse plotted trait indices (as ints) from a figure's subplot titles."""
+    indices = []
+    for ax in fig.axes:
+        title = ax.get_title()
+        if not title:
+            continue
+        trait_name = title.split("\n")[0]
+        idx = int(trait_name.removeprefix("trait_"))
+        assert 0 <= idx < n_features
+        indices.append(idx)
+    return indices
+
+
+def _plotted_subtitle(fig, trait_idx):
+    """Return the subtitle (second title line) for a specific plotted trait."""
+    for ax in fig.axes:
+        title = ax.get_title()
+        if title.startswith(f"trait_{trait_idx}\n"):
+            return title.split("\n", 1)[1]
+    raise AssertionError(f"trait_{trait_idx} was not plotted")
+
+
 class TestPCAVisualization:
     """Tests for PCA visualization functions."""
 
@@ -2853,6 +2911,308 @@ class TestPCAVisualization:
         # Count actual plot axes (excluding colorbars)
         plot_axes = [ax for ax in axes if not hasattr(ax, "colorbar")]
         assert len(plot_axes) >= 6 or len(plot_axes) == len(trait_columns[:6])
+
+        plt.close("all")
+
+    def test_create_umap_colored_by_top_traits_scopes_pc_indices_beyond_two(self):
+        """pc_indices SHALL span all retained PCs for non-top_variance methods (#207).
+
+        Uses "top_absolute" (not "extreme") because its selection is a single
+        already-ranked, already-length-n list with no block-truncation
+        interaction — isolating the pc_indices-scoping fix from the separate
+        "extreme" round-robin fix.
+        """
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+
+        n_features = 6
+        n_pcs = 4
+        loadings = np.full((n_features, n_pcs), 0.05)
+        # Feature 0: moderately strong on PC1 and PC2 only (sum abs = 1.15),
+        # nothing on PC3/PC4. Under the old hardcoded pc_indices=[0, 1] scope
+        # this feature has the highest (and only nonzero) abs-loading sum.
+        loadings[0] = [0.6, 0.55, 0.0, 0.0]
+        # Feature 2: zero on PC1/PC2 (invisible under the old [0, 1] scope) but
+        # overwhelmingly strong on PC4 (index 3) — a PC the old hardcoded scope
+        # can never see. Its total abs-loading sum (1.3) exceeds feature 0's
+        # (1.15) only once pc_indices spans all 4 retained PCs.
+        loadings[2] = [0.0, 0.0, 0.0, 1.3]
+
+        eigenvalues = np.array([5.0, 4.0, 3.0, 2.0])
+        pca_results = {
+            "loadings": loadings,
+            "eigenvalues": eigenvalues,
+            "cumulative_variance_ratio": np.cumsum(eigenvalues / eigenvalues.sum()),
+            "n_components_selected": n_pcs,
+        }
+
+        trait_columns = [f"trait_{i}" for i in range(n_features)]
+        rng = np.random.RandomState(0)
+        df = pd.DataFrame({col: rng.randn(20) for col in trait_columns})
+        umap_results = {"embedding": rng.randn(20, 2)}
+
+        fig = create_umap_colored_by_top_traits(
+            umap_results,
+            df,
+            trait_columns,
+            trait_columns,
+            pca_results,
+            n_traits=1,
+            feature_selection="top_absolute",
+        )
+
+        plotted = {ax.get_title().split("\n")[0] for ax in fig.axes if ax.get_title()}
+        assert plotted == {"trait_2"}, (
+            "Expected the PC4-dominant trait to be selected once pc_indices "
+            f"spans all retained PCs; got {plotted}"
+        )
+
+        plt.close("all")
+
+    def test_create_umap_colored_by_top_traits_extreme_spans_multiple_pcs_and_directions(
+        self,
+    ):
+        """Regression test for #207: extreme selection must span multiple PCs."""
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+        from sleap_roots_analyze.pca import select_top_features_from_pca
+
+        n_pcs = 5
+        n_traits = 6
+        pca_results, extremes, n_features = _multi_pc_extreme_pca_results(n_pcs)
+        trait_columns = [f"trait_{i}" for i in range(n_features)]
+        rng = np.random.RandomState(0)
+        df = pd.DataFrame({col: rng.randn(20) for col in trait_columns})
+        umap_results = {"embedding": rng.randn(20, 2)}
+
+        fig = create_umap_colored_by_top_traits(
+            umap_results,
+            df,
+            trait_columns,
+            trait_columns,
+            pca_results,
+            n_traits=n_traits,
+            feature_selection="extreme",
+        )
+
+        plotted = set(_plotted_trait_indices(fig, n_features))
+
+        # The pre-fix bug: plotted set == PC1's n_traits most-negative-loading
+        # indices exactly (via select_top_features_from_pca with pc_indices
+        # hardcoded to [0, 1] and a single truncating slice).
+        pc1_most_negative = select_top_features_from_pca(
+            loadings=pca_results["loadings"],
+            eigenvalues=pca_results["eigenvalues"],
+            n_features_total=n_features,
+            n_features_to_select=n_traits,
+            method="extreme",
+            pc_indices=[0, 1],
+        )[:n_traits]
+        assert not plotted.issubset(set(pc1_most_negative)), (
+            f"Plotted set {plotted} is a subset of PC1's most-negative "
+            f"extremes {pc1_most_negative} — the #207 bug has resurfaced"
+        )
+
+        pc1_neg_idx, pc1_pos_idx = 0, 1
+        assert any(
+            extremes.get(idx, (None, None))[0] not in (None, 0) for idx in plotted
+        ), f"Expected a trait from a PC other than PC1 in {plotted}"
+        assert any(
+            extremes.get(idx, (None, None))[1] == "+" for idx in plotted
+        ), f"Expected at least one positively-loaded trait in {plotted}"
+
+        plt.close("all")
+
+    def test_create_umap_colored_by_top_traits_extreme_gives_every_pc_a_representative_first(
+        self,
+    ):
+        """Every retained PC gets one trait before any PC gets a second."""
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+
+        n_pcs = 5
+        n_traits = 6  # fewer than 2 * 5 = 10 PC x direction pairs
+        pca_results, extremes, n_features = _multi_pc_extreme_pca_results(n_pcs)
+        trait_columns = [f"trait_{i}" for i in range(n_features)]
+        rng = np.random.RandomState(0)
+        df = pd.DataFrame({col: rng.randn(20) for col in trait_columns})
+        umap_results = {"embedding": rng.randn(20, 2)}
+
+        fig = create_umap_colored_by_top_traits(
+            umap_results,
+            df,
+            trait_columns,
+            trait_columns,
+            pca_results,
+            n_traits=n_traits,
+            feature_selection="extreme",
+        )
+
+        plotted = _plotted_trait_indices(fig, n_features)
+        pcs_seen_in_order = [extremes[idx][0] for idx in plotted if idx in extremes]
+
+        assert set(pcs_seen_in_order) == set(range(n_pcs)), (
+            f"Expected all {n_pcs} retained PCs represented; got PCs "
+            f"{sorted(set(pcs_seen_in_order))} from plotted traits {plotted}"
+        )
+        # No PC should repeat before every PC has appeared once.
+        first_repeat_pos = next(
+            (
+                i
+                for i, pc in enumerate(pcs_seen_in_order)
+                if pc in pcs_seen_in_order[:i]
+            ),
+            len(pcs_seen_in_order),
+        )
+        assert first_repeat_pos >= n_pcs, (
+            "A PC repeated before every retained PC contributed at least "
+            f"once: PC order was {pcs_seen_in_order}"
+        )
+
+        plt.close("all")
+
+    def test_create_umap_colored_by_top_traits_extreme_handles_fewer_distinct_traits_than_n_traits(
+        self,
+    ):
+        """Exhaustion: fewer distinct reachable traits than n_traits SHALL NOT raise."""
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+
+        pca_results, _extremes, n_features = _multi_pc_extreme_pca_results(n_pcs=1)
+        assert n_features == 4  # only 4 distinct traits ever reachable
+        trait_columns = [f"trait_{i}" for i in range(n_features)]
+        rng = np.random.RandomState(0)
+        df = pd.DataFrame({col: rng.randn(20) for col in trait_columns})
+        umap_results = {"embedding": rng.randn(20, 2)}
+
+        fig = create_umap_colored_by_top_traits(
+            umap_results,
+            df,
+            trait_columns,
+            trait_columns,
+            pca_results,
+            n_traits=10,  # more than the 4 distinct traits available
+            feature_selection="extreme",
+        )
+
+        plotted = _plotted_trait_indices(fig, n_features)
+        assert len(plotted) == n_features == len(set(plotted))
+
+        plt.close("all")
+
+    def test_create_umap_colored_by_top_traits_extreme_deduplicates_multi_pc_extreme_trait(
+        self,
+    ):
+        """A trait extreme on two PCs is plotted once; the freed slot backfills."""
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+
+        n_features = 6
+        n_pcs = 2
+        loadings = np.random.RandomState(1).uniform(
+            -0.05, 0.05, size=(n_features, n_pcs)
+        )
+        # Feature 0 is the most-negative loading on BOTH PC1 and PC2.
+        loadings[0, 0] = -0.9
+        loadings[0, 1] = -0.9
+        # Distinct second-most-negative traits per PC, so the freed slot has
+        # somewhere to go once feature 0 is claimed by the first PC in order.
+        loadings[1, 0] = -0.6
+        loadings[2, 1] = -0.6
+        loadings[3, 0] = 0.9  # PC1 most positive
+        loadings[4, 1] = 0.9  # PC2 most positive
+
+        eigenvalues = np.array([2.0, 1.0])
+        pca_results = {
+            "loadings": loadings,
+            "eigenvalues": eigenvalues,
+            "cumulative_variance_ratio": np.cumsum(eigenvalues / eigenvalues.sum()),
+            "n_components_selected": n_pcs,
+        }
+        trait_columns = [f"trait_{i}" for i in range(n_features)]
+        rng = np.random.RandomState(0)
+        df = pd.DataFrame({col: rng.randn(20) for col in trait_columns})
+        umap_results = {"embedding": rng.randn(20, 2)}
+
+        fig = create_umap_colored_by_top_traits(
+            umap_results,
+            df,
+            trait_columns,
+            trait_columns,
+            pca_results,
+            n_traits=4,
+            feature_selection="extreme",
+        )
+
+        plotted = _plotted_trait_indices(fig, n_features)
+        assert plotted.count(0) == 1, f"trait_0 plotted more than once: {plotted}"
+        # PC1 claims feature 0 first (pass order visits pc_indices in order),
+        # so PC2's negative slot is backfilled by feature 2 (its own
+        # second-most-negative), not left empty.
+        assert 2 in plotted, f"Expected PC2's backfilled negative trait in {plotted}"
+
+        plt.close("all")
+
+    def test_create_umap_colored_by_top_traits_extreme_subtitle_reports_true_source_pc(
+        self,
+    ):
+        """A trait extreme on PC2 SHALL get a "PC2+/-" subtitle, not "PC1+/-"."""
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+
+        n_pcs = 3
+        pca_results, extremes, n_features = _multi_pc_extreme_pca_results(n_pcs)
+        trait_columns = [f"trait_{i}" for i in range(n_features)]
+        rng = np.random.RandomState(0)
+        df = pd.DataFrame({col: rng.randn(20) for col in trait_columns})
+        umap_results = {"embedding": rng.randn(20, 2)}
+
+        fig = create_umap_colored_by_top_traits(
+            umap_results,
+            df,
+            trait_columns,
+            trait_columns,
+            pca_results,
+            n_traits=6,  # exactly enough for one trait per (PC, direction) pair
+            feature_selection="extreme",
+        )
+
+        # trait_2 is PC2 (0-indexed pc=1)'s most-negative loading.
+        pc_idx, direction = extremes[2]
+        assert (pc_idx, direction) == (1, "-")
+        subtitle = _plotted_subtitle(fig, 2)
+        assert subtitle.startswith(
+            "(PC2-"
+        ), f"Expected trait_2's subtitle to report PC2-, got: {subtitle!r}"
+
+        plt.close("all")
+
+    def test_create_umap_colored_by_top_traits_top_variance_matches_direct_selection(
+        self, umap_viz_results, pca_viz_dataframe, pca_viz_results
+    ):
+        """top_variance selection/PC-scoping SHALL be unaffected by the #207 fix."""
+        from sleap_roots_analyze.visualization import create_umap_colored_by_top_traits
+        from sleap_roots_analyze.pca import select_top_features_from_pca
+
+        trait_columns = [f"trait_{i}" for i in range(10)]
+        n_traits = 6
+
+        fig = create_umap_colored_by_top_traits(
+            umap_viz_results,
+            pca_viz_dataframe,
+            trait_columns,
+            trait_columns,
+            pca_viz_results,
+            n_traits=n_traits,
+            feature_selection="top_variance",
+        )
+
+        n_features = min(len(trait_columns), pca_viz_results["loadings"].shape[0])
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=n_features,
+            n_features_to_select=n_traits,
+            method="top_variance",
+            pc_indices=None,
+        )
+
+        plotted = _plotted_trait_indices(fig, n_features)
+        assert plotted == expected_indices[: len(plotted)]
 
         plt.close("all")
 
