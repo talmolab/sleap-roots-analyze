@@ -897,6 +897,13 @@ class TestReduceTraitRedundancyStep:
         # No cluster file should be generated
         assert not any("trait_clusters.csv" in str(f) for f in result.files_generated)
 
+        # files_generated SHALL hold Path objects, not str (cli-pipeline spec:
+        # "Provenance Path Serialization Is Centralized") — trivially empty on the
+        # "none" passthrough branch, but asserted for completeness across all
+        # three trait_reduction_method branches (none / single-experiment / both)
+        for f in result.files_generated:
+            assert isinstance(f, Path), f
+
     def test_clustering_reduces_traits(self, mock_prev_result, tmp_path):
         """Test that clustering reduces trait count.
 
@@ -990,7 +997,8 @@ class TestReduceTraitRedundancyStep:
         # files_generated SHALL hold Path objects, not str (cli-pipeline spec:
         # "Provenance Path Serialization Is Centralized") — every other assertion
         # here goes through str(f), which would pass identically for either type
-        assert all(isinstance(f, Path) for f in result.files_generated)
+        for f in result.files_generated:
+            assert isinstance(f, Path), f
 
         # Read and verify the file
         cluster_file = tmp_path / "exp2_trait_clusters.csv"
@@ -1121,7 +1129,8 @@ class TestReduceTraitRedundancyStep:
         # files_generated SHALL hold Path objects, not str (cli-pipeline spec:
         # "Provenance Path Serialization Is Centralized") — every other assertion
         # here goes through str(f), which would pass identically for either type
-        assert all(isinstance(f, Path) for f in result.files_generated)
+        for f in result.files_generated:
+            assert isinstance(f, Path), f
 
         # Check metadata includes both experiment stats
         assert "exp1_original_traits" in result.metadata
@@ -1173,6 +1182,12 @@ class TestReduceTraitRedundancyStep:
         assert not any(
             "exp2_trait_clusters.csv" in str(f) for f in result.files_generated
         )
+
+        # files_generated SHALL hold Path objects, not str (cli-pipeline spec:
+        # "Provenance Path Serialization Is Centralized") — every other assertion
+        # here goes through str(f), which would pass identically for either type
+        for f in result.files_generated:
+            assert isinstance(f, Path), f
 
         # exp2 traits should be unchanged
         original_exp2_traits = mock_prev_result.metadata["exp2_trait_names"]
