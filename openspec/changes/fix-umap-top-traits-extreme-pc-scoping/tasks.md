@@ -79,10 +79,13 @@
 
 ## 4. Verification and wrap-up
 
-- [ ] 4.1 Run `openspec validate fix-umap-top-traits-extreme-pc-scoping --strict`.
-- [ ] 4.2 Run `/pre-merge-check` (black, ruff, full pytest, coverage, self-review, OpenSpec
-      validation, Copilot triage).
-- [ ] 4.3 Update PR description to note this supersedes itself if/when #206's redesign lands
+- [x] 4.1 Run `openspec validate fix-umap-top-traits-extreme-pc-scoping --strict`.
+- [x] 4.2 Run `/pre-merge-check` (black, ruff, full pytest, coverage, self-review, OpenSpec
+      validation, Copilot triage). Pre-PR 5-agent self-review found no BLOCKING issues;
+      addressed the IMPORTANT findings (redundant `argsort` call, unused test variable,
+      documented the first-claimed-PC-attribution/direction-imbalance caveats, added a
+      CHANGELOG note on cached-figure regeneration). CI green on all 3 platforms — PR #216.
+- [x] 4.3 Update PR description to note this supersedes itself if/when #206's redesign lands
       (cross-reference, don't close #206 or #209).
 
 ## Suggested commit plan (matches this repo's squash-merge-on-main convention)
