@@ -113,6 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (PR #193 review).
 
 ### Fixed
+- `PCAAnalysisStep` now always passes `pc_indices=list(range(n_components))`
+  explicitly to `select_top_features_from_pca()` (#203), instead of relying
+  on that function's `[0, 1]` default. Runs configured with `pca.n_components`
+  selecting 3 or more PCs (e.g. a variance threshold like `0.75`) now scope
+  `feature_selection_strategy="extreme"`/`"top_absolute"`/`"top_contribution"`
+  selection to every retained PC for `top_features.csv` and the
+  `top_features` metadata list, instead of silently only ever considering
+  PC1/PC2 regardless of how many components were actually retained.
 - `ReduceTraitRedundancyStep`'s `files_generated` type annotations now match its
   runtime `Path` values (#161): `execute()`'s and `_cluster_experiment()`'s
   `files_generated` locals are annotated `List[Path]`, and
@@ -212,6 +220,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remove_low_h2=False` (PR #193 review).
 
 ### Changed
+- **BREAKING**: `pca.n_top_features` no longer controls a plain,
+  hand-picked count for `feature_selection_strategy="extreme"` (#206).
+  `PCAAnalysisStep` now always selects exactly 1 most-positive-loading and 1
+  most-negative-loading trait per retained PC for this strategy — the
+  field is not read at all, and a `logger.info()` notice fires when it is
+  set alongside `"extreme"`. `n_top_features` also changes type from `int`
+  to `float`: for `feature_selection_strategy="top_variance"`, a value
+  `< 1` is now a cumulative-variance-fraction threshold (mirroring
+  `pca.n_components`'s existing `< 1` = ratio / `>= 1` = count convention),
+  resolved via the new `select_n_features_by_variance()` helper
+  (`pca.py`); a value `>= 1` preserves the existing fixed-count behavior.
+  `validate_qc_config()`/`validate_viz_config()` now reject a
+  `n_top_features < 1` for `"top_absolute"`/`"top_contribution"` (which
+  still require a plain count) and reject a non-whole-number
+  `n_top_features >= 1` for every strategy except `"extreme"`. The ~28
+  active configs pairing `feature_selection_strategy: "extreme"` with an
+  explicit `n_top_features` have that now-meaningless line removed.
 - `calculate_heritability_estimates` additively returns `blup` (`dict[str, float]`) and
   `intercept` (`float`) keys per trait when its mixed model succeeds (#109) — both
   existing return shapes (plain dict, or the `remove_low_h2=True` 4-tuple) are
