@@ -344,6 +344,69 @@ def test_validate_config_valid_pca_strategies():
         validate_qc_config(config)  # Should not raise
 
 
+@pytest.mark.parametrize("strategy", ["top_absolute", "top_contribution"])
+def test_validate_config_rejects_fractional_n_top_features_below_1(strategy):
+    """Reject n_top_features < 1 for count-only strategies (issue #206)."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = strategy
+    config.pca.n_top_features = 0.5
+
+    with pytest.raises(ValueError, match="pca.n_top_features") as exc_info:
+        validate_qc_config(config)
+    assert "pca.feature_selection_strategy" in str(exc_info.value)
+    assert strategy in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "strategy", ["top_variance", "top_absolute", "top_contribution"]
+)
+def test_validate_config_rejects_non_whole_number_n_top_features_ge_1(strategy):
+    """Reject a non-whole-number n_top_features >= 1 for non-extreme strategies."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = strategy
+    config.pca.n_top_features = 5.7
+
+    with pytest.raises(ValueError, match="whole number") as exc_info:
+        validate_qc_config(config)
+    assert "truncated" in str(exc_info.value)
+
+
+def test_validate_config_accepts_top_variance_threshold_below_1():
+    """A < 1 threshold is accepted for top_variance."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = "top_variance"
+    config.pca.n_top_features = 0.8
+    validate_qc_config(config)  # Should not raise
+
+
+def test_validate_config_accepts_any_n_top_features_for_extreme():
+    """Any n_top_features value, including fractional or < 1, is accepted for extreme."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = "extreme"
+
+    for value in [0.5, 5.7, -1, 0]:
+        config.pca.n_top_features = value
+        validate_qc_config(config)  # Should not raise
+
+
+@pytest.mark.parametrize(
+    "strategy", ["extreme", "top_absolute", "top_contribution", "top_variance"]
+)
+def test_validate_config_accepts_whole_number_n_top_features_for_any_strategy(
+    strategy,
+):
+    """A whole-number count >= 1 is accepted regardless of strategy."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = strategy
+    config.pca.n_top_features = 5.0
+    validate_qc_config(config)  # Should not raise
+
+
 def test_validate_config_invalid_clustering_method():
     """Test validation fails for invalid clustering method."""
     config = QCPipelineConfig(pipeline_name="test")

@@ -193,6 +193,59 @@ class TestValidateVizConfig:
         ):
             validate_viz_config(config)
 
+    @pytest.mark.parametrize("strategy", ["top_absolute", "top_contribution"])
+    def test_fractional_n_top_features_below_1_raises(self, strategy):
+        """Reject n_top_features < 1 for count-only strategies (issue #206)."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = strategy
+        config.pca.n_top_features = 0.5
+        with pytest.raises(ValueError, match="pca.n_top_features") as exc_info:
+            validate_viz_config(config)
+        assert "pca.feature_selection_strategy" in str(exc_info.value)
+        assert strategy in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "strategy", ["top_variance", "top_absolute", "top_contribution"]
+    )
+    def test_non_whole_number_n_top_features_ge_1_raises(self, strategy):
+        """Reject a non-whole-number n_top_features >= 1 for non-extreme strategies."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = strategy
+        config.pca.n_top_features = 5.7
+        with pytest.raises(ValueError, match="whole number") as exc_info:
+            validate_viz_config(config)
+        assert "truncated" in str(exc_info.value)
+
+    def test_top_variance_threshold_below_1_accepted(self):
+        """A < 1 threshold is accepted for top_variance."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = "top_variance"
+        config.pca.n_top_features = 0.8
+        validate_viz_config(config)  # Should not raise
+
+    def test_any_n_top_features_accepted_for_extreme(self):
+        """Any n_top_features value, including fractional or < 1, is accepted for extreme."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = "extreme"
+        for value in [0.5, 5.7, -1, 0]:
+            config.pca.n_top_features = value
+            validate_viz_config(config)  # Should not raise
+
+    @pytest.mark.parametrize(
+        "strategy", ["extreme", "top_absolute", "top_contribution", "top_variance"]
+    )
+    def test_whole_number_n_top_features_accepted_for_any_strategy(self, strategy):
+        """A whole-number count >= 1 is accepted regardless of strategy."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = strategy
+        config.pca.n_top_features = 5.0
+        validate_viz_config(config)  # Should not raise
+
     def test_invalid_clustering_method_raises(self):
         """Test that invalid clustering method raises error."""
         config = VizPipelineConfig(pipeline_name="test")
@@ -647,3 +700,61 @@ class TestConfigIntegration:
 
         assert final_config.data.csv_path == "override.csv"
         assert final_config.pca.n_components == 10
+
+
+# The 28 active configs edited to remove their now-meaningless n_top_features
+# line under feature_selection_strategy: "extreme" (issue #206) — a concrete,
+# re-runnable guard against a YAML syntax error or indentation break
+# introduced by that cleanup.
+_EDITED_EXTREME_CONFIGS = [
+    "viz/alfalfa_gwas_groups_1_to_6_combined.yaml",
+    "viz/alfalfa_gwas_groups_1_to_6_combined_no_root_widths.yaml",
+    "viz/alfalfa_gwas_w1w2_combined.yaml",
+    "viz/alfalfa_gwas_wave1.yaml",
+    "viz/alfalfa_gwas_wave1_canola.yaml",
+    "viz/alfalfa_gwas_wave1_canola_models.yaml",
+    "viz/amaranth_tis108_exp1.yaml",
+    "viz/canola_diversity_screen_qc.yaml",
+    "viz/emily_shane_pennycress_2026_02_09.yaml",
+    "viz/emily_shane_soybean_2026_01_15.yaml",
+    "viz/emily_shane_soybean_2026_03_03.yaml",
+    "viz/emily_shane_soybean_2026_03_03_grouped.yaml",
+    "viz/giftol_pennycress_s32_2026_05_11.yaml",
+    "viz/javier_ttc_salk_soybean.yaml",
+    "viz/javier_ttc_salk_soybean_brightness.yaml",
+    "viz/javier_ttc_salk_soybean_full_experiment_9wave.yaml",
+    "viz/javier_ttc_salk_soybean_full_experiment_9wave_per_wave.yaml",
+    "viz/shree_weep_soybean.yaml",
+    "viz/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml",
+    "viz/turface_alfalfa_gwas.yaml",
+    "viz/viz_alfalfa_gwas_wave_1_grouped.yaml",
+    "viz/viz_cylinder_edpie.yaml",
+    "viz/viz_field_2024_clean.yaml",
+    "viz/viz_root_coring.yaml",
+    "viz/viz_turface_150genotypes.yaml",
+    "viz/viz_turface_19genotypes.yaml",
+    "viz/weep_maurizio_wave1.yaml",
+    "viz_turface_150genotypes.yaml",
+]
+
+
+class TestEditedExtremeConfigsStillValidate:
+    """Regression guard for the issue #206 config cleanup.
+
+    Every config that had its now-meaningless `n_top_features` line removed
+    under `feature_selection_strategy: "extreme"` must still parse and pass
+    `validate_viz_config()` — catching a YAML syntax error or indentation
+    break the line removal might have introduced.
+    """
+
+    @pytest.mark.parametrize("relative_path", _EDITED_EXTREME_CONFIGS)
+    def test_edited_config_loads_and_validates(self, relative_path):
+        """Load and validate one edited config, parametrized over all 28."""
+        repo_root = Path(__file__).parent.parent
+        config_path = repo_root / "configs" / "active" / relative_path
+        assert config_path.exists(), f"Expected config not found: {config_path}"
+
+        config = load_viz_config(config_path)
+
+        assert config.pca.feature_selection_strategy == "extreme"
+        validate_viz_config(config)  # Should not raise
