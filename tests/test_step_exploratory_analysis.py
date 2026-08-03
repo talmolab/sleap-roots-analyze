@@ -257,6 +257,7 @@ class TestExploratoryAnalysisFigures:
 
         assert len(batch_figures) == 0
 
+    @pytest.mark.slow
     def test_batched_plots_created_for_many_traits(
         self, sample_data_many_traits, config, prev_result_many_traits, tmp_path
     ):
@@ -508,6 +509,7 @@ class TestExploratoryAnalysisMemoryBounds:
     the order of the total figures the step generates.
     """
 
+    @pytest.mark.slow
     def test_peak_concurrent_figures_bounded_during_execute(
         self, large_genotype_data, large_config, large_prev_result, tmp_path
     ):
@@ -567,6 +569,7 @@ class TestExploratoryAnalysisMemoryBounds:
             "generated"
         )
 
+    @pytest.mark.slow
     def test_execute_completes_and_produces_figures_for_large_dataset(
         self, large_genotype_data, large_config, large_prev_result, tmp_path
     ):

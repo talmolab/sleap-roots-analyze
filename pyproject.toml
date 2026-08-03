@@ -101,4 +101,5 @@ warn_unused_ignores = false
 [tool.pytest.ini_options]
 markers = [
     "integration: marks tests as integration tests (slow, run real pipelines)",
+    "slow: marks tests whose individual runtime meaningfully erodes the tests job's CI timeout margin — run in a separate slow-tests CI job, alongside integration",
 ]

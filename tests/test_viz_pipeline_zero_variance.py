@@ -290,6 +290,7 @@ class TestVizPipelineInterleavedZeroVariance:
     cherry-pick in `_run_generate_static_figures`).
     """
 
+    @pytest.mark.slow
     def test_umap_receives_pca_filtered_trait_count(
         self, viz_config_for_interleaved_zero_variance, tmp_path
     ):

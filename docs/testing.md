@@ -45,8 +45,9 @@ uv run pytest tests/test_pca.py --cov=sleap_roots_analyze.pca --cov-branch
 # Run only tests matching pattern
 uv run pytest -k "heritability"
 
-# Run tests marked with specific marker
-uv run pytest -m "slow"  # If markers are defined
+# Run only the large-dataset/OOM-regression tests marked "slow"
+# (these run in a separate slow-tests CI job, isolated from the main tests job — see #217)
+uv run pytest -m "slow"
 
 # Exclude specific tests
 uv run pytest -k "not test_extreme_values"
@@ -256,7 +257,7 @@ from sleap_roots_analyze.pca import (
 
 ## Current Test Coverage
 
-Run `uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing -m "not integration" tests/` for up-to-date coverage.
+Run `uv run pytest --cov=src/sleap_roots_analyze --cov-report=term-missing -m "not integration and not slow" tests/` for up-to-date coverage matching the `tests` CI job (this excludes the ~20 `slow`-marked large-dataset tests, which run in a separate `slow-tests` job — see #217).
 
 ### Test Statistics
 

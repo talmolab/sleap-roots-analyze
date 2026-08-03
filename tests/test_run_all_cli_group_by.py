@@ -123,6 +123,8 @@ def run_manifest(tmp_path, qc_config_no_group_by, viz_config):
 class TestRunAllCLIGroupBy:
     """Test that CLI --group-by flag correctly triggers viz fan-out."""
 
+    pytestmark = pytest.mark.slow
+
     def test_cli_group_by_triggers_viz_fanout_when_config_has_no_group_by(
         self, tmp_path, run_manifest
     ):
