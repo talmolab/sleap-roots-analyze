@@ -9,9 +9,12 @@
 #   - pipeline_name
 #
 # OPTIONAL CUSTOMIZATIONS:
-#   - pca.n_top_features (default: 5 traits for UMAP coloring)
 #   - static_viz.pca_biplot_top_features (default: 1 = 2 arrows/PC for "extreme" strategy)
 #   - umap.n_neighbors (recommended: min(15, n_samples // 4))
+#
+# Note: pca.n_top_features is not read when pca.feature_selection_strategy is
+# "extreme" (used below) — that strategy always selects exactly 1
+# most-positive and 1 most-negative loading trait per retained PC.
 #
 # This template includes ALL required schema fields. Do not remove sections.
 
@@ -60,14 +63,12 @@ pca:
   standardize: true
 
   # Feature selection strategy: "extreme" or "top_variance"
-  # "extreme" = select traits with most extreme positive AND negative PC loadings
-  # "top_variance" = select traits with highest total variance contribution
+  # "extreme" = always selects 1 most-positive + 1 most-negative loading trait
+  #   per retained PC; n_top_features is not read for this strategy
+  # "top_variance" = select traits with highest total variance contribution;
+  #   n_top_features < 1 is a cumulative-variance-fraction threshold, >= 1 is
+  #   a fixed count
   feature_selection_strategy: "extreme"
-
-  # Number of traits to select using the strategy above (for UMAP coloring and metadata)
-  # For "extreme" strategy: 5 means 5 per direction per PC (can select many traits)
-  # These are the traits that will be used to color UMAP plots
-  n_top_features: 5
 
 umap:
   # Enable UMAP dimensionality reduction (recommended for n ≥ 15)

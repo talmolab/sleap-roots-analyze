@@ -239,9 +239,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `validate_qc_config()`/`validate_viz_config()` now reject a
   `n_top_features < 1` for `"top_absolute"`/`"top_contribution"` (which
   still require a plain count) and reject a non-whole-number
-  `n_top_features >= 1` for every strategy except `"extreme"`. The ~28
-  active configs pairing `feature_selection_strategy: "extreme"` with an
-  explicit `n_top_features` have that now-meaningless line removed.
+  `n_top_features >= 1` for every strategy except `"extreme"`. **Every**
+  active config using `feature_selection_strategy: "extreme"` (49 files,
+  not just the ones that set `n_top_features` explicitly) produces
+  different `top_features.csv` output on its next run — both because the
+  count is no longer configurable and because feature selection is now
+  correctly scoped to every retained PC instead of only PC1/PC2 (#203). The
+  28 configs that had an explicit, now-meaningless `n_top_features` line
+  under `"extreme"` have that line removed.
 - `calculate_heritability_estimates` additively returns `blup` (`dict[str, float]`) and
   `intercept` (`float`) keys per trait when its mixed model succeeds (#109) — both
   existing return shapes (plain dict, or the `remove_low_h2=True` 4-tuple) are
