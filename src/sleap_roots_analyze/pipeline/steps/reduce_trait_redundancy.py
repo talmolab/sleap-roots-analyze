@@ -80,7 +80,7 @@ class ReduceTraitRedundancyStep(BaseStep):
 
         # Initialize output metadata from previous step
         metadata = dict(prev_result.metadata)
-        files_generated = []
+        files_generated: List[Path] = []
 
         if config.trait_reduction_method == "none":
             # No reduction - pass through unchanged
@@ -188,7 +188,7 @@ class ReduceTraitRedundancyStep(BaseStep):
         run_dir: Path,
         exp_name: str,
         exp_display_name: str,
-    ) -> Tuple[pd.DataFrame, List[str], List[str], int]:
+    ) -> Tuple[pd.DataFrame, List[str], List[Path], int]:
         """Cluster traits for a single experiment.
 
         Args:
@@ -202,7 +202,7 @@ class ReduceTraitRedundancyStep(BaseStep):
         Returns:
             Tuple of (reduced_df, representative_trait_names, files_generated, n_clusters).
         """
-        files_generated = []
+        files_generated: List[Path] = []
 
         # Aggregate by genotype for trait correlations
         trait_data = df.groupby("genotype")[trait_names].mean()

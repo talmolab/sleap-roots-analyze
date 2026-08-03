@@ -118,6 +118,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disproportionately erode the job's 30-minute budget are now tagged `@pytest.mark.slow`
   and run in a separate `slow-tests` job on the same three-OS matrix — full coverage is
   preserved, just isolated from the fast suite's timeout margin. (#217)
+- `ReduceTraitRedundancyStep`'s `files_generated` type annotations now match its
+  runtime `Path` values (#161): `execute()`'s and `_cluster_experiment()`'s
+  `files_generated` locals are annotated `List[Path]`, and
+  `_cluster_experiment()`'s return-type annotation is corrected from
+  `List[str]` to `List[Path]` for the files-list element — #157/#159 removed
+  the runtime `str(path)` pre-stringification in this file but left these
+  three annotations disagreeing with it, so `mypy-baseline sync` was a no-op
+  despite the underlying invariant (`cli-pipeline` spec: "Provenance Path
+  Serialization Is Centralized") already holding at runtime. No behavior
+  change; `.mypy-baseline.txt` shrinks from 374 to 371 lines, and
+  `tests/test_trait_redundancy.py` gains `isinstance(Path)` assertions on the
+  clustering-path tests to make the contract verifiable by `pytest` alone.
+  First concrete step of #161's mypy-baseline paydown; a matching gap in
+  `generate_static_figures.py` is left for a separate follow-up.
 - `create_pca_biplot` now honors `feature_selection="top_variance"` (#202): the
   `feature_selection`→`method` mapping had `elif` branches for `extreme`/
   `top_absolute`/`top_contribution`/`vector_length` but none for `top_variance`,
