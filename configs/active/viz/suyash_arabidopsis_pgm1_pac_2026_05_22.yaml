@@ -35,7 +35,6 @@ pca:
 
   feature_selection_strategy: "extreme"
 
-  n_top_features: 5
 
 umap:
   enabled: true

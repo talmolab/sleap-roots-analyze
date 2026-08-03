@@ -34,14 +34,18 @@ statistics:
   alpha: 0.05
 
 # PCA configuration
-# Note: pca.n_top_features controls how many features are selected for ANALYSIS purposes
-# (e.g., identifying interesting genotypes). This is separate from visualization settings.
+# Note: n_top_features's meaning depends on feature_selection_strategy: ignored
+# entirely for "extreme" (always 1 most-positive + 1 most-negative trait per
+# retained PC); for "top_variance" (used below), a value < 1 is a cumulative
+# variance-fraction threshold and >= 1 is a fixed count, as set below; for
+# "top_absolute"/"top_contribution", a fixed count only. Affects
+# PCAAnalysisStep's metadata/top_features.csv output, not any plot directly.
 # See static_viz.pca_biplot_top_features for controlling biplot arrow count.
 pca:
   n_components: 0.95  # Keep components explaining 95% variance
   standardize: true
   feature_selection_strategy: "top_variance"
-  n_top_features: 10  # Features used for analysis (e.g., interesting genotype identification)
+  n_top_features: 10  # Fixed count (>= 1) of top features by variance contribution
 
 # UMAP configuration (disabled by default)
 umap:
@@ -88,9 +92,8 @@ adaptive_sizing:
 
 # Static visualization settings
 # Note: pca_biplot_top_features controls how many feature arrows appear on the PCA biplot.
-# This is separate from pca.n_top_features (analysis). For "extreme" selection strategies,
-# set this to match the desired per-extreme count (e.g., 1 shows the most extreme feature
-# in each direction per PC, giving up to 4 total arrows for 2 PCs).
+# This is independent of pca.n_top_features (analysis), which is not read at
+# all when pca.feature_selection_strategy is "extreme".
 static_viz:
   enabled: true
   formats:
