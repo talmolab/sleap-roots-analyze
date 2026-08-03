@@ -50,6 +50,8 @@ def grouped_test_data(tmp_path):
 class TestGroupedPipelineConfigPersistence:
     """Test that grouped pipelines save configs with valid, persistent CSV paths."""
 
+    pytestmark = pytest.mark.slow
+
     def test_saved_config_csv_path_exists(self, grouped_test_data, tmp_path):
         """Saved config.yaml must reference an existing CSV file.
 

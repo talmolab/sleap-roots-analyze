@@ -308,6 +308,7 @@ def test_visualize_prediction_step_parallelizes_across_target_method_units_not_w
     assert captured["n_jobs_dispatched"] == n_targets * n_methods
 
 
+@pytest.mark.slow
 def test_visualize_prediction_step_joblib_n_jobs_and_backend_match_config(tmp_path):
     """joblib.Parallel is constructed with n_jobs=config's value, backend='loky'."""
     config = _visualize_config(tmp_path, permutation_n_jobs=3)
