@@ -55,9 +55,13 @@ pca:
   # "top_variance" = select traits with highest total variance contribution
   feature_selection_strategy: "extreme"
 
-  # Number of traits to select using the strategy above (for UMAP coloring and metadata)
-  # For "extreme" strategy: 5 means 5 per direction per PC (can select many traits)
-  # These are the traits that will be used to color UMAP plots
+  # Number of traits to select using the strategy above, for PCAAnalysisStep's
+  # metadata/top_features output only. For "extreme" strategy: 5 means 5 per
+  # direction per PC (can select many traits).
+  # NOTE: this does NOT control the "UMAP colored by top traits" plot — that
+  # plot always shows 6 traits (n_traits is hardcoded in
+  # GenerateStaticFiguresStep), round-robin distributed across all retained
+  # PCs and both loading directions.
   n_top_features: 5
 
 umap:
