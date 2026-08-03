@@ -11,6 +11,7 @@ import pandas as pd
 
 from sleap_roots_analyze.pca import (
     perform_pca_analysis,
+    select_n_features_by_variance,
     select_top_features_from_pca,
 )
 from sleap_roots_analyze.pipeline.core import BaseStep, StepResult
@@ -105,13 +106,32 @@ class PCAAnalysisStep(BaseStep):
 
         logger.info(f"PCA used {len(feature_names)} of {len(trait_cols)} traits")
 
+        # Resolve n_features_to_select per feature_selection_strategy (issue #206).
+        # pc_indices is always explicit, scoped to every retained PC (issue #203) —
+        # never relies on select_top_features_from_pca()'s [0, 1] default.
+        strategy = config.pca.feature_selection_strategy
+        if strategy == "extreme":
+            n_features_to_select = 1
+            logger.info(
+                "feature_selection_strategy='extreme': pca.n_top_features is not "
+                "read for this method (always 1 most-positive + 1 most-negative "
+                "loading feature per retained PC)."
+            )
+        elif strategy == "top_variance" and config.pca.n_top_features < 1:
+            n_features_to_select = select_n_features_by_variance(
+                pca_results["feature_contributions"], config.pca.n_top_features
+            )
+        else:
+            n_features_to_select = int(config.pca.n_top_features)
+
         # Select top features using filtered feature names
         top_feature_indices = select_top_features_from_pca(
             loadings=pca_results["loadings"],
             eigenvalues=pca_results["eigenvalues"],
             n_features_total=len(feature_names),
-            n_features_to_select=config.pca.n_top_features,
-            method=config.pca.feature_selection_strategy,
+            n_features_to_select=n_features_to_select,
+            method=strategy,
+            pc_indices=list(range(n_components)),
         )
 
         top_features = [feature_names[i] for i in top_feature_indices]
