@@ -65,10 +65,26 @@ jobs:
         shell: bash
         # pipefail is ON by default in Actions; mypy always exits non-zero while the
         # baseline holds errors, so disable it and let `filter`'s exit code (non-zero only
-        # on NEW errors) decide pass/fail.
+        # on NEW errors) decide pass/fail. That safety only holds while the baseline is
+        # non-empty though: once it's paid down to zero, a mypy crash that emits nothing
+        # looks identical to a clean run. Guard against that (issue #160) by capturing
+        # mypy's own exit code via PIPESTATUS and failing on anything outside {0, 1}
+        # (0=clean, 1=errors reported — mypy's documented convention; anything else is a
+        # fatal/usage/internal error or a signal kill). PIPESTATUS must be copied into a
+        # plain array in the very next statement — reading its elements as two separate
+        # statements loses the second one, since bash resets PIPESTATUS after every
+        # subsequent simple command.
         run: |
           set +o pipefail
           uv run mypy src/sleap_roots_analyze | uv run mypy-baseline filter --baseline-path .mypy-baseline.txt
+          status=("${PIPESTATUS[@]}")
+          mypy_status="${status[0]}"
+          filter_status="${status[1]}"
+          if [[ "$mypy_status" != "0" && "$mypy_status" != "1" ]]; then
+            echo "::error::mypy exited with fatal status $mypy_status (expected 0=clean or 1=errors-found); treating as a crash, not a baseline diff."
+            exit 1
+          fi
+          exit "$filter_status"
 
   reproducibility-gates:
     name: Reproducibility gates (determinism)
