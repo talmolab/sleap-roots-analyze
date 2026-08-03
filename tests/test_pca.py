@@ -17,6 +17,7 @@ from sleap_roots_analyze.pca import (
     perform_pca_analysis,
     perform_pca_with_variance_threshold,
     select_n_components,
+    select_n_features_by_variance,
     select_top_features_from_pca,
     standardize_data,
 )
@@ -156,6 +157,67 @@ class TestSelectNComponents:
         n_high = select_n_components(data, explained_variance_threshold=0.99)
 
         assert n_low <= n_high
+
+
+class TestSelectNFeaturesByVariance:
+    """Test suite for select_n_features_by_variance function (issue #206)."""
+
+    @pytest.fixture
+    def feature_contributions_df(self):
+        """Feature contributions matching perform_pca_analysis's shape.
+
+        Sorted descending by contribution, `fractional_contribution` sums to 1.
+        """
+        return pd.DataFrame(
+            {
+                "total_contribution": [5.0, 3.0, 1.5, 0.5],
+                "fractional_contribution": [0.5, 0.3, 0.15, 0.05],
+            },
+            index=["feat_a", "feat_b", "feat_c", "feat_d"],
+        )
+
+    def test_threshold_met_exactly_at_row_boundary(self, feature_contributions_df):
+        """A threshold exactly equal to a cumulative-sum row is met by that row."""
+        n = select_n_features_by_variance(feature_contributions_df, threshold=0.8)
+        assert n == 2
+
+    def test_threshold_requiring_all_features(self, feature_contributions_df):
+        """A threshold only reached by the full cumulative sum selects every row."""
+        n = select_n_features_by_variance(feature_contributions_df, threshold=1.0)
+        assert n == 4
+
+    def test_threshold_met_by_fewer_than_all_features(self, feature_contributions_df):
+        """The resolved count meets the threshold without wildly overshooting it."""
+        n = select_n_features_by_variance(feature_contributions_df, threshold=0.6)
+
+        cumulative = feature_contributions_df["fractional_contribution"].cumsum()
+        assert cumulative.iloc[n - 1] >= 0.6
+        # One fewer feature must NOT meet the threshold (minimal selection).
+        assert n == 1 or cumulative.iloc[n - 2] < 0.6
+
+    def test_non_positive_threshold_resolves_to_one_feature(
+        self, feature_contributions_df
+    ):
+        """Threshold <= 0 selects exactly 1 feature without raising."""
+        assert select_n_features_by_variance(feature_contributions_df, threshold=0) == 1
+        assert (
+            select_n_features_by_variance(feature_contributions_df, threshold=-0.5) == 1
+        )
+
+    def test_single_feature_dataframe(self):
+        """A single-row DataFrame always resolves to 1 feature."""
+        df = pd.DataFrame(
+            {"total_contribution": [2.0], "fractional_contribution": [1.0]},
+            index=["only_feature"],
+        )
+        assert select_n_features_by_variance(df, threshold=0.5) == 1
+        assert select_n_features_by_variance(df, threshold=0.999) == 1
+
+    def test_empty_dataframe_raises(self):
+        """An empty feature_contributions DataFrame is a caller error."""
+        df = pd.DataFrame({"total_contribution": [], "fractional_contribution": []})
+        with pytest.raises(ValueError, match="at least one row"):
+            select_n_features_by_variance(df, threshold=0.5)
 
 
 class TestFitPCA:

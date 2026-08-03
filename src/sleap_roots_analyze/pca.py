@@ -192,6 +192,48 @@ def select_n_components(
     return max(1, min(n_components, max_components))
 
 
+def select_n_features_by_variance(
+    feature_contributions_df: pd.DataFrame,
+    threshold: float,
+) -> int:
+    """Resolve a cumulative-variance-fraction threshold to a feature count.
+
+    Structurally mirrors `select_n_components()`'s cumulative-threshold
+    crossing rule, but walks a `feature_contributions` DataFrame's
+    `fractional_contribution` column (see `perform_pca_analysis()`) instead
+    of `explained_variance_ratio_`. The DataFrame must already be sorted
+    descending by contribution, as `perform_pca_analysis()` returns it.
+
+    Args:
+        feature_contributions_df: DataFrame with a `fractional_contribution`
+            column, sorted descending, summing to 1 (e.g.
+            `perform_pca_analysis(...)["feature_contributions"]`).
+        threshold: Cumulative fractional-contribution threshold to reach.
+            Values `<= 0` resolve to a single feature.
+
+    Returns:
+        Number of top-ranked features whose cumulative
+        `fractional_contribution` first meets or exceeds `threshold`.
+
+    Raises:
+        ValueError: If `feature_contributions_df` has no rows.
+    """
+    n_total = len(feature_contributions_df)
+    if n_total == 0:
+        raise ValueError("feature_contributions_df must have at least one row")
+
+    if threshold <= 0:
+        n = 1
+    else:
+        cumulative = feature_contributions_df["fractional_contribution"].cumsum()
+        if cumulative.iloc[-1] >= threshold:
+            n = int(np.argmax(cumulative.to_numpy() >= threshold)) + 1
+        else:
+            n = n_total
+
+    return max(1, min(n, n_total))
+
+
 def fit_pca(
     X: np.ndarray,
     n_components: int,
