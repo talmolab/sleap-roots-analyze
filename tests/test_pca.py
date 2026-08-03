@@ -2528,3 +2528,33 @@ class TestFeatureSelection:
         # Feature 2: 2.0 * 0.5^2 + 1.0 * 0.5^2 = 0.50 + 0.25 = 0.75
         # Feature 0 has highest contribution
         assert selected[0] == 0
+
+    def test_extreme_selection_remains_block_ordered_across_three_pcs(self):
+        """Extreme method stays block-ordered per-PC, unchanged by the #207 fix."""
+        n_features = 12
+        loadings = np.random.RandomState(2).uniform(-0.05, 0.05, size=(n_features, 3))
+        loadings[0, 0] = -0.9  # PC1 most negative
+        loadings[1, 0] = -0.8  # PC1 2nd most negative
+        loadings[2, 0] = 0.9  # PC1 most positive
+        loadings[3, 0] = 0.8  # PC1 2nd most positive
+        loadings[4, 1] = -0.9  # PC2 most negative
+        loadings[5, 1] = -0.8  # PC2 2nd most negative
+        loadings[6, 1] = 0.9  # PC2 most positive
+        loadings[7, 1] = 0.8  # PC2 2nd most positive
+        loadings[8, 2] = -0.9  # PC3 most negative
+        loadings[9, 2] = -0.8  # PC3 2nd most negative
+        loadings[10, 2] = 0.9  # PC3 most positive
+        loadings[11, 2] = 0.8  # PC3 2nd most positive
+
+        eigenvalues = np.array([3.0, 2.0, 1.0])
+
+        selected = select_top_features_from_pca(
+            loadings=loadings,
+            eigenvalues=eigenvalues,
+            n_features_total=n_features,
+            n_features_to_select=2,
+            method="extreme",
+            pc_indices=[0, 1, 2],
+        )
+
+        assert selected == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]

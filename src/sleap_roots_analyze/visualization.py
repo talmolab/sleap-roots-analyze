@@ -2738,9 +2738,13 @@ def create_umap_colored_by_top_traits(
         n_traits: Number of top traits to plot.
         feature_selection: Method for selecting features:
             - "top_variance": Top N by total variance contribution (default)
-            - "extreme": Top N most positive and negative for first 2 PCs
-            - "top_absolute": Top N by absolute loading magnitude
-            - "top_contribution": Top N by contribution to first 2 PCs
+            - "extreme": Most positive/negative loading traits, round-robin
+              distributed across all retained PCs (direction-major, PC-minor)
+              up to n_traits total
+            - "top_absolute": Top N by absolute loading magnitude across all
+              retained PCs
+            - "top_contribution": Top N by contribution across all retained
+              PCs
         variance_threshold: Cumulative variance threshold for PC selection.
             If None, use the same threshold as perform_pca_analysis.
         figsize: Figure size.
@@ -2758,40 +2762,94 @@ def create_umap_colored_by_top_traits(
     loadings = pca_results["loadings"]
     eigenvalues = pca_results["eigenvalues"]
 
-    # Determine which PCs to use for variance calculation
-    if feature_selection == "top_variance":
-        # Use the same PCA threshold/components as perform_pca_analysis by default
-        cumulative_var = pca_results["cumulative_variance_ratio"]
+    # Determine which PCs to use for variance calculation. Scope to all
+    # retained PCs for every method (not just "top_variance") — see #207.
+    cumulative_var = pca_results["cumulative_variance_ratio"]
 
-        # Check if pca_results has the selected components info
-        if "n_components_selected" in pca_results:
-            n_pcs = pca_results["n_components_selected"]
-        elif variance_threshold is not None:
-            # Use provided threshold
-            n_pcs = np.argmax(cumulative_var >= variance_threshold) + 1
-        else:
-            # Default to 95% variance if not specified
-            n_pcs = np.argmax(cumulative_var >= 0.95) + 1
-
-        # Clamp n_pcs to available data
-        n_pcs = min(n_pcs, loadings.shape[1], len(eigenvalues))
-        pc_indices = list(range(n_pcs))
+    # Check if pca_results has the selected components info
+    if "n_components_selected" in pca_results:
+        n_pcs = pca_results["n_components_selected"]
+    elif variance_threshold is not None:
+        # Use provided threshold
+        n_pcs = np.argmax(cumulative_var >= variance_threshold) + 1
     else:
-        # For other methods, use first 2 PCs by default
-        pc_indices = [0, 1]
+        # Default to 95% variance if not specified
+        n_pcs = np.argmax(cumulative_var >= 0.95) + 1
+
+    # Clamp n_pcs to available data
+    n_pcs = min(n_pcs, loadings.shape[1], len(eigenvalues))
+    pc_indices = list(range(n_pcs))
 
     # Ensure we handle the correct number of features
     n_features = min(len(trait_columns), loadings.shape[0])
 
-    # Select top features using modular function
-    top_indices = select_top_features_from_pca(
-        loadings=loadings,
-        eigenvalues=eigenvalues,
-        n_features_total=n_features,
-        n_features_to_select=n_traits,
-        method=feature_selection,
-        pc_indices=pc_indices if feature_selection != "top_variance" else None,
-    )
+    # Maps a selected trait index to the (pc_idx, direction) pair that chose
+    # it, for "extreme" subtitle labeling below. Empty for other methods.
+    trait_extreme_source: Dict[int, Tuple[int, str]] = {}
+
+    if feature_selection == "extreme":
+        # Round-robin across (PC, direction) pairs so every retained PC gets
+        # fair representation, instead of taking select_top_features_from_pca's
+        # block-ordered list (all of PC1's negatives, then PC1's positives,
+        # then PC2's negatives, ...) and truncating it to n_traits — which
+        # front-loads PC1 and can starve every other PC entirely (#207).
+        # select_top_features_from_pca's own "extreme" method is left
+        # unchanged (pipeline/steps/pca_analysis.py relies on its existing
+        # per-direction-per-PC block-ordered semantics, unsliced).
+        #
+        # Passes are direction-major, PC-minor: each sweep below first visits
+        # every retained PC's next-most-negative unseen trait, then every
+        # retained PC's next-most-positive unseen trait, before starting the
+        # next sweep (second-most-negative, second-most-positive, ...). This
+        # guarantees every retained PC contributes once before any PC
+        # contributes twice, which a PC-major ordering (all of PC1 before
+        # moving to PC2) would not. It does NOT guarantee a balanced mix of
+        # directions: when n_traits < 2 * len(pc_indices), the negative pass
+        # completes before any positive trait is reached, so the plotted set
+        # can skew toward one direction — PC sign is an arbitrary convention
+        # with no biological meaning, so this is a display artifact, not a
+        # scientific one. A trait that is extreme on more than one PC is
+        # attributed (for its subtitle) to whichever pair's turn claims it
+        # first in this pass order, not necessarily its strongest association.
+        ascending_by_pc = {
+            pc_idx: np.argsort(loadings[:n_features, pc_idx]) for pc_idx in pc_indices
+        }
+        direction_iters = [
+            (pc_idx, "-", iter(ascending_by_pc[pc_idx].tolist()))
+            for pc_idx in pc_indices
+        ] + [
+            (pc_idx, "+", iter(ascending_by_pc[pc_idx][::-1].tolist()))
+            for pc_idx in pc_indices
+        ]
+
+        top_indices: List[int] = []
+        seen = set()
+        exhausted = [False] * len(direction_iters)
+        while len(top_indices) < n_traits and not all(exhausted):
+            for i, (pc_idx, direction, it) in enumerate(direction_iters):
+                if len(top_indices) >= n_traits:
+                    break
+                if exhausted[i]:
+                    continue
+                for idx in it:
+                    if idx not in seen:
+                        idx = int(idx)
+                        seen.add(idx)
+                        top_indices.append(idx)
+                        trait_extreme_source[idx] = (pc_idx, direction)
+                        break
+                else:
+                    exhausted[i] = True
+    else:
+        # Select top features using modular function
+        top_indices = select_top_features_from_pca(
+            loadings=loadings,
+            eigenvalues=eigenvalues,
+            n_features_total=n_features,
+            n_features_to_select=n_traits,
+            method=feature_selection,
+            pc_indices=pc_indices if feature_selection != "top_variance" else None,
+        )
 
     # Calculate contributions for display (always use variance contribution for labels)
     contributions = np.zeros(n_features)
@@ -2836,10 +2894,12 @@ def create_umap_colored_by_top_traits(
         # Add selection method to subtitle if not default
         subtitle = f"(Contribution: {contributions[trait_idx]:.3f})"
         if feature_selection == "extreme":
-            # Check if this was positive or negative loading
-            pc1_loading = loadings[trait_idx, 0] if loadings.shape[1] > 0 else 0
-            direction = "+" if pc1_loading > 0 else "-"
-            subtitle = f"(PC1{direction}, Contrib: {contributions[trait_idx]:.3f})"
+            # Report the actual (PC, direction) pair that selected this trait
+            # in the round-robin above, rather than re-deriving it from PC1's
+            # loading (which was only ever correct when every trait happened
+            # to come from PC1 — see #207).
+            source_pc, direction = trait_extreme_source[trait_idx]
+            subtitle = f"(PC{source_pc + 1}{direction}, Contrib: {contributions[trait_idx]:.3f})"
 
         ax.set_title(
             f"{trait_name}\n{subtitle}",
@@ -2856,7 +2916,7 @@ def create_umap_colored_by_top_traits(
         "top_variance": "Contributing",
         "extreme": "Extreme Loading",
         "top_absolute": "Highest Absolute Loading",
-        "top_contribution": "Contributing to PC1-PC2",
+        "top_contribution": "Contributing to Retained PCs",
     }
     title = f"UMAP Colored by Top {n_traits} {method_desc.get(feature_selection, 'Contributing')} Traits"
     fig.suptitle(title, fontsize=14)

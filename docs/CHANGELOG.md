@@ -127,6 +127,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clustering-path tests to make the contract verifiable by `pytest` alone.
   First concrete step of #161's mypy-baseline paydown; a matching gap in
   `generate_static_figures.py` is left for a separate follow-up.
+- `create_umap_colored_by_top_traits` no longer collapses `feature_selection="extreme"`
+  to "PC1's most-negative-loading traits only" (#207): `pc_indices` was hardcoded to
+  `[0, 1]` for every method except `"top_variance"`, and for `"extreme"` specifically,
+  `select_top_features_from_pca`'s block-ordered return
+  (`[PC1_neg × n, PC1_pos × n, PC2_neg × n, ...]`) was truncated to `top_indices[:n_traits]`
+  — since `n_traits` was passed as both the per-direction-per-PC count *and* the final
+  slice length, the first block (PC1's `n_traits` most-negative-loading traits) already
+  filled the entire slice. `pc_indices` now scopes to all retained PCs for every method,
+  and `"extreme"` selection is now built via a direction-major/PC-minor round-robin
+  directly in `create_umap_colored_by_top_traits` (every retained PC's most-negative
+  trait, then every PC's most-positive trait, then every PC's 2nd-most-negative, ...),
+  so small `n_traits` relative to PC count can't starve later PCs the way a PC-major
+  ordering would. Per-subplot subtitles now report the trait's actual source PC and
+  direction instead of always re-deriving it from PC1's loading — though a trait extreme
+  on more than one PC is still attributed to whichever PC's round-robin turn claims it
+  first, not necessarily its strongest association, and direction balance (both + and -)
+  is only guaranteed once `n_traits >= 2 * n_retained_pcs`.
+  `select_top_features_from_pca` itself (`pca.py`) is unchanged — `PCAAnalysisStep`
+  still relies on its existing block-ordered, per-direction-per-PC semantics. Every
+  active config with `feature_selection_strategy: "extreme"` (the majority of
+  `configs/active/viz/*.yaml`) will now plot a different trait set for
+  `umap_top_traits.png` than previously generated output — regenerate that figure on
+  next run if a prior copy is being compared against.
 - `create_pca_biplot` now honors `feature_selection="top_variance"` (#202): the
   `feature_selection`→`method` mapping had `elif` branches for `extreme`/
   `top_absolute`/`top_contribution`/`vector_length` but none for `top_variance`,
