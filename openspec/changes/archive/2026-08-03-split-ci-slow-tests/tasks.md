@@ -106,10 +106,13 @@ Per-test marker (`@pytest.mark.slow` on the individual test — class has other 
       relative to CI's post-change number.
 
 ## Task 6: Push and open PR
-- [ ] 6.1 Push branch, open PR referencing #217, and let the new `slow-tests` job run
+- [x] 6.1 Push branch, open PR referencing #217, and let the new `slow-tests` job run
       alongside the now-lighter `tests` job on the PR itself as the real-world verification.
-- [ ] 6.2 Once the PR's CI run completes, confirm the `tests (windows, Python 3.11)` job's
+      **Result: PR #219, merged 2026-08-03.**
+- [x] 6.2 Once the PR's CI run completes, confirm the `tests (windows, Python 3.11)` job's
       actual wall-clock duration dropped measurably below the ~28.5-minute pre-change baseline
       (target: at least a 5-minute drop, restoring a real margin under the 30-minute timeout) —
       this is the concrete, real-data closure of the proposal's central goal, not just the local
-      estimate from Task 4.
+      estimate from Task 4. **Result: 12m25s on PR #219's own CI run — a ~16-minute drop, far
+      exceeding the 5-minute target. All 13 CI checks passed, including the new `Slow tests`
+      job on all three OSes (5-11 min each).**
