@@ -220,7 +220,8 @@ jobs:
         run: |
           echo "=== Running pytest ==="
           echo "Skipping integration tests (marked with @pytest.mark.integration) - see issue #69"
-          uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=20 -m "not integration" tests/
+          echo "Skipping slow tests (marked with @pytest.mark.slow) - run in the slow-tests job, see issue #217"
+          uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=20 -m "not integration and not slow" tests/
 
     #   - name: Upload coverage
     #     uses: codecov/codecov-action@v5
@@ -228,3 +229,63 @@ jobs:
     #       fail_ci_if_error: true
     #       verbose: false
     #       token: ${{ secrets.CODECOV_TOKEN }}
+
+  slow-tests:
+    # Large-dataset/OOM-regression tests (added by #210) that disproportionately erode the
+    # tests job's timeout margin (issue #217). Split into their own job so they keep running
+    # on every PR without threatening the fast suite's 30-minute budget. Modeled directly on
+    # the tests job above — same matrix (including the macos-14 pin, not macos-latest), same
+    # timeout, same fail-fast, same setup steps.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu", "windows", "mac"]
+        include:
+          - os: ubuntu
+            runs-on: ubuntu-latest
+          - os: windows
+            runs-on: windows-latest
+          - os: mac
+            runs-on: macos-14
+        python: [3.11]
+
+    name: Slow tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Set up Python
+        if: matrix.os != 'self-hosted-gpu'
+        run: uv python install ${{ matrix.python }}
+
+      - name: Install dev dependencies
+        run: uv sync --group dev
+
+      - name: Print environment info
+        run: |
+          echo "=== UV Environment ==="
+          uv run python --version
+          uv run python -c "import sys; print('Python executable:', sys.executable)"
+          echo "=== UV Environment NumPy Check ==="
+          uv run python -c "import numpy; print('NumPy version:', numpy.__version__); print('NumPy location:', numpy.__file__)" || echo "NumPy import failed in uv environment"
+          echo "=== UV pip list ==="
+          uv pip list
+          echo "=== UV ENVIRONMENT CHECK ==="
+          uv run python -c "import os; print('VIRTUAL_ENV:', os.environ.get('VIRTUAL_ENV', 'Not set'))"
+          uv run python -c "import sys; print('sys.prefix:', sys.prefix)"
+
+      # No --cov here: coverage upload is currently a disabled stub in the tests job above
+      # (see the commented-out Upload coverage step), so no CI gate depends on these tests'
+      # coverage contribution today. Revisit if/when coverage upload is re-enabled.
+      - name: Run pytest (slow tests)
+        run: |
+          echo "=== Running slow tests (issue #217) ==="
+          uv run pytest --durations=20 -m "slow" tests/

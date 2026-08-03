@@ -206,6 +206,7 @@ class TestQCPipelineIntegration:
         assert summary.status == "success"
         assert len(summary.steps) == 10
 
+    @pytest.mark.slow
     def test_qc_pipeline_turface_integration(self, turface_rsr_csv_path, tmp_path):
         """Integration test using real Turface wheat data.
 
@@ -459,6 +460,7 @@ class TestQCPipelineIntegration:
         print(f"\nPASSED Turface integration test passed!")
         print(f"   Final: 152 samples, 12 traits (from 187 samples, 35 traits)")
 
+    @pytest.mark.slow
     def test_qc_pipeline_no_outlier_methods_warning(
         self, turface_rsr_csv_path, tmp_path
     ):

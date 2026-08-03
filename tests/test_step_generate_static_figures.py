@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import matplotlib
+import pytest
 
 from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.steps import GenerateStaticFiguresStep
@@ -1267,6 +1268,7 @@ class TestMemoryManagement:
             f"Expected <= {max_allowed_accumulation}"
         )
 
+    @pytest.mark.slow
     def test_peak_concurrent_figures_bounded_during_static_figures(
         self,
         static_viz_config_enabled,

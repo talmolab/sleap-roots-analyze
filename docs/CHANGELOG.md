@@ -113,6 +113,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (PR #193 review).
 
 ### Fixed
+- CI's `tests` job no longer risks spurious timeout failures unrelated to a PR's own
+  changes: ~20 large-dataset regression tests (added by #210 to guard the OOM fix) that
+  disproportionately erode the job's 30-minute budget are now tagged `@pytest.mark.slow`
+  and run in a separate `slow-tests` job on the same three-OS matrix — full coverage is
+  preserved, just isolated from the fast suite's timeout margin. (#217)
 - `ReduceTraitRedundancyStep`'s `files_generated` type annotations now match its
   runtime `Path` values (#161): `execute()`'s and `_cluster_experiment()`'s
   `files_generated` locals are annotated `List[Path]`, and

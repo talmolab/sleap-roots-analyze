@@ -4061,6 +4061,7 @@ class TestBatchedHistogramsFileReduction:
         for fig in figures:
             plt.close(fig)
 
+    @pytest.mark.slow
     def test_large_dataset_reasonable_file_count(self):
         """Test that large datasets (300+ traits) generate reasonable file count."""
         from sleap_roots_analyze.visualization import create_trait_histograms_batched
@@ -4084,6 +4085,7 @@ class TestBatchedHistogramsFileReduction:
         for fig in figures:
             plt.close(fig)
 
+    @pytest.mark.slow
     def test_boxplots_large_dataset_reasonable_file_count(self):
         """Test that boxplot batches for large datasets are reasonable."""
         from sleap_roots_analyze.visualization import (
@@ -5164,6 +5166,7 @@ class TestBoxplotGenotypePagination:
         for fig in figures:
             plt.close(fig)
 
+    @pytest.mark.slow
     def test_pagination_with_partial_trait_batch_and_partial_genotype_page(self):
         """Partial trait batch and partial genotype page combine correctly."""
         n_traits = 20
@@ -5304,6 +5307,7 @@ class TestBatchedFigureGenerators:
         for fig in generator_figures:
             plt.close(fig)
 
+    @pytest.mark.slow
     def test_boxplot_generator_matches_list_wrapper_output(self):
         """list(_generate_trait_boxplot_batches(...)) matches the public wrapper.
 
