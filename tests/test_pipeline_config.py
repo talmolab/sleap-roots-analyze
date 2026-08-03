@@ -356,6 +356,8 @@ def test_validate_config_rejects_fractional_n_top_features_below_1(strategy):
         validate_qc_config(config)
     assert "pca.feature_selection_strategy" in str(exc_info.value)
     assert strategy in str(exc_info.value)
+    assert "integer" in str(exc_info.value)
+    assert ">= 1" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -371,6 +373,60 @@ def test_validate_config_rejects_non_whole_number_n_top_features_ge_1(strategy):
     with pytest.raises(ValueError, match="whole number") as exc_info:
         validate_qc_config(config)
     assert "truncated" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "strategy", ["top_absolute", "top_contribution", "top_variance"]
+)
+def test_validate_config_rejects_nan_n_top_features(strategy):
+    """NaN must not silently bypass both range checks (both compare False against NaN)."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = strategy
+    config.pca.n_top_features = float("nan")
+
+    with pytest.raises(ValueError, match="finite"):
+        validate_qc_config(config)
+
+
+@pytest.mark.parametrize(
+    "strategy", ["top_absolute", "top_contribution", "top_variance"]
+)
+def test_validate_config_rejects_infinite_n_top_features(strategy):
+    """Inf must raise ValueError, not OverflowError from round()."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = strategy
+    config.pca.n_top_features = float("inf")
+
+    with pytest.raises(ValueError, match="finite"):
+        validate_qc_config(config)
+
+
+def test_validate_config_accepts_nan_or_inf_n_top_features_for_extreme():
+    """Extreme ignores the field entirely, so non-finite values are still harmless."""
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = "extreme"
+
+    for value in [float("nan"), float("inf"), float("-inf")]:
+        config.pca.n_top_features = value
+        validate_qc_config(config)  # Should not raise
+
+
+def test_validate_config_accepts_near_whole_number_from_float_accumulation():
+    """A value validation certifies as "whole" must not become uncertifiable.
+
+    E.g. from float summation, must not then get truncated to a different
+    integer at the PCAAnalysisStep consumption site.
+    """
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    config.pca.feature_selection_strategy = "top_absolute"
+    # A completely ordinary float-accumulation result that isn't exactly 10.0.
+    config.pca.n_top_features = sum([0.1] * 10) * 10
+    assert config.pca.n_top_features != 10.0  # confirms the float-noise premise
+    validate_qc_config(config)  # Should not raise — within tolerance of 10
 
 
 def test_validate_config_accepts_top_variance_threshold_below_1():
@@ -404,6 +460,18 @@ def test_validate_config_accepts_whole_number_n_top_features_for_any_strategy(
     config.data.csv_path = "data.csv"
     config.pca.feature_selection_strategy = strategy
     config.pca.n_top_features = 5.0
+    validate_qc_config(config)  # Should not raise
+
+
+def test_validate_config_default_pca_values_pass():
+    """PCAConfig()'s defaults pass validation without needing any override.
+
+    Defaults: feature_selection_strategy='top_variance', n_top_features=10.0.
+    """
+    config = QCPipelineConfig(pipeline_name="test")
+    config.data.csv_path = "data.csv"
+    assert config.pca.feature_selection_strategy == "top_variance"
+    assert config.pca.n_top_features == 10.0
     validate_qc_config(config)  # Should not raise
 
 

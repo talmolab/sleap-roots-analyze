@@ -122,7 +122,12 @@ class PCAAnalysisStep(BaseStep):
                 pca_results["feature_contributions"], config.pca.n_top_features
             )
         else:
-            n_features_to_select = int(config.pca.n_top_features)
+            # round(), not int(): validate_qc_config()/validate_viz_config() only
+            # guarantee n_top_features is within 1e-9 of a whole number, not that
+            # it equals one exactly (e.g. float-accumulation noise). int() would
+            # truncate a value like 9.999999999999998 down to 9, silently
+            # reproducing the exact class of bug this validation exists to catch.
+            n_features_to_select = round(config.pca.n_top_features)
 
         # Select top features using filtered feature names
         top_feature_indices = select_top_features_from_pca(

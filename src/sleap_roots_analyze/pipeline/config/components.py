@@ -424,13 +424,15 @@ class PCAConfig:
               is a cumulative fractional-variance-contribution threshold
               (features are added, highest-contribution first, until their
               combined fractional_contribution reaches this fraction); a
-              value >= 1 is a fixed feature count (legacy behavior).
+              value >= 1 is a fixed feature count and, like the two
+              strategies below, must be a whole number (legacy behavior).
               Note: exactly 1.0 takes the count branch (selects 1 feature),
               not "100% of variance" — it is not a special threshold value.
             - "top_absolute", "top_contribution": a fixed feature count
               only; must be a whole number >= 1 (validated at config-load
               time — a value < 1 or a non-whole number is rejected, since
-              e.g. int(0.5) == 0 would silently select nothing).
+              e.g. int(0.5) == 0 or truncating 5.7 to 5 would silently
+              select the wrong count).
     """
 
     n_components: float = 0.95

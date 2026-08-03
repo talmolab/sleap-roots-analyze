@@ -1061,3 +1061,24 @@ class TestPCAAnalysisStepFeatureSelectionResolution:
         )
 
         assert len(result.metadata["top_features"]) == 5
+
+    def test_count_selection_rounds_rather_than_truncates_near_whole_numbers(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """A value certified as "whole" must resolve to that same integer here.
+
+        validate_*_config() only guarantees "whole" within tolerance; this
+        step must not silently truncate down to a different neighbor.
+        """
+        config.pca.feature_selection_strategy = "top_absolute"
+        config.pca.n_top_features = 5.0 - 1e-15  # int() truncates to 4; round() gives 5
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        assert len(result.metadata["top_features"]) == 5

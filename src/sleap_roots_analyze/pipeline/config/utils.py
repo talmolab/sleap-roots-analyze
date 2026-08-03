@@ -6,6 +6,7 @@ pipeline configurations.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any, Dict
 
@@ -272,6 +273,11 @@ def validate_qc_config(config: QCPipelineConfig, check_files: bool = True) -> No
     # value is harmless for that strategy — both checks below skip it.
     n_top = config.pca.n_top_features
     strategy = config.pca.feature_selection_strategy
+    if strategy != "extreme" and not math.isfinite(n_top):
+        raise ValueError(
+            f"pca.n_top_features must be a finite number (got {n_top!r} for "
+            f"pca.feature_selection_strategy='{strategy}')."
+        )
     if n_top < 1 and strategy not in ("extreme", "top_variance"):
         raise ValueError(
             "pca.n_top_features < 1 (variance-fraction threshold) is only "
@@ -498,6 +504,11 @@ def validate_viz_config(config: VizPipelineConfig) -> None:
     # value is harmless for that strategy — both checks below skip it.
     n_top = config.pca.n_top_features
     strategy = config.pca.feature_selection_strategy
+    if strategy != "extreme" and not math.isfinite(n_top):
+        raise ValueError(
+            f"pca.n_top_features must be a finite number (got {n_top!r} for "
+            f"pca.feature_selection_strategy='{strategy}')."
+        )
     if n_top < 1 and strategy not in ("extreme", "top_variance"):
         raise ValueError(
             "pca.n_top_features < 1 (variance-fraction threshold) is only "

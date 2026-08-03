@@ -204,6 +204,8 @@ class TestValidateVizConfig:
             validate_viz_config(config)
         assert "pca.feature_selection_strategy" in str(exc_info.value)
         assert strategy in str(exc_info.value)
+        assert "integer" in str(exc_info.value)
+        assert ">= 1" in str(exc_info.value)
 
     @pytest.mark.parametrize(
         "strategy", ["top_variance", "top_absolute", "top_contribution"]
@@ -217,6 +219,39 @@ class TestValidateVizConfig:
         with pytest.raises(ValueError, match="whole number") as exc_info:
             validate_viz_config(config)
         assert "truncated" in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "strategy", ["top_absolute", "top_contribution", "top_variance"]
+    )
+    def test_nan_n_top_features_raises(self, strategy):
+        """NaN must not silently bypass both range checks (both compare False against NaN)."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = strategy
+        config.pca.n_top_features = float("nan")
+        with pytest.raises(ValueError, match="finite"):
+            validate_viz_config(config)
+
+    @pytest.mark.parametrize(
+        "strategy", ["top_absolute", "top_contribution", "top_variance"]
+    )
+    def test_infinite_n_top_features_raises(self, strategy):
+        """Inf must raise ValueError, not OverflowError from round()."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = strategy
+        config.pca.n_top_features = float("inf")
+        with pytest.raises(ValueError, match="finite"):
+            validate_viz_config(config)
+
+    def test_nan_or_inf_n_top_features_accepted_for_extreme(self):
+        """Extreme ignores the field entirely, so non-finite values are still harmless."""
+        config = VizPipelineConfig(pipeline_name="test")
+        config.data.csv_path = "test.csv"
+        config.pca.feature_selection_strategy = "extreme"
+        for value in [float("nan"), float("inf"), float("-inf")]:
+            config.pca.n_top_features = value
+            validate_viz_config(config)  # Should not raise
 
     def test_top_variance_threshold_below_1_accepted(self):
         """A < 1 threshold is accepted for top_variance."""

@@ -186,6 +186,18 @@ class TestSelectNFeaturesByVariance:
         n = select_n_features_by_variance(feature_contributions_df, threshold=1.0)
         assert n == 4
 
+    def test_threshold_unreachable_even_by_full_sum_selects_all_features(
+        self, feature_contributions_df
+    ):
+        """An unreachable threshold still returns all features.
+
+        Exercises the `else` fallback branch, which a threshold of exactly
+        1.0 cannot reach since `fractional_contribution` sums to exactly
+        1.0 by construction here.
+        """
+        n = select_n_features_by_variance(feature_contributions_df, threshold=1.5)
+        assert n == 4
+
     def test_threshold_met_by_fewer_than_all_features(self, feature_contributions_df):
         """The resolved count meets the threshold without wildly overshooting it."""
         n = select_n_features_by_variance(feature_contributions_df, threshold=0.6)
