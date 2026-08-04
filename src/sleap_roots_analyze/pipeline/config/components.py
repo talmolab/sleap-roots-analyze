@@ -413,13 +413,32 @@ class PCAConfig:
         n_components: Number of components (or variance ratio if < 1).
         standardize: Whether to standardize data before PCA.
         feature_selection_strategy: Strategy for selecting top features.
-        n_top_features: Number of top features to select per component.
+        n_top_features: Feature-selection count or threshold; meaning
+            depends on feature_selection_strategy:
+            - "extreme": ignored entirely (any value, including one < 1).
+              Always selects exactly 1 most-positive-loading and 1
+              most-negative-loading feature per retained PC (2 per PC),
+              regardless of this value. A one-time log message notes this
+              at run time.
+            - "top_variance": overloaded like n_components — a value < 1
+              is a cumulative fractional-variance-contribution threshold
+              (features are added, highest-contribution first, until their
+              combined fractional_contribution reaches this fraction); a
+              value >= 1 is a fixed feature count and, like the two
+              strategies below, must be a whole number (legacy behavior).
+              Note: exactly 1.0 takes the count branch (selects 1 feature),
+              not "100% of variance" — it is not a special threshold value.
+            - "top_absolute", "top_contribution": a fixed feature count
+              only; must be a whole number >= 1 (validated at config-load
+              time — a value < 1 or a non-whole number is rejected, since
+              e.g. int(0.5) == 0 or truncating 5.7 to 5 would silently
+              select the wrong count).
     """
 
     n_components: float = 0.95
     standardize: bool = True
     feature_selection_strategy: str = "top_variance"
-    n_top_features: int = 10
+    n_top_features: float = 10.0
 
 
 @dataclass

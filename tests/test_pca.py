@@ -10,6 +10,8 @@ from sklearn.decomposition import PCA as SklearnPCA
 from sklearn.preprocessing import StandardScaler
 
 from sleap_roots_analyze.pca import (
+    _first_index_crossing_threshold,
+    _total_variance_contribution,
     calculate_mahalanobis_distances,
     calculate_pca_metrics,
     calculate_pca_reconstruction_error,
@@ -17,6 +19,7 @@ from sleap_roots_analyze.pca import (
     perform_pca_analysis,
     perform_pca_with_variance_threshold,
     select_n_components,
+    select_n_features_by_variance,
     select_top_features_from_pca,
     standardize_data,
 )
@@ -156,6 +159,233 @@ class TestSelectNComponents:
         n_high = select_n_components(data, explained_variance_threshold=0.99)
 
         assert n_low <= n_high
+
+
+class TestSelectNFeaturesByVariance:
+    """Test suite for select_n_features_by_variance function (issue #206)."""
+
+    @pytest.fixture
+    def feature_contributions_df(self):
+        """Feature contributions matching perform_pca_analysis's shape.
+
+        Sorted descending by contribution, `fractional_contribution` sums to 1.
+        """
+        return pd.DataFrame(
+            {
+                "total_contribution": [5.0, 3.0, 1.5, 0.5],
+                "fractional_contribution": [0.5, 0.3, 0.15, 0.05],
+            },
+            index=["feat_a", "feat_b", "feat_c", "feat_d"],
+        )
+
+    def test_threshold_met_exactly_at_row_boundary(self, feature_contributions_df):
+        """A threshold exactly equal to a cumulative-sum row is met by that row."""
+        n = select_n_features_by_variance(feature_contributions_df, threshold=0.8)
+        assert n == 2
+
+    def test_threshold_requiring_all_features(self, feature_contributions_df):
+        """A threshold only reached by the full cumulative sum selects every row."""
+        n = select_n_features_by_variance(feature_contributions_df, threshold=1.0)
+        assert n == 4
+
+    def test_threshold_unreachable_even_by_full_sum_selects_all_features(
+        self, feature_contributions_df
+    ):
+        """An unreachable threshold still returns all features.
+
+        Exercises the `else` fallback branch, which a threshold of exactly
+        1.0 cannot reach since `fractional_contribution` sums to exactly
+        1.0 by construction here.
+        """
+        n = select_n_features_by_variance(feature_contributions_df, threshold=1.5)
+        assert n == 4
+
+    def test_threshold_met_by_fewer_than_all_features(self, feature_contributions_df):
+        """The resolved count meets the threshold without wildly overshooting it."""
+        n = select_n_features_by_variance(feature_contributions_df, threshold=0.6)
+
+        cumulative = feature_contributions_df["fractional_contribution"].cumsum()
+        assert cumulative.iloc[n - 1] >= 0.6
+        # One fewer feature must NOT meet the threshold (minimal selection).
+        assert n == 1 or cumulative.iloc[n - 2] < 0.6
+
+    def test_non_positive_threshold_resolves_to_one_feature(
+        self, feature_contributions_df
+    ):
+        """Threshold <= 0 selects exactly 1 feature without raising."""
+        assert select_n_features_by_variance(feature_contributions_df, threshold=0) == 1
+        assert (
+            select_n_features_by_variance(feature_contributions_df, threshold=-0.5) == 1
+        )
+
+    def test_single_feature_dataframe(self):
+        """A single-row DataFrame always resolves to 1 feature."""
+        df = pd.DataFrame(
+            {"total_contribution": [2.0], "fractional_contribution": [1.0]},
+            index=["only_feature"],
+        )
+        assert select_n_features_by_variance(df, threshold=0.5) == 1
+        assert select_n_features_by_variance(df, threshold=0.999) == 1
+
+    def test_empty_dataframe_raises(self):
+        """An empty feature_contributions DataFrame is a caller error."""
+        df = pd.DataFrame({"total_contribution": [], "fractional_contribution": []})
+        with pytest.raises(ValueError, match="at least one row"):
+            select_n_features_by_variance(df, threshold=0.5)
+
+
+class TestFirstIndexCrossingThreshold:
+    """Test suite for the shared _first_index_crossing_threshold() helper.
+
+    Used by both select_n_components() and select_n_features_by_variance()
+    (design.md Decision 2) — tested directly here since it's the single
+    source of truth both callers' own test suites now rely on implicitly.
+    """
+
+    def test_exact_boundary(self):
+        """A threshold exactly equal to a cumulative-sum row is met by that row."""
+        cumulative = np.array([0.5, 0.8, 0.95, 1.0])
+        assert _first_index_crossing_threshold(cumulative, 0.8, total=4) == 2
+
+    def test_threshold_never_reached_returns_total(self):
+        """A threshold above the full cumulative sum returns total, not fewer."""
+        cumulative = np.array([0.5, 0.8, 0.95, 1.0])
+        assert _first_index_crossing_threshold(cumulative, 1.5, total=4) == 4
+
+    def test_single_element(self):
+        """A single-element cumulative array always resolves to 1."""
+        cumulative = np.array([1.0])
+        assert _first_index_crossing_threshold(cumulative, 0.5, total=1) == 1
+
+    def test_clamps_to_total(self):
+        """The result never exceeds total, even if cumulative has more rows."""
+        cumulative = np.array([0.5, 0.8, 0.95, 1.0])
+        # total=2 simulates a caller restricting to fewer elements than the
+        # full cumulative array — result must still respect that cap.
+        assert _first_index_crossing_threshold(cumulative, 1.0, total=2) == 2
+
+    def test_total_larger_than_cumulative_length(self):
+        """Total may exceed len(cumulative); the crossing index is unaffected."""
+        cumulative = np.array([0.5, 0.8, 0.95, 1.0])
+        # No real caller does this today (both pass total == len(cumulative)),
+        # but the contract should hold regardless: the result is bounded by
+        # len(cumulative), not artificially inflated by a larger total.
+        assert _first_index_crossing_threshold(cumulative, 0.8, total=10) == 2
+
+    def test_empty_cumulative_raises(self):
+        """An empty cumulative array is a caller error, not an IndexError crash."""
+        with pytest.raises(ValueError, match="at least one element"):
+            _first_index_crossing_threshold(np.array([]), 0.5, total=0)
+
+
+class TestTotalVarianceContribution:
+    """Test suite for the shared _total_variance_contribution() helper.
+
+    perform_pca_analysis() and select_top_features_from_pca()'s
+    "top_variance" method both call this single helper (design.md
+    Decision 5) so their per-feature contribution values can never
+    numerically diverge from independently re-deriving the same formula
+    (Σ eigenvalue · loading²) via two different summation orders.
+    """
+
+    def test_matches_hand_calculated_values(self):
+        """Sigma eigenvalue * loading^2 per feature, computed by hand."""
+        loadings = np.array([[0.6, 0.2], [0.8, -0.1], [-0.3, 0.9]])
+        eigenvalues = np.array([2.0, 0.5])
+
+        result = _total_variance_contribution(loadings, eigenvalues)
+
+        expected = np.array(
+            [
+                2.0 * 0.6**2 + 0.5 * 0.2**2,
+                2.0 * 0.8**2 + 0.5 * (-0.1) ** 2,
+                2.0 * (-0.3) ** 2 + 0.5 * 0.9**2,
+            ]
+        )
+        np.testing.assert_allclose(result, expected)
+
+    def test_n_features_restricts_rows(self):
+        """An explicit n_features restricts to that many leading rows."""
+        loadings = np.array([[0.6, 0.2], [0.8, -0.1], [-0.3, 0.9]])
+        eigenvalues = np.array([2.0, 0.5])
+
+        result = _total_variance_contribution(loadings, eigenvalues, n_features=2)
+
+        assert len(result) == 2
+
+    def test_eigenvalues_shorter_than_loadings_columns_clamps_to_n_pcs(self):
+        """Only the first len(eigenvalues) PCs contribute (the n_pcs clamp).
+
+        Documented as a deliberate defense for a scoped-`"top_variance"`
+        caller that pre-slices `loadings`/`eigenvalues` to different
+        lengths (per this function's own docstring convention) — no
+        current caller does this, but the clamp exists on purpose and
+        should be exercised directly.
+        """
+        loadings = np.array([[0.6, 0.2, 0.9], [0.8, -0.1, 0.4], [-0.3, 0.9, -0.5]])
+        eigenvalues = np.array([2.0, 0.5])  # Only 2 of the 3 PC columns.
+
+        result = _total_variance_contribution(loadings, eigenvalues)
+
+        expected = np.array(
+            [
+                2.0 * 0.6**2 + 0.5 * 0.2**2,
+                2.0 * 0.8**2 + 0.5 * (-0.1) ** 2,
+                2.0 * (-0.3) ** 2 + 0.5 * 0.9**2,
+            ]
+        )
+        np.testing.assert_allclose(result, expected)
+
+    def test_matches_a_naive_accumulation_loop_up_to_float_noise(self):
+        """Same formula as a naive loop, not necessarily the same bits.
+
+        Not necessarily bit-identical to a naive per-PC accumulation loop
+        — that gap is exactly the divergence this refactor eliminates by
+        leaving only one implementation.
+
+        With enough PCs, a naive per-column accumulation loop (the pattern
+        previously duplicated in select_top_features_from_pca()'s
+        "top_variance" branch before this refactor) can disagree with a
+        vectorized `np.sum` by float-summation-order noise. Confirmed here
+        with a fixed seed where the two demonstrably differ at the bit
+        level, to make the "no longer two independent implementations"
+        guarantee concrete rather than theoretical.
+        """
+        rng = np.random.RandomState(42)
+        loadings = rng.randn(50, 30)
+        eigenvalues = np.abs(rng.randn(30)) + 0.01
+
+        naive_loop_result = np.zeros(50)
+        for i in range(30):
+            naive_loop_result += eigenvalues[i] * loadings[:, i] ** 2
+
+        result = _total_variance_contribution(loadings, eigenvalues)
+
+        np.testing.assert_allclose(result, naive_loop_result)  # same formula...
+        assert not np.array_equal(result, naive_loop_result)  # ...different bits
+
+    def test_matches_perform_pca_analysis_feature_contributions_exactly(self):
+        """Stored total_contribution must equal a direct call to the helper.
+
+        perform_pca_analysis()'s stored value and a direct call to this
+        same shared helper with the same inputs — the single-source-of-truth
+        guarantee design.md Decision 5 exists for.
+        """
+        np.random.seed(0)
+        df = pd.DataFrame(
+            np.random.randn(30, 6), columns=[f"trait{i}" for i in range(6)]
+        )
+        pca_results = perform_pca_analysis(df, n_components=4)
+
+        direct = _total_variance_contribution(
+            pca_results["loadings"], pca_results["eigenvalues"]
+        )
+        stored = (
+            pca_results["feature_contributions"]
+            .loc[pca_results["feature_names"], "total_contribution"]
+            .to_numpy()
+        )
+        np.testing.assert_array_equal(direct, stored)
 
 
 class TestFitPCA:

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
 from pathlib import Path
+from unittest import mock
 from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from sleap_roots_analyze.pca import select_top_features_from_pca
 from sleap_roots_analyze.pipeline import (
     ColumnConfig,
     DataConfig,
@@ -176,9 +179,16 @@ class TestPCAAnalysisStep:
                 prev_result=prev_result,
             )
 
-            # All strategies should return at least the requested number (some may return more)
-            # The "extreme" strategy may return all features if they all have extreme values
-            assert len(result.metadata["top_features"]) >= config.pca.n_top_features
+            if strategy == "extreme":
+                # "extreme" ignores n_top_features entirely (issue #206): always
+                # at most 1-most-positive + 1-most-negative per retained PC.
+                assert (
+                    len(result.metadata["top_features"]) <= 2 * config.pca.n_components
+                )
+            else:
+                # Other strategies return at least the requested number
+                # (some may return more).
+                assert len(result.metadata["top_features"]) >= config.pca.n_top_features
             assert all(
                 f in prev_result.metadata["trait_cols"]
                 for f in result.metadata["top_features"]
@@ -852,3 +862,223 @@ class TestPCATraitNamesMetadataPropagation:
         assert result.metadata["trait_names"] == trait_cols
         assert result.metadata["valid_trait_names"] == trait_cols
         assert result.metadata["original_trait_names"] == trait_cols
+
+
+class TestPCAAnalysisStepFeatureSelectionResolution:
+    """Regression tests for issues #203 and #206.
+
+    `PCAAnalysisStep` must always pass `pc_indices` explicitly (scoped to
+    every retained PC, never relying on `select_top_features_from_pca()`'s
+    `[0, 1]` default), must ignore `n_top_features` entirely for
+    `"extreme"`, and must resolve a `< 1` `n_top_features` under
+    `"top_variance"` via `select_n_features_by_variance()`.
+    """
+
+    @pytest.fixture
+    def config_3pc(self):
+        """Config selecting exactly 3 PCs (beyond the buggy [0, 1] default)."""
+        return QCPipelineConfig(
+            pipeline_name="test_pca_3pc",
+            columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
+            data=DataConfig(csv_path="test.csv"),
+            pca=PCAConfig(
+                n_components=3,
+                standardize=True,
+                n_top_features=2,
+                feature_selection_strategy="extreme",
+            ),
+        )
+
+    @pytest.mark.parametrize(
+        "strategy", ["extreme", "top_absolute", "top_contribution"]
+    )
+    def test_pc_indices_always_passed_scoped_to_n_components(
+        self, config_3pc, sample_data, prev_result, tmp_path, strategy
+    ):
+        """pc_indices is always explicit and scoped to every retained PC (#203)."""
+        config_3pc.pca.feature_selection_strategy = strategy
+        step = PCAAnalysisStep()
+
+        with mock.patch(
+            "sleap_roots_analyze.pipeline.steps.pca_analysis.select_top_features_from_pca",
+            wraps=select_top_features_from_pca,
+        ) as spy:
+            step.execute(
+                data=sample_data,
+                config=config_3pc,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+        spy.assert_called_once()
+        assert spy.call_args.kwargs["pc_indices"] == [0, 1, 2]
+
+    def test_extreme_uses_n_features_to_select_1_ignoring_n_top_features(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """The "extreme" strategy always requests 1-per-direction, regardless of n_top_features."""
+        config.pca.feature_selection_strategy = "extreme"
+        config.pca.n_top_features = 999  # Arbitrary stale value; must be ignored.
+        step = PCAAnalysisStep()
+
+        with mock.patch(
+            "sleap_roots_analyze.pipeline.steps.pca_analysis.select_top_features_from_pca",
+            wraps=select_top_features_from_pca,
+        ) as spy:
+            step.execute(
+                data=sample_data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+        assert spy.call_args.kwargs["n_features_to_select"] == 1
+
+    def test_extreme_single_retained_pc(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """A single retained PC under "extreme" yields at most 2 features."""
+        config.pca.n_components = 1
+        config.pca.feature_selection_strategy = "extreme"
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        assert len(result.metadata["top_features"]) <= 2
+
+    def test_extreme_logs_info_that_n_top_features_is_ignored(
+        self, config, sample_data, prev_result, tmp_path, caplog
+    ):
+        """A logger.info notice fires for "extreme", not for other strategies."""
+        config.pca.feature_selection_strategy = "extreme"
+        step = PCAAnalysisStep()
+
+        with caplog.at_level(logging.INFO):
+            step.execute(
+                data=sample_data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+        assert any(
+            "n_top_features" in record.message and "extreme" in record.message
+            for record in caplog.records
+        )
+
+    def test_no_ignored_notice_for_non_extreme_strategies(
+        self, config, sample_data, prev_result, tmp_path, caplog
+    ):
+        """No "ignored" notice fires when n_top_features is actually read."""
+        config.pca.feature_selection_strategy = "top_absolute"
+        step = PCAAnalysisStep()
+
+        with caplog.at_level(logging.INFO):
+            step.execute(
+                data=sample_data,
+                config=config,
+                run_dir=tmp_path,
+                prev_result=prev_result,
+            )
+
+        assert not any("n_top_features" in record.message for record in caplog.records)
+
+    def test_top_variance_threshold_resolves_feature_count(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """A < 1 threshold selects a count meeting but not overshooting it."""
+        config.pca.feature_selection_strategy = "top_variance"
+        config.pca.n_top_features = 0.8
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        n_selected = len(result.metadata["top_features"])
+        feature_contributions = result.metadata["pca_results"]["feature_contributions"]
+        cumulative = feature_contributions["fractional_contribution"].cumsum()
+
+        assert cumulative.iloc[n_selected - 1] >= 0.8
+        assert n_selected == 1 or cumulative.iloc[n_selected - 2] < 0.8
+
+    @pytest.mark.parametrize("threshold", [0, -0.5])
+    def test_top_variance_non_positive_threshold_selects_one_feature(
+        self, config, sample_data, prev_result, tmp_path, threshold
+    ):
+        """A threshold <= 0 selects exactly 1 feature, no exception."""
+        config.pca.feature_selection_strategy = "top_variance"
+        config.pca.n_top_features = threshold
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        assert len(result.metadata["top_features"]) == 1
+
+    def test_top_variance_1_0_is_a_count_not_a_100_percent_threshold(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """n_top_features == 1.0 selects exactly 1 feature (count branch)."""
+        config.pca.feature_selection_strategy = "top_variance"
+        config.pca.n_top_features = 1.0
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        assert len(result.metadata["top_features"]) == 1
+
+    def test_top_variance_count_unchanged_for_n_top_features_ge_1(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """n_top_features >= 1 preserves the existing fixed-count behavior."""
+        config.pca.feature_selection_strategy = "top_variance"
+        config.pca.n_top_features = 5
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        assert len(result.metadata["top_features"]) == 5
+
+    def test_count_selection_rounds_rather_than_truncates_near_whole_numbers(
+        self, config, sample_data, prev_result, tmp_path
+    ):
+        """A value certified as "whole" must resolve to that same integer here.
+
+        validate_*_config() only guarantees "whole" within tolerance; this
+        step must not silently truncate down to a different neighbor.
+        """
+        config.pca.feature_selection_strategy = "top_absolute"
+        config.pca.n_top_features = 5.0 - 1e-15  # int() truncates to 4; round() gives 5
+        step = PCAAnalysisStep()
+
+        result = step.execute(
+            data=sample_data,
+            config=config,
+            run_dir=tmp_path,
+            prev_result=prev_result,
+        )
+
+        assert len(result.metadata["top_features"]) == 5
