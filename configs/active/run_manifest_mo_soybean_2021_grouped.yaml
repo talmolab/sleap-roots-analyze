@@ -1,0 +1,25 @@
+# Run Manifest: MO Soybean 2021 Grouped
+#
+# Dataset: Z:/users/eberrigan/20260723_Elizabeth_Berrigan_MO_Missouri_Soybean_2021/sleap_roots_traits_output/traits_summary_with_genotype_grouped_filtered.csv
+# Analysis date: 2026-07-27
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_mo_soybean_2021_grouped.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "MO Soybean 2021 Grouped"
+description: "QC and Viz for MO Missouri Soybean Diversity Screen (2021), Bloom experiment 332328. Groups: age_group (young 0-1 / early 2-3 / mid 4-5 / late 6-9 DAG), pre-filtered to one scan/plant per group (latest kept) and >=3 replicates/genotype per group."
+
+# QC configs are run FIRST
+qc_configs:
+  - qc/mo_soybean_2021_grouped.yaml
+
+# Viz configs are run AFTER QC (csv_path auto-updated to QC output).
+viz_configs:
+  - viz/mo_soybean_2021_grouped.yaml
+
+# Config-to-QC mapping for path auto-update
+qc_mapping:
+  viz/mo_soybean_2021_grouped.yaml: qc/mo_soybean_2021_grouped.yaml

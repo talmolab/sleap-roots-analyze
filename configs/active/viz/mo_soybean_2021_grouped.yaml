@@ -1,0 +1,119 @@
+# Visualization Pipeline Configuration: MO Soybean 2021 Grouped
+#
+# Dataset: QC output from qc/mo_soybean_2021_grouped.yaml
+# Analysis date: 2026-07-27
+# Generated from: viz_template_no_images.yaml
+#
+# Note: csv_path will be auto-updated to QC output when run via run-all.
+# Note: heritability.threshold uses 0.0 (not null) to match the QC config —
+#   the pipeline schema requires a float here; 0.0 visualizes H^2 without filtering.
+
+pipeline_name: "mo_soybean_2021_grouped_viz"
+version: "1.0"
+
+data:
+  # Path to QC output CSV (auto-updated by run-all to point to 10_final_data.csv)
+  csv_path: "FILL_IN_CSV_PATH"
+
+  # No images available
+  image_dir: null
+
+# Column names after QC pipeline sanitization
+columns:
+  barcode: "Barcode"
+  genotype: "Genotype"
+  # No replicate column in this dataset (matches qc/mo_soybean_2021_grouped.yaml,
+  # which correctly omits this). The prior "Replicate" placeholder matched no real
+  # column and silently broke heritability for every group (issue #212).
+  replicate: null
+  image_path: null
+
+statistics:
+  calculate_anova: true
+  calculate_heritability: true
+  alpha: 0.05
+
+# PCA configuration
+pca:
+  n_components: 0.95
+  standardize: true
+  feature_selection_strategy: "top_variance"
+  n_top_features: 5
+
+umap:
+  enabled: true
+  n_neighbors: 15
+  min_dist: 0.1
+  metric: "euclidean"
+  random_state: 42
+
+clustering:
+  enabled: false
+
+heritability:
+  enabled: true
+  threshold: 0.0
+
+interesting_genotypes:
+  enabled: true
+  methods:
+    - pc_extreme
+    - trait_extreme
+    - heritable_extreme
+  pc_threshold: 2.0
+  trait_percentile: 95.0
+  min_heritability: 0.30
+  max_genotypes: 6
+
+  # Image grids disabled (no images available)
+  generate_image_grids: false
+  images_per_genotype: 9
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+  pca_biplot_top_features: 1
+
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+
+  # Image hover disabled (no images available)
+  show_images_on_hover: false
+
+dashboard:
+  enabled: false
+
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"

@@ -1,0 +1,144 @@
+# QC Pipeline Configuration: MO Soybean 2021 Grouped
+#
+# Dataset: Z:/users/eberrigan/20260723_Elizabeth_Berrigan_MO_Missouri_Soybean_2021/sleap_roots_traits_output/traits_summary_with_genotype_grouped_filtered.csv
+# Analysis date: 2026-07-27
+# Generated from: qc_template_grouped.yaml
+#
+# Key choices:
+#   group_by: age_group — young(0-1)/early(2-3)/mid(4-5)/late(6-9) DAG buckets.
+#     Pre-filtered (outside this config) to one scan/plant per group (keeping the
+#     latest) and to >=3 replicates/genotype per group, since heritability needs
+#     >=3 reps/genotype for reliable estimates.
+#   heritability.threshold: 0.0 — compute + visualize H^2 for diagnostics without
+#     filtering (first-pass exploratory run; follow up with a data-driven
+#     threshold once the H^2 distribution is examined).
+#   min_samples_per_trait: 153 — max(10, smallest_group_size(late=427)//4), sized
+#     off the post-filter group sizes.
+
+pipeline_name: "mo_soybean_2021_grouped"
+version: "1.0"
+enable_parallel: false
+
+data:
+  # Path to your trait CSV file (must exist before running)
+  csv_path: "Z:/users/eberrigan/20260723_Elizabeth_Berrigan_MO_Missouri_Soybean_2021/sleap_roots_traits_output/traits_summary_with_genotype_grouped_filtered.csv"
+
+  # Image directory (optional; set to null if no images)
+  image_dir: null
+
+  # Additional columns to exclude from analysis (besides standard metadata columns)
+  additional_exclude_cols: []
+
+  # Optional input-contract validation at the data-load boundary (issue #144).
+  validate_input: warn
+
+  # CRITICAL: Column to group by. Each unique value becomes an independent analysis.
+  group_by: "age_group"
+
+columns:
+  # Column containing unique sample identifiers (plant QR code, barcode, sample ID)
+  barcode: "plant_qr_code"
+
+  # Column containing genotype/accession/variety identifiers
+  genotype: "genotype"
+
+  # No replicate factor for this cylinder data — omitted.
+
+cleanup:
+  # Drop trait columns with >50% zero values (helps remove near-constant traits)
+  max_zeros_per_trait: 0.5
+
+  # Drop trait columns with >20% NaN values (removes sparse traits)
+  max_nans_per_trait: 0.2
+
+  # Drop samples with >0% NaN values (strict: any NaN drops the sample)
+  max_nan_fraction: 0.0
+
+  # Minimum non-NaN values required per trait column within each group.
+  # Also controls minimum group size: groups with < min_samples_per_trait samples are skipped.
+  min_samples_per_trait: 153
+
+outlier_detection:
+  # Traditional outlier detection methods: pca, isolation_forest, mahalanobis
+  traditional_methods:
+    - mahalanobis
+
+  # Clustering-based outlier methods: kmeans, gmm, hierarchical
+  clustering_methods: []
+
+  # Mahalanobis distance settings (only if mahalanobis in traditional_methods)
+  mahalanobis:
+    # PCA variance threshold for dimensionality reduction before Mahalanobis
+    variance_threshold: 0.95
+
+    # Use chi-squared approximation for outlier flagging (requires n >= 30)
+    use_chi_squared: true
+
+    # Percentile threshold for chi-squared outlier detection
+    chi2_percentile: 99.0
+
+outlier_removal:
+  # Strategy for removing outliers: "single", "consensus", "subset"
+  strategy: "single"
+
+  # Which method to use for outlier removal (must be in traditional_methods or clustering_methods)
+  method: "mahalanobis"
+
+pca:
+  # Number of principal components to retain in QC output
+  n_components: 0.95
+
+  # Feature selection strategy for selecting top traits (used in downstream viz and metadata)
+  feature_selection_strategy: "top_variance"
+
+heritability:
+  # Enable heritability filtering (drop traits with H^2 below threshold)
+  enabled: true
+
+  # Minimum heritability threshold (H^2 >= threshold to retain trait).
+  # 0.0 = compute/visualize H^2 for every trait without filtering (exploratory).
+  threshold: 0.0
+
+  # Generate diagnostic plots for heritability estimates
+  generate_diagnostics: true
+
+visualization:
+  # DPI for saved figures (300 = publication quality)
+  dpi: 300
+
+  # Default figure size [width, height] in inches
+  figsize: [12, 8]
+
+  # Output format: "png", "pdf", "svg"
+  figure_format: "png"
+
+  # Enable batched plots for large trait sets (splits plots into batches)
+  enable_batched_plots: true
+
+  # Number of traits per batch (when batched plots enabled)
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  # Enable adaptive figure sizing based on number of items (genotypes, traits, etc.)
+  enabled: true
+
+  # Base size and scaling factors
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+
+  # Bounds on adaptive sizing
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+
+  # Write logs to a file
+  log_to_file: true
+  log_file: "pipeline.log"
