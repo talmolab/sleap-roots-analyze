@@ -4,7 +4,6 @@ src/sleap_roots_analyze/pipeline_runner.py:0: error: Incompatible types in assig
 src/sleap_roots_analyze/pipeline_runner.py:0: error: Argument 1 to "append" of "list" has incompatible type "tuple[Any, None]"; expected "tuple[Any, float]"  [arg-type]
 src/sleap_roots_analyze/pipeline_runner.py:0: error: Argument 1 to "_format_removed_traits_section" of "PipelineRunner" has incompatible type "list[tuple[str, list[tuple[Any, float]]]]"; expected "list[tuple[str, list[tuple[str, float | None]]]]"  [arg-type]
 src/sleap_roots_analyze/pipeline_runner.py:0: error: Need type annotation for "lines" (hint: "lines: list[<type>] = ...")  [var-annotated]
-src/sleap_roots_analyze/pca.py:0: error: Incompatible types in assignment (expression has type "signedinteger[_32Bit | _64Bit]", variable has type "int | None")  [assignment]
 src/sleap_roots_analyze/data_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
 src/sleap_roots_analyze/data_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
 src/sleap_roots_analyze/data_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
