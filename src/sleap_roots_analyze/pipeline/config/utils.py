@@ -18,6 +18,12 @@ from sleap_roots_analyze.pipeline.config.viz_config import VizPipelineConfig
 from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
 from sleap_roots_analyze.validation import VALIDATE_INPUT_MODES
 
+# Tolerance for pca.n_top_features' "whole number" check in
+# validate_qc_config()/validate_viz_config() — hand-typed YAML literals
+# should be exact, but this hedges against float-accumulation noise from a
+# future config-generation path (e.g. 9.999999999999998 instead of 10.0).
+_WHOLE_NUMBER_TOLERANCE = 1e-9
+
 
 # ============================================================================
 # QC Pipeline Configuration Utilities
@@ -285,7 +291,11 @@ def validate_qc_config(config: QCPipelineConfig, check_files: bool = True) -> No
             f"'{strategy}' with n_top_features={n_top}. Use an integer >= 1 "
             "for this strategy."
         )
-    if n_top >= 1 and strategy != "extreme" and abs(n_top - round(n_top)) > 1e-9:
+    if (
+        n_top >= 1
+        and strategy != "extreme"
+        and abs(n_top - round(n_top)) > _WHOLE_NUMBER_TOLERANCE
+    ):
         raise ValueError(
             f"pca.n_top_features must be a whole number when >= 1 (got "
             f"{n_top} for pca.feature_selection_strategy='{strategy}'); the "
@@ -516,7 +526,11 @@ def validate_viz_config(config: VizPipelineConfig) -> None:
             f"'{strategy}' with n_top_features={n_top}. Use an integer >= 1 "
             "for this strategy."
         )
-    if n_top >= 1 and strategy != "extreme" and abs(n_top - round(n_top)) > 1e-9:
+    if (
+        n_top >= 1
+        and strategy != "extreme"
+        and abs(n_top - round(n_top)) > _WHOLE_NUMBER_TOLERANCE
+    ):
         raise ValueError(
             f"pca.n_top_features must be a whole number when >= 1 (got "
             f"{n_top} for pca.feature_selection_strategy='{strategy}'); the "

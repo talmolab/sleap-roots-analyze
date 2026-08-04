@@ -18,6 +18,34 @@ VALID_SELECTION_METHODS = frozenset(
 )
 
 
+def _total_variance_contribution(
+    loadings: np.ndarray,
+    eigenvalues: np.ndarray,
+    n_features: Optional[int] = None,
+) -> np.ndarray:
+    """Per-feature total variance contribution, vectorized.
+
+    Σ eigenvalue · loading² across every available PC — the single
+    source of truth both `perform_pca_analysis()`'s `feature_contributions`
+    and `select_top_features_from_pca()`'s `"top_variance"` method compute,
+    so the two can never numerically diverge at a tie boundary from using
+    different summation orders (vectorized here vs. accumulated in a loop).
+
+    Args:
+        loadings: Loading matrix (n_features_total, n_components).
+        eigenvalues: Eigenvalues per component.
+        n_features: Restrict to the first `n_features` rows of `loadings`.
+            Uses every row if `None`.
+
+    Returns:
+        1D array of per-feature total variance contribution.
+    """
+    if n_features is not None:
+        loadings = loadings[:n_features]
+    n_pcs = min(loadings.shape[1], len(eigenvalues))
+    return np.sum(loadings[:, :n_pcs] ** 2 * eigenvalues[:n_pcs], axis=1)
+
+
 def select_top_features_from_pca(
     loadings: np.ndarray,
     eigenvalues: np.ndarray,
@@ -116,11 +144,7 @@ def select_top_features_from_pca(
 
     elif method == "top_variance":
         # Use total variance contribution across all available PCs
-        n_pcs = min(loadings.shape[1], len(eigenvalues))
-        contributions = np.zeros(n_features)
-
-        for i in range(n_pcs):
-            contributions += eigenvalues[i] * loadings[:n_features, i] ** 2
+        contributions = _total_variance_contribution(loadings, eigenvalues, n_features)
 
         return np.argsort(contributions)[::-1][:n_features_to_select].tolist()
 
@@ -139,6 +163,33 @@ def select_top_features_from_pca(
             f"Unknown selection method: {method!r}. Expected one of "
             f"{sorted(VALID_SELECTION_METHODS)}."
         )
+
+
+def _first_index_crossing_threshold(
+    cumulative: np.ndarray, threshold: float, total: int
+) -> int:
+    """Smallest leading-element count whose cumulative value meets threshold.
+
+    Shared crossing-index rule for `select_n_components()` (over cumulative
+    explained variance ratio) and `select_n_features_by_variance()` (over
+    cumulative `fractional_contribution`) — kept as a single helper so the
+    two independently-tuned "how many components/features satisfy a
+    cumulative threshold" call sites can't drift apart.
+
+    Args:
+        cumulative: Monotonically non-decreasing cumulative-sum array.
+        threshold: Cumulative value to reach.
+        total: Total number of elements available; also the upper clamp.
+
+    Returns:
+        The smallest count in `[1, total]` whose cumulative value meets
+        `threshold`, or `total` if the threshold is never reached.
+    """
+    if cumulative[-1] >= threshold:
+        n = int(np.argmax(cumulative >= threshold)) + 1
+    else:
+        n = total
+    return max(1, min(n, total))
 
 
 def select_n_components(
@@ -180,16 +231,9 @@ def select_n_components(
 
     cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
 
-    if cumulative_variance[-1] >= explained_variance_threshold:
-        # Find the minimum number of components needed
-        n_components = (
-            np.argmax(cumulative_variance >= explained_variance_threshold) + 1
-        )
-    else:
-        # Use all available components
-        n_components = max_components
-
-    return max(1, min(n_components, max_components))
+    return _first_index_crossing_threshold(
+        cumulative_variance, explained_variance_threshold, max_components
+    )
 
 
 def select_n_features_by_variance(
@@ -198,11 +242,12 @@ def select_n_features_by_variance(
 ) -> int:
     """Resolve a cumulative-variance-fraction threshold to a feature count.
 
-    Structurally mirrors `select_n_components()`'s cumulative-threshold
-    crossing rule, but walks a `feature_contributions` DataFrame's
-    `fractional_contribution` column (see `perform_pca_analysis()`) instead
-    of `explained_variance_ratio_`. The DataFrame must already be sorted
-    descending by contribution, as `perform_pca_analysis()` returns it.
+    Shares `_first_index_crossing_threshold()`'s cumulative-threshold
+    crossing rule with `select_n_components()`, but walks a
+    `feature_contributions` DataFrame's `fractional_contribution` column
+    (see `perform_pca_analysis()`) instead of `explained_variance_ratio_`.
+    The DataFrame must already be sorted descending by contribution, as
+    `perform_pca_analysis()` returns it.
 
     Args:
         feature_contributions_df: DataFrame with a `fractional_contribution`
@@ -223,15 +268,10 @@ def select_n_features_by_variance(
         raise ValueError("feature_contributions_df must have at least one row")
 
     if threshold <= 0:
-        n = 1
-    else:
-        cumulative = feature_contributions_df["fractional_contribution"].cumsum()
-        if cumulative.iloc[-1] >= threshold:
-            n = int(np.argmax(cumulative.to_numpy() >= threshold)) + 1
-        else:
-            n = n_total
+        return 1
 
-    return max(1, min(n, n_total))
+    cumulative = feature_contributions_df["fractional_contribution"].cumsum().to_numpy()
+    return _first_index_crossing_threshold(cumulative, threshold, n_total)
 
 
 def fit_pca(
@@ -920,9 +960,7 @@ def perform_pca_analysis(
     n_components = result["n_components_selected"]
 
     # Calculate per-feature total contributions
-    loadings_used = loadings[:, :n_components]
-    eigenvalues_used = eigenvalues[:n_components]
-    total_contributions = np.sum(loadings_used**2 * eigenvalues_used, axis=1)
+    total_contributions = _total_variance_contribution(loadings, eigenvalues)
 
     # Normalize to get fractional contributions
     fractional_contributions = total_contributions / np.sum(total_contributions)

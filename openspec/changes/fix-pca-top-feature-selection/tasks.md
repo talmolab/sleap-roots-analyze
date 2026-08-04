@@ -186,6 +186,53 @@ below must land together.
       cross-linking to the PR and close it as resolved (same pattern as
       #64/#68).
 
+## 6. Follow-up refactors from PR review (design.md Decisions 2 & 5)
+
+Both are behavior-preserving refactors (no observable output change for any
+existing caller) — TDD here means: add a direct unit test for the new
+helper, refactor callers to use it, then confirm the *existing* regression
+suites for every affected function still pass unchanged (proving byte-for-byte
+behavior preservation), plus one new equivalence test proving the specific
+divergence this closes is actually closed.
+
+- [ ] 6.1 Write a unit test for a new `_first_index_crossing_threshold(cumulative,
+      threshold, total) -> int` helper in `tests/test_pca.py` (exact
+      boundary, threshold never reached → `total`, single-element input).
+- [ ] 6.2 Implement `_first_index_crossing_threshold()` in `pca.py`; refactor
+      `select_n_components()` and `select_n_features_by_variance()` to call
+      it (keeping `select_n_features_by_variance()`'s own `threshold <= 0`
+      special-case local to that function, since it has no
+      `select_n_components()` analog).
+- [ ] 6.3 Run the full existing test suites for both functions
+      (`TestSelectNComponents`, `TestSelectNFeaturesByVariance` in
+      `tests/test_pca.py`) unchanged and confirm all still pass — this is
+      the behavior-preservation proof for 6.2.
+- [ ] 6.4 Write a failing equivalence test in `tests/test_pca.py`: run
+      `perform_pca_analysis()` on real (seeded) data, then assert
+      `select_top_features_from_pca(method="top_variance", ...)`'s
+      internal per-feature contribution values are *exactly* equal
+      (`np.array_equal`, not `np.allclose`) to
+      `pca_results["feature_contributions"]["total_contribution"]` — this
+      should fail before the fix (different summation order) and pass
+      after.
+- [ ] 6.5 Implement a new `_total_variance_contribution(loadings,
+      eigenvalues, n_features=None)` helper in `pca.py` per design.md
+      Decision 5; refactor `perform_pca_analysis()`'s `total_contributions`
+      computation and `select_top_features_from_pca()`'s `"top_variance"`
+      branch to both call it. Confirm 6.4's test now passes, and the full
+      existing `test_pca.py`/`test_visualization.py` suites (covering
+      `create_pca_biplot`/`create_umap_colored_by_top_traits`'s
+      `"top_variance"` behavior) still pass unchanged.
+- [ ] 6.6 Add a named `_WHOLE_NUMBER_TOLERANCE = 1e-9` module-level constant
+      in `pipeline/config/utils.py`, replacing the bare `1e-9` literal
+      duplicated in both `validate_qc_config()` and `validate_viz_config()`.
+- [ ] 6.7 Fix the leftover double-blank-line in
+      `configs/active/viz/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml` left
+      by the section-4 `n_top_features` line removal (cosmetic; direct fix,
+      no test needed).
+- [ ] 6.8 Run the full suite, black, ruff, and `openspec validate --strict`
+      once more before pushing.
+
 ### Suggested commit sequence
 
 1. `feat: add select_n_features_by_variance() PCA helper` — section 1 files.
@@ -193,3 +240,4 @@ below must land together.
 3. `fix: reject fractional/non-integer n_top_features for count-based PCA selection strategies` — section 3.
 4. `chore: remove stale n_top_features config lines and comments for extreme PCA selection` — section 4.1–4.3 (line removal, comment rewrites, and the accompanying config-load regression test land together, since the test is what verifies the edits).
 5. `docs: changelog entries for PCA feature-selection fixes (#203, #206)` — section 4.4.
+6. `refactor: extract shared crossing-threshold and variance-contribution helpers` — section 6.1–6.7, as one commit (the two extractions are independent of each other but each individually needs its helper + both refactored callers + passing regression suite to land atomically).

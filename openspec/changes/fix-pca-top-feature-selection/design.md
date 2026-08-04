@@ -156,23 +156,45 @@ calls it only when `feature_selection_strategy == "top_variance"` and
 `n_top_features < 1`, to resolve a concrete int, then calls
 `select_top_features_from_pca()` exactly as it does today with that int.
 
-**Considered and deliberately not done**: extracting a shared
-`_first_index_crossing_threshold(cumulative, threshold, total) -> int`
-helper used by both `select_n_features_by_variance()` and
-`select_n_components()` (which independently implements the same
-`np.argmax(cumulative >= threshold) + 1` crossing rule over
-`explained_variance_ratio_`'s cumulative sum, `pca.py:181-192`). The two
-are structurally similar but not identical — `select_n_components()`
-additionally clamps against `n_samples - 1`/`max_components`, concerns
-that don't apply to a feature-contributions DataFrame — and
-`select_n_components()` is an existing, tested function used by
-`perform_pca_analysis()` and `run_pca_and_export_artifacts()`, both outside
-this proposal's scope. Refactoring it for a marginal DRY win when only two
-call sites exist is disproportionate to the benefit (per this project's
-"Simplicity First: avoid frameworks without clear justification... only
-add complexity with... multiple proven use cases requiring abstraction,"
-`openspec/AGENTS.md`). Revisit if a third "cumulative-threshold-crossing"
-use case appears.
+**Revised after PR code review (originally "considered and deliberately not
+done" — reversed below):** the first draft of this section argued against
+extracting a shared `_first_index_crossing_threshold(cumulative, threshold,
+total) -> int` helper for `select_n_features_by_variance()` and
+`select_n_components()`'s independently-implemented
+`np.argmax(cumulative >= threshold) + 1` crossing rule, reasoning that two
+call sites didn't justify the abstraction. An adversarial PR review pass
+found a second, more consequential instance of the *same* pattern —
+`select_top_features_from_pca()`'s `"top_variance"` branch and
+`perform_pca_analysis()`'s `feature_contributions` construction
+independently recompute the identical `Σ eigenvalue · loading²` formula
+(see Decision 5 below) — and that the resulting float-summation-order
+divergence, while negligible today, is exactly the kind of "two
+independent re-derivations of one formula" this project's reproducibility
+values ask to be treated as a real, not theoretical, concern. Given a
+second occurrence of the same underlying pattern surfaced independently,
+"only two call sites" was the wrong bar — extract both shared helpers now
+rather than wait for a third:
+
+```python
+def _first_index_crossing_threshold(
+    cumulative: np.ndarray, threshold: float, total: int
+) -> int:
+    if cumulative[-1] >= threshold:
+        n = int(np.argmax(cumulative >= threshold)) + 1
+    else:
+        n = total
+    return max(1, min(n, total))
+```
+
+`select_n_components()` calls it with `cumulative_variance`,
+`explained_variance_threshold`, `max_components`; `select_n_features_by_variance()`
+calls it with the `fractional_contribution` cumulative sum, `threshold`,
+`n_total` (after its own `threshold <= 0` special-case, which has no
+`select_n_components()` analog and stays local to that function). Both
+callers' existing test suites are unchanged assertions — this is a
+behavior-preserving refactor (byte-identical outputs), not a new
+capability, verified by running the full existing regression suite for
+both functions after the extraction.
 
 **Known, accepted footgun**: `n_top_features == 1.0` takes the `>= 1`
 count branch (selects exactly 1 feature), not "100% of variance." This
@@ -184,6 +206,54 @@ defines it (mirroring, not reinterpreting, that convention per the Goals
 above) — documented in the `PCAConfig.n_top_features` docstring and in the
 spec's scenario for the `1.0`/boundary case (see the `visualization-pipeline`
 delta), not silently left to surprise a user.
+
+### Decision 5: unify the two independent variance-contribution formulas (added after PR review)
+
+`perform_pca_analysis()` computes each feature's total variance
+contribution vectorized — `total_contributions = np.sum(loadings_used**2 *
+eigenvalues_used, axis=1)` (`pca.py:925`, pre-refactor line numbers) — to
+build the `feature_contributions` DataFrame `select_n_features_by_variance()`
+consumes. `select_top_features_from_pca()`'s `"top_variance"` method
+independently re-derives the *same* quantity via a Python accumulation
+loop — `for i in range(n_pcs): contributions += eigenvalues[i] *
+loadings[:n_features, i] ** 2` (`pca.py:117-125`, in the same, pre-existing
+function this proposal does not otherwise modify). Mathematically
+identical; not guaranteed bit-identical, since `np.sum`'s internal
+pairwise-summation order differs from a naive per-column accumulation
+loop. In the vanishingly rare case of an exact tie at a selection boundary,
+this could make `select_n_features_by_variance()`'s resolved *count*
+(computed from one summation order) disagree by one feature with what
+`select_top_features_from_pca(method="top_variance")`'s actual *selection*
+(the other summation order) would rank as "top N" — deterministic on any
+given run, but a silent discrepancy between the two, and exactly the kind
+of "two paths computing the same scientific quantity, unverified to
+agree" risk this project's statistical-rigor conventions ask to be
+eliminated at the source rather than documented as a caveat.
+
+**Fix**: extract a single shared helper both call:
+
+```python
+def _total_variance_contribution(loadings, eigenvalues, n_features=None):
+    if n_features is not None:
+        loadings = loadings[:n_features]
+    n_pcs = min(loadings.shape[1], len(eigenvalues))
+    return np.sum(loadings[:, :n_pcs] ** 2 * eigenvalues[:n_pcs], axis=1)
+```
+
+`perform_pca_analysis()` calls it with its full `loadings`/`eigenvalues`
+(no `n_features` restriction — it already operates on the complete
+feature set); `select_top_features_from_pca()`'s `"top_variance"` branch
+calls it with its own `n_features` (already computed at the top of that
+function as `min(n_features_total, loadings.shape[0])`). Given the same
+`loadings`/`eigenvalues` inputs — which is always true along the
+`PCAAnalysisStep` → `perform_pca_analysis()` → `select_top_features_from_pca()`
+call chain this proposal's own scoping fix (#203) established — the two
+now compute the *literal same array*, not just a numerically close one.
+This is a behavior-preserving refactor for every existing caller of
+`select_top_features_from_pca()`, including the two out-of-scope callers
+(`create_pca_biplot`, `create_umap_colored_by_top_traits`) that pass their
+own `top_n_features`/`n_traits` counts — their `"top_variance"` behavior is
+unchanged (same formula, now computed one way instead of two).
 
 ### Decision 3: Reject invalid `n_top_features` values for methods that don't support a threshold, at config-validation time — and explicitly not with a step-level guard
 
