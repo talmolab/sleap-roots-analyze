@@ -3,19 +3,19 @@
 Independently committable — this function is uncalled by production code
 until section 2, so it carries zero blast radius on its own.
 
-- [ ] 1.1 Write failing tests in `tests/test_pca.py` for
+- [x] 1.1 Write failing tests in `tests/test_pca.py` for
       `select_n_features_by_variance(feature_contributions_df, threshold)`:
       threshold met exactly at a row boundary, threshold requiring all
       features, threshold met by fewer than all features (verify cumulative
       `fractional_contribution` meets but doesn't wildly overshoot),
       `threshold <= 0` (resolves to exactly 1 feature, no exception), and a
       single-feature DataFrame.
-- [ ] 1.2 Implement `select_n_features_by_variance()` in `pca.py`,
+- [x] 1.2 Implement `select_n_features_by_variance()` in `pca.py`,
       mirroring `select_n_components()`'s
       `np.argmax(cumulative >= threshold) + 1` pattern over
       `fractional_contribution`, with the explicit `threshold <= 0` branch
       per `design.md` Decision 2.
-- [ ] 1.3 Run `uv run pytest tests/test_pca.py -k variance` and confirm green.
+- [x] 1.3 Run `uv run pytest tests/test_pca.py -k variance` and confirm green.
 
 ## 2. `PCAConfig` schema + `PCAAnalysisStep` call site (single atomic commit)
 
@@ -28,7 +28,7 @@ crashes every `feature_selection_strategy` (not just `"extreme"`) with
 slicing. The schema change, the call-site rewrite, and the test updates
 below must land together.
 
-- [ ] 2.1 Write failing tests in `tests/test_step_pca_analysis.py`:
+- [x] 2.1 Write failing tests in `tests/test_step_pca_analysis.py`:
       - a run with `n_components` selecting >=3 PCs and
         `feature_selection_strategy` set to `"extreme"`, `"top_absolute"`,
         and `"top_contribution"` (all three, not just `"extreme"`) selects
@@ -57,24 +57,24 @@ below must land together.
         assertion (`len(top_features) >= config.pca.n_top_features`), which
         no longer holds for `"extreme"` under the new contract — in this
         same commit, not left broken across a commit boundary.
-- [ ] 2.2 Update `PCAConfig.n_top_features` in `components.py`: change
+- [x] 2.2 Update `PCAConfig.n_top_features` in `components.py`: change
       `n_top_features: int = 10` to `n_top_features: float = 10.0`, and
       rewrite its docstring to document all three cases: ignored for
       `"extreme"`; `< 1` = variance-fraction threshold / `>= 1` = count
       (including the `1.0`-is-a-count-not-100%-threshold footgun) for
       `"top_variance"`; plain whole-number count (validated `>= 1`, see
       section 3) for `"top_absolute"`/`"top_contribution"`.
-- [ ] 2.3 Update `PCAAnalysisStep.execute()`: always pass
+- [x] 2.3 Update `PCAAnalysisStep.execute()`: always pass
       `pc_indices=list(range(n_components))`; branch on
       `feature_selection_strategy`/`n_top_features` per `design.md`
       Decisions 1–2 to resolve `n_features_to_select`, casting to
       `int(...)` for every count branch; emit the `logger.info()` message
       from Decision 1 whenever `feature_selection_strategy == "extreme"`.
-- [ ] 2.4 Run `uv run pytest tests/test_step_pca_analysis.py` and confirm green.
+- [x] 2.4 Run `uv run pytest tests/test_step_pca_analysis.py` and confirm green.
 
 ## 3. Config validation (`pipeline/config/utils.py`)
 
-- [ ] 3.1 Write failing tests in `tests/test_pipeline_config.py` (for
+- [x] 3.1 Write failing tests in `tests/test_pipeline_config.py` (for
       `validate_qc_config()`) and `tests/test_viz_pipeline_config.py` (for
       `validate_viz_config()`) — these are the two files where each
       function's existing PCA-validation tests already live
@@ -103,15 +103,15 @@ below must land together.
         accepted for `"extreme"`.
       - default config values (`feature_selection_strategy="top_variance"`,
         `n_top_features=10.0`) pass.
-- [ ] 3.2 Add the two `design.md` Decision 3 checks to both
+- [x] 3.2 Add the two `design.md` Decision 3 checks to both
       `validate_qc_config()` and `validate_viz_config()`, using a tolerance
       comparison (`abs(n_top - round(n_top)) > 1e-9`), not exact `!=`, for
       the whole-number check.
-- [ ] 3.3 Run both test files and confirm green.
+- [x] 3.3 Run both test files and confirm green.
 
 ## 4. Config and docs cleanup
 
-- [ ] 4.1 Remove the now-meaningless `n_top_features` line from every
+- [x] 4.1 Remove the now-meaningless `n_top_features` line from every
       active config pairing `feature_selection_strategy: "extreme"` with an
       explicit `n_top_features` — verified list of **28 files**: the 27
       under `configs/active/viz/` (`alfalfa_gwas_groups_1_to_6_combined.yaml`,
@@ -133,7 +133,7 @@ below must land together.
       flat pre-reorg duplicate `configs/active/viz_turface_150genotypes.yaml`.
       **`configs/active/qc/*.yaml` needs no edits for this task** — verified
       no QC config pairs `"extreme"` with an explicit `n_top_features`.
-- [ ] 4.2 Rewrite stale `n_top_features`-related comments (not just the
+- [x] 4.2 Rewrite stale `n_top_features`-related comments (not just the
       key itself) in every one of these locations:
       - `configs/active/viz/viz_alfalfa_gwas_wave_1_grouped.yaml` (`pca:` block comment)
       - `configs/active/viz/alfalfa_gwas_wave1_canola_models.yaml` (`pca:` block
@@ -160,7 +160,7 @@ below must land together.
       All rewrites describe the new semantics: ignored under `"extreme"`;
       threshold-vs-count under `"top_variance"`; whole-number count,
       validated, for `"top_absolute"`/`"top_contribution"`.
-- [ ] 4.3 Add a parametrized regression test (e.g. in
+- [x] 4.3 Add a parametrized regression test (e.g. in
       `tests/test_pipeline_config.py` or a new `tests/test_viz_configs_load.py`)
       that calls `load_viz_config()` then `validate_viz_config()` on all 28
       files edited in 4.1 (the 27 under `configs/active/viz/` plus the flat
@@ -168,7 +168,7 @@ below must land together.
       exception — a concrete, re-runnable guard against a YAML syntax error
       or indentation break introduced by removing the `n_top_features`
       line, replacing the earlier vague "spot-check a sample" plan.
-- [ ] 4.4 Add a `docs/CHANGELOG.md` `[Unreleased]` entry: a `### Fixed`
+- [x] 4.4 Add a `docs/CHANGELOG.md` `[Unreleased]` entry: a `### Fixed`
       entry for #203 (PC scoping) and a `### Changed` entry for #206
       (variance-driven selection), matching the file's existing
       `[Unreleased]` section structure (`### Added` / `### Fixed` /
@@ -176,13 +176,13 @@ below must land together.
 
 ## 5. Full verification and PR
 
-- [ ] 5.1 Run
+- [x] 5.1 Run
       `uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=20 -m "not integration" tests/`
       (exact CI invocation, `.github/workflows/ci.yml`) — full suite green.
-- [ ] 5.2 Run `uv run black src/sleap_roots_analyze tests` and
+- [x] 5.2 Run `uv run black src/sleap_roots_analyze tests` and
       `uv run ruff check src/sleap_roots_analyze tests`.
-- [ ] 5.3 Run `openspec validate fix-pca-top-feature-selection --strict`.
-- [ ] 5.4 Open PR (commit plan below); after merge, comment on #203
+- [x] 5.3 Run `openspec validate fix-pca-top-feature-selection --strict`.
+- [x] 5.4 Open PR (commit plan below); after merge, comment on #203
       cross-linking to the PR and close it as resolved (same pattern as
       #64/#68).
 
@@ -195,27 +195,39 @@ suites for every affected function still pass unchanged (proving byte-for-byte
 behavior preservation), plus one new equivalence test proving the specific
 divergence this closes is actually closed.
 
-- [ ] 6.1 Write a unit test for a new `_first_index_crossing_threshold(cumulative,
+- [x] 6.1 Write a unit test for a new `_first_index_crossing_threshold(cumulative,
       threshold, total) -> int` helper in `tests/test_pca.py` (exact
       boundary, threshold never reached → `total`, single-element input).
-- [ ] 6.2 Implement `_first_index_crossing_threshold()` in `pca.py`; refactor
+- [x] 6.2 Implement `_first_index_crossing_threshold()` in `pca.py`; refactor
       `select_n_components()` and `select_n_features_by_variance()` to call
       it (keeping `select_n_features_by_variance()`'s own `threshold <= 0`
       special-case local to that function, since it has no
       `select_n_components()` analog).
-- [ ] 6.3 Run the full existing test suites for both functions
+- [x] 6.3 Run the full existing test suites for both functions
       (`TestSelectNComponents`, `TestSelectNFeaturesByVariance` in
       `tests/test_pca.py`) unchanged and confirm all still pass — this is
       the behavior-preservation proof for 6.2.
-- [ ] 6.4 Write a failing equivalence test in `tests/test_pca.py`: run
-      `perform_pca_analysis()` on real (seeded) data, then assert
-      `select_top_features_from_pca(method="top_variance", ...)`'s
-      internal per-feature contribution values are *exactly* equal
-      (`np.array_equal`, not `np.allclose`) to
-      `pca_results["feature_contributions"]["total_contribution"]` — this
-      should fail before the fix (different summation order) and pass
-      after.
-- [ ] 6.5 Implement a new `_total_variance_contribution(loadings,
+- [x] 6.4 Write a failing equivalence test in `tests/test_pca.py`.
+      **As actually implemented** (revised from the original plan below
+      after discovering `select_top_features_from_pca()` doesn't expose
+      its internal contribution array, only argsort-truncated indices,
+      and that real random data essentially never produces an observable
+      *ordering* divergence even when the underlying values differ at the
+      bit level — verified empirically across 200 seeds before writing
+      this test): construct a deliberate 50-feature x 30-PC case with a
+      fixed `np.random.RandomState(42)` where a naive per-column
+      accumulation loop is directly shown (`np.array_equal` is `False`)
+      to diverge from a vectorized `np.sum` at the bit level for the
+      identical formula, plus a separate exact-equality check between
+      `perform_pca_analysis()`'s stored `total_contribution` and a direct
+      call to the new shared helper with the same inputs.
+      *(Original plan, superseded by the above: run `perform_pca_analysis()`
+      on real seeded data and assert `select_top_features_from_pca(method=
+      "top_variance", ...)`'s internal contribution values exactly equal
+      `pca_results["feature_contributions"]["total_contribution"]"` — not
+      viable without changing that function's return signature, which is
+      out of scope.)*
+- [x] 6.5 Implement a new `_total_variance_contribution(loadings,
       eigenvalues, n_features=None)` helper in `pca.py` per design.md
       Decision 5; refactor `perform_pca_analysis()`'s `total_contributions`
       computation and `select_top_features_from_pca()`'s `"top_variance"`
@@ -223,15 +235,28 @@ divergence this closes is actually closed.
       existing `test_pca.py`/`test_visualization.py` suites (covering
       `create_pca_biplot`/`create_umap_colored_by_top_traits`'s
       `"top_variance"` behavior) still pass unchanged.
-- [ ] 6.6 Add a named `_WHOLE_NUMBER_TOLERANCE = 1e-9` module-level constant
+- [x] 6.6 Add a named `_WHOLE_NUMBER_TOLERANCE = 1e-9` module-level constant
       in `pipeline/config/utils.py`, replacing the bare `1e-9` literal
       duplicated in both `validate_qc_config()` and `validate_viz_config()`.
-- [ ] 6.7 Fix the leftover double-blank-line in
+- [x] 6.7 Fix the leftover double-blank-line in
       `configs/active/viz/suyash_arabidopsis_pgm1_pac_2026_05_22.yaml` left
       by the section-4 `n_top_features` line removal (cosmetic; direct fix,
       no test needed).
-- [ ] 6.8 Run the full suite, black, ruff, and `openspec validate --strict`
+- [x] 6.8 Run the full suite, black, ruff, and `openspec validate --strict`
       once more before pushing.
+- [x] 6.9 Sync `.mypy-baseline.txt` (`mypy . | mypy-baseline sync`) — 6.2's
+      `int(...)`-returning helper incidentally resolved a pre-existing
+      baselined mypy error in `select_n_components()`'s old inline
+      `np.argmax(...) + 1`, which otherwise fails CI's "Type check
+      (mypy baseline)" job as a stale-baseline mismatch, not a new error.
+- [x] 6.10 Found by a 4th adversarial review round scoped to 6.1–6.9's
+      diff: add tests exercising `_first_index_crossing_threshold()`'s
+      empty-`cumulative` input (add a `ValueError` guard — it previously
+      crashed with an unguided `IndexError`) and `total > len(cumulative)`;
+      add a test exercising `_total_variance_contribution()`'s `n_pcs =
+      min(...)` clamp with `eigenvalues` shorter than `loadings.shape[1]`
+      (a scenario the function's own docstring anticipates for a future
+      scoped caller, but that no current caller exercises).
 
 ### Suggested commit sequence
 

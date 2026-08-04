@@ -184,7 +184,13 @@ def _first_index_crossing_threshold(
     Returns:
         The smallest count in `[1, total]` whose cumulative value meets
         `threshold`, or `total` if the threshold is never reached.
+
+    Raises:
+        ValueError: If `cumulative` is empty.
     """
+    if len(cumulative) == 0:
+        raise ValueError("cumulative must have at least one element")
+
     if cumulative[-1] >= threshold:
         n = int(np.argmax(cumulative >= threshold)) + 1
     else:

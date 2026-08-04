@@ -264,6 +264,19 @@ class TestFirstIndexCrossingThreshold:
         # full cumulative array — result must still respect that cap.
         assert _first_index_crossing_threshold(cumulative, 1.0, total=2) == 2
 
+    def test_total_larger_than_cumulative_length(self):
+        """Total may exceed len(cumulative); the crossing index is unaffected."""
+        cumulative = np.array([0.5, 0.8, 0.95, 1.0])
+        # No real caller does this today (both pass total == len(cumulative)),
+        # but the contract should hold regardless: the result is bounded by
+        # len(cumulative), not artificially inflated by a larger total.
+        assert _first_index_crossing_threshold(cumulative, 0.8, total=10) == 2
+
+    def test_empty_cumulative_raises(self):
+        """An empty cumulative array is a caller error, not an IndexError crash."""
+        with pytest.raises(ValueError, match="at least one element"):
+            _first_index_crossing_threshold(np.array([]), 0.5, total=0)
+
 
 class TestTotalVarianceContribution:
     """Test suite for the shared _total_variance_contribution() helper.
@@ -299,6 +312,29 @@ class TestTotalVarianceContribution:
         result = _total_variance_contribution(loadings, eigenvalues, n_features=2)
 
         assert len(result) == 2
+
+    def test_eigenvalues_shorter_than_loadings_columns_clamps_to_n_pcs(self):
+        """Only the first len(eigenvalues) PCs contribute (the n_pcs clamp).
+
+        Documented as a deliberate defense for a scoped-`"top_variance"`
+        caller that pre-slices `loadings`/`eigenvalues` to different
+        lengths (per this function's own docstring convention) — no
+        current caller does this, but the clamp exists on purpose and
+        should be exercised directly.
+        """
+        loadings = np.array([[0.6, 0.2, 0.9], [0.8, -0.1, 0.4], [-0.3, 0.9, -0.5]])
+        eigenvalues = np.array([2.0, 0.5])  # Only 2 of the 3 PC columns.
+
+        result = _total_variance_contribution(loadings, eigenvalues)
+
+        expected = np.array(
+            [
+                2.0 * 0.6**2 + 0.5 * 0.2**2,
+                2.0 * 0.8**2 + 0.5 * (-0.1) ** 2,
+                2.0 * (-0.3) ** 2 + 0.5 * 0.9**2,
+            ]
+        )
+        np.testing.assert_allclose(result, expected)
 
     def test_matches_a_naive_accumulation_loop_up_to_float_noise(self):
         """Same formula as a naive loop, not necessarily the same bits.
