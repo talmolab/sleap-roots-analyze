@@ -17,6 +17,11 @@ from typing import Dict, List, Tuple, Optional, Union
 from PIL import Image
 import io
 
+from sleap_roots_analyze.pca import (
+    select_top_features_from_pca,
+    VALID_SELECTION_METHODS,
+)
+
 
 def encode_image_to_base64(image_path: Union[str, Path]) -> str:
     """Encode an image file to base64 string for embedding in HTML.
@@ -268,6 +273,7 @@ def create_interactive_pca_with_images(
     height: int = 800,
     show_loadings: bool = False,
     n_loadings: int = 10,
+    feature_selection: str = "top_variance",
     id_col: str = "Barcode",
 ) -> go.Figure:
     """Create an interactive PCA plot with image hover.
@@ -284,11 +290,29 @@ def create_interactive_pca_with_images(
         height: Plot height.
         show_loadings: Whether to show feature loadings as arrows.
         n_loadings: Number of top loadings to show.
+        feature_selection: Method for selecting which features get loading
+            arrows (only used when show_loadings=True):
+            - "top_variance": Top N by total variance contribution (all
+              retained PCs, not just the plotted components) (default)
+            - "extreme": Top N most positive and negative for each PC
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by variance contribution to the
+              displayed PCs
+            - "vector_length": Top N by Euclidean distance in PC plane
         id_col: Column containing sample IDs (default: "Barcode").
 
     Returns:
         Interactive PCA plot with images.
+
+    Raises:
+        ValueError: If feature_selection is not a recognized method.
     """
+    if feature_selection not in VALID_SELECTION_METHODS:
+        raise ValueError(
+            f"Unrecognized feature_selection: {feature_selection!r}. Expected "
+            f"one of {sorted(VALID_SELECTION_METHODS)}."
+        )
+
     # Get PC scores
     pc_x, pc_y = components
     X_pca = pca_results["transformed_data"]
@@ -340,12 +364,21 @@ def create_interactive_pca_with_images(
     # Add loadings if requested
     if show_loadings and "loadings" in pca_results:
         loadings = pca_results["loadings"]
-        feature_contributions = pca_results["feature_contributions"]
+        feature_names = pca_results["feature_names"]
 
-        # Get top contributing features
-        top_features = feature_contributions.nlargest(
-            n_loadings, "total_contribution"
-        ).index
+        # Select top contributing features via the shared selection function.
+        # components here are already 0-indexed, so pc_x/pc_y are passed to
+        # pc_indices unmodified (no -1 offset, unlike create_pca_biplot's
+        # 1-indexed pc_x/pc_y).
+        top_indices = select_top_features_from_pca(
+            loadings=loadings,
+            eigenvalues=pca_results["eigenvalues"],
+            n_features_total=len(feature_names),
+            n_features_to_select=n_loadings,
+            method=feature_selection,
+            pc_indices=None if feature_selection == "top_variance" else [pc_x, pc_y],
+        )
+        top_features = [feature_names[i] for i in top_indices]
 
         # Scale loadings for visualization
         max_score = max(
@@ -363,7 +396,7 @@ def create_interactive_pca_with_images(
         offsets = [-0.3, 0, 0.3, -0.2, 0.2, -0.4, 0.1, 0.4, -0.1, 0.35]
 
         for i, feature in enumerate(top_features):
-            feature_idx = list(pca_results["feature_names"]).index(feature)
+            feature_idx = feature_names.index(feature)
 
             # Calculate arrow end position
             x_end = loadings[feature_idx, pc_x] * scale
@@ -1284,6 +1317,7 @@ def create_interactive_pca_plot(
     height: int = 600,
     show_loadings: bool = False,
     n_loadings: int = 10,
+    feature_selection: str = "top_variance",
 ) -> go.Figure:
     """Create an interactive PCA plot using Plotly.
 
@@ -1299,10 +1333,28 @@ def create_interactive_pca_plot(
         height: Plot height.
         show_loadings: Whether to show feature loadings as arrows.
         n_loadings: Number of top loadings to show.
+        feature_selection: Method for selecting which features get loading
+            arrows (only used when show_loadings=True):
+            - "top_variance": Top N by total variance contribution (all
+              retained PCs, not just the plotted components) (default)
+            - "extreme": Top N most positive and negative for each PC
+            - "top_absolute": Top N by absolute loading magnitude
+            - "top_contribution": Top N by variance contribution to the
+              displayed PCs
+            - "vector_length": Top N by Euclidean distance in PC plane
 
     Returns:
         Plotly figure object.
+
+    Raises:
+        ValueError: If feature_selection is not a recognized method.
     """
+    if feature_selection not in VALID_SELECTION_METHODS:
+        raise ValueError(
+            f"Unrecognized feature_selection: {feature_selection!r}. Expected "
+            f"one of {sorted(VALID_SELECTION_METHODS)}."
+        )
+
     # Get PC scores
     pc_x, pc_y = components
     X_pca = pca_results["transformed_data"]
@@ -1353,12 +1405,21 @@ def create_interactive_pca_plot(
     # Add loadings if requested
     if show_loadings and "loadings" in pca_results:
         loadings = pca_results["loadings"]
-        feature_contributions = pca_results["feature_contributions"]
+        feature_names = pca_results["feature_names"]
 
-        # Get top contributing features
-        top_features = feature_contributions.nlargest(
-            n_loadings, "total_contribution"
-        ).index
+        # Select top contributing features via the shared selection function.
+        # components here are already 0-indexed, so pc_x/pc_y are passed to
+        # pc_indices unmodified (no -1 offset, unlike create_pca_biplot's
+        # 1-indexed pc_x/pc_y).
+        top_indices = select_top_features_from_pca(
+            loadings=loadings,
+            eigenvalues=pca_results["eigenvalues"],
+            n_features_total=len(feature_names),
+            n_features_to_select=n_loadings,
+            method=feature_selection,
+            pc_indices=None if feature_selection == "top_variance" else [pc_x, pc_y],
+        )
+        top_features = [feature_names[i] for i in top_indices]
 
         # Scale loadings for visualization
         max_score = max(
@@ -1376,7 +1437,7 @@ def create_interactive_pca_plot(
         offsets = [-0.3, 0, 0.3, -0.2, 0.2, -0.4, 0.1, 0.4, -0.1, 0.35]
 
         for i, feature in enumerate(top_features):
-            feature_idx = list(pca_results["feature_names"]).index(feature)
+            feature_idx = feature_names.index(feature)
 
             # Calculate arrow end position
             x_end = loadings[feature_idx, pc_x] * scale
