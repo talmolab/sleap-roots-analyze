@@ -19,14 +19,20 @@ pre-existing, out-of-scope config issue, not a regression from this change.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
-from omegaconf.errors import ConfigKeyError
+from omegaconf.errors import ConfigKeyError, MissingMandatoryValue, ValidationError
 
 from sleap_roots_analyze.pipeline.config import load_qc_config
 
 REPO_ROOT = Path(__file__).parent.parent
+
+# Directories the #204 sweep intentionally does not touch: frozen historical
+# snapshots that /configure-run-all itself moves aside, never reloaded by any
+# current tooling (see proposal.md's "Explicitly out of scope").
+_EXCLUDED_DIR_PREFIXES = ("configs/archive/", "configs/saved_backups/")
 
 QC_CONFIG_FILES = [
     # Test harness fixtures
@@ -104,18 +110,60 @@ assert len(QC_CONFIG_FILES) == 59, f"expected 59 files, got {len(QC_CONFIG_FILES
 def test_qc_config_loads_without_pca_block(relpath):
     """Every QC config touched by the #204 sweep loads without ConfigKeyError.
 
-    Any other exception (e.g. ``MissingMandatoryValue`` for a placeholder
-    ``csv_path: ???``, or a pre-existing unrelated schema issue) is a
-    pre-existing, out-of-scope condition this test does not assert against —
-    only a leftover top-level ``pca:`` key (which raises ``ConfigKeyError``
-    when merged against a schema that no longer has that field) is a
-    regression from this change.
+    ``MissingMandatoryValue`` (a placeholder ``csv_path: ???`` in a handful of
+    illustrative configs) and ``ValidationError`` (an empty ``columns.barcode``
+    in `qc_turface_alfalfa_20251203.yaml`, both copies) are pre-existing,
+    out-of-scope conditions this test tolerates — only a leftover top-level
+    ``pca:`` key (which raises ``ConfigKeyError`` when merged against a schema
+    that no longer has that field) is a regression from this change. Any other
+    exception is a real, unexpected failure and is left to propagate.
     """
     path = REPO_ROOT / relpath
     assert path.is_file(), f"missing config file: {relpath}"
     try:
         load_qc_config(path)
-    except ConfigKeyError:
-        raise
-    except Exception:
+    except (MissingMandatoryValue, ValidationError):
         pass
+
+
+def test_qc_config_with_pca_block_raises_config_key_error(tmp_path):
+    """A QC config with a leftover top-level pca: key fails loudly, not silently.
+
+    Locks in the actual failure mode #204 relies on: `load_qc_config()`'s
+    strict `OmegaConf.merge` raises `ConfigKeyError` (not a warning, not a
+    silently-ignored key) the instant a QC config sets `pca.*`, since
+    `QCPipelineConfig` no longer declares that field.
+    """
+    cfg_path = tmp_path / "qc_with_pca.yaml"
+    cfg_path.write_text(
+        "pipeline_name: t\n"
+        "data:\n  csv_path: data.csv\n"
+        "pca:\n  n_components: 0.95\n"
+    )
+    with pytest.raises(ConfigKeyError, match="pca"):
+        load_qc_config(cfg_path)
+
+
+def test_no_qc_config_has_a_pca_block_anywhere():
+    """Drift tripwire: re-derives the file set by scanning, not the hardcoded list.
+
+    Catches a QC config added (or a `pca:` block reintroduced) after this
+    change without relying on ``QC_CONFIG_FILES`` staying in sync with the
+    repo. Mirrors the exact sweep-scope exclusions from `proposal.md` (viz
+    configs, `configs/archive/`, `configs/saved_backups/`, golden-fixture
+    `expected/config.yaml` output provenance).
+    """
+    top_level_pca = re.compile(r"^pca:\s*$", re.MULTILINE)
+    offenders = []
+    for base in (REPO_ROOT / "configs", REPO_ROOT / "tests" / "fixtures" / "harness"):
+        for path in base.rglob("*.yaml"):
+            relpath = path.relative_to(REPO_ROOT).as_posix()
+            if "/viz" in relpath or "expected/" in relpath:
+                continue
+            if any(relpath.startswith(prefix) for prefix in _EXCLUDED_DIR_PREFIXES):
+                continue
+            if top_level_pca.search(path.read_text()):
+                offenders.append(relpath)
+    assert (
+        not offenders
+    ), f"QC config(s) with a leftover top-level pca: block: {offenders}"

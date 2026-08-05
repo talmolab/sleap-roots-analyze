@@ -154,6 +154,22 @@ config validation with `AttributeError`.
       strip script, since `git checkout --` reverted all the way to the pre-sweep HEAD).
 - [x] 4.2 Run the new test against the post-sweep, post-schema-removal repo state and confirm it
       passes. **Confirmed: 59 passed.**
+- [x] 4.3 **Post-self-review additions** (`/review-pr` pre-PR self-review found no BLOCKING issues
+      across all 5 lenses, but two IMPORTANT testing-reviewer findings and one code-quality
+      suggestion were worth taking): (a) tightened `test_qc_config_loads_without_pca_block`'s
+      `except Exception: pass` to `except (MissingMandatoryValue, ValidationError): pass` — the
+      two specific, already-documented pre-existing exception types, so an unrelated future
+      regression in one of these 59 files no longer gets silently swallowed; (b) added
+      `test_qc_config_with_pca_block_raises_config_key_error`, a committed regression test
+      locking in the `ConfigKeyError` failure mode (previously only verified manually, per 4.1's
+      red-check, and not preserved as a permanent test); (c) added
+      `test_no_qc_config_has_a_pca_block_anywhere`, a drift tripwire that independently re-scans
+      `configs/`/`tests/fixtures/harness/` for a top-level `pca:` key rather than trusting
+      `QC_CONFIG_FILES` to stay in sync with the repo. Verified the drift tripwire actually
+      catches a regression: manually reappended a `pca:` block to `configs/qc_mahalanobis.yaml`,
+      confirmed the new test fails listing that exact file, then restored via `git checkout --`
+      (safe now that the sweep is committed). Re-ran `tests/test_qc_configs_load.py`: **61
+      passed.**
 
 ## 5. Docs
 
