@@ -260,6 +260,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `statsmodels` does not reliably raise on a fixed effect confounded with
   genotype. No change when `fixed_effects` is unset.
 
+### Removed
+- **BREAKING**: `QCPipelineConfig.pca` field removed (#204) — no step in
+  `QCPipeline` ever read it (`PCAAnalysisStep`/`GenerateStaticFiguresStep`/
+  the PCA figure in `generate_summary_viz.py` are wired only into
+  `VizPipeline`, which keeps its own separate `pca` field, unaffected).
+  Every QC config's `pca:` block (59 files across `configs/`,
+  `configs/active/`, `configs/examples/`, `configs/templates/`, and
+  `tests/fixtures/harness/qc/`) has been removed — `load_qc_config()`'s
+  strict schema merge means a QC config with a leftover `pca:` key now
+  fails to load with `ConfigKeyError`. `validate_qc_config()`/
+  `validate_explicit_config()` no longer validate or require any
+  `pca.*` setting for QC configs; `validate_viz_config()` is unaffected.
+
 ## [0.1.0a5] - 2026-07-13 (Pre-release)
 
 ### Added

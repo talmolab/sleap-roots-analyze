@@ -195,17 +195,17 @@ Choose based on your downstream analysis requirements. Higher thresholds give yo
   - Recommend: `max(10, n_samples_in_smallest_group // 4)`
   - Also controls minimum group size when using `data.group_by`
 
-### PCA Settings
+### PCA Settings (viz templates only — QC templates have no PCA settings)
 
-- **`n_components`** (template default: 0.95)
+- **`n_components`** (viz template default: 0.95)
   - 0.95 = retain PCs explaining 95% of variance
   - Higher (0.99) = more components retained, lower (0.90) = fewer components
 
-- **`feature_selection_strategy`** (template default: varies)
+- **`feature_selection_strategy`** (viz template default: varies)
   - `"top_variance"` - Traits with highest total variance contribution
   - `"extreme"` - Traits with most extreme PC loadings (both positive and negative)
 
-- **`n_top_features`** (template default: 5)
+- **`n_top_features`** (viz template default: 5)
   - Controls how many traits are selected for UMAP coloring and metadata storage
   - Does NOT affect the feature contribution bar chart (which always shows all traits)
 

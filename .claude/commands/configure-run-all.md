@@ -185,18 +185,18 @@ Ask the user about heritability **one step at a time**:
   - Default: 0.30 for grouped, 0.40 for ungrouped
   - User specifies or accepts default
 
-**3.8 — PCA settings**
+**3.8 — PCA settings (for viz config only — `QCPipelineConfig` has no `pca` field)**
 
 Ask the user about PCA settings **one at a time**:
 
-- **`n_components`** (variance threshold or fixed count)
+- **`n_components`** (variance threshold or fixed count, for viz config)
   - Ask: "How many principal components to retain?"
   - Explain: "Can specify as fraction of variance (0.0-1.0) or fixed number of PCs (int)"
   - Default: 0.95 (retain PCs explaining 95% of variance)
   - Alternatives: 0.90 (fewer PCs, faster), 0.99 (more PCs, more complete)
   - User specifies or accepts default
 
-- **`feature_selection_strategy`**
+- **`feature_selection_strategy`** (for viz config)
   - Ask: "How should top traits be selected for UMAP coloring and metadata?"
   - Explain: "This does NOT affect the feature contribution bar chart (always shows all traits)"
   - Options:
@@ -205,7 +205,7 @@ Ask the user about PCA settings **one at a time**:
   - Default: "top_variance"
   - User selects or accepts default
 
-- **`n_top_features`**
+- **`n_top_features`** (for viz config)
   - Ask: "How many top traits to select for UMAP coloring and metadata storage?"
   - Explain: "These traits will be highlighted in UMAP plots and saved to metadata files"
   - Default: 5
@@ -375,9 +375,9 @@ If a file exists:
    - `outlier_detection.mahalanobis.chi2_percentile` (user value from Step 3.6, if mahalanobis enabled)
    - `heritability.enabled` (user value from Step 3.7)
    - `heritability.threshold` (user value from Step 3.7, may be null for viz-only)
-   - `pca.n_components` (user value from Step 3.8)
-   - `pca.feature_selection_strategy` (user value from Step 3.8)
-   - `pca.n_top_features` (user value from Step 3.8)
+
+   (PCA settings from Step 3.8 go into the **viz** config only — see "6.2 — Viz Config"
+   below. `QCPipelineConfig` has no `pca` field; the QC pipeline never reads PCA settings.)
 
 3. **Add** a self-documenting header (replace the template comment header):
    ```yaml

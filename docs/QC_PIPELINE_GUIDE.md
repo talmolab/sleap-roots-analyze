@@ -83,13 +83,6 @@ cleanup:
   min_samples_per_trait: 10   # Min samples required
 ```
 
-**PCA Configuration**:
-```yaml
-pca:
-  n_components: 0.95          # Variance explained (0.90-0.99)
-  standardize: true
-```
-
 ### Optional Features
 
 **Outlier Detection** (can be empty for cleanup-only):
