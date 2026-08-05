@@ -113,6 +113,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (PR #193 review).
 
 ### Fixed
+- `create_interactive_pca_with_images` and `create_interactive_pca_plot` now
+  accept a `feature_selection` parameter and delegate their loading-arrow
+  feature selection to `select_top_features_from_pca()` (#209), instead of
+  hardcoding `feature_contributions.nlargest(n_loadings, "total_contribution")`
+  with no strategy awareness — the last unresolved consumer from the
+  `select_top_features_from_pca()` consolidation effort (#202/#203/#204/#206/
+  #207). Default `feature_selection="top_variance"` is numerically equivalent
+  to the prior hardcoded ranking (both derive from the same total-variance-
+  contribution basis), so existing callers — including the interactive-PCA
+  step of every `trait_viz_*.ipynb` analysis notebook — get identical output
+  without passing the new parameter. Unlike `create_pca_biplot`, whose public
+  `pc_x`/`pc_y` are 1-indexed and require a `-1` conversion before use as
+  `pc_indices`, these two functions' `components` tuple is already 0-indexed
+  and is passed through unmodified.
 - `PCAAnalysisStep` now always passes `pc_indices=list(range(n_components))`
   explicitly to `select_top_features_from_pca()` (#203), instead of relying
   on that function's `[0, 1]` default. Runs configured with `pca.n_components`
