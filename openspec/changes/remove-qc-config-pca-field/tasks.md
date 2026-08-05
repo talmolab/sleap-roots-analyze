@@ -221,12 +221,15 @@ config validation with `AttributeError`.
 - [x] 6.2 Run
       `uv run pytest --cov=src/sleap_roots_analyze --cov-report=xml --durations=20 -m "not integration" tests/`
       (exact CI invocation, `.github/workflows/ci.yml`) — full suite green. First run (before 6.0's
-      fix) surfaced the regression above: 25 failed, 36 errors. Second run, after 6.0:
-      **3016 passed, 37 skipped, 3 deselected, 0 failed.**
-- [x] 6.3 Run `uv run black src/sleap_roots_analyze tests` and
-      `uv run ruff check src/sleap_roots_analyze tests`. **Confirmed clean.**
+      fix) surfaced the regression above: 25 failed, 36 errors. Second run, after 6.0: 3016
+      passed. Final run, after section 4.3's self-review additions:
+      **3018 passed, 37 skipped, 3 deselected, 0 failed.**
+- [x] 6.3 Run `uv run black --check src/sleap_roots_analyze tests` and
+      `uv run ruff check src/sleap_roots_analyze` (the exact `/pre-merge-check` Phase 1 commands
+      — ruff is checked on `src/` only, since `tests/` has pre-existing, out-of-scope violations
+      in files this change never touches). **Confirmed clean.**
 - [x] 6.4 Run `openspec validate remove-qc-config-pca-field --strict`. **Confirmed valid.**
-- [ ] 6.5 Open PR.
+- [x] 6.5 Open PR.
 
 ### Suggested commit sequence (per review)
 
