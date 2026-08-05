@@ -17,7 +17,7 @@ from sleap_roots_analyze.pipeline import (
     ColumnConfig,
     DataConfig,
     PCAConfig,
-    QCPipelineConfig,
+    VizPipelineConfig,
 )
 from sleap_roots_analyze.pipeline.core import StepResult
 from sleap_roots_analyze.pipeline.steps import PCAAnalysisStep
@@ -26,7 +26,7 @@ from sleap_roots_analyze.pipeline.steps import PCAAnalysisStep
 @pytest.fixture
 def config():
     """Create test config with PCA settings."""
-    return QCPipelineConfig(
+    return VizPipelineConfig(
         pipeline_name="test_pca",
         columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
         data=DataConfig(csv_path="test.csv"),
@@ -421,7 +421,7 @@ class TestPCAZeroVarianceHandling:
     @pytest.fixture
     def config_zv(self):
         """Config for zero-variance tests (request fewer top features)."""
-        return QCPipelineConfig(
+        return VizPipelineConfig(
             pipeline_name="test_pca_zv",
             columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
             data=DataConfig(csv_path="test.csv"),
@@ -749,7 +749,7 @@ class TestPCATraitNamesMetadataPropagation:
     @pytest.fixture
     def config_interleaved(self):
         """Config for the interleaved zero-variance fixture (2 real features)."""
-        return QCPipelineConfig(
+        return VizPipelineConfig(
             pipeline_name="test_pca_trait_names_interleaved",
             data=DataConfig(csv_path="test.csv"),
             pca=PCAConfig(
@@ -877,7 +877,7 @@ class TestPCAAnalysisStepFeatureSelectionResolution:
     @pytest.fixture
     def config_3pc(self):
         """Config selecting exactly 3 PCs (beyond the buggy [0, 1] default)."""
-        return QCPipelineConfig(
+        return VizPipelineConfig(
             pipeline_name="test_pca_3pc",
             columns=ColumnConfig(barcode="Barcode", genotype="geno", replicate="rep"),
             data=DataConfig(csv_path="test.csv"),

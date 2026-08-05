@@ -115,14 +115,14 @@ def sample_trait_data():
 
 @pytest.fixture
 def static_viz_config_enabled():
-    """QCPipelineConfig with static visualization enabled and standardized column names."""
+    """VizPipelineConfig with static visualization enabled and standardized column names."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
         StaticVisualizationConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_static_viz")
+    config = VizPipelineConfig(pipeline_name="test_static_viz")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
@@ -144,14 +144,14 @@ def static_viz_config_enabled():
 
 @pytest.fixture
 def static_viz_config_disabled():
-    """QCPipelineConfig with static visualization disabled."""
+    """VizPipelineConfig with static visualization disabled."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
         StaticVisualizationConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_static_viz_disabled")
+    config = VizPipelineConfig(pipeline_name="test_static_viz_disabled")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
@@ -162,14 +162,14 @@ def static_viz_config_disabled():
 
 @pytest.fixture
 def static_viz_config_with_umap():
-    """QCPipelineConfig with static UMAP visualization enabled."""
+    """VizPipelineConfig with static UMAP visualization enabled."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
         StaticVisualizationConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_static_viz_umap")
+    config = VizPipelineConfig(pipeline_name="test_static_viz_umap")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
@@ -191,14 +191,14 @@ def static_viz_config_with_umap():
 
 @pytest.fixture
 def static_viz_config_multiformat():
-    """QCPipelineConfig with multiple output formats."""
+    """VizPipelineConfig with multiple output formats."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
         StaticVisualizationConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_static_viz_multiformat")
+    config = VizPipelineConfig(pipeline_name="test_static_viz_multiformat")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
@@ -216,14 +216,14 @@ def static_viz_config_multiformat():
 
 @pytest.fixture
 def interactive_viz_config_enabled():
-    """QCPipelineConfig with interactive visualization enabled and standardized column names."""
+    """VizPipelineConfig with interactive visualization enabled and standardized column names."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
         InteractiveVisualizationConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_interactive_viz")
+    config = VizPipelineConfig(pipeline_name="test_interactive_viz")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
@@ -239,14 +239,14 @@ def interactive_viz_config_enabled():
 
 @pytest.fixture
 def interactive_viz_config_disabled():
-    """QCPipelineConfig with interactive visualization disabled."""
+    """VizPipelineConfig with interactive visualization disabled."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
         InteractiveVisualizationConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_interactive_viz_disabled")
+    config = VizPipelineConfig(pipeline_name="test_interactive_viz_disabled")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
@@ -257,14 +257,14 @@ def interactive_viz_config_disabled():
 
 @pytest.fixture
 def dashboard_config_enabled():
-    """QCPipelineConfig with dashboard generation enabled."""
+    """VizPipelineConfig with dashboard generation enabled."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
         DashboardConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_dashboard")
+    config = VizPipelineConfig(pipeline_name="test_dashboard")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
@@ -279,14 +279,14 @@ def dashboard_config_enabled():
 
 @pytest.fixture
 def dashboard_config_disabled():
-    """QCPipelineConfig with dashboard generation disabled."""
+    """VizPipelineConfig with dashboard generation disabled."""
     from sleap_roots_analyze.pipeline.config import (
         ColumnConfig,
         DashboardConfig,
-        QCPipelineConfig,
+        VizPipelineConfig,
     )
 
-    config = QCPipelineConfig(pipeline_name="test_dashboard_disabled")
+    config = VizPipelineConfig(pipeline_name="test_dashboard_disabled")
     config.columns = ColumnConfig(
         barcode="Barcode", genotype="Genotype", replicate="Replicate"
     )
