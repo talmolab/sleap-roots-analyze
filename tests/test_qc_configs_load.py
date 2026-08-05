@@ -145,20 +145,28 @@ def test_qc_config_with_pca_block_raises_config_key_error(tmp_path):
 
 
 def test_no_qc_config_has_a_pca_block_anywhere():
-    """Drift tripwire: re-derives the file set by scanning, not the hardcoded list.
+    r"""Drift tripwire: re-derives the file set by scanning, not the hardcoded list.
 
     Catches a QC config added (or a `pca:` block reintroduced) after this
     change without relying on ``QC_CONFIG_FILES`` staying in sync with the
-    repo. Mirrors the exact sweep-scope exclusions from `proposal.md` (viz
-    configs, `configs/archive/`, `configs/saved_backups/`, golden-fixture
-    `expected/config.yaml` output provenance).
+    repo. Scans only `configs/` and `tests/fixtures/harness/` — the same two
+    roots the #204 sweep touched — excluding viz configs, `configs/archive/`,
+    and `configs/saved_backups/`. Deliberately does NOT scan
+    `tests/fixtures/real/**/expected/` (the committed golden-fixture output
+    provenance, which intentionally keeps its historical `pca:` block
+    forever, per `proposal.md`); it isn't under either scanned root, so no
+    exclusion for it is needed here.
+
+    Only matches block-style `pca:` (`^pca:\\s*$`), not a flow-style
+    `pca: {...}` — acceptable given every config in this repo uses
+    block-style YAML throughout.
     """
     top_level_pca = re.compile(r"^pca:\s*$", re.MULTILINE)
     offenders = []
     for base in (REPO_ROOT / "configs", REPO_ROOT / "tests" / "fixtures" / "harness"):
         for path in base.rglob("*.yaml"):
             relpath = path.relative_to(REPO_ROOT).as_posix()
-            if "/viz" in relpath or "expected/" in relpath:
+            if "/viz" in relpath:
                 continue
             if any(relpath.startswith(prefix) for prefix in _EXCLUDED_DIR_PREFIXES):
                 continue
