@@ -84,17 +84,6 @@ outlier_removal:
   # Method to use for outlier removal (must be in traditional_methods above)
   method: "mahalanobis"
 
-# PCA Configuration (for consistency with outlier detection)
-pca:
-  # Number of components to keep (0.95 = keep components explaining 95% variance)
-  n_components: 0.95
-
-  # Standardize features before PCA
-  standardize: true
-
-  # Feature selection strategy for identifying important traits
-  feature_selection_strategy: "top_variance"
-
 # Heritability Filtering Configuration
 heritability:
   # Enable heritability-based trait filtering

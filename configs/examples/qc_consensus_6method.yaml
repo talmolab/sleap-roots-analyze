@@ -75,11 +75,6 @@ outlier_removal:
   strategy: "subset"      # Require minimum number of methods
   min_methods: 3          # Remove if ≥3 out of 6 methods agree (50%)
 
-# PCA configuration
-pca:
-  n_components: 0.95
-  feature_selection_strategy: "top_variance"
-
 # Heritability filtering
 heritability:
   enabled: true

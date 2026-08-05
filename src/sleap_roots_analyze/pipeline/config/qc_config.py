@@ -20,7 +20,6 @@ from sleap_roots_analyze.pipeline.config.components import (
     LoggingConfig,
     OutlierDetectionConfig,
     OutlierRemovalConfig,
-    PCAConfig,
     RootCoreConfig,
     VisualizationConfig,
 )
@@ -41,7 +40,6 @@ class QCPipelineConfig:
         outlier_detection: Outlier detection configuration.
         outlier_removal: Outlier removal configuration.
         heritability: Heritability filtering configuration.
-        pca: PCA analysis configuration.
         clustering: Clustering analysis configuration.
         visualization: Visualization generation configuration.
         adaptive_sizing: Adaptive figure sizing configuration.
@@ -64,7 +62,6 @@ class QCPipelineConfig:
     )
     outlier_removal: OutlierRemovalConfig = field(default_factory=OutlierRemovalConfig)
     heritability: HeritabilityConfig = field(default_factory=HeritabilityConfig)
-    pca: PCAConfig = field(default_factory=PCAConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     adaptive_sizing: AdaptiveSizingConfig = field(default_factory=AdaptiveSizingConfig)

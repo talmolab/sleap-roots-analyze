@@ -65,7 +65,6 @@ try:
     print(f"  Heritability Filter: {'Enabled' if config.heritability.enabled else 'Disabled'}")
     if config.heritability.enabled:
         print(f"    Threshold: {config.heritability.threshold}")
-    print(f"  PCA: {config.pca.n_components} components")
 
     print(f"\n✓ Configuration is ready to use!")
     print(f"\nRun with:")

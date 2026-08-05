@@ -45,10 +45,6 @@ outlier_removal:
   strategy: "single"
   method: "mahalanobis"
 
-pca:
-  n_components: 0.95
-  feature_selection_strategy: "top_variance"
-
 heritability:
   enabled: true
   threshold: 0.30                  # Retain traits with H² >= 0.30 (permissive)

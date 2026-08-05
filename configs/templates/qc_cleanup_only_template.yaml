@@ -58,12 +58,6 @@ outlier_detection:
 # REQUIRED: PCA Configuration
 # (Used in exploratory analysis even without outlier detection)
 # ============================================================================
-pca:
-  n_components: 0.95                 # REQUIRED: Variance explained by selected components (0.90-0.99)
-  standardize: true                  # Standardize features before PCA
-  feature_selection_strategy: "top_variance"  # Strategy for selecting top features
-
-# ============================================================================
 # OPTIONAL: Heritability Filtering (Disable if not needed)
 # ============================================================================
 heritability:

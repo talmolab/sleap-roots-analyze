@@ -108,17 +108,6 @@ outlier_removal:
   # Which method to use for outlier removal (must be in traditional_methods or clustering_methods)
   method: "mahalanobis"
 
-pca:
-  # Number of principal components to retain in QC output
-  # If float (0.0–1.0): keep PCs explaining that fraction of variance (e.g., 0.95 = 95%)
-  # If int: keep exactly that many PCs
-  n_components: 0.95
-
-  # Feature selection strategy for selecting top traits (used in downstream viz and metadata)
-  # "top_variance" = rank traits by total variance contribution
-  # "extreme" = select traits with most extreme PC loadings (both positive and negative)
-  feature_selection_strategy: "top_variance"
-
 heritability:
   # Enable heritability filtering (drop traits with H² below threshold)
   # Requires ≥ 3 replicates per genotype for reliable estimates.

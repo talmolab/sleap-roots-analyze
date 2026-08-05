@@ -19,9 +19,9 @@ from sleap_roots_analyze.pipeline.config.components import CrossPlatformConfig
 from sleap_roots_analyze.validation import VALIDATE_INPUT_MODES
 
 # Tolerance for pca.n_top_features' "whole number" check in
-# validate_qc_config()/validate_viz_config() — hand-typed YAML literals
-# should be exact, but this hedges against float-accumulation noise from a
-# future config-generation path (e.g. 9.999999999999998 instead of 10.0).
+# validate_viz_config() — hand-typed YAML literals should be exact, but
+# this hedges against float-accumulation noise from a future
+# config-generation path (e.g. 9.999999999999998 instead of 10.0).
 _WHOLE_NUMBER_TOLERANCE = 1e-9
 
 
@@ -129,14 +129,6 @@ def validate_explicit_config(config: QCPipelineConfig) -> None:
     # used in any computation — heritability fits value ~ 1 + (1|genotype) and
     # weights by rows-per-genotype, not by replicate. Datasets with no replicate
     # factor (e.g. cylinder data) leave it unset. See issue #142.
-
-    # REQUIRED: PCA n_components (affects dimensionality)
-    if config.pca.n_components is None:
-        errors.append(
-            "pca.n_components must be explicitly set\n"
-            "  Recommended: 0.95 (retain components explaining 95% variance)\n"
-            "  Range: 0.90-0.99 (higher = more components retained)"
-        )
 
     # REQUIRED: Heritability threshold (if filtering enabled)
     if config.heritability.enabled and config.heritability.threshold is None:
@@ -259,48 +251,6 @@ def validate_qc_config(config: QCPipelineConfig, check_files: bool = True) -> No
                 f"outlier_detection.clustering_methods contains invalid method '{method}'. "
                 f"Valid methods: {valid_clustering_methods}"
             )
-
-    # Validate PCA config
-    if config.pca.n_components <= 0:
-        raise ValueError("pca.n_components must be positive")
-
-    valid_pca_strategies = [
-        "extreme",
-        "top_absolute",
-        "top_contribution",
-        "top_variance",
-    ]
-    if config.pca.feature_selection_strategy not in valid_pca_strategies:
-        raise ValueError(
-            f"pca.feature_selection_strategy must be one of {valid_pca_strategies}"
-        )
-
-    # n_top_features is ignored entirely for "extreme" (issue #206), so any
-    # value is harmless for that strategy — both checks below skip it.
-    n_top = config.pca.n_top_features
-    strategy = config.pca.feature_selection_strategy
-    if strategy != "extreme" and not math.isfinite(n_top):
-        raise ValueError(
-            f"pca.n_top_features must be a finite number (got {n_top!r} for "
-            f"pca.feature_selection_strategy='{strategy}')."
-        )
-    if n_top < 1 and strategy not in ("extreme", "top_variance"):
-        raise ValueError(
-            "pca.n_top_features < 1 (variance-fraction threshold) is only "
-            "supported for pca.feature_selection_strategy='top_variance'; got "
-            f"'{strategy}' with n_top_features={n_top}. Use an integer >= 1 "
-            "for this strategy."
-        )
-    if (
-        n_top >= 1
-        and strategy != "extreme"
-        and abs(n_top - round(n_top)) > _WHOLE_NUMBER_TOLERANCE
-    ):
-        raise ValueError(
-            f"pca.n_top_features must be a whole number when >= 1 (got "
-            f"{n_top} for pca.feature_selection_strategy='{strategy}'); the "
-            "fractional part would be silently truncated."
-        )
 
     # Validate clustering config
     valid_cluster_methods = ["kmeans", "gmm", "hierarchical"]

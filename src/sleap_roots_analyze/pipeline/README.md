@@ -116,12 +116,6 @@ outlier_detection:
   use_pca: true
   n_components: 0.95
 
-pca:
-  n_components: 0.95
-  standardize: true
-  feature_selection_strategy: top_variance
-  n_top_features: 10
-
 visualization:
   create_pca_plots: true
   create_outlier_plots: true

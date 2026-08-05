@@ -62,7 +62,6 @@ def test_omit_replicate_in_yaml_disables_replicate(tmp_path):
         "pipeline_name: t\n"
         "columns:\n  genotype: geno\n  barcode: Barcode\n"  # replicate intentionally omitted
         "data:\n  csv_path: data.csv\n"
-        "pca:\n  n_components: 2\n"
     )
     config = load_qc_config(str(cfg_yaml))
     assert config.columns.replicate is None

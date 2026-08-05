@@ -33,10 +33,6 @@ outlier_removal:
   strategy: "single"
   method: "mahalanobis"
 
-pca:
-  n_components: 0.75
-  feature_selection_strategy: "extreme"
-
 heritability:
   enabled: false
   threshold: 0.60
