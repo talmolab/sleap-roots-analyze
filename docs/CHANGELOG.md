@@ -119,14 +119,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hardcoding `feature_contributions.nlargest(n_loadings, "total_contribution")`
   with no strategy awareness — the last unresolved consumer from the
   `select_top_features_from_pca()` consolidation effort (#202/#203/#204/#206/
-  #207). Default `feature_selection="top_variance"` is numerically equivalent
-  to the prior hardcoded ranking (both derive from the same total-variance-
-  contribution basis), so existing callers — including the interactive-PCA
-  step of every `trait_viz_*.ipynb` analysis notebook — get identical output
-  without passing the new parameter. Unlike `create_pca_biplot`, whose public
-  `pc_x`/`pc_y` are 1-indexed and require a `-1` conversion before use as
-  `pc_indices`, these two functions' `components` tuple is already 0-indexed
-  and is passed through unmodified.
+  #207). Default `feature_selection="top_variance"` ranks by the same
+  total-variance-contribution basis as the prior hardcoded ranking, so
+  existing callers — including the interactive-PCA step of every
+  `trait_viz_*.ipynb` analysis notebook — get the same selected features in
+  the typical case; the two implementations diverge only if a feature's
+  total contribution is NaN or multiple features tie exactly at the
+  selection cutoff (both effectively impossible for continuous
+  variance-contribution values from real data). Unlike `create_pca_biplot`,
+  whose public `pc_x`/`pc_y` are 1-indexed and require a `-1` conversion
+  before use as `pc_indices`, these two functions' `components` tuple is
+  already 0-indexed and is passed through unmodified. Also fixes a
+  pre-existing bug in `select_top_features_from_pca()`'s `"extreme"` method,
+  newly reachable through this parameter: `n_features_to_select=0` returned
+  every feature instead of none, due to Python's negative-slice quirk
+  (`arr[-0:] == arr[0:]`, the full array).
 - `PCAAnalysisStep` now always passes `pc_indices=list(range(n_components))`
   explicitly to `select_top_features_from_pca()` (#203), instead of relying
   on that function's `[0, 1]` default. Runs configured with `pca.n_components`

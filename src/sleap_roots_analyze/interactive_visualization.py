@@ -378,7 +378,6 @@ def create_interactive_pca_with_images(
             method=feature_selection,
             pc_indices=None if feature_selection == "top_variance" else [pc_x, pc_y],
         )
-        top_features = [feature_names[i] for i in top_indices]
 
         # Scale loadings for visualization
         max_score = max(
@@ -395,8 +394,8 @@ def create_interactive_pca_with_images(
         # Pattern of offsets for label positioning to avoid overlaps
         offsets = [-0.3, 0, 0.3, -0.2, 0.2, -0.4, 0.1, 0.4, -0.1, 0.35]
 
-        for i, feature in enumerate(top_features):
-            feature_idx = feature_names.index(feature)
+        for i, feature_idx in enumerate(top_indices):
+            feature = feature_names[feature_idx]
 
             # Calculate arrow end position
             x_end = loadings[feature_idx, pc_x] * scale
@@ -1419,7 +1418,6 @@ def create_interactive_pca_plot(
             method=feature_selection,
             pc_indices=None if feature_selection == "top_variance" else [pc_x, pc_y],
         )
-        top_features = [feature_names[i] for i in top_indices]
 
         # Scale loadings for visualization
         max_score = max(
@@ -1436,8 +1434,8 @@ def create_interactive_pca_plot(
         # Pattern of offsets for label positioning to avoid overlaps
         offsets = [-0.3, 0, 0.3, -0.2, 0.2, -0.4, 0.1, 0.4, -0.1, 0.35]
 
-        for i, feature in enumerate(top_features):
-            feature_idx = feature_names.index(feature)
+        for i, feature_idx in enumerate(top_indices):
+            feature = feature_names[feature_idx]
 
             # Calculate arrow end position
             x_end = loadings[feature_idx, pc_x] * scale

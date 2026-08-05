@@ -34,11 +34,19 @@ it resolves toward delegation, matching the pattern already established for
   `nlargest(n_loadings, "total_contribution")`, validating `feature_selection`
   against the shared `VALID_SELECTION_METHODS` the same way `create_pca_biplot`
   does.
-- Default `"top_variance"` is numerically equivalent to today's hardcoded
-  ranking (both derive from the same total-variance-contribution basis), so
-  existing callers that pass `show_loadings=True` without `feature_selection`
-  (all 14 notebooks above) get identical output — this is a behavior-preserving
-  default, not a behavior change.
+- Default `"top_variance"` ranks by the same total-variance-contribution basis
+  as today's hardcoded `nlargest(n, "total_contribution")` (both derive from
+  `_total_variance_contribution()`), so existing callers that pass
+  `show_loadings=True` without `feature_selection` (all 14 notebooks above)
+  get the same selected features in the typical case. The two ranking
+  implementations are not a mathematical guarantee of an identical result in
+  every case: `nlargest` excludes NaN rows and breaks ties by original order,
+  while `select_top_features_from_pca`'s `np.argsort`-based ranking sorts NaN
+  as largest and uses a non-stable sort — divergence is possible only if a
+  feature's total contribution is NaN (a sign of upstream PCA failure, not a
+  normal data condition) or multiple features tie exactly at the selection
+  cutoff. Continuous variance-contribution values make an exact tie
+  vanishingly unlikely in practice.
 
 ## Impact
 

@@ -15,6 +15,12 @@ parameter, rather than a hardcoded ranking.
 - **THEN** the function SHALL default `feature_selection` to `"top_variance"`
 - **AND** the selected loading-arrow features SHALL match those previously
   produced by `feature_contributions.nlargest(n_loadings, "total_contribution")`
+  for any input where no feature's total contribution is NaN and no two
+  features tie exactly at the selection cutoff (both effectively impossible
+  for continuous variance-contribution values from real data; `nlargest`
+  excludes NaN and breaks ties by original order, while
+  `select_top_features_from_pca`'s `np.argsort`-based ranking sorts NaN as
+  largest and is not tie-stable)
 
 #### Scenario: Alternate feature_selection method changes selected features
 

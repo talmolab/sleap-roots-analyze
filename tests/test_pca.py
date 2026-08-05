@@ -2739,6 +2739,24 @@ class TestFeatureSelection:
         # Feature 0 should only appear once
         assert selected.count(0) == 1
 
+    def test_extreme_selection_zero_features_returns_empty(self, sample_pca_data):
+        """Extreme with n_features_to_select=0 selects nothing, not everything.
+
+        Python's negative-slice quirk (arr[-0:] == arr[0:], the full array)
+        previously made the "most positive" half of the extreme branch
+        return every feature instead of none when n_features_to_select=0.
+        """
+        selected = select_top_features_from_pca(
+            loadings=sample_pca_data["loadings"],
+            eigenvalues=sample_pca_data["eigenvalues"],
+            n_features_total=sample_pca_data["n_features"],
+            n_features_to_select=0,
+            method="extreme",
+            pc_indices=[0, 1],
+        )
+
+        assert selected == []
+
     def test_variance_contribution_calculation(self, sample_pca_data):
         """Test that variance contributions are calculated correctly."""
         # Use top_variance method which should weight by eigenvalues

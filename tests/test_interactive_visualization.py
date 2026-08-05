@@ -417,16 +417,27 @@ class TestInteractivePCAPlots:
                 feature_selection="bogus",
             )
 
+    @pytest.mark.parametrize(
+        "feature_selection",
+        [
+            "top_variance",
+            "extreme",
+            "top_absolute",
+            "top_contribution",
+            "vector_length",
+        ],
+    )
     def test_create_interactive_pca_with_images_zero_loadings(
-        self, pca_viz_results, pca_viz_dataframe, sample_image_links
+        self, pca_viz_results, pca_viz_dataframe, sample_image_links, feature_selection
     ):
-        """n_loadings=0 should add no loading-arrow labels."""
+        """n_loadings=0 should add no loading-arrow labels, for every method."""
         fig = create_interactive_pca_with_images(
             pca_results=pca_viz_results,
             df=pca_viz_dataframe,
             image_links=sample_image_links,
             show_loadings=True,
             n_loadings=0,
+            feature_selection=feature_selection,
         )
 
         assert _loading_label_texts(fig) == set()
@@ -611,15 +622,26 @@ class TestInteractivePCAPlots:
                 feature_selection="bogus",
             )
 
+    @pytest.mark.parametrize(
+        "feature_selection",
+        [
+            "top_variance",
+            "extreme",
+            "top_absolute",
+            "top_contribution",
+            "vector_length",
+        ],
+    )
     def test_create_interactive_pca_plot_zero_loadings(
-        self, pca_viz_results, pca_viz_dataframe
+        self, pca_viz_results, pca_viz_dataframe, feature_selection
     ):
-        """n_loadings=0 should add no loading-arrow labels."""
+        """n_loadings=0 should add no loading-arrow labels, for every method."""
         fig = create_interactive_pca_plot(
             pca_results=pca_viz_results,
             df=pca_viz_dataframe,
             show_loadings=True,
             n_loadings=0,
+            feature_selection=feature_selection,
         )
 
         assert _loading_label_texts(fig) == set()
