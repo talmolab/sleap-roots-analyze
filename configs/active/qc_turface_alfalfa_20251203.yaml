@@ -49,11 +49,6 @@ outlier_removal:
   strategy: "single"
   method: "mahalanobis"
 
-# PCA configuration (for consistency with outlier detection)
-pca:
-  n_components: 0.95              # EXPLAINED_VARIANCE = 0.95
-  feature_selection_strategy: "top_variance"
-
 # Heritability filtering (matching notebook)
 heritability:
   enabled: true                   # REMOVE_LOW_HERITABILITY_TRAITS = True

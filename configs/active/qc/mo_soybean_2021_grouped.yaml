@@ -84,13 +84,6 @@ outlier_removal:
   # Which method to use for outlier removal (must be in traditional_methods or clustering_methods)
   method: "mahalanobis"
 
-pca:
-  # Number of principal components to retain in QC output
-  n_components: 0.95
-
-  # Feature selection strategy for selecting top traits (used in downstream viz and metadata)
-  feature_selection_strategy: "top_variance"
-
 heritability:
   # Enable heritability filtering (drop traits with H^2 below threshold)
   enabled: true
