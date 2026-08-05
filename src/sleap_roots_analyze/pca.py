@@ -120,7 +120,9 @@ def select_top_features_from_pca(
             # array), not empty, so a plain negative slice would wrongly
             # select every feature instead of none.
             most_positive = (
-                sorted_idx[-n_features_to_select:] if n_features_to_select else []
+                sorted_idx[-n_features_to_select:]
+                if n_features_to_select
+                else sorted_idx[:0]
             )
             for idx in most_positive[::-1]:
                 if idx not in seen:
