@@ -45,11 +45,6 @@ outlier_removal:
   strategy: "single"     # Remove outliers from single method
   method: "mahalanobis"  # Use Mahalanobis results
 
-# PCA configuration
-pca:
-  n_components: 0.95  # Keep components explaining 95% variance
-  feature_selection_strategy: "top_variance"
-
 # Heritability filtering
 heritability:
   enabled: true

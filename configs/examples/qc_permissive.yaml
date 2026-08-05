@@ -43,11 +43,6 @@ outlier_removal:
   strategy: "single"
   method: "isolation_forest"
 
-# PCA configuration
-pca:
-  n_components: 0.90           # Lower variance threshold (90%)
-  feature_selection_strategy: "top_variance"
-
 # Heritability filtering - LENIENT
 heritability:
   enabled: true
