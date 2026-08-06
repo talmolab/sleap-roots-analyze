@@ -61,6 +61,15 @@
       functions, closing `#209`, matching the entries already present for
       `#202`/`#203`/`#204`/`#206`.
 - [x] 3.3 Run `uv run pytest --cov --cov-branch` and confirm no regressions.
-- [ ] 3.4 Run `/pre-merge-check` (black, ruff, full suite, coverage, OpenSpec
+- [x] 3.4 Run `/pre-merge-check` (black, ruff, full suite, coverage, OpenSpec
       validation, Copilot triage) as the closing check for the whole
-      `#202`/`#203`/`#204`/`#206`/`#207`/`#209` effort.
+      `#202`/`#203`/`#204`/`#206`/`#207`/`#209` effort. A 5-agent pre-PR
+      self-review (`/review-pr`) additionally caught and fixed: a
+      pre-existing `select_top_features_from_pca()` "extreme" +
+      `n_features_to_select=0` bug newly reachable via this parameter, a
+      fragile name-based index re-lookup, an overstated equivalence claim
+      (now qualified for NaN/exact-tie edge cases), and a `mypy` baseline
+      violation from the bugfix. PR #223 opened; all 13 CI checks green.
+      Copilot's auto-review did not trigger and could not be forced via the
+      CLI — left for a human reviewer to request from the GitHub UI if
+      desired.
