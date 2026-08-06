@@ -115,8 +115,16 @@ def select_top_features_from_pca(
                     selected_indices.append(int(idx))
                     seen.add(idx)
 
-            # Most positive (in order of most positive to less positive)
-            for idx in sorted_idx[-n_features_to_select:][::-1]:
+            # Most positive (in order of most positive to less positive).
+            # Guard n_features_to_select == 0: arr[-0:] == arr[0:] (the full
+            # array), not empty, so a plain negative slice would wrongly
+            # select every feature instead of none.
+            most_positive = (
+                sorted_idx[-n_features_to_select:]
+                if n_features_to_select
+                else sorted_idx[:0]
+            )
+            for idx in most_positive[::-1]:
                 if idx not in seen:
                     selected_indices.append(int(idx))
                     seen.add(idx)

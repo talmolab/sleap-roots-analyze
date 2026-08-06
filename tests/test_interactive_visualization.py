@@ -25,6 +25,7 @@ from sleap_roots_analyze.interactive_visualization import (
     create_interactive_scatter_plot,
     create_interactive_pca_plot,
 )
+from sleap_roots_analyze.pca import select_top_features_from_pca
 
 
 # ============================================================================
@@ -250,6 +251,13 @@ class TestInteractiveScatterPlots:
 # ============================================================================
 
 
+def _loading_label_texts(fig):
+    """Feature names shown as loading-arrow labels (not the arrows themselves)."""
+    return {
+        ann.text for ann in fig.layout.annotations if not ann.showarrow and ann.text
+    }
+
+
 class TestInteractivePCAPlots:
     """Test interactive PCA plot functions."""
 
@@ -284,6 +292,174 @@ class TestInteractivePCAPlots:
 
         # Should have annotations for loadings
         assert len(fig.layout.annotations) > 0
+
+    def test_create_interactive_pca_with_images_default_feature_selection_matches_prior_behavior(
+        self, pca_viz_results, pca_viz_dataframe, sample_image_links
+    ):
+        """Default feature_selection ("top_variance") matches old behavior.
+
+        Must match the old hardcoded
+        nlargest(n_loadings, "total_contribution") ranking.
+        """
+        n_loadings = 5
+        expected = set(
+            pca_viz_results["feature_contributions"]
+            .nlargest(n_loadings, "total_contribution")
+            .index
+        )
+
+        fig = create_interactive_pca_with_images(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            image_links=sample_image_links,
+            show_loadings=True,
+            n_loadings=n_loadings,
+        )
+
+        assert _loading_label_texts(fig) == expected
+
+    @pytest.mark.parametrize(
+        "feature_selection",
+        ["extreme", "top_absolute", "top_contribution", "vector_length"],
+    )
+    def test_create_interactive_pca_with_images_feature_selection_methods(
+        self, pca_viz_results, pca_viz_dataframe, sample_image_links, feature_selection
+    ):
+        """Non-default feature_selection methods match direct selection.
+
+        Each must match a direct select_top_features_from_pca() call with
+        the same arguments.
+        """
+        n_loadings = 5
+        pc_x, pc_y = 0, 1
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(pca_viz_results["feature_names"]),
+            n_features_to_select=n_loadings,
+            method=feature_selection,
+            pc_indices=[pc_x, pc_y],
+        )
+        expected = {pca_viz_results["feature_names"][i] for i in expected_indices}
+
+        fig = create_interactive_pca_with_images(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            image_links=sample_image_links,
+            components=(pc_x, pc_y),
+            show_loadings=True,
+            n_loadings=n_loadings,
+            feature_selection=feature_selection,
+        )
+
+        assert _loading_label_texts(fig) == expected
+
+    def test_create_interactive_pca_with_images_pc_indices_not_reoffset(
+        self, pca_viz_results, pca_viz_dataframe, sample_image_links
+    ):
+        """Components here are already 0-indexed PCs, unlike create_pca_biplot.
+
+        Unlike create_pca_biplot's 1-indexed pc_x/pc_y, no -1 adjustment
+        should be applied before passing pc_indices to
+        select_top_features_from_pca.
+        """
+        n_loadings = 5
+        pc_x, pc_y = 2, 3
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(pca_viz_results["feature_names"]),
+            n_features_to_select=n_loadings,
+            method="extreme",
+            pc_indices=[pc_x, pc_y],
+        )
+        expected = {pca_viz_results["feature_names"][i] for i in expected_indices}
+
+        # An off-by-one implementation (subtracting 1, as create_pca_biplot
+        # does for its 1-indexed pc_x/pc_y) would instead rank pc_indices=[1, 2].
+        wrong_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(pca_viz_results["feature_names"]),
+            n_features_to_select=n_loadings,
+            method="extreme",
+            pc_indices=[pc_x - 1, pc_y - 1],
+        )
+        wrong = {pca_viz_results["feature_names"][i] for i in wrong_indices}
+        assert expected != wrong  # sanity check the two conventions diverge
+
+        fig = create_interactive_pca_with_images(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            image_links=sample_image_links,
+            components=(pc_x, pc_y),
+            show_loadings=True,
+            n_loadings=n_loadings,
+            feature_selection="extreme",
+        )
+
+        assert _loading_label_texts(fig) == expected
+
+    @pytest.mark.parametrize("show_loadings", [True, False])
+    def test_create_interactive_pca_with_images_rejects_invalid_feature_selection(
+        self, pca_viz_results, pca_viz_dataframe, sample_image_links, show_loadings
+    ):
+        """feature_selection is validated unconditionally.
+
+        Regardless of show_loadings.
+        """
+        with pytest.raises(ValueError, match="feature_selection"):
+            create_interactive_pca_with_images(
+                pca_results=pca_viz_results,
+                df=pca_viz_dataframe,
+                image_links=sample_image_links,
+                show_loadings=show_loadings,
+                feature_selection="bogus",
+            )
+
+    @pytest.mark.parametrize(
+        "feature_selection",
+        [
+            "top_variance",
+            "extreme",
+            "top_absolute",
+            "top_contribution",
+            "vector_length",
+        ],
+    )
+    def test_create_interactive_pca_with_images_zero_loadings(
+        self, pca_viz_results, pca_viz_dataframe, sample_image_links, feature_selection
+    ):
+        """n_loadings=0 should add no loading-arrow labels, for every method."""
+        fig = create_interactive_pca_with_images(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            image_links=sample_image_links,
+            show_loadings=True,
+            n_loadings=0,
+            feature_selection=feature_selection,
+        )
+
+        assert _loading_label_texts(fig) == set()
+
+    def test_create_interactive_pca_with_images_loadings_exceed_feature_count(
+        self, pca_viz_results, pca_viz_dataframe, sample_image_links
+    ):
+        """n_loadings exceeding the total feature count selects all features.
+
+        Should select all available features without error.
+        """
+        n_features = len(pca_viz_results["feature_names"])
+
+        fig = create_interactive_pca_with_images(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            image_links=sample_image_links,
+            show_loadings=True,
+            n_loadings=n_features + 50,
+        )
+
+        assert len(_loading_label_texts(fig)) == n_features
 
     def test_create_interactive_pca_different_components(
         self, pca_viz_results, pca_viz_dataframe, sample_image_links
@@ -327,6 +503,166 @@ class TestInteractivePCAPlots:
 
         assert isinstance(fig, go.Figure)
         assert len(fig.data) > 0
+
+    def test_create_interactive_pca_plot_default_feature_selection_matches_prior_behavior(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Default feature_selection ("top_variance") matches old behavior.
+
+        Must match the old hardcoded
+        nlargest(n_loadings, "total_contribution") ranking.
+        """
+        n_loadings = 5
+        expected = set(
+            pca_viz_results["feature_contributions"]
+            .nlargest(n_loadings, "total_contribution")
+            .index
+        )
+
+        fig = create_interactive_pca_plot(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            show_loadings=True,
+            n_loadings=n_loadings,
+        )
+
+        assert _loading_label_texts(fig) == expected
+
+    @pytest.mark.parametrize(
+        "feature_selection",
+        ["extreme", "top_absolute", "top_contribution", "vector_length"],
+    )
+    def test_create_interactive_pca_plot_feature_selection_methods(
+        self, pca_viz_results, pca_viz_dataframe, feature_selection
+    ):
+        """Non-default feature_selection methods match direct selection.
+
+        Each must match a direct select_top_features_from_pca() call with
+        the same arguments.
+        """
+        n_loadings = 5
+        pc_x, pc_y = 0, 1
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(pca_viz_results["feature_names"]),
+            n_features_to_select=n_loadings,
+            method=feature_selection,
+            pc_indices=[pc_x, pc_y],
+        )
+        expected = {pca_viz_results["feature_names"][i] for i in expected_indices}
+
+        fig = create_interactive_pca_plot(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            components=(pc_x, pc_y),
+            show_loadings=True,
+            n_loadings=n_loadings,
+            feature_selection=feature_selection,
+        )
+
+        assert _loading_label_texts(fig) == expected
+
+    def test_create_interactive_pca_plot_pc_indices_not_reoffset(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """Components here are already 0-indexed PCs, unlike create_pca_biplot.
+
+        Unlike create_pca_biplot's 1-indexed pc_x/pc_y, no -1 adjustment
+        should be applied before passing pc_indices to
+        select_top_features_from_pca.
+        """
+        n_loadings = 5
+        pc_x, pc_y = 2, 3
+        expected_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(pca_viz_results["feature_names"]),
+            n_features_to_select=n_loadings,
+            method="extreme",
+            pc_indices=[pc_x, pc_y],
+        )
+        expected = {pca_viz_results["feature_names"][i] for i in expected_indices}
+
+        wrong_indices = select_top_features_from_pca(
+            loadings=pca_viz_results["loadings"],
+            eigenvalues=pca_viz_results["eigenvalues"],
+            n_features_total=len(pca_viz_results["feature_names"]),
+            n_features_to_select=n_loadings,
+            method="extreme",
+            pc_indices=[pc_x - 1, pc_y - 1],
+        )
+        wrong = {pca_viz_results["feature_names"][i] for i in wrong_indices}
+        assert expected != wrong  # sanity check the two conventions diverge
+
+        fig = create_interactive_pca_plot(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            components=(pc_x, pc_y),
+            show_loadings=True,
+            n_loadings=n_loadings,
+            feature_selection="extreme",
+        )
+
+        assert _loading_label_texts(fig) == expected
+
+    @pytest.mark.parametrize("show_loadings", [True, False])
+    def test_create_interactive_pca_plot_rejects_invalid_feature_selection(
+        self, pca_viz_results, pca_viz_dataframe, show_loadings
+    ):
+        """feature_selection is validated unconditionally.
+
+        Regardless of show_loadings.
+        """
+        with pytest.raises(ValueError, match="feature_selection"):
+            create_interactive_pca_plot(
+                pca_results=pca_viz_results,
+                df=pca_viz_dataframe,
+                show_loadings=show_loadings,
+                feature_selection="bogus",
+            )
+
+    @pytest.mark.parametrize(
+        "feature_selection",
+        [
+            "top_variance",
+            "extreme",
+            "top_absolute",
+            "top_contribution",
+            "vector_length",
+        ],
+    )
+    def test_create_interactive_pca_plot_zero_loadings(
+        self, pca_viz_results, pca_viz_dataframe, feature_selection
+    ):
+        """n_loadings=0 should add no loading-arrow labels, for every method."""
+        fig = create_interactive_pca_plot(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            show_loadings=True,
+            n_loadings=0,
+            feature_selection=feature_selection,
+        )
+
+        assert _loading_label_texts(fig) == set()
+
+    def test_create_interactive_pca_plot_loadings_exceed_feature_count(
+        self, pca_viz_results, pca_viz_dataframe
+    ):
+        """n_loadings exceeding the total feature count selects all features.
+
+        Should select all available features without error.
+        """
+        n_features = len(pca_viz_results["feature_names"])
+
+        fig = create_interactive_pca_plot(
+            pca_results=pca_viz_results,
+            df=pca_viz_dataframe,
+            show_loadings=True,
+            n_loadings=n_features + 50,
+        )
+
+        assert len(_loading_label_texts(fig)) == n_features
 
 
 # ============================================================================
