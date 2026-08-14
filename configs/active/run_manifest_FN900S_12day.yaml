@@ -1,0 +1,25 @@
+# Run Manifest: FN900S_12day
+#
+# Dataset: Z:/users/eberrigan/20260812_Sanghwa_Lee_FN900S/12_day_old/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv
+# Analysis date: 2026-08-14
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_FN900S_12day.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "FN900S_12day"
+description: "QC and Viz for FN900S age-12 rice cylinder scans (2026-08-14). Ungrouped, 87 samples, 5 genotypes. Age exceeds documented model range (max 10); processed with OlderMonocotPipeline boundary-age (10) model params per user confirmation. Crown-root traits only (expected for this growth stage)."
+
+# QC configs are run FIRST
+qc_configs:
+  - qc/FN900S_12day.yaml
+
+# Viz configs are run AFTER QC (csv_path auto-updated to QC output).
+viz_configs:
+  - viz/FN900S_12day.yaml
+
+# Config-to-QC mapping for path auto-update
+qc_mapping:
+  viz/FN900S_12day.yaml: qc/FN900S_12day.yaml
