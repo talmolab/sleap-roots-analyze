@@ -1,0 +1,22 @@
+# Run Manifest: FN858S_3day
+#
+# Dataset: Z:/users/eberrigan/20260817_Sanghwa_Lee_FN858S/3_day_old/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv
+# Analysis date: 2026-08-17
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_FN858S_3day.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "FN858S_3day"
+description: "QC and Viz for FN858S age-3 rice cylinder scans (2026-08-17). Ungrouped, 90 samples, 2 genotypes (KitaakeX control, FN858S mutant line)."
+
+qc_configs:
+  - qc/FN858S_3day.yaml
+
+viz_configs:
+  - viz/FN858S_3day.yaml
+
+qc_mapping:
+  viz/FN858S_3day.yaml: qc/FN858S_3day.yaml

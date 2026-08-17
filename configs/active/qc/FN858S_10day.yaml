@@ -1,0 +1,88 @@
+# QC Pipeline Configuration: FN858S_10day
+#
+# Dataset: Z:/users/eberrigan/20260817_Sanghwa_Lee_FN858S/10_day_old/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv
+# Analysis date: 2026-08-17
+# Generated from: qc_template_ungrouped.yaml
+#
+# Key choices:
+#   Only 2 genotypes: KitaakeX control (~11 plants) and FN858S line (~77 plants) — heavily
+#   skewed mutant-vs-wildtype screen, not a balanced multi-genotype panel. Both clear the
+#   >=3 replicate minimum for heritability, but H^2 estimates will be noisier for KitaakeX.
+#   Crown-root traits only — expected/correct for OlderMonocotPipeline (primary and crown
+#   roots not visually distinguishable at this rice growth stage), not a processing gap.
+#   heritability.threshold: 0.0 — exploratory first pass (lab convention), same as FN900S
+#   cleanup.min_samples_per_trait: 22 — max(10, n_samples=88 // 4)
+#   outlier_detection.mahalanobis.chi2_percentile: 99.0 (default) — n=88 (ungrouped, whole
+#     dataset) is well above the n>=30 stability threshold for Mahalanobis, no adjustment needed
+#   group_by: null — single site/timepoint dataset; genotype is used for heritability/coloring
+#     only, not as a subdivision axis
+
+pipeline_name: "FN858S_10day"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260817_Sanghwa_Lee_FN858S/10_day_old/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv"
+  image_dir: "Z:/users/eberrigan/20260817_Sanghwa_Lee_FN858S/10_day_old/images_downloader_output"
+  additional_exclude_cols: []
+  validate_input: warn
+  group_by: null
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "genotype"
+  # scan_id used as a harmless placeholder distinct from barcode — H^2 counts replicates
+  # by distinct barcode per genotype, so the literal value here doesn't affect the estimate.
+  replicate: "scan_id"
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  # max(10, 88 // 4)
+  min_samples_per_trait: 22
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    # n=88 (ungrouped, whole dataset) — well above n>=30, default is appropriate
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+heritability:
+  # KitaakeX (~11) and FN858S (~77) both clear the >=3 replicate minimum.
+  enabled: true
+  # 0.0 = exploratory first pass, calculate/visualize H^2 without filtering
+  threshold: 0.0
+  generate_diagnostics: true
+
+visualization:
+  dpi: 100
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"
