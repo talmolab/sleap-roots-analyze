@@ -1,0 +1,153 @@
+# Visualization Pipeline Configuration: FN2021_3day
+#
+# Dataset: QC output from qc/FN2021_3day.yaml
+# Analysis date: 2026-08-18
+# Generated from: viz_template_with_images.yaml
+#
+# Note: csv_path will be auto-updated to QC output when run via run-all.
+#
+# Key choices:
+#   pca.n_components: 0.75 — tighter than default 0.95 given 931 traits vs 1567 samples
+#   umap.n_neighbors: 15 — computed recommendation for n=1567
+
+pipeline_name: "FN2021_3day"
+version: "1.0"
+
+data:
+  # Path to QC output CSV (auto-updated by run-all to point to 10_final_data.csv)
+  csv_path: "FILL_IN_BY_RUN_ALL"
+
+  # Path to directory containing images
+  image_dir: "Z:/users/eberrigan/20260817_Sanghwa_Lee_FN2021/3_day_old/images_downloader_output"
+
+# Column names after QC pipeline sanitization (QC pipeline renames to Barcode/Genotype/Replicate)
+columns:
+  barcode: "Barcode"
+  genotype: "Genotype"
+  replicate: "Replicate"
+  image_path: null  # matched from image_dir by barcode
+
+statistics:
+  # Calculate ANOVA for genotype effects
+  calculate_anova: true
+
+  # Calculate heritability (if not already done in QC)
+  calculate_heritability: true
+
+  # Significance level for ANOVA
+  alpha: 0.05
+
+# PCA configuration
+pca:
+  # Number of PCs to retain — tighter than default given high dimensionality (931 traits, 1567 samples)
+  n_components: 0.75
+
+  # Standardize traits before PCA
+  standardize: true
+
+  # Feature selection strategy: extreme selects the most-positive + most-negative
+  # loading trait per retained PC (mechanistic interpretation, not just variance)
+  feature_selection_strategy: "extreme"
+
+umap:
+  # Enable UMAP dimensionality reduction (n=1567, well above the n>=15 recommendation)
+  enabled: true
+
+  # Computed recommendation for n=1567
+  n_neighbors: 15
+
+  # Minimum distance between points in UMAP embedding
+  min_dist: 0.1
+
+  # Distance metric
+  metric: "euclidean"
+
+  # Random seed for reproducibility
+  random_state: 42
+
+clustering:
+  # Enable clustering analysis
+  enabled: false
+
+# Heritability filtering (already done in QC; disabled here)
+heritability:
+  enabled: false
+  threshold: 0.30
+
+interesting_genotypes:
+  # Enable automatic detection of interesting genotypes
+  enabled: true
+
+  methods:
+    - pc_extreme
+    - trait_extreme
+    - heritable_extreme
+
+  # PC threshold for pc_extreme method (in standard deviations)
+  pc_threshold: 2.0
+
+  # Percentile threshold for trait_extreme method (top/bottom N%)
+  trait_percentile: 95.0
+
+  # Minimum heritability for heritable_extreme method
+  min_heritability: 0.30
+
+  # Maximum genotypes to report (if more are detected, top N are kept)
+  max_genotypes: 6
+
+  # Generate image grids for interesting genotypes (requires image_dir)
+  generate_image_grids: true
+
+  # Number of images to show per genotype in the grid
+  images_per_genotype: 9
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+static_viz:
+  enabled: true
+  formats:
+    - png
+    - pdf
+  dpi: 300
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+  create_trait_distributions: true
+  create_trait_correlations: true
+  create_heritability_plots: true
+  create_genotype_comparisons: true
+
+  # For "extreme" strategy: 1 = 2 arrows per PC. With 931 traits, keep at 1 to avoid crowding.
+  pca_biplot_top_features: 1
+
+interactive_viz:
+  enabled: true
+  create_pca_plots: true
+  create_umap_plots: true
+  create_cluster_plots: false
+
+  # Show images on hover in interactive plots (requires image_dir)
+  show_images_on_hover: true
+
+dashboard:
+  enabled: false
+
+summary:
+  enabled: true
+  formats:
+    - markdown
+    - json
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "viz_pipeline.log"
