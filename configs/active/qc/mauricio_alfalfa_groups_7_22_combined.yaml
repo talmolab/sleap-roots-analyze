@@ -1,0 +1,85 @@
+# QC Pipeline Configuration: Mauricio Alfalfa GWAS Groups 7-22 Combined
+#
+# Dataset: Z:/users/eberrigan/20260817_Mauricio_Chiurazzi_Alfalfa_GWAS_groups_7-22_canola_models/combined_analysis/combined_traits_summary_no_root_widths.csv
+# Analysis date: 2026-08-20
+# Generated from: qc_template_grouped.yaml
+#
+# Key choices:
+#   group_by: plant_age_days -- day 9 (1,620 rows) and day 12 (1,723 rows) are
+#     biologically distinct timepoints, matching the April Groups 1-6 precedent.
+#   heritability.threshold: 0.0 -- 117-genotype panel now well past the
+#     ~50-genotype reliability floor, but user chose compute-only (no
+#     filtering) for this first full-panel pass, matching April's own
+#     "exploratory first, filtered follow-up" pattern. Using 0.0 rather than
+#     null: the OmegaConf schema rejects a literal null for this field even
+#     though the config wizard lists it as an option (known issue).
+#   cleanup.min_samples_per_trait: 30 -- per established lab convention for
+#     large screens (>200 plants), not the wizard's naive n//4 formula
+#     (~405), which would be far too aggressive for a panel this size.
+#   root_widths_* pre-filtered at the CSV level (alfalfa non-soybean
+#     convention) -- additional_exclude_cols stays empty, nothing left to
+#     exclude via config.
+
+pipeline_name: "mauricio_alfalfa_groups_7_22_combined_qc"
+version: "1.0"
+enable_parallel: false
+
+data:
+  csv_path: "Z:/users/eberrigan/20260817_Mauricio_Chiurazzi_Alfalfa_GWAS_groups_7-22_canola_models/combined_analysis/combined_traits_summary_no_root_widths.csv"
+  image_dir: null
+  additional_exclude_cols: []
+  validate_input: warn
+  group_by: "plant_age_days"
+
+columns:
+  barcode: "plant_qr_code"
+  genotype: "genotype"
+  # replicate omitted -- cylinder data has no replicate factor (per template guidance)
+
+cleanup:
+  max_zeros_per_trait: 0.5
+  max_nans_per_trait: 0.2
+  max_nan_fraction: 0.0
+  min_samples_per_trait: 30
+
+outlier_detection:
+  traditional_methods:
+    - mahalanobis
+  clustering_methods: []
+  mahalanobis:
+    variance_threshold: 0.95
+    use_chi_squared: true
+    chi2_percentile: 99.0
+
+outlier_removal:
+  strategy: "single"
+  method: "mahalanobis"
+
+heritability:
+  enabled: true
+  threshold: 0.0
+  generate_diagnostics: true
+
+visualization:
+  dpi: 300
+  figsize: [12, 8]
+  figure_format: "png"
+  enable_batched_plots: true
+  batched_plot_threshold: 16
+  batch_size: 16
+
+adaptive_sizing:
+  enabled: true
+  base_width: 8.0
+  base_height: 6.0
+  width_per_item: 2.0
+  height_per_item: 2.0
+  min_width: 6.0
+  max_width: 20.0
+  min_height: 4.0
+  max_height: 16.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "pipeline.log"

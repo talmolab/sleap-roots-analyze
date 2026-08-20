@@ -1,0 +1,22 @@
+# Run Manifest: Mauricio Alfalfa GWAS Groups 7-22 Combined
+#
+# Dataset: Z:/users/eberrigan/20260817_Mauricio_Chiurazzi_Alfalfa_GWAS_groups_7-22_canola_models/combined_analysis/combined_traits_summary_no_root_widths.csv
+# Analysis date: 2026-08-20
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_mauricio_alfalfa_groups_7_22_combined.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "Mauricio Alfalfa GWAS Groups 7-22 Combined"
+description: "QC and Viz for the combined Mauricio alfalfa GWAS panel (2026-08-20). Groups: existing Groups 1-6 (reused from April) + newly processed Groups 7-19, 21, 22 (15 groups) -- 3,343 total rows, 117 genotypes. Grouped by plant_age_days (day 9 / day 12)."
+
+qc_configs:
+  - qc/mauricio_alfalfa_groups_7_22_combined.yaml
+
+viz_configs:
+  - viz/mauricio_alfalfa_groups_7_22_combined.yaml
+
+qc_mapping:
+  viz/mauricio_alfalfa_groups_7_22_combined.yaml: qc/mauricio_alfalfa_groups_7_22_combined.yaml
