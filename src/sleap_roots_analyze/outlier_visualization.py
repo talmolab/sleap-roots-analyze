@@ -188,6 +188,15 @@ def create_outliers_per_genotype_plot(
     Returns:
         Matplotlib figure object
     """
+    # genotype is a categorical label, never a quantity. Some pipelines carry a
+    # mix of numeric-looking accessions (int/float after upstream dtype
+    # inference) and named cultivars (str) in the same column -- sorted() then
+    # raises "'<' not supported between instances of 'int' and 'str'". Force a
+    # single consistent string dtype before sorting or comparing, regardless of
+    # what dtype the caller's DataFrame happens to carry.
+    df = df.copy()
+    df[genotype_col] = df[genotype_col].astype(str)
+
     # Collect outlier counts per genotype per method
     genotypes = sorted(df[genotype_col].unique())
     methods = [m for m in all_outlier_results.keys() if m != "combined"]

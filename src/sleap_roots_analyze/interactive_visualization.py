@@ -558,6 +558,14 @@ def create_interactive_umap_with_hover_highlight(
     if genotype_col not in df.columns:
         raise ValueError(f"Genotype column '{genotype_col}' not found in dataframe")
 
+    # genotype is a categorical label, never a quantity -- normalize to a single
+    # string dtype before sorting (see outlier_visualization.py's
+    # create_outliers_per_genotype_plot for the same fix and rationale: mixed
+    # int/str values in this column raise "'<' not supported between instances
+    # of 'int' and 'str'").
+    df = df.copy()
+    df[genotype_col] = df[genotype_col].astype(str)
+
     # Get unique genotypes
     unique_genotypes = sorted(df[genotype_col].unique())
 
