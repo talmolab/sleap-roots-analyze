@@ -424,7 +424,18 @@ If a file exists:
 3. **Use sanitized column names** in the Viz config:
    - `columns.barcode: "Barcode"`
    - `columns.genotype: "Genotype"`
-   - `columns.replicate: "Replicate"`
+   - `columns.replicate`: **must match the QC config's own `columns.replicate` setting for this
+     same analysis** — `"Replicate"` if the QC config sets a real replicate column, or `null` if
+     the QC config omits `columns.replicate` entirely (e.g. cylinder data with no replicate
+     factor). The QC pipeline only sanitizes a column to the literal name `Replicate` when its own
+     `columns.replicate` was set (see `cleanup_traits.py`: `"Replicate" if config.columns.replicate
+     else None`) — if the QC config omitted it, no `Replicate` column exists anywhere downstream,
+     and hardcoding `"Replicate"` here makes `calculate_heritability_estimates` fail with
+     `Missing required columns: ['Replicate']` on EVERY trait, silently (exit code 0, no log
+     error) for both `08_heritability_results.csv` and `08_blup_adjusted_means.csv`. This is not
+     hypothetical — it has broken real deliverables twice already (see sleap-roots-analyze#212):
+     do not copy the template's literal `"Replicate"` value without checking the paired QC config
+     first.
    - `columns.image_path: "Image_Path"` (if images available, else `null`)
    - Explain: "These are the standardized names that the QC pipeline outputs after column renaming."
 
@@ -487,6 +498,20 @@ validate_qc_config(qc_config)  # Will raise ValueError if invalid
 # Validate Viz config
 viz_config = load_viz_config("configs/active/viz/<analysis_name>.yaml")
 validate_viz_config(viz_config)  # Will raise ValueError if invalid
+```
+
+**Cross-config column check (sleap-roots-analyze#212 recurrence prevention):** `validate_*_config`
+only checks each file in isolation and will NOT catch a viz config expecting a `Replicate` column
+that the paired QC config never produces. Explicitly compare the two:
+
+```python
+qc_replicate_set = bool(qc_config.columns.replicate)
+viz_replicate_set = bool(viz_config.columns.replicate)
+if qc_replicate_set != viz_replicate_set:
+    # STOP — mismatch will silently break every trait's heritability/BLUP at runtime
+    # (exit code 0, no log error). Fix viz_config.columns.replicate to match the QC
+    # config's choice (null if QC omits replicate, "Replicate" if QC sets one) before
+    # proceeding to Step 8.
 ```
 
 If validation fails:
