@@ -438,6 +438,19 @@ def calculate_heritability_estimates(
     if missing_cols:
         return {"error": f"Missing required columns: {missing_cols}"}
 
+    # genotype is a categorical label, never a quantity. A DataFrame that has
+    # round-tripped through an intermediate CSV write/read (as pipeline steps
+    # do between stages) can lose its original dtype: numeric-looking
+    # accessions (e.g. "600824") get re-inferred as int/float on the next
+    # read_csv while named cultivars stay str, producing a mixed-type column.
+    # patsy/statsmodels then raises "'<' not supported between instances of
+    # 'int' and 'str'" while building the mixed-model design (reproduced on a
+    # real 3,343-row alfalfa GWAS dataset -- every one of 925 traits failed
+    # with this exact error before this fix). Force a single string dtype
+    # regardless of what the caller's DataFrame carries.
+    df = df.copy()
+    df[genotype_col] = df[genotype_col].astype(str)
+
     # Every fixed_effects name is interpolated directly into the formula
     # string below (issue #114); a name that isn't a valid identifier (e.g.
     # containing a patsy operator like `*` or `:`) could otherwise silently
