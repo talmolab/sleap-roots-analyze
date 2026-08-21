@@ -1,0 +1,22 @@
+# Run Manifest: SAM_PEP (Maurizio Chiurazzi)
+#
+# Dataset: Z:/users/eberrigan/20260818_Maurizio_Chiurazzi_SAM_PEP/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv
+# Analysis date: 2026-08-20
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_sam_pep.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "SAM_PEP Maurizio Chiurazzi"
+description: "QC and Viz for SAM_PEP Arabidopsis dose-response (WT-control/1uM/0.5uM), Bloom experiment 801490 (2026-08-20). Groups: plant_age_days (7, 13, 23 DAG)."
+
+qc_configs:
+  - qc/sam_pep.yaml
+
+viz_configs:
+  - viz/sam_pep.yaml
+
+qc_mapping:
+  viz/sam_pep.yaml: qc/sam_pep.yaml
