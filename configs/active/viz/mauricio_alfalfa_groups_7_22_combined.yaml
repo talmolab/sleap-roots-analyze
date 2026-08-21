@@ -33,7 +33,7 @@ data:
 columns:
   barcode: "Barcode"
   genotype: "Genotype"
-  replicate: "Replicate"
+  replicate: null  # cylinder data has no replicate factor -- matches QC config's omission (issue #142: replicate values are never used in the model)
   image_path: null
 
 statistics:
