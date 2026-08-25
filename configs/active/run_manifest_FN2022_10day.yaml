@@ -1,0 +1,25 @@
+# Run Manifest: FN2022_10day
+#
+# Dataset: Z:/users/eberrigan/20260821_Sanghwa_Lee_FN2022/10_day_old/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv
+# Analysis date: 2026-08-25
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_FN2022_10day.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "FN2022_10day"
+description: "QC and Viz for FN2022 age-10 rice cylinder scans (2026-08-25). Ungrouped, 1152 samples, 71 genotypes."
+
+# QC configs are run FIRST
+qc_configs:
+  - qc/FN2022_10day.yaml
+
+# Viz configs are run AFTER QC (csv_path auto-updated to QC output).
+viz_configs:
+  - viz/FN2022_10day.yaml
+
+# Config-to-QC mapping for path auto-update
+qc_mapping:
+  viz/FN2022_10day.yaml: qc/FN2022_10day.yaml
