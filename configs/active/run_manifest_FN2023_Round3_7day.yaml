@@ -1,0 +1,22 @@
+# Run Manifest: FN2023_Round3_7day
+#
+# Dataset: Z:/users/eberrigan/20260910_Sanghwa_Lee_FN2023_Round3/7_day_old/sleap_roots_traits_output/traits_summary_with_genotype_no_root_widths.csv
+# Analysis date: 2026-09-13
+# Generated from: run_manifest_template.yaml
+#
+# Reproduce this run:
+#   sleap-roots-analyze run-all configs/active/run_manifest_FN2023_Round3_7day.yaml
+#
+# All paths are relative to configs/active/
+
+run_name: "FN2023_Round3_7day"
+description: "QC and Viz for FN2023_Round3 age-7 rice cylinder scans (2026-09-13). Ungrouped, 1697 samples, 102 genotypes."
+
+qc_configs:
+  - qc/FN2023_Round3_7day.yaml
+
+viz_configs:
+  - viz/FN2023_Round3_7day.yaml
+
+qc_mapping:
+  viz/FN2023_Round3_7day.yaml: qc/FN2023_Round3_7day.yaml
