@@ -41,7 +41,9 @@ Report to the user:
 
 **Statistical guardrails at inspection time:**
 
-1. For each group_by candidate, show the group sizes. Flag any group with n < 30 with:
+1. For each group_by candidate, show the group sizes. These sizes matter **only if the GROUPED template ends up being used with that column as `data.group_by`** (Step 2.1) — the grouped template fans out into one separate QC/outlier-detection run per group value (confirmed in `pipeline_runner.py`: `group_by` triggers per-group QC subprocess invocations), so each group's own row count is what Mahalanobis sees in that case. If the UNGROUPED template is used instead, outlier detection (including Mahalanobis) runs once over the *entire* dataset — the relevant n is `result["n_samples"]` (the whole dataset), not any column's category sizes, even if that column (e.g. genotype) has few members per value. Don't apply the group-size warning to a column that isn't the actual `group_by` choice.
+
+   Flag any group with n < 30 (grouped-template case only) with:
    ```python
    from sleap_roots_analyze.config_authoring import warn_mahalanobis_small_n
    # for each group: warn_mahalanobis_small_n(group_size)
@@ -156,10 +158,10 @@ Ask the user about outlier detection **one step at a time**:
 
 - **If mahalanobis selected, chi2_percentile?**
   - Ask: "What chi-squared percentile threshold for outlier detection?"
-  - Explain: "Higher = stricter (fewer outliers flagged)"
-  - Default: 99.0 (strict - only top 1% flagged as outliers)
-  - Alternative: 95.0 (permissive - top 5% flagged)
-  - Adjust recommendation down to 95.0 if any group has n < 30
+  - Explain: "Higher = stricter (fewer outliers flagged, less data removed). Lower = more samples get flagged as outliers and removed."
+  - Default: 99.0 (only top 1% flagged as outliers)
+  - Alternative: 95.0 (top 5% flagged — removes *more* data, not less)
+  - **Do NOT lower this to "protect" a small sample** — lowering the percentile flags *more* points as outliers, removing more data from an already-limited dataset, which is the opposite of protective. If n is small (per the grouped/ungrouped scoping above — n<30 for the actual outlier-detection unit, whole dataset or per-group), the real concern is that Mahalanobis's covariance estimate becomes unstable/unreliable at small n; a percentile tweak doesn't fix that. Prefer suggesting `isolation_forest` instead in that case, or proceed with the default 99.0 and flag the small-n caveat to the user rather than silently adjusting the threshold.
   - User specifies or accepts default
 
 **3.7 — Heritability**
