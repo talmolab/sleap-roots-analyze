@@ -52,7 +52,10 @@ def warn_mahalanobis_small_n(n_samples: int) -> str | None:
     """Return a warning string when Mahalanobis chi-squared is unreliable.
 
     The chi-squared approximation for Mahalanobis distances requires n >= 30
-    to be statistically reliable.
+    to be statistically reliable: at small n the covariance estimate is
+    unstable. Lowering ``chi2_percentile`` (e.g. 99.0 -> 95.0) does not fix
+    this. It flags *more* samples as outliers and removes more data from an
+    already-small group, so the warning does not recommend it.
 
     Args:
         n_samples: Number of samples in the group.
@@ -70,9 +73,11 @@ def warn_mahalanobis_small_n(n_samples: int) -> str | None:
         return None
     return (
         f"WARNING: Mahalanobis chi-squared outlier detection is unreliable for "
-        f"n<30. This group has only {n_samples} samples. Consider using a more "
-        f"permissive chi2_percentile (e.g. 95.0 instead of 99.0) or disabling "
-        f"outlier detection for this group."
+        f"n<30. This group has only {n_samples} samples, so the covariance "
+        f"estimate is unstable. Consider using isolation_forest instead, or keep "
+        f"the default chi2_percentile (99.0) and treat the flagged outliers with "
+        f"caution. Do not lower chi2_percentile: that flags more samples as "
+        f"outliers and removes more data."
     )
 
 
