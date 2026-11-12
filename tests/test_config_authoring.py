@@ -103,6 +103,24 @@ class TestWarnMahalanobisSmallN:
         assert result is not None
         assert "5" in result
 
+    def test_warning_does_not_recommend_lowering_percentile(self):
+        """Lowering chi2_percentile flags MORE outliers, so it must not be advised.
+
+        A lower percentile (e.g. 95.0 vs 99.0) removes more data from an
+        already-small group, which is the opposite of protective.
+        """
+        result = warn_mahalanobis_small_n(10)
+        assert result is not None
+        assert "95" not in result
+        assert "permissive" not in result.lower()
+
+    def test_warning_explains_covariance_and_suggests_alternative(self):
+        """Warning names the real issue (unstable covariance) and an alternative."""
+        result = warn_mahalanobis_small_n(10)
+        assert result is not None
+        assert "covariance" in result.lower()
+        assert "isolation_forest" in result
+
     def test_warning_mentions_chi_squared(self):
         """Warning text mentions chi-squared reliability issue."""
         result = warn_mahalanobis_small_n(10)
