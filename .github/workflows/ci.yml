@@ -181,7 +181,7 @@ jobs:
           - os: windows
             runs-on: windows-latest
           - os: mac
-            runs-on: macos-14
+            runs-on: macos-15
         python: [3.11]
 
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -234,7 +234,7 @@ jobs:
     # Large-dataset/OOM-regression tests (added by #210) that disproportionately erode the
     # tests job's timeout margin (issue #217). Split into their own job so they keep running
     # on every PR without threatening the fast suite's 30-minute budget. Modeled directly on
-    # the tests job above — same matrix (including the macos-14 pin, not macos-latest), same
+    # the tests job above — same matrix (including the macos-15 pin, not macos-latest), same
     # timeout, same fail-fast, same setup steps.
     timeout-minutes: 30
     strategy:
@@ -247,7 +247,7 @@ jobs:
           - os: windows
             runs-on: windows-latest
           - os: mac
-            runs-on: macos-14
+            runs-on: macos-15
         python: [3.11]
 
     name: Slow tests (${{ matrix.os }}, Python ${{ matrix.python }})
